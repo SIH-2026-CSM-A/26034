@@ -1,0 +1,42 @@
+{
+  "sku_id": "cosmetics_himalaya_face_wash_100ml",
+  "sample_id": "cosmetics_himalaya_face_wash_100ml_001",
+  "category": "cosmetics",
+  "image_filename": "001.jpg",
+  "difficulty_tags": ["curved", "flexible_pouch"],
+  "reference_object": {
+    "present": true,
+    "known_dimension_mm": 50.0
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "area_cm2": 77.0
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true
+    },
+    "commodity_name": {
+      "declared": true
+    },
+    "net_quantity": {
+      "declared": true
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true
+    },
+    "retail_sale_price_mrp": {
+      "declared": true
+    },
+    "unit_sale_price": {
+      "declared": true
+    },
+    "consumer_care_details": {
+      "declared": true
+    },
+    "country_of_origin": {
+      "declared": true
+    }
+  },
+  "ground_truth_verdict": "PASS"
+}
