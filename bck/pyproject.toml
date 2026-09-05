@@ -67,3 +67,9 @@ modules = [
     "app.modules.tamper",
     "app.modules.evidence",
 ]
+
+[[tool.importlinter.contracts]]
+name = "No bck.* import path - app is the only package root"
+type = "forbidden"
+source_modules = ["app"]
+forbidden_modules = ["bck"]
