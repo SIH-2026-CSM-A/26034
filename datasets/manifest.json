@@ -9,7 +9,7 @@
       "category": "cosmetics",
       "relative_image_path": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_001/cosmetics_himalaya_face_wash_100ml_001.jpg",
       "annotation_path": null,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "cd91c7df2338b9fd8adeab0eb7ed770c95aa88f8b0d01fd2d4aa573aee4cb23f",
       "ingestion_status": "MISSING_ANNOTATION"
     },
     {
@@ -27,7 +27,7 @@
       "category": "cosmetics",
       "relative_image_path": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/cosmetics_himalaya_face_wash_100ml_002.jpg",
       "annotation_path": null,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "e4df70bd48a2319f3e4d61a1e312cf3244ae8f8e1eab0c2b65ab4972a20b226d",
       "ingestion_status": "MISSING_ANNOTATION"
     },
     {
@@ -45,7 +45,7 @@
       "category": "food",
       "relative_image_path": "datasets/raw/food/food_parle_g_biscuits_001/food_parle_g_biscuits_001.jpg",
       "annotation_path": null,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "df6acb2faab83ef8ac358e8dc7066401a3b59ce333b4438d0259706050a11bf4",
       "ingestion_status": "MISSING_ANNOTATION"
     },
     {
@@ -72,7 +72,7 @@
       "category": "food",
       "relative_image_path": "datasets/raw/food/food_parle_g_biscuits_002/food_parle_g_biscuits_002.jpg",
       "annotation_path": null,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "da0a79e77e177b36fd76478a017d58263932684223724fb5515dfc042d13f8ae",
       "ingestion_status": "MISSING_ANNOTATION"
     },
     {
