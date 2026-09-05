@@ -1,3 +1,9 @@
+class QualityReason(StrEnum):
+    PASS = "PASS"
+    BLUR_EXCESSIVE = "BLUR_EXCESSIVE"
+    GLARE_EXCESSIVE = "GLARE_EXCESSIVE"
+    INCOMPLETE = "INCOMPLETE"
+
 from dataclasses import dataclass
 
 import cv2
@@ -21,7 +27,7 @@ class QualityResult:
     blur_score: float
     glare_fraction: float
     completeness_score: float
-    reason_code: str
+    reason_code: QualityReason
 
 
 def _order_points(pts: np.ndarray) -> np.ndarray:
