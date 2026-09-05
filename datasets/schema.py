@@ -252,7 +252,7 @@ class Rule6Declarations(BaseModel):
     )
     # Rule 6(1)(g) & GSR 128(E): Country of origin
     country_of_origin: DeclarationField = Field(
-        description="Rule 6(1)(g) / GSR 128(E) Country of origin declaration."
+        description="Rule 6(1)(aa) Country of origin declaration."
     )
 
 
