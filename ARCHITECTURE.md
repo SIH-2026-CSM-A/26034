@@ -1,4 +1,6 @@
-# ARCHITECTURE.md — 26034 · Legal Metrology Packaged Commodities Compliance
+# ARCHITECTURE.md — PCCS · Packaged Commodity Compliance System
+
+SIH 2026, problem statement 26034. Legal Metrology (Packaged Commodities) Rules 2011.
 
 ## Stack
 
@@ -21,6 +23,11 @@
 ```
 bck/app/contracts/          Cross-module types. Imports nothing. Single source of truth
                             for the per-field state enum, verdict enum, rule schema, DTOs.
+                            v1 shipped in CTR-002: FieldState, Verdict, DeclarationField,
+                            EvidenceProvider, ExtractedSpan, NormalisedField,
+                            MeasurementResult, RuleDefinition, RuleSetVersion,
+                            RuleParameterSnapshot, FieldFinding, VerdictRecord,
+                            CatalogueRecord.
 bck/app/core/               Auth, RBAC, jurisdiction scoping, config, cost ceilings.
 bck/app/pipeline/           Ingestion endpoints, orchestration, offline sync. Composes
                             modules; modules never compose each other.
@@ -105,6 +112,14 @@ re-validate against the authoritative rule-set on reconnect.
 - **Five per-field states, not four** — PASS / FAIL / REVIEW_REQUIRED / NOT_APPLICABLE /
   INSUFFICIENT_EVIDENCE. Collapsing INSUFFICIENT_EVIDENCE into FAIL conflates "we could
   not see it" with "it is not there", which is a wrongful-flag liability.
+- **A tolerance is stored with its basis** — the First Schedule states maximum
+  permissible error as a percentage of declared quantity, while a money tolerance is an
+  absolute amount. `Decimal("0.05")` alone is either five paise or five percent, so
+  `tolerance` without `tolerance_basis` fails to construct. Rejected storing the two as
+  one pre-resolved number: it cannot be re-derived from the gazette text afterwards.
+- **Rounding increment is a separate field from tolerance** — an increment transforms a
+  value in steps, a tolerance accepts a difference, and they diverge at every boundary.
+  Rule 6(11) uses neither; the schema still expresses both, for the rules that do.
 - **Python 3.11, not 3.12** — PaddlePaddle and several CV wheels lag on newer releases.
 
 ## Technical debt
@@ -118,7 +133,6 @@ re-validate against the authoritative rule-set on reconnect.
       rule schema entirely.
 - [ ] F18 unit-sale-price tolerance is ±0.01 in one document and ±0.05 in another.
       Unresolved; blocks encoding F18.
-- [ ] Product name is a placeholder across the whole document set.
 - [ ] `26167` in the same org has no branch protection. Write access there is direct-push.
 
 ---
