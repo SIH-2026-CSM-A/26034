@@ -40,6 +40,10 @@ class MeasurementExact(ContractModel):
     mode: Literal["exact"] = "exact"
     value: float = Field(gt=0)
     unit: str = Field(min_length=1)
+    rule_limb: str | None = None
+    """Which limb of the rule the figure is to be compared against, where the rule has
+    more than one — Rule 7(4) computes principal display panel area differently for
+    rectangular, cylindrical and other packages."""
 
 
 class MeasurementCalibrated(ContractModel):
@@ -52,7 +56,13 @@ class MeasurementCalibrated(ContractModel):
 
     mode: Literal["calibrated"] = "calibrated"
     value: float = Field(gt=0)
-    confidence_interval: float = Field(gt=0)
+    confidence_interval: float = Field(ge=0)
+    """Half-width of the interval around :attr:`value`.
+
+    Zero is permitted and meaningful: a zero-variance observation — a uniform crop in a
+    contrast-ratio measurement, say — yields an interval of exactly 0.0. Rejecting that
+    would force a genuine measurement to be reported as a refusal. Negative is rejected;
+    an interval cannot run backwards."""
     unit: str = Field(min_length=1)
     reference_object: str = Field(min_length=1)
     rule_limb: str | None = None

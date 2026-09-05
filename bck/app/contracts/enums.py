@@ -109,7 +109,26 @@ class DeclarationField(StrEnum):
     """
 
     COUNTRY_OF_ORIGIN = "COUNTRY_OF_ORIGIN"
-    """Rule 6(1)(aa) — country of origin, manufacture or assembly for imported products."""
+    """Rule 6(1)(aa) — "The name of the country of origin or manufacture or assembly in
+    case of imported products shall be mentioned on the package".
+
+    This member is the declaration *on the package*, which is the obligation a scan can
+    evaluate.
+
+    Two separate provisions govern country of origin and they are not interchangeable.
+    The second is **Rule 6(10A)**, inserted by G.S.R. 128(E) with effect from 1 July 2026
+    and substituted by G.S.R. 312(E) with effect from 1 July 2027: "Every e-commerce
+    entity offering for sale any imported product shall ... ensure that the product
+    listing of such imported product contains a searchable and sortable filter specifying
+    the country of origin." That is an obligation on the e-commerce entity about how a
+    listing is presented, not a declaration borne by the package, and it is evaluated
+    against a :class:`~app.contracts.records.CatalogueRecord` rather than against a scan.
+    It has no field of its own here because it is not a declaration.
+
+    Neither provision routes through Rule 6(1)(g). The catch-all limb is for matter
+    specified elsewhere in the Rules with no express clause of its own; country of origin
+    has clause (aa).
+    """
 
     COMMON_OR_GENERIC_NAME = "COMMON_OR_GENERIC_NAME"
     """Rule 6(1)(b) — the common or generic name of the commodity, and for a package

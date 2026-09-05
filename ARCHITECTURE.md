@@ -131,8 +131,6 @@ re-validate against the authoritative rule-set on reconnect.
       not yet modelled in the sector-override set.
 - [ ] Combination Package and Group Package (Amendment Rules 2023) are absent from the
       rule schema entirely.
-- [ ] F18 unit-sale-price tolerance is ±0.01 in one document and ±0.05 in another.
-      Unresolved; blocks encoding F18.
 - [ ] `26167` in the same org has no branch protection. Write access there is direct-push.
 
 ---

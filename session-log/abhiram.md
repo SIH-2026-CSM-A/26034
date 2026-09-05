@@ -71,6 +71,32 @@
   and then `from app.modules.measurement import ...` to a contracts module. `lint-imports`
   exited 1 naming the violation both times, exits 0 clean.
 
+**Review round 1 — three defects fixed, one citation corrected**
+- Rebased onto `main`; MEA-002 merged as #13 while this PR was open, which is what
+  surfaced the first two.
+- `MeasurementExact` was missing `rule_limb`. MEA-002 added it and
+  `calculate_pdp_area`'s artwork branch constructs with it, so `extra="forbid"` would
+  have raised the moment she swapped. Added, matching `MeasurementCalibrated`.
+- `confidence_interval` was `gt=0`, but `measure_contrast_ratio` returns exactly 0.0 for
+  a zero-variance crop and her merged test asserts that value. Relaxed to `ge=0`;
+  negative still rejected. Being strict here would have pushed a real measurement into
+  INSUFFICIENT_EVIDENCE, which is the exact confusion this project must not make.
+- `COUNTRY_OF_ORIGIN` citation checked against the corpus rather than reconciled by
+  preference. Rule 6(1)(aa) is the package declaration — "shall be mentioned on the
+  package". G.S.R. 128(E) does not touch 6(1): it inserts **Rule 6(10A)** (in force
+  01.07.2026, substituted by G.S.R. 312(E) from 01.07.2027), obliging an *e-commerce
+  entity* to provide a searchable and sortable country-of-origin filter in listings.
+  Two different provisions with two different targets, so the docstring documents both
+  and says which one this field is. Neither routes through 6(1)(g).
+  **`datasets/schema.py` (DAT-001, merged) cites "Rule 6(1)(g) / GSR 128(E)" for this
+  field and is wrong on both limbs — Aashritha's file, raised not edited.**
+- Struck the F18 unit-sale-price tolerance blocker from ARCHITECTURE.md and TODO.md.
+  COR-001 resolved it: Rule 6(11) is a format rule with no tolerance and no rounding
+  increment, and the ±₹0.01 / ±₹0.05 figures were assumptions, not law.
+- Verified the swap end-to-end rather than by inspection: ran Yashashvi's merged
+  measurement suite with the contracts models substituted for her local ones. All 8
+  pass. MEA-002 is a delete-and-import.
+
 **Incomplete**
 - `tamper/` and `evidence/` have no contract types of their own yet — nothing crosses a
   boundary from them until EVD-002 and the tamper ticket exist. Deliberate, not forgotten.

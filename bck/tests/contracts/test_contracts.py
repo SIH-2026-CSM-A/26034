@@ -182,6 +182,47 @@ def test_the_two_permitted_millimetre_shapes_construct() -> None:
     assert calibrated.reference_object == "coin_10"
 
 
+def test_exact_mode_carries_the_rule_limb_it_was_computed_under() -> None:
+    """Rule 7(4) computes PDP area differently per package form, and the artwork path
+    records which limb it used — same field as the calibrated variant."""
+    exact = MeasurementExact(value=64.0, unit="cm\u00b2", rule_limb="cylindrical 40%")
+    assert exact.rule_limb == "cylindrical 40%"
+    assert MeasurementExact(value=2.5, unit="mm").rule_limb is None
+
+    through_union = MEASUREMENT_ADAPTER.validate_python(
+        {"mode": "exact", "value": 64.0, "unit": "cm\u00b2", "rule_limb": "rectangular"},
+    )
+    assert isinstance(through_union, MeasurementExact)
+    assert through_union.rule_limb == "rectangular"
+
+
+def test_a_zero_width_confidence_interval_is_a_valid_measurement() -> None:
+    """A zero-variance observation yields an interval of exactly 0.0.
+
+    A uniform text crop against a uniform background has no luminance spread, so the
+    interval is genuinely zero. That is a measurement, not a refusal, and rejecting it
+    would push a real reading into INSUFFICIENT_EVIDENCE.
+    """
+    measured = MeasurementCalibrated(
+        value=21.0,
+        confidence_interval=0.0,
+        unit="ratio",
+        reference_object="color_variance",
+    )
+    assert measured.confidence_interval == 0.0
+
+
+def test_a_negative_confidence_interval_is_still_rejected() -> None:
+    """An interval cannot run backwards."""
+    with pytest.raises(ValidationError):
+        MeasurementCalibrated(
+            value=21.0,
+            confidence_interval=-0.1,
+            unit="ratio",
+            reference_object="color_variance",
+        )
+
+
 def test_a_refusal_is_the_only_shape_with_no_value() -> None:
     refusal = MEASUREMENT_ADAPTER.validate_python({"mode": "refusal", "reason": "glare"})
     assert isinstance(refusal, MeasurementRefusal)

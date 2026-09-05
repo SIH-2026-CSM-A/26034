@@ -60,8 +60,11 @@ assignment record.
 *(Product name settled 2026-09-05: PCCS — Packaged Commodity Compliance System.
 Applied across README, ARCHITECTURE, AGENTS and CLAUDE in CTR-002.)*
 
-- [ ] **F18 unit sale price tolerance** — ±₹0.01 in one document, ±₹0.05 in another.
-      Needs a read of Rule 6(11)'s rounding language. Blocks encoding F18.
+*(F18 unit sale price settled in COR-001: Rule 6(11) is a format rule prescribing the
+unit basis, with no tolerance and no rounding increment. The ±₹0.01 and ±₹0.05 figures
+were assumptions in earlier project documents, not law, and must not be encoded. See
+`rules-corpus/README.md`.)*
+
 - [ ] **Medical devices carve-out** — Amendment Rules 2025 route numeral and letter
       height to the Medical Devices Rules 2017 and disapply the Rule 33 relaxation and
       PDP declaration. Rule 7 Table-I is not universal. Not yet in the sector-override
