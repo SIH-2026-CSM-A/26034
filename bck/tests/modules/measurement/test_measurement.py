@@ -63,6 +63,12 @@ def test_ink_extent_measured_correctly():
     assert result.unit == "mm"
     assert result.reference_object == "coin_10"
 
+    # Assert that the bounding box extent (200 px) and ink extent (101 px) diverge, 
+    # proving the Otsu thresholding successfully isolated the ink from the padding.
+    theoretical_mm_per_px = 0.5
+    padded_bbox_height_mm = numeral_image.shape[0] * theoretical_mm_per_px
+    assert result.value < padded_bbox_height_mm * 0.6  # 50.5 mm is much smaller than 100 mm
+
 
 def test_absent_reference_object_returns_refusal():
     """Assert that absent a reference object, the API returns the explicit refusal mode."""

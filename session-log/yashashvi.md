@@ -10,4 +10,4 @@
 - Added/updated tests for the measurement behaviour.
 - All required checks passed, including pytest (`9 passed`).
 - Raised the MEA-001 Pull Request and moved the ClickUp ticket to `review`.
-- The `MeasurementResult` contract swap remains pending until `CTR-002` is merged.
+- Noted that `MeasurementResult`, `MeasurementExact`, `MeasurementCalibrated`, and `MeasurementRefusal` are local stand-ins until `CTR-002` lands, matching the agreed approach.
