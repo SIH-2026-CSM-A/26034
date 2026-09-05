@@ -1,0 +1,18 @@
+# Review is routed by directory. Everything has an owner; the root line is the
+# fallback so nothing lands unreviewed.
+#
+# Modules without a confirmed GitHub username fall back to @Abhiram-0910 — update the
+# line when the username is confirmed, don't guess it.
+
+*                             @Abhiram-0910
+
+bck/app/modules/vision/       @aksha08-ya
+bck/app/modules/extraction/   @krishbattula4
+bck/app/modules/evidence/     @Shiva-Kumar-Akula
+bck/app/modules/tamper/       @adepushivasai901-ops
+
+bck/app/contracts/            @Abhiram-0910
+bck/app/core/                 @Abhiram-0910
+bck/app/pipeline/             @Abhiram-0910
+bck/alembic/                  @Abhiram-0910
+.github/                      @Abhiram-0910
