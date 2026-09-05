@@ -1,0 +1,143 @@
+{
+  "sample_id": "food_mtr_gulab_jamun_tin_1kg_001",
+  "sku_id": "food_mtr_gulab_jamun_tin_1kg",
+  "image_filename": "food_mtr_gulab_jamun_tin_1kg_001.jpg",
+  "image_sha256": "7a3562e811c4c1a71ef07dfec2b012354e601267b14421bb463ab3f923d3876e",
+  "category": "food",
+  "difficulty_tags": [
+    "curved",
+    "glare",
+    "missing_month_year",
+    "uncalibrated"
+  ],
+  "known_issues": [
+    "missing_month_year"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "cylindrical",
+    "height_cm": 14.0,
+    "width_cm": null,
+    "circumference_cm": 32.0,
+    "total_surface_area_cm2": null,
+    "area_cm2": 179.2,
+    "is_measurable": true,
+    "rule7_band": "100_lt_A_le_500",
+    "rule7_min_height_mm": 2.5
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MTR Foods Pvt. Ltd., #80, Subbarama Chetty Road, Netkallappa Circle, Basavanagudi, Bengaluru 560004.",
+      "normalised_value": {
+        "name": "MTR Foods Pvt. Ltd.",
+        "address": "#80, Subbarama Chetty Road, Netkallappa Circle, Basavanagudi, Bengaluru 560004",
+        "role": "manufacturer"
+      },
+      "bbox": [0.1, 0.45, 0.9, 0.58],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "GULAB JAMUN",
+      "normalised_value": "Gulab Jamun",
+      "bbox": [0.15, 0.1, 0.85, 0.25],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Weight: 1 kg",
+      "normalised_value": {
+        "value": 1.0,
+        "unit": "kg"
+      },
+      "bbox": [0.1, 0.28, 0.45, 0.38],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "FAIL",
+      "non_compliance_reason": "Month and year of manufacture or packing omitted from package label (Rule 6(1)(d))."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP Rs. 260.00 (Incl. of all taxes)",
+      "normalised_value": {
+        "amount_inr": 260.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.1, 0.62, 0.5, 0.72],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "USP Rs. 260.00 / kg",
+      "normalised_value": {
+        "rate": 260.0,
+        "unit_basis": "per kg"
+      },
+      "bbox": [0.55, 0.62, 0.9, 0.72],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "Toll Free: 1800 425 1828, feedback@mtrfoods.com, Bengaluru 560004",
+      "normalised_value": {
+        "phone": "1800 425 1828",
+        "email": "feedback@mtrfoods.com",
+        "address": "Bengaluru 560004"
+      },
+      "bbox": [0.1, 0.75, 0.9, 0.88],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "Country of Origin: India",
+      "normalised_value": "India",
+      "bbox": [0.1, 0.9, 0.5, 0.96],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "POTENTIAL_VIOLATION",
+  "notes": "Test case with missing date of manufacture (Rule 6(1)(d)). Cylindrical PDP area calculated per 0.40 * H * C."
+}
