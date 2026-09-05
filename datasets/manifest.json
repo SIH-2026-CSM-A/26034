@@ -1,0 +1,43 @@
+{
+  "manifest_version": "1.0",
+  "drive_folder_id": "1A2b3C4d5E",
+  "total_samples": 4,
+  "samples": [
+    {
+      "sample_id": "002",
+      "sku_id": "himalaya_face_wash_100ml",
+      "category": "cosmetics",
+      "relative_image_path": "datasets/raw/cosmetics/himalaya_face_wash_100ml/002.jpg",
+      "annotation_path": "datasets/annotations/cosmetics/002.json",
+      "sha256": "b1e6e1689e8b88ac3682e6126ee7a2bc32100ebd82fa494f40d76b098dc2caf5",
+      "ingestion_status": "READY_FOR_ANNOTATION"
+    },
+    {
+      "sample_id": "001",
+      "sku_id": "himalaya_face_wash_100ml",
+      "category": "cosmetics",
+      "relative_image_path": "datasets/raw/cosmetics/himalaya_face_wash_100ml/001.jpg",
+      "annotation_path": "datasets/annotations/cosmetics/001.json",
+      "sha256": "2a6009517b9456ba8079c45b5f918addcb0288a7b34bdb56b9d59c4b2e810321",
+      "ingestion_status": "READY_FOR_ANNOTATION"
+    },
+    {
+      "sample_id": "002",
+      "sku_id": "parle_g_100g",
+      "category": "food",
+      "relative_image_path": "datasets/raw/food/parle_g_100g/002.jpg",
+      "annotation_path": "datasets/annotations/food/002.json",
+      "sha256": "02ac721fd6a4b04a1a7e1506673f6755d1e5e2fabb0ff160da0b721dbecd7939",
+      "ingestion_status": "READY_FOR_ANNOTATION"
+    },
+    {
+      "sample_id": "001",
+      "sku_id": "parle_g_100g",
+      "category": "food",
+      "relative_image_path": "datasets/raw/food/parle_g_100g/001.jpg",
+      "annotation_path": "datasets/annotations/food/001.json",
+      "sha256": "dfbefe81ec0338c47ed6013202fc9d64302f42ea79d355110769b31de356b242",
+      "ingestion_status": "READY_FOR_ANNOTATION"
+    }
+  ]
+}
