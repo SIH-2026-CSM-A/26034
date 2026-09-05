@@ -66,7 +66,7 @@ def evaluate_quality(
     # 3. Completeness / Coverage evaluation
     _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+    
     max_area = 0.0
     for c in contours:
         area = cv2.contourArea(c)
@@ -129,17 +129,12 @@ def remap_curvature(image: np.ndarray) -> np.ndarray:
     cx = w / 2.0
     radius = w * 0.8
 
-    map_x = np.zeros((h, w), dtype=np.float32)
-    map_y = np.zeros((h, w), dtype=np.float32)
+    x_indices = np.arange(w, dtype=np.float32)
+    val = np.clip((x_indices - cx) / radius, -1.0, 1.0)
+    x_src = cx + radius * np.sin(val)
 
-    for y in range(h):
-        for x in range(w):
-            dx = x - cx
-            val = dx / radius
-            val = max(-1.0, min(1.0, val))
-            x_src = cx + radius * np.sin(val)
-            map_x[y, x] = np.float32(x_src)
-            map_y[y, x] = np.float32(y)
+    map_x = np.tile(x_src.astype(np.float32), (h, 1))
+    map_y = np.tile(np.arange(h, dtype=np.float32)[:, None], (1, w))
 
     return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
@@ -230,15 +225,12 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
     if max_width <= 0 or max_height <= 0:
         return image
 
-    dst = np.array(
-        [
-            [0, 0],
-            [max_width - 1, 0],
-            [max_width - 1, max_height - 1],
-            [0, max_height - 1],
-        ],
-        dtype=np.float32,
-    )
+    dst = np.array([
+        [0, 0],
+        [max_width - 1, 0],
+        [max_width - 1, max_height - 1],
+        [0, max_height - 1],
+    ], dtype=np.float32)
 
     m_matrix = cv2.getPerspectiveTransform(rect, dst)
     return cv2.warpPerspective(image, m_matrix, (max_width, max_height))

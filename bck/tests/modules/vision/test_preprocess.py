@@ -1,3 +1,4 @@
+import time
 import cv2
 import numpy as np
 
@@ -131,3 +132,15 @@ def test_correct_shadows_clahe_chromaticity():
 
     # L channel should differ due to CLAHE contrast enhancement
     assert not np.array_equal(l_in, l_out)
+
+
+def test_remap_curvature_performance_at_realistic_resolution():
+    """A raw Python per-pixel loop would blow this budget; a vectorized
+    implementation should clear it comfortably."""
+    large_image = np.zeros((3000, 4000, 3), dtype=np.uint8)
+    start = time.perf_counter()
+    result = remap_curvature(large_image)
+    elapsed = time.perf_counter() - start
+
+    assert result.shape == large_image.shape
+    assert elapsed < 0.5  # generous budget; a per-pixel Python loop would take 10s+
