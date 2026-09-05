@@ -1,0 +1,72 @@
+> **NOTICE / DISCLAIMER:**
+> This report is an **ORACLE SELF-TEST** used exclusively to verify the mathematical correctness of the evaluation harness (Ground Truth scored against itself).
+> **DO NOT** quote these 1.0000 metrics as actual pipeline or OCR extraction performance. Real baseline evaluation metrics will be generated once physical package images are ingested and processed by the vision model.
+
+Executing self-test evaluation with ground-truth oracle baseline...
+
+==============================================================================================
+LMPC COMPLIANCE EVALUATION REPORT (Total Samples: 8)
+==============================================================================================
+
+--- Overall Performance across Rule 6(1) Fields ---
+----------------------------------------------------------------------------------------------
+Field Name                         | Precision  | Recall     | F1-Score   | TP   | FP   | FN   | Supp
+----------------------------------------------------------------------------------------------
+manufacturer_or_packer             | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+commodity_name                     | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+net_quantity                       | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+date_of_manufacture_or_packing     | 1.0000     | 1.0000     | 1.0000     | 7    | 0    | 0    | 7   
+retail_sale_price_mrp              | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+unit_sale_price                    | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+consumer_care_details              | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+country_of_origin                  | 1.0000     | 1.0000     | 1.0000     | 8    | 0    | 0    | 8   
+----------------------------------------------------------------------------------------------
+MICRO AVERAGE / TOTALS             | 1.0000     | 1.0000     | 1.0000     | 63   | 0    | 0    | 63  
+Macro Average F1: 1.0000
+
+--- Category Slice: FOOD ---
+----------------------------------------------------------------------------------------------
+Field Name                         | Precision  | Recall     | F1-Score   | TP   | FP   | FN   | Supp
+----------------------------------------------------------------------------------------------
+manufacturer_or_packer             | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+commodity_name                     | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+net_quantity                       | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+date_of_manufacture_or_packing     | 1.0000     | 1.0000     | 1.0000     | 4    | 0    | 0    | 4   
+retail_sale_price_mrp              | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+unit_sale_price                    | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+consumer_care_details              | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+country_of_origin                  | 1.0000     | 1.0000     | 1.0000     | 5    | 0    | 0    | 5   
+----------------------------------------------------------------------------------------------
+MICRO AVERAGE / TOTALS             | 1.0000     | 1.0000     | 1.0000     | 39   | 0    | 0    | 39  
+Macro Average F1: 1.0000
+
+--- Category Slice: COSMETICS ---
+----------------------------------------------------------------------------------------------
+Field Name                         | Precision  | Recall     | F1-Score   | TP   | FP   | FN   | Supp
+----------------------------------------------------------------------------------------------
+manufacturer_or_packer             | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+commodity_name                     | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+net_quantity                       | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+date_of_manufacture_or_packing     | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+retail_sale_price_mrp              | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+unit_sale_price                    | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+consumer_care_details              | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+country_of_origin                  | 1.0000     | 1.0000     | 1.0000     | 3    | 0    | 0    | 3   
+----------------------------------------------------------------------------------------------
+MICRO AVERAGE / TOTALS             | 1.0000     | 1.0000     | 1.0000     | 24   | 0    | 0    | 24  
+Macro Average F1: 1.0000
+
+--- Performance Sliced by Difficulty Tag (Macro F1) ---
+-----------------------------------------------------------------
+Difficulty Tag                 | Macro F1     | Evaluated Fields
+-----------------------------------------------------------------
+calibrated                     | 1.0000       | 8           
+crowded                        | 1.0000       | 8           
+curved                         | 1.0000       | 8           
+flexible_pouch                 | 1.0000       | 8           
+glare                          | 1.0000       | 8           
+missing_month_year             | 1.0000       | 7           
+multiscript                    | 1.0000       | 8           
+small_pdp                      | 1.0000       | 8           
+uncalibrated                   | 1.0000       | 8           
+-----------------------------------------------------------------

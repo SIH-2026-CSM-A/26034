@@ -1,0 +1,142 @@
+{
+  "sample_id": "food_amul_butter_100g_001",
+  "sku_id": "food_amul_butter_100g",
+  "image_filename": "food_amul_butter_100g_001.jpg",
+  "image_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+  "category": "food",
+  "difficulty_tags": [
+    "calibrated"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": true,
+    "object_type": "credit_card_id1",
+    "known_dimension_mm": 85.6,
+    "confidence_interval_mm": 0.1,
+    "bbox": [0.7, 0.7, 0.98, 0.95]
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": 6.5,
+    "width_cm": 11.5,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": 74.75,
+    "is_measurable": true,
+    "rule7_band": "50_lt_A_le_100",
+    "rule7_min_height_mm": 1.5
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "Manufactured & Packed by Kaira District Co-operative Milk Producers' Union Ltd., Anand 388001, Gujarat.",
+      "normalised_value": {
+        "name": "Kaira District Co-operative Milk Producers' Union Ltd.",
+        "address": "Anand 388001, Gujarat",
+        "role": "manufacturer"
+      },
+      "bbox": [0.05, 0.45, 0.9, 0.6],
+      "polygon": null,
+      "numeral_height_mm": 1.8,
+      "letter_height_mm": 1.7,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "PASTEURISED BUTTER",
+      "normalised_value": "Pasteurised Butter",
+      "bbox": [0.1, 0.1, 0.9, 0.25],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 5.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Weight: 100 g",
+      "normalised_value": {
+        "value": 100.0,
+        "unit": "g"
+      },
+      "bbox": [0.1, 0.28, 0.45, 0.38],
+      "polygon": null,
+      "numeral_height_mm": 3.0,
+      "letter_height_mm": 2.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "Pkg Date: 01/09/2026",
+      "normalised_value": {
+        "day": 1,
+        "month": 9,
+        "year": 2026
+      },
+      "bbox": [0.55, 0.28, 0.9, 0.38],
+      "polygon": null,
+      "numeral_height_mm": 2.2,
+      "letter_height_mm": 1.8,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP Rs. 58.00 (Incl. of all taxes)",
+      "normalised_value": {
+        "amount_inr": 58.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.1, 0.62, 0.5, 0.72],
+      "polygon": null,
+      "numeral_height_mm": 2.4,
+      "letter_height_mm": 1.8,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "Unit Sale Price: Rs. 0.58 / g",
+      "normalised_value": {
+        "rate": 0.58,
+        "unit_basis": "per g"
+      },
+      "bbox": [0.55, 0.62, 0.92, 0.72],
+      "polygon": null,
+      "numeral_height_mm": 2.0,
+      "letter_height_mm": 1.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "Toll Free: 1800 258 3333, customercare@amul.coop, GCMMF Ltd., Anand 388001",
+      "normalised_value": {
+        "phone": "1800 258 3333",
+        "email": "customercare@amul.coop",
+        "address": "GCMMF Ltd., Anand 388001"
+      },
+      "bbox": [0.05, 0.75, 0.95, 0.88],
+      "polygon": null,
+      "numeral_height_mm": 1.8,
+      "letter_height_mm": 1.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "Country of Origin: India",
+      "normalised_value": "India",
+      "bbox": [0.05, 0.89, 0.5, 0.96],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 1.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "PASS",
+  "notes": "Standard medium PDP rectangular folding carton. Fully compliant."
+}

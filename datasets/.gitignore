@@ -1,0 +1,15 @@
+# Ignore raw image files across datasets/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.bmp
+*.tiff
+*.JPG
+*.JPEG
+*.PNG
+
+# Ignore raw data download directories
+raw/
+images/
+downloads/
