@@ -1,3 +1,7 @@
+> **NOTICE / DISCLAIMER:**
+> This report is an **ORACLE SELF-TEST** used exclusively to verify the mathematical correctness of the evaluation harness (Ground Truth scored against itself).
+> **DO NOT** quote these 1.0000 metrics as actual pipeline or OCR extraction performance. Real baseline evaluation metrics will be generated once physical package images are ingested and processed by the vision model.
+
 Executing self-test evaluation with ground-truth oracle baseline...
 
 ==============================================================================================

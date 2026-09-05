@@ -14,7 +14,10 @@ def calculate_sha256(filepath: Path) -> str:
             hasher.update(chunk)
     return hasher.hexdigest()
 
-def sync_manifest(drive_folder_id: str = "TODO_INSERT_DRIVE_ID") -> Dict[str, Any]:
+def sync_manifest(drive_folder_id: str) -> Dict[str, Any]:
+    if not drive_folder_id or "TODO" in drive_folder_id or "REPLACE" in drive_folder_id:
+        raise ValueError("A valid Google Drive folder ID must be provided to sync the manifest.")
+
     samples = []
 
     if RAW_DIR.exists():
@@ -36,7 +39,6 @@ def sync_manifest(drive_folder_id: str = "TODO_INSERT_DRIVE_ID") -> Dict[str, An
 
     manifest = {
         "manifest_version": "1.0",
-        "updated_at": "2026-09-05T21:09:55Z",
         "drive_folder_id": drive_folder_id,
         "total_samples": len(samples),
         "samples": samples
@@ -45,8 +47,13 @@ def sync_manifest(drive_folder_id: str = "TODO_INSERT_DRIVE_ID") -> Dict[str, An
     with open(MANIFEST_PATH, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"Manifest updated successfully at {MANIFEST_PATH} ({len(samples)} samples found).")
+    print(f"Manifest updated at {MANIFEST_PATH} ({len(samples)} samples found).")
     return manifest
 
 if __name__ == "__main__":
-    sync_manifest()
+    import sys
+    if len(sys.argv) < 2:
+        print("Error: Missing required drive_folder_id argument.")
+        print("Usage: python3 datasets/ingest_images.py <DRIVE_FOLDER_ID>")
+        sys.exit(1)
+    sync_manifest(sys.argv[1])
