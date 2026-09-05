@@ -99,7 +99,8 @@ def test_correct_shadows():
 
 
 def test_correct_perspective_transforms():
-    # Construct an image with a clear quadrilateral quad and assert perspective transform alters shape
+    # Construct an image with a clear quadrilateral quad and
+    # assert perspective transform alters shape
     h, w = 200, 200
     img = np.zeros((h, w, 3), dtype=np.uint8)
     pts = np.array([[50, 50], [150, 30], [180, 170], [20, 180]], dtype=np.int32)
