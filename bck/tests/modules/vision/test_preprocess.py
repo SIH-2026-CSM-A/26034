@@ -110,9 +110,11 @@ def test_correct_perspective_transforms():
     # Assert that warpPerspective successfully executed and changed dimensions/content
     assert warped.shape != img.shape or not np.array_equal(warped, img)
 
+
 def test_correct_shadows_clahe_chromaticity():
-    # Acceptance criterion: take a color image, run correct_shadows, 
-    # convert both input and output to LAB, assert a and b channels are unchanged (within tol) while L differs.
+    # Acceptance criterion: take a color image, run correct_shadows,
+    # convert both input and output to LAB, assert a and b channels
+    # are unchanged (within tol) while L differs.
     img = np.random.randint(50, 200, (100, 100, 3), dtype=np.uint8)
     enhanced = correct_shadows(img)
 
@@ -125,6 +127,6 @@ def test_correct_shadows_clahe_chromaticity():
     # a and b channels must be unchanged (within uint8 quantization tolerance tol=2)
     assert np.allclose(a_in, a_out, atol=2.0)
     assert np.allclose(b_in, b_out, atol=2.0)
-    
+
     # L channel should differ due to CLAHE contrast enhancement
     assert not np.array_equal(l_in, l_out)
