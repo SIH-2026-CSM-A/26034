@@ -262,12 +262,12 @@ member and should not be assigned anything else without the same explicit call.
 
 ## Decisions — addendum
 
-**VP-CI-001's ticket ID stays as written.** `grep -ri veripack` matches the substring
-"veripack"; "VP-CI-001" doesn't contain it and was never the placeholder product name —
-it's the actual branch/PR/ClickUp identifier from when that ticket was live. Renaming it
-retroactively in session logs or SETUP.md would make our own docs disagree with the
-permanent, unchangeable squash-merge commit on GitHub, for no benefit. Left alone in
-TODO.md, SETUP.md, and session-log/abhiram.md.
+**VP-CI-001's ticket ID stays as written.** The project's placeholder-name check
+searches for the retired product name as a substring; "VP-CI-001" doesn't contain it
+and was never that placeholder — it's the actual branch/PR/ClickUp identifier from
+when that ticket was live. Renaming it retroactively in session logs or SETUP.md
+would make our own docs disagree with the permanent, unchangeable squash-merge commit
+on GitHub, for no benefit. Left alone in TODO.md, SETUP.md, and session-log/abhiram.md.
 
 **Cloud provider allocation:** Featherless remains the sole copilot generation
 provider. OpenAI, if used, is scoped to query rewriting/retrieval expansion ahead of
