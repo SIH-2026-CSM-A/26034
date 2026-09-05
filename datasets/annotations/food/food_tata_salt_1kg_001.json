@@ -1,0 +1,145 @@
+{
+  "sample_id": "food_tata_salt_1kg_001",
+  "sku_id": "food_tata_salt_1kg",
+  "image_filename": "food_tata_salt_1kg_001.jpg",
+  "image_sha256": "8f481c7e997a3891461f67f52588f060fe7a4bb74a123f33cf2fec178cf2338c",
+  "category": "food",
+  "difficulty_tags": [
+    "glare",
+    "flexible_pouch",
+    "calibrated"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": true,
+    "object_type": "coin_inr_5",
+    "known_dimension_mm": 25.0,
+    "confidence_interval_mm": 0.2,
+    "bbox": [0.82, 0.8, 0.95, 0.96]
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": 22.0,
+    "width_cm": 15.0,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": 330.0,
+    "is_measurable": true,
+    "rule7_band": "100_lt_A_le_500",
+    "rule7_min_height_mm": 2.5
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "Tata Consumer Products Limited, 1 Bishop Lefroy Road, Kolkata, West Bengal 700020.",
+      "normalised_value": {
+        "name": "Tata Consumer Products Limited",
+        "address": "1 Bishop Lefroy Road, Kolkata, West Bengal 700020",
+        "role": "manufacturer"
+      },
+      "bbox": [0.08, 0.5, 0.92, 0.62],
+      "polygon": null,
+      "numeral_height_mm": 2.8,
+      "letter_height_mm": 2.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "VACUUM EVAPORATED IODISED SALT",
+      "normalised_value": "Vacuum Evaporated Iodised Salt",
+      "bbox": [0.1, 0.15, 0.9, 0.28],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 6.5,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Quantity: 1 kg",
+      "normalised_value": {
+        "value": 1.0,
+        "unit": "kg"
+      },
+      "bbox": [0.1, 0.32, 0.5, 0.42],
+      "polygon": null,
+      "numeral_height_mm": 4.5,
+      "letter_height_mm": 3.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "Date of Pkg: 15/08/2026",
+      "normalised_value": {
+        "day": 15,
+        "month": 8,
+        "year": 2026
+      },
+      "bbox": [0.55, 0.32, 0.92, 0.42],
+      "polygon": null,
+      "numeral_height_mm": 3.2,
+      "letter_height_mm": 2.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP Rs. 28.00 (incl. of all taxes)",
+      "normalised_value": {
+        "amount_inr": 28.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.1, 0.65, 0.5, 0.75],
+      "polygon": null,
+      "numeral_height_mm": 3.5,
+      "letter_height_mm": 2.7,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "Rs. 28.00 per kg",
+      "normalised_value": {
+        "rate": 28.0,
+        "unit_basis": "per kg"
+      },
+      "bbox": [0.55, 0.65, 0.92, 0.75],
+      "polygon": null,
+      "numeral_height_mm": 3.0,
+      "letter_height_mm": 2.6,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "Senior Manager, Consumer Services: 1800 108 4488, care@tataconsumer.com, Tata Consumer Products Ltd, Kolkata 700020",
+      "normalised_value": {
+        "designation": "Senior Manager, Consumer Services",
+        "phone": "1800 108 4488",
+        "email": "care@tataconsumer.com",
+        "address": "Tata Consumer Products Ltd, Kolkata 700020"
+      },
+      "bbox": [0.08, 0.78, 0.92, 0.9],
+      "polygon": null,
+      "numeral_height_mm": 2.7,
+      "letter_height_mm": 2.5,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "Country of Origin: India",
+      "normalised_value": "India",
+      "bbox": [0.08, 0.91, 0.5, 0.97],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 2.5,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "PASS",
+  "notes": "Pillow pouch. Rule 6(11) correctly states 'Rs. __ per kg' since net quantity is >= 1 kg."
+}
