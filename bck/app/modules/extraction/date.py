@@ -1,4 +1,8 @@
-"""Date normaliser for Legal Metrology declarations."""
+"""Date normaliser for Legal Metrology declarations.
+
+Confidence values in this module represent uncalibrated priors. They MUST be
+recalibrated once DAT-001's evaluation set exists.
+"""
 
 import re
 from datetime import date
@@ -10,6 +14,9 @@ from app.modules.extraction.types import (
     ReasonCode,
 )
 
+CONFIDENCE_FULL_DATE = 0.95
+CONFIDENCE_PARTIAL_DATE = 0.90
+
 MONTH_MAP: dict[str, int] = {
     "jan": 1,
     "january": 1,
@@ -20,8 +27,8 @@ MONTH_MAP: dict[str, int] = {
     "apr": 4,
     "april": 4,
     "may": 5,
-    "jun": 6,
     "june": 6,
+    "jun": 6,
     "jul": 7,
     "july": 7,
     "aug": 8,
@@ -94,6 +101,7 @@ def normalise_date(
     # Check for relative expressions, e.g., "Best before 6 months from packing"
     # Named comment for regex over 80 characters:
     # Captures relative period expressions such as "Best before 6 months from packing/pkd"
+    # Intentionally long to support all keyword prefixes (best before, use within, expiry within).
     relative_pat = (
         r"(?:best\s+before|use\s+within|expiry\s+within)\s+(\d+)\s+months?"
         r"(?:\s+from\s+(?:packing|mfg|manufacture|pkd))?"
@@ -126,15 +134,17 @@ def normalise_date(
 
         return NormalizationResult[DateValue](
             value=val,
-            confidence=0.9,
+            confidence=CONFIDENCE_PARTIAL_DATE,
             success=True,
             reason_code=None,
             raw_text=raw,
         )
 
-    # Check for 3-part numeric date candidates (DD.MM.YYYY, DD/MM/YYYY, etc.)
-    # and validate calendar correctness before ambiguity or MM/YYYY parsing
-    three_part_pat = r"\b(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})\b"
+    # Boundary-aware 3-part numeric date candidates (DD.MM.YYYY, DD/MM/YYYY, etc.)
+    # Named comment for regex over 80 characters:
+    # Captures 3-part numeric date strings (DD.MM.YYYY, DD/MM/YYYY, DD-MM-YYYY) with boundary checks
+    # Intentionally long to validate separator flexibility and 2/4 digit year formats.
+    three_part_pat = r"(?:\b|^)(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})(?:\b|$)"
     three_part_matches = list(re.finditer(three_part_pat, raw))
     for match in three_part_matches:
         d_str, m_str, y_str = match.group(1), match.group(2), match.group(3)
@@ -160,20 +170,24 @@ def normalise_date(
             )
 
     # Detect multiple conflicting date occurrences (full dates, MM/YYYY, MM/YY, text months)
-    # -> AMBIGUOUS_VALUE
+    # to return ReasonCode.AMBIGUOUS_VALUE
     full_dates = [m.group(0) for m in three_part_matches]
     raw_without_full = re.sub(three_part_pat, "___FULL_DATE___", raw)
 
-    my_pat = r"\b(?:0?[1-9]|1[012])[\.\/\-](?:20\d{2}|\d{2})\b"
+    # Named comment for regex over 80 characters:
+    # Captures MM/YYYY or MM/YY date formats across string for ambiguity detection
+    # Intentionally long to check numeric month boundaries and separators.
+    my_pat = r"(?:\b|^)(?:0?[1-9]|1[012])[\.\/\-](?:20\d{2}|\d{2})(?:\b|$)"
     my_dates = re.findall(my_pat, raw_without_full)
 
-    # Named comment for regex over 80 characters: captures text-month dates
-    # (e.g. MAR 2026, 15 March 2026) across the full input string for ambiguity detection.
+    # Named comment for regex over 80 characters:
+    # Captures textual month dates (e.g. MAR 2026, 15 March 2026) across string for ambiguity check.
+    # Intentionally long to match all 12 English month names (full and abbreviated).
     text_month_pat_all = (
-        r"\b(?:0?[1-9]|[12][0-9]|3[01])?\s*"
+        r"(?:\b|^)(?:0?[1-9]|[12][0-9]|3[01])?\s*"
         r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|"
         r"aug|august|sep|september|oct|october|nov|november|dec|december)\s*"
-        r"(?:20\d{2}|\d{2})\b"
+        r"(?:20\d{2}|\d{2})(?:\b|$)"
     )
     text_dates = re.findall(text_month_pat_all, raw_without_full, re.IGNORECASE)
 
@@ -201,14 +215,17 @@ def normalise_date(
                 iso_date=iso_str,
                 is_relative=False,
             ),
-            confidence=0.95,
+            confidence=CONFIDENCE_FULL_DATE,
             success=True,
             reason_code=None,
             raw_text=raw,
         )
 
     # 2. Textual month e.g. "15 MAR 2026" or "MAR 2026" or "March 2026"
-    text_month_pat = r"\b(?:(0?[1-9]|[12][0-9]|3[01])\s+)?([a-zA-Z]{3,9})\s+(20\d{2})\b"
+    # Named comment for regex over 80 characters:
+    # Matches textual month date expressions e.g. "15 MAR 2026", "March 2026" with boundaries.
+    # Intentionally long to support optional day prefix and 3-to-9 letter month names.
+    text_month_pat = r"(?:\b|^)(?:(0?[1-9]|[12][0-9]|3[01])\s+)?([a-zA-Z]{3,9})\s+(20\d{2})(?:\b|$)"
     m_text = re.search(text_month_pat, raw)
     if m_text:
         day_str, month_str, year_str = (
@@ -240,14 +257,17 @@ def normalise_date(
                     iso_date=iso_str,
                     is_relative=False,
                 ),
-                confidence=0.9,
+                confidence=CONFIDENCE_PARTIAL_DATE,
                 success=True,
                 reason_code=None,
                 raw_text=raw,
             )
 
     # 3. MM/YYYY or MM/YY
-    m_my = re.search(r"\b(0?[1-9]|1[012])[\.\/\-](20\d{2}|\d{2})\b", raw)
+    # Named comment for regex over 80 characters:
+    # Matches MM/YYYY or MM/YY date formats with word boundary checks.
+    # Intentionally long to validate month range 01-12 and 2-or-4 digit year suffixes.
+    m_my = re.search(r"(?:\b|^)(0?[1-9]|1[012])[\.\/\-](20\d{2}|\d{2})(?:\b|$)", raw)
     if m_my:
         m, y_str = int(m_my.group(1)), m_my.group(2)
         y = int(y_str) if len(y_str) == 4 else 2000 + int(y_str)
@@ -258,7 +278,7 @@ def normalise_date(
                 iso_date=iso_str,
                 is_relative=False,
             ),
-            confidence=0.9,
+            confidence=CONFIDENCE_PARTIAL_DATE,
             success=True,
             reason_code=None,
             raw_text=raw,

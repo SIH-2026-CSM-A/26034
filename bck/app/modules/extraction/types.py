@@ -27,7 +27,7 @@ class NormalizationResult(BaseModel, Generic[T]):
     value: T | None = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     success: bool = False
-    reason_code: ReasonCode | str | None = None
+    reason_code: ReasonCode | None = None
     raw_text: str = ""
 
 
@@ -42,7 +42,7 @@ class MRPValue(BaseModel):
 class NetQuantityValue(BaseModel):
     """Normalized Net Quantity declaration."""
 
-    value: float
+    value: Decimal
     unit: str  # Canonical unit: g, kg, ml, l, N, pcs
     has_emark: bool = False
 

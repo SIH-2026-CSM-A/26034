@@ -1,4 +1,8 @@
-"""Address normaliser for Legal Metrology declarations."""
+"""Address normaliser for Legal Metrology declarations.
+
+Confidence values in this module represent uncalibrated priors. They MUST be
+recalibrated once DAT-001's evaluation set exists.
+"""
 
 import re
 
@@ -8,6 +12,9 @@ from app.modules.extraction.types import (
     NormalizationResult,
     ReasonCode,
 )
+
+CONFIDENCE_ADDRESS_WITH_PINCODE = 0.95
+CONFIDENCE_ADDRESS_WITHOUT_PINCODE = 0.85
 
 ROLE_PATTERNS: list[tuple[AddressRole, list[str]]] = [
     (
@@ -104,12 +111,13 @@ def normalise_address(text: str) -> NormalizationResult[AddressValue]:
     first_part = cleaned_address.split(",")[0].strip()
     # Named comment for regex over 80 characters:
     # Matches common legal company indicators like Pvt Ltd, Private Limited, Inc, Corp, LLP, Ltd
+    # cannot reasonably be split as it defines a unified company suffix pattern.
     suffix_pat = (
         r"\b(?:Pvt\.?\s*Ltd\.?|Private\s+Limited|Co\.\s*Ltd\.?|Inc\.?|Corp\.?|Ltd\.?|LLP)\.?"
     )
     entity_name = first_part if re.search(suffix_pat, first_part, re.IGNORECASE) else None
 
-    confidence = 0.95 if pincode else 0.85
+    confidence = CONFIDENCE_ADDRESS_WITH_PINCODE if pincode else CONFIDENCE_ADDRESS_WITHOUT_PINCODE
 
     return NormalizationResult[AddressValue](
         value=AddressValue(

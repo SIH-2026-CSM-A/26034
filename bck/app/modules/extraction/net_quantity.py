@@ -1,12 +1,20 @@
-"""Net Quantity normaliser for Legal Metrology declarations."""
+"""Net Quantity normaliser for Legal Metrology declarations.
+
+Confidence values in this module represent uncalibrated priors. They MUST be
+recalibrated once DAT-001's evaluation set exists.
+"""
 
 import re
+from decimal import Decimal, InvalidOperation
 
 from app.modules.extraction.types import (
     NetQuantityValue,
     NormalizationResult,
     ReasonCode,
 )
+
+CONFIDENCE_EXPLICIT_QUANTITY_LABEL = 0.95
+CONFIDENCE_STANDARD_QUANTITY_PATTERN = 0.85
 
 CANONICAL_UNITS: dict[str, str] = {
     "g": "g",
@@ -56,28 +64,34 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
 
     raw = text.strip()
 
+    # Detect e-mark prefix/suffix or token
+    # Named comment for regex over 80 characters:
+    # Detects e-mark symbols (℮, e) in prefix, suffix, or token positions
+    # relative to quantity numbers. Intentionally long for ℮ and 'e' variations.
+    has_emark = bool(
+        re.search(
+            r"℮|\b℮\b|^\s*e\s+[0-9]|\b[0-9]+(?:\.[0-9]+)?\s*[a-zA-Z]+\s+e\b|^\s*e-",
+            raw,
+            re.IGNORECASE,
+        )
+    )
+
     # Strip prefix labels like Net Qty, Net Quantity, Qty, etc.
     cleaned = re.sub(r"^(?:Net\s*Quantity|Net\s*Qty|Qty)\s*:?\s*", "", raw, flags=re.IGNORECASE)
 
-    # Scoped e-mark detection: check if ℮ or 'e' is directly preceding or trailing quantity/unit
-    has_emark = bool(
-        re.search(r"℮|\b[0-9]+(?:\.[0-9]+)?\s*[a-zA-Z]+\s*℮|\b℮\s*[0-9]+", raw)
-        or re.search(r"^\s*e\s+[0-9]|\b[0-9]+(?:\.[0-9]+)?\s*[a-zA-Z]+\s+e\b", raw, re.IGNORECASE)
-    )
-
     # Strip leading e-mark prefix if present
-    cleaned = re.sub(r"^(?:℮|\be\b|\be-)\s*", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"^(?:℮|e\s+|e-)\s*", "", cleaned, flags=re.IGNORECASE).strip()
 
     # Detect multiple quantity expressions -> AMBIGUOUS_VALUE
     # Named comment for regex over 80 characters:
-    # Matches all numeric quantity and unit occurrences to detect multiple conflicting
-    # quantity declarations
+    # Captures all quantity and unit occurrences across text for ambiguity detection.
+    # Intentionally long to check for multiple conflicting unit declarations in single string.
     all_qty_matches = re.findall(
         r"\b[0-9]+(?:\.[0-9]+)?\s*(?:g|gram|grams|gm|gms|kg|kilogram|kilograms|ml|millilitre|milliliter|l|liter|litre|litres|N|num|pcs|pieces|units)\b",
         cleaned,
         re.IGNORECASE,
     )
-    if len(all_qty_matches) > 1:
+    if len(all_qty_matches) > 1 and len(set(all_qty_matches)) > 1:
         return NormalizationResult[NetQuantityValue](
             value=None,
             confidence=0.0,
@@ -86,13 +100,15 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
             raw_text=raw,
         )
 
+    # Patterns for numeric quantity parsing
     # Named comment for regex over 80 characters:
-    # Pattern 1: Number followed by unit string, e.g. "500 g", "-5 kg", "1.5 kg", "2 N", "10 pcs"
-    num_then_unit_pat = (
-        r"^([+-]?[0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z\.\u212E]+(?:\s+[a-zA-Z]+)?)\s*(?:℮|\be\b)?$"
-    )
-    # Pattern 2: Unit string followed by number, e.g. "kg 1.5", "ml 500", "N 10"
-    unit_then_num_pat = r"^([a-zA-Z\.\u212E]+)\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*(?:℮|\be\b)?$"
+    # Pattern 1: Number followed by unit string (e.g. "500 g", "-5 kg", "1.5 kg", "2 N", "10 pcs")
+    # Intentionally long to support optional e-mark and unit space variations.
+    num_then_unit_pat = r"^([+-]?[0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z\.℮]+(?:\s+[a-zA-Z]+)?)\s*(?:℮|e)?$"
+    # Named comment for regex over 80 characters:
+    # Pattern 2: Unit string followed by number (e.g. "kg 1.5", "ml 500", "N 10")
+    # Intentionally long to support optional e-mark and unit space variations.
+    unit_then_num_pat = r"^([a-zA-Z\.℮]+(?:\s+[a-zA-Z]+)?)\s*([+-]?[0-9]+(?:\.[0-9]+)?)\s*(?:℮|e)?$"
 
     m1 = re.match(num_then_unit_pat, cleaned, re.IGNORECASE)
     m2 = re.match(unit_then_num_pat, cleaned, re.IGNORECASE)
@@ -110,7 +126,7 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
             raw_text=raw,
         )
 
-    # Clean e-mark or punctuation noise from unit token
+    # Clean e-mark or trailing punctuation noise from unit token
     unit_raw = re.sub(r"[\s℮\.]+$", "", unit_raw).strip()
     if unit_raw.startswith("e ") or unit_raw.startswith("e-"):
         unit_raw = unit_raw[2:].strip()
@@ -126,8 +142,8 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
         )
 
     try:
-        val = float(val_str)
-    except ValueError:
+        val = Decimal(val_str)
+    except InvalidOperation:
         return NormalizationResult[NetQuantityValue](
             value=None,
             confidence=0.0,
@@ -136,7 +152,7 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
             raw_text=raw,
         )
 
-    if val <= 0:
+    if val <= Decimal("0"):
         return NormalizationResult[NetQuantityValue](
             value=None,
             confidence=0.0,
@@ -145,7 +161,7 @@ def normalise_net_quantity(text: str) -> NormalizationResult[NetQuantityValue]:
             raw_text=raw,
         )
 
-    confidence = 0.95 if m1 else 0.85
+    confidence = CONFIDENCE_EXPLICIT_QUANTITY_LABEL if m1 else CONFIDENCE_STANDARD_QUANTITY_PATTERN
 
     return NormalizationResult[NetQuantityValue](
         value=NetQuantityValue(

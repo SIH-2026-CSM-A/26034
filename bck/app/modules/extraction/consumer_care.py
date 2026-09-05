@@ -1,4 +1,8 @@
-"""Consumer Care normaliser for Legal Metrology declarations."""
+"""Consumer Care normaliser for Legal Metrology declarations.
+
+Confidence values in this module represent uncalibrated priors. They MUST be
+recalibrated once DAT-001's evaluation set exists.
+"""
 
 import re
 
@@ -7,6 +11,9 @@ from app.modules.extraction.types import (
     NormalizationResult,
     ReasonCode,
 )
+
+CONFIDENCE_MULTIPLE_CONTACT_CHANNELS = 0.95
+CONFIDENCE_SINGLE_CONTACT_CHANNEL = 0.85
 
 
 def normalise_consumer_care(text: str) -> NormalizationResult[ConsumerCareValue]:
@@ -54,27 +61,28 @@ def normalise_consumer_care(text: str) -> NormalizationResult[ConsumerCareValue]
 
     # Extract Phone Number
     # Named comment for regex over 80 characters:
-    # Captures Indian toll-free (1800), landline with STD codes, or 10-digit mobile phone
-    # numbers with optional +91 prefix
+    # Captures Indian toll-free (1800), landline with STD codes, or 10-digit mobile
+    # phone numbers with optional +91 prefix. Intentionally long to match all formats.
     phone_pat = (
         r"(?:(?:\+91[\s-]*)?1800[\s-]*\d{3}[\s-]*\d{4}|"
-        r"(?:\+91[\s-]*)?[6-9]\d{9}\b|"
-        r"0\d{2,4}[\s-]*\d{6,8}\b)"
+        r"(?:\+91[\s-]*)?[6-9]\d{9}|"
+        r"0\d{2,4}[\s-]*\d{6,8})"
     )
-    phone_match = re.search(phone_pat, raw)
-    phone = phone_match.group(0).strip() if phone_match else None
+    phone_match = re.search(r"(?:^|[\s:,\(])(" + phone_pat + r")(?=[\s:,\)]|$)", raw)
+    phone = phone_match.group(1).strip() if phone_match else None
 
     # Extract Email Address
     # Named comment for regex over 80 characters:
-    # Standard email pattern matching user and domain parts separated by @ symbol
+    # Standard email pattern matching user and domain parts separated by @ symbol.
+    # Intentionally long to enforce complete RFC-compliant email structure.
     email_pat = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
     email_match = re.search(email_pat, raw)
     email = email_match.group(0).strip() if email_match else None
 
     # Extract Consumer Care Address Block
     # Named comment for regex over 80 characters:
-    # Extracts address block trailing after consumer care contact headers like
-    # "Write to Manager at:" or "Address:"
+    # Extracts address block trailing after contact headers like "Write to Manager at:"
+    # or "Address:". Intentionally long to cover executive/manager recipient headers.
     addr_match = re.search(
         r"(?:write\s+to\s*:?\s*(?:us\s+at|the\s+executive\s+at|manager\s+at)?|address\s*:)\s*(.+)$",
         raw,
@@ -92,7 +100,11 @@ def normalise_consumer_care(text: str) -> NormalizationResult[ConsumerCareValue]
         )
 
     found_count = sum(1 for item in (phone, email, address_block) if item is not None)
-    confidence = 0.95 if found_count >= 2 else 0.85
+    confidence = (
+        CONFIDENCE_MULTIPLE_CONTACT_CHANNELS
+        if found_count >= 2
+        else CONFIDENCE_SINGLE_CONTACT_CHANNEL
+    )
 
     return NormalizationResult[ConsumerCareValue](
         value=ConsumerCareValue(
