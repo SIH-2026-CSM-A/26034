@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
+import pytest
 
 from app.modules.vision.pdp import detect_pdp
 
@@ -16,11 +17,9 @@ def test_pdp_detector_different_boxes(mock_yolo_class, tmp_path):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         x, y, w, h = cv2.boundingRect(gray)
 
-        # Fix: Explicitly declare length so the detector doesn't fallback to the full image
         mock_boxes = MagicMock()
         mock_boxes.__len__.return_value = 1
 
-        # Fix: Deeply mock the PyTorch tensor chain (.cpu().numpy())
         mock_boxes.conf.argmax.return_value = 0
 
         conf_tensor = MagicMock()
@@ -39,7 +38,6 @@ def test_pdp_detector_different_boxes(mock_yolo_class, tmp_path):
     mock_instance.side_effect = mock_call
     mock_yolo_class.return_value = mock_instance
 
-    # Use tmp_path to create a real dummy file so os.path.exists passes naturally
     dummy_model = tmp_path / "dummy.pt"
     dummy_model.touch()
     weights_path = str(dummy_model)
@@ -59,3 +57,44 @@ def test_pdp_detector_different_boxes(mock_yolo_class, tmp_path):
     assert res1.bbox != res2.bbox
     assert res2.bbox != res3.bbox
     assert res1.bbox != res3.bbox
+
+
+def test_detect_pdp_empty_image_returns_zero_result():
+    """Empty or None input must not reach the model at all."""
+    result = detect_pdp(np.array([]), weights_path="/nonexistent/path.pt")
+    assert result.bbox == (0, 0, 0, 0)
+    assert result.area == 0
+    assert result.confidence == 0.0
+
+
+def test_detect_pdp_missing_weights_raises():
+    """Offline capability depends on this raising, not silently falling back to a network download."""
+    with pytest.raises(FileNotFoundError):
+        detect_pdp(
+            np.zeros((100, 100, 3), dtype=np.uint8),
+            weights_path="/definitely/does/not/exist.pt",
+        )
+
+
+@patch("ultralytics.YOLO")
+def test_detect_pdp_no_detection_falls_back_to_full_image(mock_yolo_class, tmp_path):
+    """When the model finds nothing, the whole image is the fallback panel — not a crash, not a zero-size box."""
+    mock_boxes = MagicMock()
+    mock_boxes.__len__.return_value = 0
+
+    mock_result = MagicMock()
+    mock_result.boxes = mock_boxes
+
+    mock_instance = MagicMock()
+    mock_instance.side_effect = lambda image, **kwargs: [mock_result]
+    mock_yolo_class.return_value = mock_instance
+
+    dummy_model = tmp_path / "dummy.pt"
+    dummy_model.touch()
+
+    img = np.zeros((80, 120, 3), dtype=np.uint8)
+    result = detect_pdp(img, weights_path=str(dummy_model))
+
+    assert result.bbox == (0, 0, 120, 80)
+    assert result.area == 120 * 80
+    assert result.confidence == 0.0

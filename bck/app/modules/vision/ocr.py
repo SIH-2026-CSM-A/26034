@@ -56,7 +56,10 @@ def extract_mrp_quantity(crop: np.ndarray) -> str:
     if crop is None or crop.size == 0:
         return ""
 
-    # Strictly applying the exact character whitelist from ARCHITECTURE.md
+    # Character whitelist scoped to MRP/net-quantity values: digits, currency and
+    # unit tokens (Rs, kg, ml, g), decimal point, slash, hyphen. Deliberately
+    # excludes letters not needed for numeric declarations to reduce
+    # misread risk.
     custom_config = r'-c tessedit_char_whitelist="0123456789.Rskgmlg/-"'
     text = pytesseract.image_to_string(crop, config=custom_config)
     return text.strip()
