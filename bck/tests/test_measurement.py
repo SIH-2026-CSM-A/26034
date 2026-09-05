@@ -98,13 +98,26 @@ def test_pdp_area_calculation():
     assert isinstance(res_rect, MeasurementCalibrated)
     assert np.isclose(res_rect.value, 150.0, rtol=0.10)
     assert res_rect.unit == "cm²"
+    assert res_rect.rule_limb == "rectangular"
 
     # CYLINDRICAL: 0.40 * (100 * (np.pi * 150))
     res_cyl = calculate_pdp_area(pdp_image, ref_image, "coin_10", PackageShape.CYLINDRICAL)
+    assert isinstance(res_cyl, MeasurementCalibrated)
     expected_cyl_cm2 = (0.40 * (100.0 * (np.pi * 150.0))) / 100.0
     assert np.isclose(res_cyl.value, expected_cyl_cm2, rtol=0.10)
+    assert res_cyl.rule_limb == "cylindrical 40%"
 
-    # OTHER: 0.40 * (100 * 150)
-    res_other = calculate_pdp_area(pdp_image, ref_image, "coin_10", PackageShape.OTHER)
-    expected_other_cm2 = (0.40 * (100.0 * 150.0)) / 100.0
-    assert np.isclose(res_other.value, expected_other_cm2, rtol=0.10)
+    # OTHER with low planarity
+    res_other_refusal = calculate_pdp_area(
+        pdp_image, ref_image, "coin_10", PackageShape.OTHER, planarity_score=0.80
+    )
+    assert isinstance(res_other_refusal, MeasurementRefusal)
+    assert "not adequately planar" in res_other_refusal.reason
+
+    # OTHER with high planarity: direct area (100 * 150 = 150 cm^2)
+    res_other_calibrated = calculate_pdp_area(
+        pdp_image, ref_image, "coin_10", PackageShape.OTHER, planarity_score=0.90
+    )
+    assert isinstance(res_other_calibrated, MeasurementCalibrated)
+    assert np.isclose(res_other_calibrated.value, 150.0, rtol=0.10)
+    assert res_other_calibrated.rule_limb == "other-panel-measured"

@@ -10,6 +10,8 @@ REF_DIMS = {
     "ean_13": {"width_mm": 37.29},
 }
 
+MIN_PLANARITY_THRESHOLD = 0.85
+
 
 def detect_reference_object(image: np.ndarray, ref_type: str) -> float | None:
     """Detects the reference object in the image and returns mm_per_pixel scale factor.
@@ -132,7 +134,11 @@ def measure_ink_extent(
 
 
 def calculate_pdp_area(
-    image: np.ndarray, ref_image: np.ndarray | None, ref_type: str | None, shape: PackageShape
+    image: np.ndarray,
+    ref_image: np.ndarray | None,
+    ref_type: str | None,
+    shape: PackageShape,
+    planarity_score: float = 1.0,
 ) -> MeasurementResult:
     """Calculate the Principal Display Panel (PDP) area in cm² according to Rule 7(4)."""
     if ref_image is None or ref_type is None:
@@ -149,10 +155,15 @@ def calculate_pdp_area(
     # Calculate area in mm² based on shape
     if shape == PackageShape.RECTANGULAR:
         area_mm2 = height_mm * width_mm
+        rule_limb = "rectangular"
     elif shape == PackageShape.CYLINDRICAL:
         area_mm2 = 0.40 * (height_mm * (np.pi * width_mm))
+        rule_limb = "cylindrical 40%"
     else:  # OTHER
-        area_mm2 = 0.40 * (height_mm * width_mm)
+        if planarity_score < MIN_PLANARITY_THRESHOLD:
+            return MeasurementRefusal(reason="Panel is not adequately planar for homography.")
+        area_mm2 = height_mm * width_mm
+        rule_limb = "other-panel-measured"
 
     # Convert to cm²
     area_cm2 = area_mm2 / 100.0
@@ -161,5 +172,9 @@ def calculate_pdp_area(
     confidence = area_cm2 * 0.10
 
     return MeasurementCalibrated(
-        value=area_cm2, confidence_interval=confidence, unit="cm²", reference_object=ref_type
+        value=area_cm2,
+        confidence_interval=confidence,
+        unit="cm²",
+        reference_object=ref_type,
+        rule_limb=rule_limb,
     )

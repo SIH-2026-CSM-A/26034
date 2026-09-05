@@ -22,6 +22,7 @@ class MeasurementCalibrated(BaseModel):
     confidence_interval: float
     unit: str
     reference_object: str
+    rule_limb: str | None = None
 
 
 class MeasurementRefusal(BaseModel):
