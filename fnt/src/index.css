@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Surface & Background */
+  --pccs-bg: #f8fafc;
+  --pccs-surface: #ffffff;
+  --pccs-surface-subtle: #f1f5f9;
+  --pccs-border: #cbd5e1;
+  --pccs-border-strong: #94a3b8;
+
+  /* Typography */
+  --pccs-text-primary: #0f172a;
+  --pccs-text-secondary: #475569;
+  --pccs-text-muted: #64748b;
+
+  /* Enforcement Authority Navy */
+  --pccs-brand-navy: #0b2545;
+  --pccs-brand-navy-accent: #133e6e;
+
+  /* Focus Indicator (Instant, High Contrast ≥ 3:1) */
+  --pccs-focus-ring: #0b2545;
+
+  /* Grayscale-safe Verdict Tokens */
+  --verdict-pass-bg: #ecfdf5;
+  --verdict-pass-border: #059669;
+  --verdict-pass-text: #065f46;
+
+  --verdict-review-bg: #fffbeb;
+  --verdict-review-border: #d97706;
+  --verdict-review-text: #92400e;
+
+  --verdict-violation-bg: #fef2f2;
+  --verdict-violation-border: #dc2626;
+  --verdict-violation-text: #991b1b;
+}
+
+/* Base Accessibility & Focus Styling */
+*:focus-visible {
+  outline: 2px solid var(--pccs-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Instant Focus Ring: Never animate outline appearance */
+*:focus {
+  transition: outline 0s, outline-offset 0s;
+}
+
+/* High Contrast & Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print Rules for BSA §63(4) Evidence Records */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
