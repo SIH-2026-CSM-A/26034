@@ -3,12 +3,12 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from app.modules.measurement.schemas import (
+from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
     MeasurementRefusal,
-    PackageShape,
 )
+from app.modules.measurement.schemas import PackageShape
 from app.modules.measurement.services import calculate_pdp_area, measure_ink_extent
 
 
@@ -216,14 +216,22 @@ def test_measure_width_to_height_ratio():
     """Assert measure_width_to_height_ratio calculates ratio correctly and ignores padding."""
     from app.modules.measurement.services import measure_width_to_height_ratio
 
-    # Image with padding
-    numeral_image = np.ones((200, 200), dtype=np.uint8) * 255
-    # Draw ink from y=50 to 150 (height 101), x=80 to 120 (width 41)
-    numeral_image[50:151, 80:121] = 0
+    # 200x200 gray background (not pure white) to prove Otsu separates the foreground
+    numeral_image = np.ones((200, 200), dtype=np.uint8) * 200
 
+    # Draw an irregular 'L' shape using dark gray ink (not pure black)
+    # Vertical bar: y=50 to 149 (height 100), x=80 to 99
+    numeral_image[50:150, 80:100] = 100
+    # Horizontal bar: y=130 to 149, x=100 to 129
+    numeral_image[130:150, 100:130] = 100
+
+    # Total active ink extent:
+    # X spans from 80 to 129 (width = 50)
+    # Y spans from 50 to 149 (height = 100)
+    # Expected ratio = 50.0 / 100.0 = 0.5
     result = measure_width_to_height_ratio(numeral_image, is_artwork=True, artwork_dpi=300)
     assert isinstance(result, MeasurementExact)
-    assert np.isclose(result.value, 41.0 / 101.0, rtol=0.01)
+    assert np.isclose(result.value, 0.5, rtol=0.01)
     assert result.unit == "ratio"
 
 

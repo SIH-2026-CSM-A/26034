@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
 
-from .schemas import (
+from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
     MeasurementRefusal,
     MeasurementResult,
-    PackageShape,
 )
+
+from .schemas import PackageShape
 
 # Reference object physical dimensions
 REF_DIMS = {

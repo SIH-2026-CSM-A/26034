@@ -1,10 +1,11 @@
-from .schemas import (
+from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
     MeasurementRefusal,
     MeasurementResult,
-    PackageShape,
 )
+
+from .schemas import PackageShape
 from .services import (
     calculate_pdp_area,
     measure_contrast_ratio,
