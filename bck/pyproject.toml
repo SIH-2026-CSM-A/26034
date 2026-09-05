@@ -44,6 +44,7 @@ asyncio_mode = "auto"
 # Together they mean: a module imports from app.contracts, app.core, and itself —
 # nothing else. app.pipeline composes modules. app.contracts imports nothing.
 [tool.importlinter]
+include_external_packages = true
 root_package = "app"
 
 [[tool.importlinter.contracts]]
