@@ -167,6 +167,8 @@ def normalise_date(
     my_pat = r"\b(?:0?[1-9]|1[012])[\.\/\-](?:20\d{2}|\d{2})\b"
     my_dates = re.findall(my_pat, raw_without_full)
 
+    # Named comment for regex over 80 characters: captures text-month dates
+    # (e.g. MAR 2026, 15 March 2026) across the full input string for ambiguity detection.
     text_month_pat_all = (
         r"\b(?:0?[1-9]|[12][0-9]|3[01])?\s*"
         r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|"
