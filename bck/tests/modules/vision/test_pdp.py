@@ -68,7 +68,10 @@ def test_detect_pdp_empty_image_returns_zero_result():
 
 
 def test_detect_pdp_missing_weights_raises():
-    """Offline capability depends on this raising, not silently falling back to a network download."""
+    """
+    Offline capability depends on this raising,
+    not silently falling back to a network download.
+    """
     with pytest.raises(FileNotFoundError):
         detect_pdp(
             np.zeros((100, 100, 3), dtype=np.uint8),
@@ -78,7 +81,10 @@ def test_detect_pdp_missing_weights_raises():
 
 @patch("ultralytics.YOLO")
 def test_detect_pdp_no_detection_falls_back_to_full_image(mock_yolo_class, tmp_path):
-    """When the model finds nothing, the whole image is the fallback panel — not a crash, not a zero-size box."""
+    """
+    When the model finds nothing, the whole image is the fallback panel
+    — not a crash, not a zero-size box.
+    """
     mock_boxes = MagicMock()
     mock_boxes.__len__.return_value = 0
 
