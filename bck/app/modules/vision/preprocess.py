@@ -26,11 +26,20 @@ class QualityResult:
     glare_ratio: float
     coverage_ratio: float
 
+    @property
+    def is_acceptable(self) -> bool:
+        return self.is_valid
 
-def evaluate_quality(image: np.ndarray) -> QualityResult:
+
+def evaluate_quality(
+    image: np.ndarray,
+    blur_threshold: float = 100.0,
+    glare_threshold: float = 0.15,
+    completeness_threshold: float = 0.30,
+) -> QualityResult:
     """
     Evaluates image quality for downstream OCR and compliance processing.
-    Returns a QualityResult with machine-readable reason codes (no legal verdicts).
+    Returns a QualityResult with machine-readable reason codes.
     """
     if image is None or image.size == 0:
         return QualityResult(
@@ -46,12 +55,12 @@ def evaluate_quality(image: np.ndarray) -> QualityResult:
 
     # 1. Blur evaluation using Laplacian variance
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-    is_blurry = blur_score < 100.0
+    is_blurry = blur_score < blur_threshold
 
     # 2. Glare evaluation
     glare_mask = gray >= GLARE_INTENSITY_THRESHOLD
     glare_ratio = float(np.sum(glare_mask)) / float(h * w)
-    has_excessive_glare = glare_ratio > 0.15
+    has_excessive_glare = glare_ratio > glare_threshold
 
     # 3. Completeness / Coverage evaluation
     _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
@@ -64,7 +73,7 @@ def evaluate_quality(image: np.ndarray) -> QualityResult:
             max_area = area
 
     coverage_ratio = max_area / float(h * w)
-    is_incomplete = coverage_ratio < 0.30
+    is_incomplete = coverage_ratio < completeness_threshold
 
     # Determine reason code and validity
     if is_blurry:
@@ -86,6 +95,23 @@ def evaluate_quality(image: np.ndarray) -> QualityResult:
         blur_score=blur_score,
         glare_ratio=glare_ratio,
         coverage_ratio=coverage_ratio,
+    )
+
+
+def quality_gate(
+    image: np.ndarray,
+    blur_threshold: float = 100.0,
+    glare_threshold: float = 0.15,
+    completeness_threshold: float = 0.30,
+) -> QualityResult:
+    """
+    Alias for evaluate_quality accepting test parameters.
+    """
+    return evaluate_quality(
+        image,
+        blur_threshold=blur_threshold,
+        glare_threshold=glare_threshold,
+        completeness_threshold=completeness_threshold,
     )
 
 
@@ -126,13 +152,11 @@ def remove_glare(image: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     _, s, v = cv2.split(hsv)
 
-    # Glare is characterised by very high value (V >= 215) and low saturation (S <= 45)
-    glare_mask = cv2.inpaint_mask = cv2.bitwise_and(
+    glare_mask = cv2.bitwise_and(
         cv2.compare(v, 215, cv2.CMP_GE),
         cv2.compare(s, 45, cv2.CMP_LE),
     )
 
-    # Use Fast-Marching Method for inpainting specular spots
     return cv2.inpaint(image, glare_mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
 
 
@@ -179,13 +203,4 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
     if screen_cnt is None:
         return image
 
-    # If a 4-point contour is found, apply perspective transform
-    # (Simplified fallback to returning image if transform points are degenerate)
     return image
-
-
-def quality_gate(image: np.ndarray) -> QualityResult:
-    """
-    Alias for evaluate_quality to satisfy test suite expectations.
-    """
-    return evaluate_quality(image)
