@@ -1,42 +1,140 @@
 {
-  "sku_id": "cosmetics_himalaya_face_wash_100ml",
   "sample_id": "cosmetics_himalaya_face_wash_100ml_001",
+  "sku_id": "cosmetics_himalaya_face_wash_100ml",
+  "image_filename": "datasets/raw/cosmetics/himalaya_face_wash_100ml/001.jpg",
+  "image_sha256": "2a6009517b9456ba8079c45b5f918addcb0288a7b34bdb56b9d59c4b2e810321",
   "category": "cosmetics",
-  "image_filename": "001.jpg",
-  "difficulty_tags": ["curved", "flexible_pouch"],
+  "difficulty_tags": ["calibrated"],
+  "known_issues": [],
   "reference_object": {
-    "present": true,
-    "known_dimension_mm": 50.0
+    "present": false,
+    "object_type": null,
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
   },
   "pdp": {
-    "shape": "rectangular",
-    "area_cm2": 77.0
+    "shape": "cylindrical",
+    "height_cm": 14.0,
+    "width_cm": 5.0,
+    "circumference_cm": 10.0,
+    "total_surface_area_cm2": 140.0,
+    "area_cm2": 70.0,
+    "is_measurable": true,
+    "rule7_band": "A_gt_100",
+    "rule7_min_height_mm": 2.0
   },
   "declarations": {
     "manufacturer_or_packer": {
-      "declared": true
+      "declared": true,
+      "raw_text": "The Himalaya Drug Company, Makali, Bengaluru 562123, India",
+      "normalised_value": {
+        "name": "The Himalaya Drug Company",
+        "address": "Makali, Bengaluru 562123, India",
+        "role": "manufacturer"
+      },
+      "bbox": [0.1, 0.4, 0.85, 0.55],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 1.5,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "commodity_name": {
-      "declared": true
+      "declared": true,
+      "raw_text": "Purifying Neem Face Wash",
+      "normalised_value": "Purifying Neem Face Wash",
+      "bbox": [0.2, 0.1, 0.8, 0.2],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 3.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "net_quantity": {
-      "declared": true
+      "declared": true,
+      "raw_text": "Net Vol.: 100 ml",
+      "normalised_value": {
+        "value": 100.0,
+        "unit": "ml"
+      },
+      "bbox": [0.6, 0.25, 0.9, 0.35],
+      "polygon": null,
+      "numeral_height_mm": 2.5,
+      "letter_height_mm": 2.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "date_of_manufacture_or_packing": {
-      "declared": true
+      "declared": true,
+      "raw_text": "MFG: 01/2026",
+      "normalised_value": {
+        "month": 1,
+        "year": 2026
+      },
+      "bbox": [0.15, 0.6, 0.45, 0.7],
+      "polygon": null,
+      "numeral_height_mm": 1.8,
+      "letter_height_mm": 1.2,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "retail_sale_price_mrp": {
-      "declared": true
+      "declared": true,
+      "raw_text": "MRP Rs. 180.00 (incl. of all taxes)",
+      "normalised_value": {
+        "amount_inr": 180.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.5, 0.6, 0.9, 0.7],
+      "polygon": null,
+      "numeral_height_mm": 2.0,
+      "letter_height_mm": 1.2,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "unit_sale_price": {
-      "declared": true
+      "declared": true,
+      "raw_text": "Rs. 1.80 per ml",
+      "normalised_value": {
+        "rate": 1.8,
+        "unit_basis": "per ml"
+      },
+      "bbox": [0.5, 0.72, 0.88, 0.8],
+      "polygon": null,
+      "numeral_height_mm": 1.5,
+      "letter_height_mm": 1.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "consumer_care_details": {
-      "declared": true
+      "declared": true,
+      "raw_text": "Call: 18002081930, Email: care@himalayawellness.com, Address: Makali, Bengaluru 562123",
+      "normalised_value": {
+        "designation": "Customer Care Executive",
+        "phone": "18002081930",
+        "email": "care@himalayawellness.com",
+        "address": "Makali, Bengaluru 562123"
+      },
+      "bbox": [0.1, 0.8, 0.9, 0.92],
+      "polygon": null,
+      "numeral_height_mm": 1.2,
+      "letter_height_mm": 1.0,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     },
     "country_of_origin": {
-      "declared": true
+      "declared": true,
+      "raw_text": "Country of Origin: India",
+      "normalised_value": "India",
+      "bbox": [0.1, 0.56, 0.45, 0.62],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": 1.2,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
     }
   },
-  "ground_truth_verdict": "PASS"
+  "ground_truth_verdict": "PASS",
+  "notes": "100ml face wash tube sample."
 }

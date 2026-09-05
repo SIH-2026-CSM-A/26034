@@ -1,29 +1,25 @@
 {
-  "sample_id": "cosmetics_nivea_creme_tin_50ml_001",
-  "sku_id": "cosmetics_nivea_creme_tin_50ml",
-  "image_filename": "cosmetics_nivea_creme_tin_50ml_001.jpg",
-  "image_sha256": "5f4dcc3b5aa765d61d8327deb882cf99281a8b15d97f551b9b1d47ef0e6e7686",
-  "category": "cosmetics",
-  "difficulty_tags": [
-    "small_pdp",
-    "curved",
-    "calibrated"
-  ],
+  "sample_id": "food_parle_g_biscuits_002",
+  "sku_id": "food_parle_g_biscuits",
+  "image_filename": "datasets/raw/food/parle_g_biscuits/002.jpg",
+  "image_sha256": "02ac721fd6a4b04a1a7e1506673f6755d1e5e2fabb0ff160da0b721dbecd7939",
+  "category": "food",
+  "difficulty_tags": ["small_pdp", "flexible_pouch"],
   "known_issues": [],
   "reference_object": {
-    "present": true,
-    "object_type": "coin_inr_5",
-    "known_dimension_mm": 25.0,
-    "confidence_interval_mm": 0.2,
-    "bbox": [0.05, 0.75, 0.22, 0.95]
+    "present": false,
+    "object_type": null,
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
   },
   "pdp": {
-    "shape": "circular",
-    "height_cm": null,
-    "width_cm": null,
+    "shape": "rectangular",
+    "height_cm": 6.0,
+    "width_cm": 8.0,
     "circumference_cm": null,
-    "total_surface_area_cm2": 44.18,
-    "area_cm2": 44.18,
+    "total_surface_area_cm2": null,
+    "area_cm2": 48.0,
     "is_measurable": true,
     "rule7_band": "A_le_50",
     "rule7_min_height_mm": 1.0
@@ -31,80 +27,80 @@
   "declarations": {
     "manufacturer_or_packer": {
       "declared": true,
-      "raw_text": "Mfg by NIVEA India Pvt. Ltd., Plot No. SM-9/1, Sanand GIDC-II, Industrial Estate, Bol Village, Sanand, Ahmedabad, Gujarat 382110.",
+      "raw_text": "Mfg by Parle Products Pvt. Ltd., Vile Parle East, Mumbai 400057, Maharashtra.",
       "normalised_value": {
-        "name": "NIVEA India Pvt. Ltd.",
-        "address": "Plot No. SM-9/1, Sanand GIDC-II, Industrial Estate, Bol Village, Sanand, Ahmedabad, Gujarat 382110",
+        "name": "Parle Products Pvt. Ltd.",
+        "address": "Vile Parle East, Mumbai 400057, Maharashtra",
         "role": "manufacturer"
       },
-      "bbox": [0.1, 0.45, 0.9, 0.6],
+      "bbox": [0.1, 0.4, 0.85, 0.55],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.1,
+      "letter_height_mm": 1.2,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "commodity_name": {
       "declared": true,
-      "raw_text": "NIVEA CREME",
-      "normalised_value": "Nivea Creme",
-      "bbox": [0.2, 0.1, 0.8, 0.22],
+      "raw_text": "BISCUITS",
+      "normalised_value": "Biscuits",
+      "bbox": [0.2, 0.1, 0.8, 0.2],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 3.0,
+      "letter_height_mm": 3.5,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "net_quantity": {
       "declared": true,
-      "raw_text": "Net Vol: 50 ml",
+      "raw_text": "Net Wt.: 55 g",
       "normalised_value": {
-        "value": 50.0,
-        "unit": "ml"
+        "value": 55.0,
+        "unit": "g"
       },
       "bbox": [0.6, 0.25, 0.9, 0.35],
       "polygon": null,
-      "numeral_height_mm": 1.8,
-      "letter_height_mm": 1.2,
+      "numeral_height_mm": 2.1,
+      "letter_height_mm": 1.4,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "date_of_manufacture_or_packing": {
       "declared": true,
-      "raw_text": "MFD: 06/26",
+      "raw_text": "PKD: 08/2026",
       "normalised_value": {
-        "month": 6,
+        "month": 8,
         "year": 2026
       },
-      "bbox": [0.1, 0.62, 0.45, 0.72],
-      "polygon": null,
-      "numeral_height_mm": 1.4,
-      "letter_height_mm": 1.1,
-      "expected_field_state": "PASS",
-      "non_compliance_reason": null
-    },
-    "retail_sale_price_mrp": {
-      "declared": true,
-      "raw_text": "MRP Rs. 130.00 (incl. of all taxes)",
-      "normalised_value": {
-        "amount_inr": 130.0,
-        "inclusive_of_all_taxes": true
-      },
-      "bbox": [0.5, 0.62, 0.9, 0.72],
+      "bbox": [0.15, 0.6, 0.45, 0.7],
       "polygon": null,
       "numeral_height_mm": 1.5,
       "letter_height_mm": 1.1,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP Rs. 5.00 (incl. of all taxes)",
+      "normalised_value": {
+        "amount_inr": 5.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.5, 0.6, 0.9, 0.7],
+      "polygon": null,
+      "numeral_height_mm": 1.8,
+      "letter_height_mm": 1.1,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
     "unit_sale_price": {
       "declared": true,
-      "raw_text": "Rs. 2.60 per ml",
+      "raw_text": "Rs. 0.09 per g",
       "normalised_value": {
-        "rate": 2.6,
-        "unit_basis": "per ml"
+        "rate": 0.09,
+        "unit_basis": "per g"
       },
-      "bbox": [0.5, 0.74, 0.9, 0.82],
+      "bbox": [0.5, 0.72, 0.88, 0.8],
       "polygon": null,
       "numeral_height_mm": 1.2,
       "letter_height_mm": 1.0,
@@ -113,13 +109,14 @@
     },
     "consumer_care_details": {
       "declared": true,
-      "raw_text": "Customer Care: 022 6248 7999, care@nivea.in, Nivea India Pvt Ltd, Mumbai 400072",
+      "raw_text": "Consumer Care Manager: Tel 022-66916911, Email: cs@parle.biz, Parle Products Pvt Ltd, Mumbai 400057",
       "normalised_value": {
-        "phone": "022 6248 7999",
-        "email": "care@nivea.in",
-        "address": "Nivea India Pvt Ltd, Mumbai 400072"
+        "designation": "Consumer Care Manager",
+        "phone": "022-66916911",
+        "email": "cs@parle.biz",
+        "address": "Parle Products Pvt Ltd, Mumbai 400057"
       },
-      "bbox": [0.1, 0.82, 0.9, 0.92],
+      "bbox": [0.1, 0.8, 0.9, 0.92],
       "polygon": null,
       "numeral_height_mm": 1.1,
       "letter_height_mm": 1.0,
@@ -130,14 +127,14 @@
       "declared": true,
       "raw_text": "Country of Origin: India",
       "normalised_value": "India",
-      "bbox": [0.1, 0.92, 0.5, 0.98],
+      "bbox": [0.1, 0.56, 0.45, 0.62],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.0,
+      "letter_height_mm": 1.1,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     }
   },
   "ground_truth_verdict": "PASS",
-  "notes": "Small circular tin PDP (pi * r^2 = 44.18 cm²). Complies with Rule 7 Table-I Band A <= 50 (min 1.0 mm)."
+  "notes": "Parle-G 55g pack size variant view 2."
 }
