@@ -56,7 +56,7 @@ def evaluate_quality(image: np.ndarray) -> QualityResult:
     # 3. Completeness / Coverage evaluation
     _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+
     max_area = 0.0
     for c in contours:
         area = cv2.contourArea(c)
@@ -106,7 +106,12 @@ def remap_curvature(image: np.ndarray) -> np.ndarray:
     dist_coeffs = np.zeros((4, 1), dtype=np.float32)
 
     map_x, map_y = cv2.initUndistortRectifyMap(
-        K, dist_coeffs, None, camera_matrix, (w, h), cv2.CV_32FC1,
+        camera_matrix,
+        dist_coeffs,
+        None,
+        camera_matrix,
+        (w, h),
+        cv2.CV_32FC1,
     )
     return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR)
 
