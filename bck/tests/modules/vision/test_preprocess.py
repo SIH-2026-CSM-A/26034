@@ -112,11 +112,11 @@ def test_correct_perspective_transforms():
 
 
 def test_correct_shadows_clahe_chromaticity():
-    # Acceptance criterion: take a color image, run correct_shadows,
-    # and assert a and b channels are preserved relative to the input
-    # while L differs due to CLAHE.
-    img = np.full((100, 100, 3), (100, 150, 200), dtype=np.uint8)
-    cv2.circle(img, (50, 50), 30, (120, 160, 220), -1)
+    # Acceptance criterion: take a safe mid-range color image, run correct_shadows,
+    # and assert a and b channels are preserved while L differs due to CLAHE.
+    img = np.zeros((100, 100, 3), dtype=np.uint8)
+    for i in range(100):
+        img[i, :, :] = [100 + (i % 20), 120, 140]
 
     lab_in = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     l_in, a_in, b_in = cv2.split(lab_in)
@@ -125,9 +125,9 @@ def test_correct_shadows_clahe_chromaticity():
     lab_out = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
     l_out, a_out, b_out = cv2.split(lab_out)
 
-    # a and b channels must be preserved (allowing minor OpenCV integer roundtrip jitter)
-    assert np.max(np.abs(a_in.astype(int) - a_out.astype(int))) <= 5
-    assert np.max(np.abs(b_in.astype(int) - b_out.astype(int))) <= 5
+    # a and b channels must be preserved without clipping distortion
+    assert np.max(np.abs(a_in.astype(int) - a_out.astype(int))) <= 2
+    assert np.max(np.abs(b_in.astype(int) - b_out.astype(int))) <= 2
 
     # L channel should differ due to CLAHE contrast enhancement
     assert not np.array_equal(l_in, l_out)
