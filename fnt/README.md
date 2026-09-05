@@ -1,11 +1,30 @@
 # fnt
 
-**Owner:** @Abhiram-0910
+PCCS frontend. React 18 + TypeScript (strict) + Vite + Tailwind v3 + React Router v6,
+PWA-installable via `vite-plugin-pwa`.
 
-Frontend. Empty on purpose — scaffolding the Vite project is a separate ticket, and
-doing it here would put a package manager and a lockfile under someone who hasn't
-picked them yet.
+```
+install: npm install
+dev:     npm run dev
+build:   npm run build
+```
 
-When it lands it follows the T3 frontend layout: `src/components`, `src/pages`,
-`src/hooks`, `src/services`, `src/store`, `src/utils`, `src/styles`. It talks to the
-backend only through `src/services` — no `fetch` inside a component.
+## Layout
+
+```
+src/
+  layout/AppShell.tsx     shared chrome, used by both surfaces
+  officer/OfficerRoutes.tsx   independent route tree, mounted at /officer/*
+  admin/AdminRoutes.tsx       independent route tree, mounted at /admin/*
+  services/generated/     machine-written API client — see its README, never hand-edit
+  App.tsx                 mounts the two route trees side by side
+```
+
+`/officer/*` and `/admin/*` are separate route trees on purpose — see `AGENTS.md` on
+module ownership (different owners land on each surface) and `ARCHITECTURE.md`. Don't
+merge them into one tree with role-based conditional rendering.
+
+See `DESIGN.md` for palette, type scale, spacing, and the verdict-display rule.
+
+This is a route shell (26034-FNT-001) — no screens, no API calls yet. See `TODO.md`
+for what's next.

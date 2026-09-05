@@ -73,7 +73,22 @@ a review cycle.
 ```bash
 # GitHub CLI
 gh --version || sudo apt install -y gh
-gh auth login          # GitHub.com -> HTTPS -> Y -> Login with a web browser
+gh auth login
+```
+
+**Answer the prompts in this exact order:** GitHub.com -> HTTPS -> **Y**
+(authenticate git with your GitHub credentials - this is the step that makes
+git push work) -> Login with a web browser. It prints an eight-character code;
+press Enter, a browser opens at github.com/login/device, paste the code, click
+Continue, then Authorize github. Check the browser is signed in as your own
+GitHub account before authorising.
+
+Skipping this produces a Username/Password prompt on git push that can never
+succeed - GitHub stopped accepting account passwords for git in 2021 - and then
+a misleading 403 Permission denied. It is an authentication failure, not a
+permissions problem.
+
+```bash
 
 # uv
 curl -LsSf https://astral.sh/uv/install.sh | sh

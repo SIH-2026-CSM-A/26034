@@ -27,6 +27,7 @@ from app.modules.extraction.types import (
 # 1. MRP Normaliser Tests
 # -----------------------------------------------------------------------------
 
+
 MRP_TEST_CASES = [
     ("₹120/-", Decimal("120"), "INR", False, True, None),
     ("Rs. 50.00", Decimal("50.00"), "INR", False, True, None),
@@ -82,10 +83,6 @@ def test_normalise_mrp(input_text, exp_amount, exp_curr, exp_tax, exp_success, e
         assert res.value is None
 
 
-# -----------------------------------------------------------------------------
-# 2. Net Quantity Normaliser Tests
-# -----------------------------------------------------------------------------
-
 NET_QTY_TEST_CASES = [
     ("500 g", Decimal("500"), "g", False, True, None),
     ("1.5 kg", Decimal("1.5"), "kg", False, True, None),
@@ -139,10 +136,6 @@ def test_normalise_net_quantity_emark_scoping():
     assert res_valid.value.has_emark is False
     assert isinstance(res_valid.value.value, Decimal)
 
-
-# -----------------------------------------------------------------------------
-# 3. Date Normaliser Tests
-# -----------------------------------------------------------------------------
 
 DATE_TEST_CASES = [
     ("MFG 03/2026", DateType.MANUFACTURED, "2026-03", False, None, True, None),
@@ -237,10 +230,6 @@ def test_normalise_date_relative_with_packing_date():
     assert res.value.is_relative is True
     assert res.value.relative_months == 6
 
-
-# -----------------------------------------------------------------------------
-# 4. Address Normaliser Tests
-# -----------------------------------------------------------------------------
 
 ADDRESS_TEST_CASES = [
     (
@@ -399,10 +388,6 @@ def test_normalise_address(input_text, exp_role, exp_entity, exp_pin, exp_succes
         assert res.value is None
 
 
-# -----------------------------------------------------------------------------
-# 5. Consumer Care Normaliser Tests
-# -----------------------------------------------------------------------------
-
 CONSUMER_CARE_TEST_CASES = [
     (
         "For complaints call 1800-123-4567 or email care@example.com",
@@ -507,10 +492,6 @@ def test_normalise_consumer_care(
         assert res.confidence == 0.0
         assert res.value is None
 
-
-# -----------------------------------------------------------------------------
-# 6. Country of Origin Normaliser Tests (EXT-002)
-# -----------------------------------------------------------------------------
 
 COUNTRY_OF_ORIGIN_TEST_CASES = [
     # --- Valid India Mode Declarations ---

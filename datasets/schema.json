@@ -1,0 +1,529 @@
+{
+  "$defs": {
+    "Category": {
+      "description": "Consumer commodity category under evaluation.",
+      "enum": [
+        "food",
+        "cosmetics"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "ComplianceVerdict": {
+      "description": "Overall compliance decision-support recommendation (AGENTS.md Constraint 1).",
+      "enum": [
+        "PASS",
+        "REVIEW",
+        "POTENTIAL_VIOLATION"
+      ],
+      "title": "ComplianceVerdict",
+      "type": "string"
+    },
+    "DeclarationField": {
+      "additionalProperties": false,
+      "description": "Ground-truth annotation for an individual statutory declaration.",
+      "properties": {
+        "declared": {
+          "description": "True if declaration is present on package label.",
+          "title": "Declared",
+          "type": "boolean"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verbatim text as printed on package.",
+          "title": "Raw Text"
+        },
+        "normalised_value": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structured or canonical normalized value for semantic verification.",
+          "title": "Normalised Value"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Normalized bounding box [xmin, ymin, xmax, ymax] in [0, 1].",
+          "title": "Bbox"
+        },
+        "polygon": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional polygon boundary points [[x1, y1], [x2, y2], ...].",
+          "title": "Polygon"
+        },
+        "numeral_height_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Measured numeral height in mm. Only emitted from calibrated image.",
+          "title": "Numeral Height Mm"
+        },
+        "letter_height_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Measured letter height in mm. Only emitted from calibrated image.",
+          "title": "Letter Height Mm"
+        },
+        "expected_field_state": {
+          "$ref": "#/$defs/FieldComplianceState",
+          "default": "PASS",
+          "description": "Expected compliance outcome under LMPC Rules."
+        },
+        "non_compliance_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Legal Metrology rationale if state is FAIL or REVIEW_REQUIRED.",
+          "title": "Non Compliance Reason"
+        }
+      },
+      "required": [
+        "declared"
+      ],
+      "title": "DeclarationField",
+      "type": "object"
+    },
+    "DifficultyTag": {
+      "description": "Environmental and visual difficulty tags for evaluation slicing.",
+      "enum": [
+        "small_pdp",
+        "glare",
+        "curved",
+        "multiscript",
+        "missing_month_year",
+        "flexible_pouch",
+        "crowded",
+        "calibrated",
+        "uncalibrated",
+        "low_contrast",
+        "tilted",
+        "partially_occluded"
+      ],
+      "title": "DifficultyTag",
+      "type": "string"
+    },
+    "FieldComplianceState": {
+      "description": "Five-state per-field evaluation status (ARCHITECTURE.md Decision).",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "REVIEW_REQUIRED",
+        "NOT_APPLICABLE",
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "title": "FieldComplianceState",
+      "type": "string"
+    },
+    "PDPInfo": {
+      "additionalProperties": false,
+      "description": "Principal Display Panel dimensional attributes and Rule 7 banding.",
+      "properties": {
+        "shape": {
+          "$ref": "#/$defs/PDPShape",
+          "description": "Geometric shape classification."
+        },
+        "height_cm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Height in cm.",
+          "title": "Height Cm"
+        },
+        "width_cm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Width in cm (rectangular).",
+          "title": "Width Cm"
+        },
+        "circumference_cm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Circumference in cm (cylindrical).",
+          "title": "Circumference Cm"
+        },
+        "total_surface_area_cm2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total package surface area in cm\u00b2 (other shapes).",
+          "title": "Total Surface Area Cm2"
+        },
+        "area_cm2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Calculated PDP area in cm\u00b2 per Rule 7(4).",
+          "title": "Area Cm2"
+        },
+        "is_measurable": {
+          "default": true,
+          "description": "True if PDP area can be reliably computed from package dimensions.",
+          "title": "Is Measurable",
+          "type": "boolean"
+        },
+        "rule7_band": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rule7TableBand"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Statutory band under Rule 7 Table-I."
+        },
+        "rule7_min_height_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Statutory minimum numeral and letter height in mm for normal print.",
+          "title": "Rule7 Min Height Mm"
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "title": "PDPInfo",
+      "type": "object"
+    },
+    "PDPShape": {
+      "description": "Principal Display Panel geometric classification per Rule 7(4).",
+      "enum": [
+        "rectangular",
+        "cylindrical",
+        "circular",
+        "other"
+      ],
+      "title": "PDPShape",
+      "type": "string"
+    },
+    "ReferenceObject": {
+      "additionalProperties": false,
+      "description": "Calibration reference target details.",
+      "properties": {
+        "present": {
+          "description": "True if a known reference object is in frame.",
+          "title": "Present",
+          "type": "boolean"
+        },
+        "object_type": {
+          "$ref": "#/$defs/ReferenceObjectType",
+          "default": "none",
+          "description": "Type of calibration object."
+        },
+        "known_dimension_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ground-truth reference dimension in millimetres.",
+          "title": "Known Dimension Mm"
+        },
+        "confidence_interval_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stated confidence interval (e.g. \u00b10.15 mm).",
+          "title": "Confidence Interval Mm"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Normalized bounding box [xmin, ymin, xmax, ymax] in [0, 1].",
+          "title": "Bbox"
+        }
+      },
+      "required": [
+        "present"
+      ],
+      "title": "ReferenceObject",
+      "type": "object"
+    },
+    "ReferenceObjectType": {
+      "description": "Known fiducial or reference object present in frame for calibration.",
+      "enum": [
+        "none",
+        "coin_inr_1",
+        "coin_inr_2",
+        "coin_inr_5",
+        "coin_inr_10",
+        "credit_card_id1",
+        "aruco_marker",
+        "ruler_scale",
+        "checkerboard"
+      ],
+      "title": "ReferenceObjectType",
+      "type": "string"
+    },
+    "Rule6Declarations": {
+      "additionalProperties": false,
+      "description": "Container for Rule 6(1) and Rule 6(11) mandatory packaging declarations.",
+      "properties": {
+        "manufacturer_or_packer": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(a) Manufacturer/Packer/Importer/Marketed By name and address."
+        },
+        "commodity_name": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(b) Common or generic name of commodity."
+        },
+        "net_quantity": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(c) Net quantity in standard units of weight, volume, or count."
+        },
+        "date_of_manufacture_or_packing": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(d) Month and year of manufacture/pre-packing/import."
+        },
+        "retail_sale_price_mrp": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(e) Maximum Retail Price (MRP) inclusive of all taxes."
+        },
+        "unit_sale_price": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(11) Unit Sale Price on required statutory unit basis."
+        },
+        "consumer_care_details": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(n) Consumer care contact cell: name, address, telephone, email."
+        },
+        "country_of_origin": {
+          "$ref": "#/$defs/DeclarationField",
+          "description": "Rule 6(1)(g) / GSR 128(E) Country of origin declaration."
+        }
+      },
+      "required": [
+        "manufacturer_or_packer",
+        "commodity_name",
+        "net_quantity",
+        "date_of_manufacture_or_packing",
+        "retail_sale_price_mrp",
+        "unit_sale_price",
+        "consumer_care_details",
+        "country_of_origin"
+      ],
+      "title": "Rule6Declarations",
+      "type": "object"
+    },
+    "Rule7TableBand": {
+      "description": "Rule 7(2) Table-I bands based on Principal Display Panel area (cm\u00b2).",
+      "enum": [
+        "A_le_50",
+        "50_lt_A_le_100",
+        "100_lt_A_le_500",
+        "500_lt_A_le_2500",
+        "2500_lt_A"
+      ],
+      "title": "Rule7TableBand",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Machine-readable schema for packaging compliance ground-truth annotations under LMPC 2011.",
+  "properties": {
+    "sample_id": {
+      "description": "Unique sample identifier (e.g. food_parle_g_001).",
+      "title": "Sample Id",
+      "type": "string"
+    },
+    "sku_id": {
+      "description": "SKU identifier (e.g. food_parle_g_biscuits).",
+      "title": "Sku Id",
+      "type": "string"
+    },
+    "image_filename": {
+      "description": "Filename of corresponding raw image.",
+      "title": "Image Filename",
+      "type": "string"
+    },
+    "image_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cryptographic SHA-256 hash of the raw image for BSA 63(4) evidence integrity.",
+      "title": "Image Sha256"
+    },
+    "category": {
+      "$ref": "#/$defs/Category",
+      "description": "Commodity category (food or cosmetics)."
+    },
+    "difficulty_tags": {
+      "description": "List of environmental, physical, or optical challenge tags.",
+      "items": {
+        "$ref": "#/$defs/DifficultyTag"
+      },
+      "title": "Difficulty Tags",
+      "type": "array"
+    },
+    "known_issues": {
+      "description": "Known Legal Metrology issues in this sample (e.g. missing_month_year).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Issues",
+      "type": "array"
+    },
+    "reference_object": {
+      "$ref": "#/$defs/ReferenceObject"
+    },
+    "pdp": {
+      "$ref": "#/$defs/PDPInfo",
+      "description": "Principal Display Panel parameters and Rule 7 band."
+    },
+    "declarations": {
+      "$ref": "#/$defs/Rule6Declarations",
+      "description": "Ground-truth Rule 6(1) and 6(11) declarations."
+    },
+    "ground_truth_verdict": {
+      "$ref": "#/$defs/ComplianceVerdict",
+      "description": "Expected overall compliance verdict (PASS / REVIEW / POTENTIAL_VIOLATION)."
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Curator notes regarding capture setup or label subtleties.",
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "sample_id",
+    "sku_id",
+    "image_filename",
+    "category",
+    "reference_object",
+    "pdp",
+    "declarations",
+    "ground_truth_verdict"
+  ],
+  "title": "LMPC Packaging Compliance Ground-Truth Annotation Schema",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
