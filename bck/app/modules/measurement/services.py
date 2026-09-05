@@ -109,27 +109,18 @@ def measure_ink_extent(
     if is_artwork:
         if artwork_dpi is None or artwork_dpi <= 0:
             return MeasurementRefusal(
-                reason=(
-                    "Missing or invalid artwork_dpi for exact "
-                    "measurement."
-                )
+                reason=("Missing or invalid artwork_dpi for exact measurement.")
             )
         mm_per_pixel = 25.4 / artwork_dpi
     else:
         if ref_image is None or ref_type is None:
             return MeasurementRefusal(
-                reason=(
-                    "Missing reference object image or type "
-                    "for calibration."
-                )
+                reason=("Missing reference object image or type for calibration.")
             )
         mm_per_pixel = detect_reference_object(ref_image, ref_type)
         if mm_per_pixel is None:
             return MeasurementRefusal(
-                reason=(
-                    f"Failed to detect reference object of "
-                    f"type: {ref_type}."
-                )
+                reason=(f"Failed to detect reference object of type: {ref_type}.")
             )
 
     # Convert numeral image to grayscale if needed
@@ -178,27 +169,18 @@ def calculate_pdp_area(
     if is_artwork:
         if artwork_dpi is None or artwork_dpi <= 0:
             return MeasurementRefusal(
-                reason=(
-                    "Missing or invalid artwork_dpi for exact "
-                    "measurement."
-                )
+                reason=("Missing or invalid artwork_dpi for exact measurement.")
             )
         mm_per_pixel = 25.4 / artwork_dpi
     else:
         if ref_image is None or ref_type is None:
             return MeasurementRefusal(
-                reason=(
-                    "Missing reference object image or type "
-                    "for calibration."
-                )
+                reason=("Missing reference object image or type for calibration.")
             )
         mm_per_pixel = detect_reference_object(ref_image, ref_type)
         if mm_per_pixel is None:
             return MeasurementRefusal(
-                reason=(
-                    f"Failed to detect reference object of "
-                    f"type: {ref_type}."
-                )
+                reason=(f"Failed to detect reference object of type: {ref_type}.")
             )
 
     height_px, width_px = image.shape[:2]
@@ -278,7 +260,7 @@ def measure_contrast_ratio(text_crop: np.ndarray, bg_crop: np.ndarray) -> Measur
     text_lums = get_luminances(text_rgb)
     bg_lums = get_luminances(bg_rgb)
 
-    # Variance mapping to confidence interval. 
+    # Variance mapping to confidence interval.
     # Higher standard deviation = wider confidence interval.
     # It's a heuristic for MeasurementCalibrated to show "confidence"
     std_combined = float(np.std(text_lums) + np.std(bg_lums))

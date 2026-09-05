@@ -157,7 +157,7 @@ def test_measurement_exact_artwork_path():
 
 def test_measurement_photograph_never_exact():
     """
-    Assert that when is_artwork=False (photograph), the return type is 
+    Assert that when is_artwork=False (photograph), the return type is
     strictly Calibrated or Refusal, never Exact.
     """
     numeral_image = np.ones((200, 200), dtype=np.uint8) * 255
@@ -178,7 +178,7 @@ def test_measurement_photograph_never_exact():
 
 def test_measure_contrast_ratio():
     """
-    Assert measure_contrast_ratio returns a MeasurementCalibrated result 
+    Assert measure_contrast_ratio returns a MeasurementCalibrated result
     with a dynamically calculated confidence interval.
     """
     # Import the new function explicitly inside the test or at the top of the file
