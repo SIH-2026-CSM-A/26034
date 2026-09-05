@@ -2,6 +2,7 @@
 
 from app.modules.extraction.address import normalise_address
 from app.modules.extraction.consumer_care import normalise_consumer_care
+from app.modules.extraction.country_of_origin import normalise_country_of_origin
 from app.modules.extraction.date import normalise_date
 from app.modules.extraction.mrp import normalise_mrp
 from app.modules.extraction.net_quantity import normalise_net_quantity
@@ -9,6 +10,8 @@ from app.modules.extraction.types import (
     AddressRole,
     AddressValue,
     ConsumerCareValue,
+    CountryOfOriginValue,
+    CountryOriginMode,
     DateType,
     DateValue,
     MRPValue,
@@ -21,6 +24,8 @@ __all__ = [
     "AddressRole",
     "AddressValue",
     "ConsumerCareValue",
+    "CountryOfOriginValue",
+    "CountryOriginMode",
     "DateType",
     "DateValue",
     "MRPValue",
@@ -29,6 +34,7 @@ __all__ = [
     "ReasonCode",
     "normalise_address",
     "normalise_consumer_care",
+    "normalise_country_of_origin",
     "normalise_date",
     "normalise_mrp",
     "normalise_net_quantity",

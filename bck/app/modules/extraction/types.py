@@ -91,3 +91,19 @@ class ConsumerCareValue(BaseModel):
     phone: str | None = None
     email: str | None = None
     address_block: str | None = None
+
+
+class CountryOriginMode(StrEnum):
+    """Execution mode for Country of Origin normalisation."""
+
+    INDIA = "INDIA"
+    WORLDWIDE = "WORLDWIDE"
+
+
+class CountryOfOriginValue(BaseModel):
+    """Normalized Country of Origin declaration."""
+
+    country_name: str
+    iso_alpha2: str
+    iso_alpha3: str
+    raw_declaration: str
