@@ -1,14 +1,13 @@
+from enum import StrEnum
+from dataclasses import dataclass
+import cv2
+import numpy as np
+
 class QualityReason(StrEnum):
     PASS = "PASS"
     BLUR_EXCESSIVE = "BLUR_EXCESSIVE"
     GLARE_EXCESSIVE = "GLARE_EXCESSIVE"
     INCOMPLETE = "INCOMPLETE"
-
-from dataclasses import dataclass
-
-import cv2
-import numpy as np
-
 # Intensity threshold (0-255) above which grayscale pixels are identified as glare.
 GLARE_INTENSITY_THRESHOLD = 245
 
