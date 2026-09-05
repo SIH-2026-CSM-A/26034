@@ -3,12 +3,12 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from app.modules.measurement.schemas import (
+from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
     MeasurementRefusal,
-    PackageShape,
 )
+from app.modules.measurement.schemas import PackageShape
 from app.modules.measurement.services import calculate_pdp_area, measure_ink_extent
 
 
@@ -210,3 +210,64 @@ def test_measure_contrast_ratio():
     assert isinstance(result_noisy, MeasurementCalibrated)
     # The confidence interval should now be > 0 because of variance in the noisy background
     assert result_noisy.confidence_interval > 0.0
+
+
+def test_measure_width_to_height_ratio():
+    """Assert measure_width_to_height_ratio calculates ratio correctly and ignores padding."""
+    from app.modules.measurement.services import measure_width_to_height_ratio
+
+    # 200x200 gray background (not pure white) to prove Otsu separates the foreground
+    numeral_image = np.ones((200, 200), dtype=np.uint8) * 200
+
+    # Draw an irregular 'L' shape using dark gray ink (not pure black)
+    # Vertical bar: y=50 to 149 (height 100), x=80 to 99
+    numeral_image[50:150, 80:100] = 100
+    # Horizontal bar: y=130 to 149, x=100 to 129
+    numeral_image[130:150, 100:130] = 100
+
+    # Total active ink extent:
+    # X spans from 80 to 129 (width = 50)
+    # Y spans from 50 to 149 (height = 100)
+    # Expected ratio = 50.0 / 100.0 = 0.5
+    result = measure_width_to_height_ratio(numeral_image, is_artwork=True, artwork_dpi=300)
+    assert isinstance(result, MeasurementExact)
+    assert np.isclose(result.value, 0.5, rtol=0.01)
+    assert result.unit == "ratio"
+
+
+def test_measure_margins():
+    """Assert measure_margins calculates distance to nearest ink independently."""
+    from app.modules.measurement.services import measure_margins
+
+    # 300x300 image
+    image = np.ones((300, 300), dtype=np.uint8) * 255
+    # Draw some ink at the top (y=10)
+    image[10:20, 100:200] = 0
+    # Draw some ink on the left (x=20)
+    image[100:200, 20:30] = 0
+
+    # Bbox: x=100, y=100, w=100, h=100
+    # Above margin: nearest ink is at y=19. bbox top is y=100. margin = 100 - 19 - 1 = 80 pixels.
+    # Below margin: no ink below bbox (y=200 to 300). distance to edge = 300 - 200 = 100 pixels.
+    # Left margin: nearest ink is at x=29. bbox left is x=100. margin = 100 - 29 - 1 = 70 pixels.
+    # Right margin: no ink right of bbox (x=200 to 300). distance to edge = 300 - 200 = 100 pixels.
+    bbox = (100, 100, 100, 100)
+
+    results = measure_margins(
+        image,
+        bbox,
+        is_artwork=True,
+        artwork_dpi=25.4,  # mm_per_pixel = 1.0
+    )
+
+    assert isinstance(results["above"], MeasurementExact)
+    assert np.isclose(results["above"].value, 80.0)
+
+    assert isinstance(results["below"], MeasurementExact)
+    assert np.isclose(results["below"].value, 100.0)
+
+    assert isinstance(results["left"], MeasurementExact)
+    assert np.isclose(results["left"].value, 70.0)
+
+    assert isinstance(results["right"], MeasurementExact)
+    assert np.isclose(results["right"].value, 100.0)

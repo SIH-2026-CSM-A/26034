@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
 
-from .schemas import (
+from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
     MeasurementRefusal,
     MeasurementResult,
-    PackageShape,
 )
+
+from .schemas import PackageShape
 
 # Reference object physical dimensions
 REF_DIMS = {
@@ -272,3 +273,151 @@ def measure_contrast_ratio(text_crop: np.ndarray, bg_crop: np.ndarray) -> Measur
         unit="ratio",
         reference_object="color_variance",
     )
+
+
+def measure_width_to_height_ratio(
+    image: np.ndarray,
+    ref_image: np.ndarray | None = None,
+    ref_type: str | None = None,
+    is_artwork: bool = False,
+    artwork_dpi: float | None = None,
+) -> MeasurementResult:
+    """Measure the width-to-height ratio of a cropped numeral image."""
+    if is_artwork:
+        if artwork_dpi is None or artwork_dpi <= 0:
+            return MeasurementRefusal(
+                reason=("Missing or invalid artwork_dpi for exact measurement.")
+            )
+    else:
+        if ref_image is None or ref_type is None:
+            return MeasurementRefusal(
+                reason=("Missing reference object image or type for calibration.")
+            )
+        mm_per_pixel = detect_reference_object(ref_image, ref_type)
+        if mm_per_pixel is None:
+            return MeasurementRefusal(
+                reason=(f"Failed to detect reference object of type: {ref_type}.")
+            )
+
+    # Convert numeral image to grayscale if needed
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+
+    # Apply Otsu thresholding
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    active_pixels = cv2.findNonZero(thresh)
+    if active_pixels is None:
+        return MeasurementRefusal(reason="No ink detected in the image.")
+
+    active_pixels = active_pixels.reshape(-1, 2)
+    x_coords = active_pixels[:, 0]
+    y_coords = active_pixels[:, 1]
+
+    width_px = np.max(x_coords) - np.min(x_coords) + 1
+    height_px = np.max(y_coords) - np.min(y_coords) + 1
+
+    if height_px == 0:
+        return MeasurementRefusal(reason="Height of ink is zero, cannot calculate ratio.")
+
+    ratio = float(width_px) / float(height_px)
+
+    if is_artwork:
+        return MeasurementExact(value=ratio, unit="ratio")
+
+    confidence = ratio * 0.05
+
+    return MeasurementCalibrated(
+        value=ratio, confidence_interval=confidence, unit="ratio", reference_object=ref_type
+    )
+
+
+def measure_margins(
+    image: np.ndarray,
+    declaration_bbox: tuple[int, int, int, int],
+    ref_image: np.ndarray | None = None,
+    ref_type: str | None = None,
+    is_artwork: bool = False,
+    artwork_dpi: float | None = None,
+) -> dict[str, MeasurementResult]:
+    """Measure the margins around a declaration bounding box."""
+
+    def make_refusals(reason: str) -> dict[str, MeasurementResult]:
+        return {
+            direction: MeasurementRefusal(reason=reason)
+            for direction in ("above", "below", "left", "right")
+        }
+
+    if is_artwork:
+        if artwork_dpi is None or artwork_dpi <= 0:
+            return make_refusals("Missing or invalid artwork_dpi for exact measurement.")
+        mm_per_pixel = 25.4 / artwork_dpi
+    else:
+        if ref_image is None or ref_type is None:
+            return make_refusals("Missing reference object image or type for calibration.")
+        mm_per_pixel = detect_reference_object(ref_image, ref_type)
+        if mm_per_pixel is None:
+            return make_refusals(f"Failed to detect reference object of type: {ref_type}.")
+
+    x, y, w, h = declaration_bbox
+    img_h, img_w = image.shape[:2]
+
+    # Convert numeral image to grayscale if needed
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+
+    # Apply Otsu thresholding
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Distances in pixels
+    distances_px = {}
+
+    # Above
+    above_slice = thresh[0:y, :]
+    active_above = cv2.findNonZero(above_slice)
+    if active_above is not None:
+        max_y = np.max(active_above.reshape(-1, 2)[:, 1])
+        distances_px["above"] = y - max_y - 1
+    else:
+        distances_px["above"] = y
+
+    # Below
+    below_slice = thresh[y + h : img_h, :]
+    active_below = cv2.findNonZero(below_slice)
+    if active_below is not None:
+        min_y = np.min(active_below.reshape(-1, 2)[:, 1])
+        distances_px["below"] = min_y
+    else:
+        distances_px["below"] = img_h - (y + h)
+
+    # Left
+    left_slice = thresh[:, 0:x]
+    active_left = cv2.findNonZero(left_slice)
+    if active_left is not None:
+        max_x = np.max(active_left.reshape(-1, 2)[:, 0])
+        distances_px["left"] = x - max_x - 1
+    else:
+        distances_px["left"] = x
+
+    # Right
+    right_slice = thresh[:, x + w : img_w]
+    active_right = cv2.findNonZero(right_slice)
+    if active_right is not None:
+        min_x = np.min(active_right.reshape(-1, 2)[:, 0])
+        distances_px["right"] = min_x
+    else:
+        distances_px["right"] = img_w - (x + w)
+
+    results = {}
+    for direction, dist_px in distances_px.items():
+        dist_mm = max(0, dist_px) * mm_per_pixel
+        if is_artwork:
+            results[direction] = MeasurementExact(value=dist_mm, unit="mm")
+        else:
+            confidence = dist_mm * 0.05
+            results[direction] = MeasurementCalibrated(
+                value=dist_mm,
+                confidence_interval=confidence,
+                unit="mm",
+                reference_object=ref_type,
+            )
+
+    return results
