@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-# Intensity threshold (0-255) above which grayscale pixels are identified as specular glare/highlights.
+# Intensity threshold (0-255) above which grayscale pixels are identified as glare.
 GLARE_INTENSITY_THRESHOLD = 245
 
 # HSV Value channel minimum threshold (0-255) for isolating bright specular glare regions.
@@ -141,8 +141,8 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
         [[0, 0], [max_w - 1, 0], [max_w - 1, max_h - 1], [0, max_h - 1]],
         dtype=np.float32,
     )
-    M = cv2.getPerspectiveTransform(rect, dst)
-    return cv2.warpPerspective(image, M, (max_w, max_h))
+    matrix = cv2.getPerspectiveTransform(rect, dst)
+    return cv2.warpPerspective(image, matrix, (max_w, max_h))
 
 
 def remap_curvature(image: np.ndarray) -> np.ndarray:

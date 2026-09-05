@@ -99,6 +99,6 @@ def test_correct_shadows():
     lab_after = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
     _, a_after, b_after = cv2.split(lab_after)
 
-    # Assert that A and B channels in LAB space are mathematically identical (within 2-unit BGR conversion rounding tolerance)
+    # Assert that A and B channels in LAB space are identical (w/ 2-unit BGR tolerance)
     assert np.allclose(a_before, a_after, atol=2)
     assert np.allclose(b_before, b_after, atol=2)
