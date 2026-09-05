@@ -81,7 +81,7 @@ def evaluate_quality(
         reason_code = QualityReason.BLUR_EXCEEDED
         is_valid = False
     elif has_excessive_glare:
-        reason_code = QualityReason.GLARE_EXCESSIVE
+        reason_code = QualityReason.GLARE_EXCEEDED
         is_valid = False
     elif is_incomplete:
         reason_code = QualityReason.INCOMPLETE
