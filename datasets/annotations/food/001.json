@@ -1,0 +1,11 @@
+{
+  "sample_id": "001",
+  "sku_id": "parle_g_100g",
+  "category": "food",
+  "declarations": {
+    "commodity_name": "Parle-G Biscuits",
+    "net_quantity": { "value": 100.0, "unit": "g" },
+    "mrp": { "value": 10.0, "currency": "INR", "inclusive_of_all_taxes": true },
+    "consumer_care": { "contact_phone": "1800228080", "contact_email": "cs@parle.biz" }
+  }
+}
