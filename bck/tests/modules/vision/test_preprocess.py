@@ -96,3 +96,15 @@ def test_correct_shadows():
     # Assert that A and B channels in LAB space are identical (w/ 2-unit BGR tolerance)
     assert np.allclose(a_before, a_after, atol=2)
     assert np.allclose(b_before, b_after, atol=2)
+
+
+def test_correct_perspective_transforms():
+    # Construct an image with a clear quadrilateral quad and assert perspective transform alters shape
+    h, w = 200, 200
+    img = np.zeros((h, w, 3), dtype=np.uint8)
+    pts = np.array([[50, 50], [150, 30], [180, 170], [20, 180]], dtype=np.int32)
+    cv2.fillPoly(img, [pts], (255, 255, 255))
+
+    warped = correct_perspective(img)
+    # Assert that warpPerspective successfully executed and changed dimensions/content
+    assert warped.shape != img.shape or not np.array_equal(warped, img)

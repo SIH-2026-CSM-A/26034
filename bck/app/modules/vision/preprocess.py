@@ -66,7 +66,7 @@ def evaluate_quality(
     # 3. Completeness / Coverage evaluation
     _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+    
     max_area = 0.0
     for c in contours:
         area = cv2.contourArea(c)
@@ -119,28 +119,29 @@ def quality_gate(
 def remap_curvature(image: np.ndarray) -> np.ndarray:
     """
     Applies cylindrical unwarping to correct curvature distortion on cylindrical
-    packaging. Assumes a cylindrical projection centered at the image midpoint
-    with a radius equal to half the image width (w/2).
+    packaging. Uses an explicit cylindrical surface projection mapping grid
+    to flatten horizontally curved labels.
     """
     if image is None or image.size == 0:
         return image
 
     h, w = image.shape[:2]
-    camera_matrix = np.array(
-        [[w, 0, w / 2], [0, w, h / 2], [0, 0, 1]],
-        dtype=np.float32,
-    )
-    dist_coeffs = np.zeros((4, 1), dtype=np.float32)
+    cx, cy = w / 2.0, h / 2.0
+    radius = w * 0.8
 
-    map_x, map_y = cv2.initUndistortRectifyMap(
-        camera_matrix,
-        dist_coeffs,
-        None,
-        camera_matrix,
-        (w, h),
-        cv2.CV_32FC1,
-    )
-    return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR)
+    map_x = np.zeros((h, w), dtype=np.float32)
+    map_y = np.zeros((h, w), dtype=np.float32)
+
+    for y in range(h):
+        for x in range(w):
+            dx = x - cx
+            val = dx / radius
+            val = max(-1.0, min(1.0, val))
+            x_src = cx + radius * np.sin(val)
+            map_x[y, x] = np.float32(x_src)
+            map_y[y, x] = np.float32(y)
+
+    return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
 def remove_glare(image: np.ndarray) -> np.ndarray:
@@ -181,7 +182,8 @@ def correct_shadows(image: np.ndarray) -> np.ndarray:
 
 def correct_perspective(image: np.ndarray) -> np.ndarray:
     """
-    Detects document contours and applies perspective transformation (deskewing).
+    Detects document/label contours and applies perspective transformation (deskewing)
+    using cv2.warpPerspective based on the detected 4-point quad contour.
     """
     if image is None or image.size == 0:
         return image
@@ -204,4 +206,36 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
     if screen_cnt is None:
         return image
 
-    return image
+    pts = screen_cnt.reshape(4, 2).astype(np.float32)
+
+    # Order points: top-left, top-right, bottom-right, bottom-left
+    rect = np.zeros((4, 2), dtype=np.float32)
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+
+    tl, tr, br, bl = rect
+
+    widthA = np.sqrt((br[0] - bl[0]) ** 2 + (br[1] - bl[1]) ** 2)
+    widthB = np.sqrt((tr[0] - tl[0]) ** 2 + (tr[1] - tl[1]) ** 2)
+    maxWidth = max(int(widthA), int(widthB))
+
+    heightA = np.sqrt((tr[0] - br[0]) ** 2 + (tr[1] - br[1]) ** 2)
+    heightB = np.sqrt((tl[0] - bl[0]) ** 2 + (tl[1] - bl[1]) ** 2)
+    maxHeight = max(int(heightA), int(heightB))
+
+    if maxWidth <= 0 or maxHeight <= 0:
+        return image
+
+    dst = np.array([
+        [0, 0],
+        [maxWidth - 1, 0],
+        [maxWidth - 1, maxHeight - 1],
+        [0, maxHeight - 1],
+    ], dtype=np.float32)
+
+    m_matrix = cv2.getPerspectiveTransform(rect, dst)
+    return cv2.warpPerspective(image, m_matrix, (maxWidth, maxHeight))
