@@ -1,6 +1,6 @@
-# CLAUDE.md — 26034
+# CLAUDE.md — PCCS (26034)
 
-Compliance decision-support for packaged commodities under the Legal Metrology
+**PCCS — Packaged Commodity Compliance System.** Compliance decision-support for packaged commodities under the Legal Metrology
 (Packaged Commodities) Rules, 2011. Used by Legal Metrology officers — Controller,
 Deputy, Inspector — to scan a package or a listing and get evidence-backed findings.
 
