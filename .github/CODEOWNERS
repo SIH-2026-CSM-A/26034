@@ -1,18 +1,35 @@
-# Review is routed by directory. Everything has an owner; the root line is the
-# fallback so nothing lands unreviewed.
-#
-# Modules without a confirmed GitHub username fall back to @Abhiram-0910 — update the
-# line when the username is confirmed, don't guess it.
+# Root fallback — anything not matched below.
+*                                   @Abhiram-0910
 
-*                             @Abhiram-0910
+# Shared spine. Single owner, no exceptions.
+/bck/app/contracts/                 @Abhiram-0910
+/bck/app/core/                      @Abhiram-0910
+/bck/app/pipeline/                  @Abhiram-0910
+/bck/alembic/                       @Abhiram-0910
+/.github/                           @Abhiram-0910
+/rules-corpus/                      @Abhiram-0910
 
-bck/app/modules/vision/       @aksha08-ya
-bck/app/modules/extraction/   @krishbattula4
-bck/app/modules/evidence/     @Shiva-Kumar-Akula
-bck/app/modules/tamper/       @adepushivasai901-ops
+# Backend modules.
+/bck/app/modules/vision/            @aksha08-ya
+/bck/app/modules/extraction/        @krishbattula4
+/bck/app/modules/measurement/       @Yashashvi-05
+/bck/app/modules/rules/             @badugujashwanth-create
+/bck/app/modules/tamper/            @adepushivasai901-ops
+/bck/app/modules/evidence/          @Shiva-Kumar-Akula
 
-bck/app/contracts/            @Abhiram-0910
-bck/app/core/                 @Abhiram-0910
-bck/app/pipeline/             @Abhiram-0910
-bck/alembic/                  @Abhiram-0910
-.github/                      @Abhiram-0910
+# Tests follow their module's owner.
+/bck/tests/modules/vision/          @aksha08-ya
+/bck/tests/modules/extraction/      @krishbattula4
+/bck/tests/modules/measurement/     @Yashashvi-05
+/bck/tests/modules/rules/           @badugujashwanth-create
+/bck/tests/modules/tamper/          @adepushivasai901-ops
+/bck/tests/modules/evidence/        @Shiva-Kumar-Akula
+
+# Frontend and data.
+/fnt/                               @vineethsimha2151
+/datasets/                          @aashrithareddybodanampally-byte
+
+# Per-person session logs — each owns their own.
+/session-log/abhiram.md             @Abhiram-0910
+/session-log/akshaya.md             @aksha08-ya
+/session-log/sitanshu.md            @krishbattula4
