@@ -182,3 +182,10 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
     # If a 4-point contour is found, apply perspective transform
     # (Simplified fallback to returning image if transform points are degenerate)
     return image
+
+
+def quality_gate(image: np.ndarray) -> QualityResult:
+    """
+    Alias for evaluate_quality to satisfy test suite expectations.
+    """
+    return evaluate_quality(image)
