@@ -253,3 +253,34 @@ design holds. Read the diff.
 **When a rule figure appears in two project documents with different values.** Neither was
 law. Both were assumptions that had been argued about long enough to look like facts. Go to
 the gazette.
+
+## Owners and usernames — addendum
+
+FNT-001 is temporarily reassigned to B.V. Yashwanth (`ybaddam8-png`) due to Vineeth's
+unavailability. This is a one-time, explicit exception — he is not otherwise a team
+member and should not be assigned anything else without the same explicit call.
+
+## Decisions — addendum
+
+**VP-CI-001's ticket ID stays as written.** The project's placeholder-name check
+searches for the retired product name as a substring; "VP-CI-001" doesn't contain it
+and was never that placeholder — it's the actual branch/PR/ClickUp identifier from
+when that ticket was live. Renaming it retroactively in session logs or SETUP.md
+would make our own docs disagree with the permanent, unchangeable squash-merge commit
+on GitHub, for no benefit. Left alone in TODO.md, SETUP.md, and session-log/abhiram.md.
+
+**Cloud provider allocation:** Featherless remains the sole copilot generation
+provider. OpenAI, if used, is scoped to query rewriting/retrieval expansion ahead of
+the existing hybrid retrieval — never a second generation call, never in the verdict
+path. AWS is unallocated reserve — no product data, no evidence records, ever, per the
+sovereignty requirement that already ruled out cloud-primary storage.
+
+## Merge gate — addendum
+
+CODEOWNERS assigns exactly one owner per module path, and that owner is always the PR's
+author. This means codeowner review can never be satisfied by a second person on any
+contributor's own-module PR — not just Abhiram's own tickets. `--admin` is therefore the
+standard merge command for every merge in this repo, for every contributor. `--admin`
+also skips the required status check, so always run `gh pr checks <n>` in the same
+breath as the merge — the ruleset itself won't catch a red build once `--admin` is
+in play.
