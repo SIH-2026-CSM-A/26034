@@ -7,8 +7,9 @@ import numpy as np
 
 class QualityReason(StrEnum):
     PASS = "PASS"
-    BLUR_EXCESSIVE = "BLUR_EXCESSIVE"
-    GLARE_EXCESSIVE = "GLARE_EXCESSIVE"
+    BLUR_EXCEEDED = "BLUR_EXCEEDED"
+    GLARE_EXCEEDED = "GLARE_EXCEEDED"
+    IMAGE_EMPTY = "IMAGE_EMPTY"
     INCOMPLETE = "INCOMPLETE"
 
 
@@ -44,7 +45,7 @@ def evaluate_quality(
     if image is None or image.size == 0:
         return QualityResult(
             is_valid=False,
-            reason_code=QualityReason.INCOMPLETE,
+            reason_code=QualityReason.IMAGE_EMPTY,
             blur_score=0.0,
             glare_ratio=0.0,
             coverage_ratio=0.0,
@@ -77,7 +78,7 @@ def evaluate_quality(
 
     # Determine reason code and validity
     if is_blurry:
-        reason_code = QualityReason.BLUR_EXCESSIVE
+        reason_code = QualityReason.BLUR_EXCEEDED
         is_valid = False
     elif has_excessive_glare:
         reason_code = QualityReason.GLARE_EXCESSIVE
