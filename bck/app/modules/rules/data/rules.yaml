@@ -1,0 +1,354 @@
+schema_version: 1
+rules:
+  - rule_id: R6-1-A
+    clause_ref: Rule 6(1)(a)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      the name and address of the manufacturer, or where the manufacturer is not the packer,
+      the name and address of the manufacturer and packer and for any imported package the
+      name and address of the importer shall be mentioned on every package.
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages, imported_packages]
+    conditions:
+      kind: declaration_required
+      declarations:
+        - manufacturer_name_and_address
+        - packer_name_and_address_when_manufacturer_is_not_packer
+        - importer_name_and_address_for_imported_package
+      exceptions:
+        - In respect of packages containing food articles, the Food Safety and Standards Act, 2006 and the rules made thereunder apply.
+    evidence_requirement: declaration_text_and_role_binding
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-AA
+    clause_ref: Rule 6(1)(aa)
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      The name of the country of origin or manufacture or assembly in case of imported
+      products shall be mentioned on the package;
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [imported_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [country_of_origin_or_manufacture_or_assembly]
+      exceptions: []
+    evidence_requirement: declaration_text
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-B
+    clause_ref: Rule 6(1)(b)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      The common or generic names of the commodity contained in the package and in case of
+      packages with more than one product, the name and number or quantity of each product
+      shall be mentioned on the package.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations:
+        - common_or_generic_name
+        - each_product_name_and_number_or_quantity_for_packages_with_more_than_one_product
+      exceptions: []
+    evidence_requirement: declaration_text
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-C
+    clause_ref: Rule 6(1)(c)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      The net quantity, in terms of the standard unit of weight or measure, of the commodity
+      contained in the package or where the commodity is packed or sold by number, the number
+      of the commodity contained in the package shall be mentioned.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [net_quantity_or_count]
+      exceptions: []
+    evidence_requirement: normalized_quantity_or_count_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-D
+    clause_ref: Rule 6(1)(d)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      The month and year in which the commodity is manufactured shall be mentioned in the
+      package. Provided that for packages containing food articles, the provisions of the
+      Prevention of Food Adulteration Act 1954 (37 of 1954) and the rules made there under
+      shall apply; Provided further that nothing in this sub-clause shall apply in case of
+      packages containing seeds which are labeled and certified under the provisions of the
+      Seeds Act, 1966 (54 of 1966) and the rules made there under; Provided also that for
+      packages containing cosmetics products, the provisions of the Drugs and Cosmetics
+      Rules, 1945 shall apply.
+    status: VERIFIED
+    effective_from: 2022-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [month_and_year_of_manufacture]
+      exceptions:
+        - For packages containing food articles, the applicable food law provisions apply.
+        - Packages containing seeds labelled and certified under the Seeds Act, 1966 and its rules.
+        - For packages containing cosmetic products, the Drugs and Cosmetics Rules, 1945 apply.
+    evidence_requirement: manufacture_date_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-D-GSR-722E
+    clause_ref: Rule 6(1)(d) provisos effective 2024
+    gazette_ref: GSR-722E__2023-10-06__amendment-rules-2023.pdf
+    source_text: >-
+      Provided also that nothing contained in this clause shall apply to spare parts and
+      accessories used for the purpose of servicing with a warranty and not sold to end
+      customers: Provided also that for electronic products, spare parts and accessories,
+      the declaration of month and year of manufacture shall be specified anywhere on the
+      retail package in a visible and clearly legible manner.
+    status: VERIFIED
+    effective_from: 2024-04-01
+    effective_to: null
+    applies_to: [electronic_products_spare_parts_and_accessories]
+    conditions:
+      kind: declaration_required
+      declarations: [visible_and_clearly_legible_month_and_year_of_manufacture]
+      exceptions:
+        - Spare parts and accessories used for servicing with a warranty and not sold to end customers.
+    evidence_requirement: visible_legible_manufacture_date_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-DA
+    clause_ref: Rule 6(1)(da)
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      If a package contains a commodity which may become unfit for human consumption after
+      a period of time, the ‘best before or use by the date, month and year’ shall also be
+      mentioned on the label: Provided that nothing in this clause shall apply if a provision
+      in this regard is made in any other law.
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [best_before_or_use_by_date_month_and_year]
+      exceptions:
+        - A provision in this regard is made in another law.
+    evidence_requirement: durability_date_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-E
+    clause_ref: Rule 6(1)(e)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: the retail sale price of the package;
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [retail_sale_price]
+      exceptions:
+        - A package containing Bidi.
+        - A domestic liquefied petroleum gas cylinder whose price is covered under the Administrative Price Mechanism of the Government.
+    evidence_requirement: retail_sale_price_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-F
+    clause_ref: Rule 6(1)(f)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Where the sizes of the commodity contained in the package are relevant, the dimensions
+      of the commodity contained in the package and if the dimensions of the different pieces
+      are different, the dimensions of each such different piece shall be mentioned.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [relevant_dimensions]
+      exceptions: []
+    evidence_requirement: dimensions_declaration_when_relevant
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-1-G
+    clause_ref: Rule 6(1)(g)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: "such other matter as are specified in these rules:"
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_required
+      declarations: [other_matter_specified_in_these_rules]
+      exceptions: []
+    evidence_requirement: rule_specific_declaration_evidence
+    severity: REVIEW
+
+  - rule_id: R7-2-TABLE-I
+    clause_ref: Rule 7(2), Table-I
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      The height of any numeral and letter in the declaration required under these rules shall
+      be as per Table-I.
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: table_height
+      bands:
+        - minimum_area_exclusive_cm2: null
+          maximum_area_inclusive_cm2: 50
+          normal_minimum_height_mm: 1.0
+          moulded_minimum_height_mm: 1.5
+        - minimum_area_exclusive_cm2: 50
+          maximum_area_inclusive_cm2: 100
+          normal_minimum_height_mm: 1.5
+          moulded_minimum_height_mm: 3.0
+        - minimum_area_exclusive_cm2: 100
+          maximum_area_inclusive_cm2: 500
+          normal_minimum_height_mm: 2.5
+          moulded_minimum_height_mm: 4.0
+        - minimum_area_exclusive_cm2: 500
+          maximum_area_inclusive_cm2: 2500
+          normal_minimum_height_mm: 4.0
+          moulded_minimum_height_mm: 6.0
+        - minimum_area_exclusive_cm2: 2500
+          maximum_area_inclusive_cm2: null
+          normal_minimum_height_mm: 6.0
+          moulded_minimum_height_mm: 6.0
+    evidence_requirement: calibrated_or_artwork_character_height_and_pdp_area
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R7-3-WIDTH-RATIO
+    clause_ref: Rule 7(3)
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      The width of the letter or numeral shall not be less than one third of its height,
+      except in the case of numeral “1” and letters (i), (I) and (l).
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: width_ratio
+      minimum_width_to_height_ratio: 0.3333333333333333333333333333
+      exempt_characters: ["1", i, I, l]
+    evidence_requirement: calibrated_or_artwork_character_width_and_height
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R7-4-PDP-AREA
+    clause_ref: Rule 7(4)
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      The area not including the top, bottom, flange at top and bottom of cans, and shoulders
+      and neck of bottle and jars shall be determined in the following manner, namely:-
+      (a) in the case of a rectangular package, where one entire side can properly be considered
+      to be the principal display panel side, the product of the height multiplied by the width
+      of that side; (b) in case of a cylindrical or nearly cylindrical package, 40 per cent. of
+      the product of the height of the package multiplied by the circumference; (c) in case of
+      any other shaped package , 40 per cent. of the total surface of the package, or an area
+      considered to be a principal display panel of the package.
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: pdp_area
+      cylindrical_multiplier: 0.40
+      other_shape_multiplier: 0.40
+      allow_legally_identified_pdp_area: true
+      excluded_regions: [top, bottom, can_top_flange, can_bottom_flange, bottle_or_jar_shoulders, bottle_or_jar_neck]
+    evidence_requirement: supplied_calibrated_dimensions_or_legally_identified_pdp_area
+    severity: REVIEW
+
+  - rule_id: R7-5-OTHER-LAW
+    clause_ref: Rule 7(5)
+    gazette_ref: GSR-629E__2017-06-23__amendment-rules-2017.pdf
+    source_text: >-
+      Except size of the numbers and letters for declaring net weight, retail sale price,
+      date of expiry or best before or use by date (wherever and as applicable) and consumer
+      care details, the provisions under sub-rules (1) to (4) shall not apply to a package if
+      the information to be specified on such package under this rule is also required to be
+      given by or under any other law for the time being in force.
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: other_law_carve_out
+      preserved_declarations: [net_weight, retail_sale_price, expiry_best_before_use_by, consumer_care_details]
+    evidence_requirement: declaration_type_and_other_law_applicability
+    severity: REVIEW
+
+  - rule_id: R7-MEDICAL-DEVICE-OVERRIDE
+    clause_ref: Rule 2(h), Rule 7(2)-(3), Rule 33(2)
+    gazette_ref: GSR-778E__2025-10-23__medical-devices-mdr-2017.pdf
+    source_text: >-
+      Provided that for packages containing medical devices, the provisions of the Medical
+      Devices Rules, 2017, shall apply to make declarations. Provided that for packages
+      containing medical devices, the provisions of the Medical Devices Rules, 2017, shall
+      apply for the height of any numeral and letter to make declarations. Provided that for
+      packages containing medical devices, the provisions of the Medical Devices Rules, 2017,
+      shall apply for the width of any numeral and letter to make declarations. In case where
+      the Medical Devices Rules, 2017 are applicable, the relaxation given under this rule
+      shall not apply.
+    status: VERIFIED
+    effective_from: 2025-10-24
+    effective_to: null
+    applies_to: [medical_device_packages]
+    conditions:
+      kind: sector_override
+      sector: medical_device
+      controlling_framework: Medical Devices Rules, 2017
+      overrides: [table_height, width_ratio]
+    evidence_requirement: medical_device_classification_and_mdr_specific_evidence
+    severity: REVIEW
+
+  - rule_id: R6-10A-GSR-128E
+    clause_ref: Rule 6(10A)
+    gazette_ref: GSR-128E__2026-02-13__country-of-origin-ecommerce-filter.pdf
+    source_text: >-
+      Every e-commerce entity selling imported products shall provide the product listings
+      of such imported products in a searchable and sortable filter specifying the country
+      of origin.
+    status: VERIFIED
+    effective_from: 2026-07-01
+    effective_to: 2027-06-30
+    applies_to: [ecommerce_imported_product_listings]
+    conditions:
+      kind: ecommerce_country_of_origin_filter
+      imported_products_only: true
+      searchable: true
+      sortable: true
+    evidence_requirement: ecommerce_listing_filter_configuration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R6-10A-GSR-312E
+    clause_ref: Rule 6(10A)
+    gazette_ref: GSR-312E__2026-04-27__country-of-origin-second-amendment.pdf
+    source_text: >-
+      Every e-commerce entity offering for sale any imported product shall, with effect from
+      the 1st day of July, 2027, ensure that the product listing of such imported product
+      contains a searchable and sortable filter specifying the country of origin.
+    status: VERIFIED
+    effective_from: 2027-07-01
+    effective_to: null
+    applies_to: [ecommerce_imported_product_listings]
+    conditions:
+      kind: ecommerce_country_of_origin_filter
+      imported_products_only: true
+      searchable: true
+      sortable: true
+    evidence_requirement: ecommerce_listing_filter_configuration
+    severity: POTENTIAL VIOLATION
