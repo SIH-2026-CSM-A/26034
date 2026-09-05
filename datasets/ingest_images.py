@@ -24,13 +24,19 @@ def sync_manifest(drive_folder_id: str) -> Dict[str, Any]:
         for img_path in RAW_DIR.glob("**/*.[jJ][pP][gG]"):
             abs_path = img_path.resolve()
             rel_path = abs_path.relative_to(Path.cwd().resolve())
-            sample_id = img_path.stem
+            sample_num = img_path.stem
+            sku_name = img_path.parent.name
             category = img_path.parent.parent.name
-            anno_path = ANNOTATIONS_DIR / category / f"{sample_id}.json"
+            
+            full_sku_id = f"{category}_{sku_name}"
+            full_sample_id = f"{full_sku_id}_{sample_num}"
+            
+            anno_file_name = f"{full_sample_id}.json"
+            anno_path = ANNOTATIONS_DIR / category / anno_file_name
 
             samples.append({
-                "sample_id": sample_id,
-                "sku_id": img_path.parent.name,
+                "sample_id": full_sample_id,
+                "sku_id": full_sku_id,
                 "category": category,
                 "relative_image_path": str(rel_path),
                 "annotation_path": str(anno_path) if anno_path.exists() else None,

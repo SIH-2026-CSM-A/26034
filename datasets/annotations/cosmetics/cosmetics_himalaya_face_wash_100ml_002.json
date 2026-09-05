@@ -1,124 +1,124 @@
 {
-  "sample_id": "food_parle_g_biscuits_001",
-  "sku_id": "food_parle_g_biscuits",
-  "image_filename": "datasets/raw/food/parle_g_biscuits/001.jpg",
-  "image_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "category": "food",
-  "difficulty_tags": ["small_pdp", "crowded", "flexible_pouch", "calibrated"],
+  "sample_id": "cosmetics_himalaya_face_wash_100ml_002",
+  "sku_id": "cosmetics_himalaya_face_wash_100ml",
+  "image_filename": "datasets/raw/cosmetics/himalaya_face_wash_100ml/002.jpg",
+  "image_sha256": "b1e6e1689e8b88ac3682e6126ee7a2bc32100ebd82fa494f40d76b098dc2caf5",
+  "category": "cosmetics",
+  "difficulty_tags": ["calibrated"],
   "known_issues": [],
   "reference_object": {
-    "present": true,
-    "object_type": "coin_inr_5",
-    "known_dimension_mm": 25.0,
-    "confidence_interval_mm": 0.2,
-    "bbox": [0.05, 0.75, 0.18, 0.95]
+    "present": false,
+    "object_type": null,
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
   },
   "pdp": {
-    "shape": "rectangular",
-    "height_cm": 6.0,
-    "width_cm": 8.0,
-    "circumference_cm": null,
-    "total_surface_area_cm2": null,
-    "area_cm2": 48.0,
+    "shape": "cylindrical",
+    "height_cm": 14.0,
+    "width_cm": 5.0,
+    "circumference_cm": 10.0,
+    "total_surface_area_cm2": 140.0,
+    "area_cm2": 70.0,
     "is_measurable": true,
-    "rule7_band": "A_le_50",
-    "rule7_min_height_mm": 1.0
+    "rule7_band": "A_gt_100",
+    "rule7_min_height_mm": 2.0
   },
   "declarations": {
     "manufacturer_or_packer": {
       "declared": true,
-      "raw_text": "Mfg by Parle Products Pvt. Ltd., V.S. Khandekar Marg, Vile Parle East, Mumbai 400057, Maharashtra.",
+      "raw_text": "The Himalaya Drug Company, Makali, Bengaluru 562123, India",
       "normalised_value": {
-        "name": "Parle Products Pvt. Ltd.",
-        "address": "V.S. Khandekar Marg, Vile Parle East, Mumbai 400057, Maharashtra",
+        "name": "The Himalaya Drug Company",
+        "address": "Makali, Bengaluru 562123, India",
         "role": "manufacturer"
       },
       "bbox": [0.1, 0.4, 0.85, 0.55],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.2,
+      "letter_height_mm": 1.5,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "commodity_name": {
       "declared": true,
-      "raw_text": "BISCUITS",
-      "normalised_value": "Biscuits",
+      "raw_text": "Purifying Neem Face Wash",
+      "normalised_value": "Purifying Neem Face Wash",
       "bbox": [0.2, 0.1, 0.8, 0.2],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 3.5,
+      "letter_height_mm": 3.0,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "net_quantity": {
       "declared": true,
-      "raw_text": "Net Wt.: 55 g",
+      "raw_text": "Net Vol.: 100 ml",
       "normalised_value": {
-        "value": 55.0,
-        "unit": "g"
+        "value": 100.0,
+        "unit": "ml"
       },
       "bbox": [0.6, 0.25, 0.9, 0.35],
       "polygon": null,
-      "numeral_height_mm": 2.1,
-      "letter_height_mm": 1.4,
+      "numeral_height_mm": 2.5,
+      "letter_height_mm": 2.0,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "date_of_manufacture_or_packing": {
       "declared": true,
-      "raw_text": "PKD: 08/2026",
+      "raw_text": "MFG: 01/2026",
       "normalised_value": {
-        "month": 8,
+        "month": 1,
         "year": 2026
       },
       "bbox": [0.15, 0.6, 0.45, 0.7],
       "polygon": null,
-      "numeral_height_mm": 1.5,
-      "letter_height_mm": 1.1,
+      "numeral_height_mm": 1.8,
+      "letter_height_mm": 1.2,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "retail_sale_price_mrp": {
       "declared": true,
-      "raw_text": "MRP Rs. 5.00 (incl. of all taxes)",
+      "raw_text": "MRP Rs. 180.00 (incl. of all taxes)",
       "normalised_value": {
-        "amount_inr": 5.0,
+        "amount_inr": 180.0,
         "inclusive_of_all_taxes": true
       },
       "bbox": [0.5, 0.6, 0.9, 0.7],
       "polygon": null,
-      "numeral_height_mm": 1.8,
-      "letter_height_mm": 1.1,
+      "numeral_height_mm": 2.0,
+      "letter_height_mm": 1.2,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "unit_sale_price": {
       "declared": true,
-      "raw_text": "Rs. 0.09 per g",
+      "raw_text": "Rs. 1.80 per ml",
       "normalised_value": {
-        "rate": 0.09,
-        "unit_basis": "per g"
+        "rate": 1.8,
+        "unit_basis": "per ml"
       },
       "bbox": [0.5, 0.72, 0.88, 0.8],
       "polygon": null,
-      "numeral_height_mm": 1.2,
+      "numeral_height_mm": 1.5,
       "letter_height_mm": 1.0,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
     "consumer_care_details": {
       "declared": true,
-      "raw_text": "Consumer Care Manager: Tel 022-66916911, Email: cs@parle.biz, Parle Products Pvt Ltd, Mumbai 400057",
+      "raw_text": "Call: 18002081930, Email: care@himalayawellness.com, Address: Makali, Bengaluru 562123",
       "normalised_value": {
-        "designation": "Consumer Care Manager",
-        "phone": "022-66916911",
-        "email": "cs@parle.biz",
-        "address": "Parle Products Pvt Ltd, Mumbai 400057"
+        "designation": "Customer Care Executive",
+        "phone": "18002081930",
+        "email": "care@himalayawellness.com",
+        "address": "Makali, Bengaluru 562123"
       },
       "bbox": [0.1, 0.8, 0.9, 0.92],
       "polygon": null,
-      "numeral_height_mm": 1.1,
+      "numeral_height_mm": 1.2,
       "letter_height_mm": 1.0,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -130,11 +130,11 @@
       "bbox": [0.1, 0.56, 0.45, 0.62],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.1,
+      "letter_height_mm": 1.2,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     }
   },
   "ground_truth_verdict": "PASS",
-  "notes": "Small PDP (48 cm²) sample with calibrated coin reference target."
+  "notes": "100ml face wash tube sample angle 2."
 }
