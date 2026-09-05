@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from bck.app.modules.vision.preprocess import (
+from app.modules.vision.preprocess import (
     QualityResult,
     correct_perspective,
     correct_shadows,
