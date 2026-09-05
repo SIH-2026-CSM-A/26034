@@ -26,3 +26,12 @@
 
 **Incomplete**
 - Real-world photo collection and ingestion onto Shared Drive is ongoing.
+
+## Session Log Update: PR #16 (DAT-001)
+- **Branch:** `feature/26034-DAT-001-corpus-images`
+- **Actions Completed:**
+  - Resolved absolute path handling bug in `datasets/ingest_images.py`.
+  - Ingested 4 raw corpus photos across `food/parle_g_100g` and `cosmetics/himalaya_face_wash_100ml`.
+  - Generated ground-truth annotations under `datasets/annotations/`.
+  - Updated `datasets/manifest.json` with calculated SHA-256 asset hashes.
+- **Verification:** Ran `pytest` (124/124 passing) and verified raw image files were excluded from git tracking.
