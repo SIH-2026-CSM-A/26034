@@ -99,14 +99,14 @@ def remap_curvature(image: np.ndarray) -> np.ndarray:
         return image
 
     h, w = image.shape[:2]
-    K = np.array(
+    camera_matrix = np.array(
         [[w, 0, w / 2], [0, w, h / 2], [0, 0, 1]],
         dtype=np.float32,
     )
     dist_coeffs = np.zeros((4, 1), dtype=np.float32)
 
     map_x, map_y = cv2.initUndistortRectifyMap(
-        K, dist_coeffs, None, K, (w, h), cv2.CV_32FC1,
+        K, dist_coeffs, None, camera_matrix, (w, h), cv2.CV_32FC1,
     )
     return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR)
 
@@ -140,10 +140,10 @@ def correct_shadows(image: np.ndarray) -> np.ndarray:
         return image
 
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
+    l_channel, a_channel, b_channel = cv2.split(lab)
 
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l_enhanced = clahe.apply(l)
+    l_enhanced = clahe.apply(l_channel)
 
-    lab_enhanced = cv2.merge([l_enhanced, a, b])
+    lab_enhanced = cv2.merge([l_enhanced, a_channel, b_channel])
     return cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
