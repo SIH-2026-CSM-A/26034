@@ -10,11 +10,17 @@ Newest entry at the top.
 
 ## Current state
 
-**Updated:** 
-**Branch:** 
-**Agents active:** 
-**Status:** 
-**Next:** 
+**Updated:** 2026-09-05
+**Branch:** `feature/26034-CTR-002-contracts-v1`
+**Agents active:** Claude Code (Abhiram, CTR-002). A second session committed
+`docs: sync HANDOFF and TICKETS` onto this branch mid-ticket and reset it — that work now
+lives on `docs/sync-handoff-tickets`.
+**Status:** contracts v1 built and green — ruff, ruff format, lint-imports, pytest all
+pass; the case-insensitive sweep for the old placeholder name is clean. Product
+name settled as PCCS.
+**Next:** merge CTR-002, then tell Jashwanth (RUL-001) and Yashashvi (MEA-002, PR #13) to
+drop their local stand-ins for the real imports. `docs/sync-handoff-tickets` needs its
+HANDOFF.md note rephrased before merge or the naming sweep regresses.
 
 ---
 
