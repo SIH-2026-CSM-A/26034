@@ -63,7 +63,7 @@ def test_ink_extent_measured_correctly():
     assert result.unit == "mm"
     assert result.reference_object == "coin_10"
 
-    # Assert that the bounding box extent (200 px) and ink extent (101 px) diverge, 
+    # Assert that the bounding box extent (200 px) and ink extent (101 px) diverge,
     # proving the Otsu thresholding successfully isolated the ink from the padding.
     theoretical_mm_per_px = 0.5
     padded_bbox_height_mm = numeral_image.shape[0] * theoretical_mm_per_px
