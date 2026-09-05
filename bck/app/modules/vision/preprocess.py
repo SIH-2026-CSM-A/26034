@@ -10,7 +10,7 @@ class QualityReason(StrEnum):
     BLUR_EXCEEDED = "BLUR_EXCEEDED"
     GLARE_EXCEEDED = "GLARE_EXCEEDED"
     IMAGE_EMPTY = "IMAGE_EMPTY"
-    INCOMPLETE = "INCOMPLETE"
+    INCOMPLETE_LABEL = "INCOMPLETE_LABEL"
 
 
 # Intensity threshold (0-255) above which grayscale pixels are identified as glare.
@@ -40,7 +40,7 @@ def evaluate_quality(
 ) -> QualityResult:
     """
     Evaluates image quality for downstream OCR and compliance processing.
-    Returns a QualityResult with machine-readable reason codes.
+    Returns a QualityResult with machine-readable QualityReason enum members.
     """
     if image is None or image.size == 0:
         return QualityResult(
@@ -76,7 +76,7 @@ def evaluate_quality(
     coverage_ratio = max_area / float(h * w)
     is_incomplete = coverage_ratio < completeness_threshold
 
-    # Determine reason code and validity
+    # Determine reason code and validity using QualityReason members
     if is_blurry:
         reason_code = QualityReason.BLUR_EXCEEDED
         is_valid = False
@@ -84,7 +84,7 @@ def evaluate_quality(
         reason_code = QualityReason.GLARE_EXCEEDED
         is_valid = False
     elif is_incomplete:
-        reason_code = QualityReason.INCOMPLETE
+        reason_code = QualityReason.INCOMPLETE_LABEL
         is_valid = False
     else:
         reason_code = QualityReason.PASS
