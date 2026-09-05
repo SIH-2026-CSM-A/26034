@@ -16,9 +16,16 @@ assignment record.
       LMPC e-book, G.S.R. 629(E) 2017, the 6 Oct 2023 amendment, the Oct 2025
       medical-devices amendment, G.S.R. 128(E) and G.S.R. 312(E) 2026. Immutable source
       PDFs. Every encoded rule cites one of these.
-- [ ] **`contracts/` v1** (Abhiram). Per-field state enum, verdict enum, rule schema,
-      ExtractedSpan, NormalisedField, MeasurementResult, VerdictRecord. Nine people are
-      blocked on this — it is the real critical path once the scaffold merges.
+- [x] **`contracts/` v1** (Abhiram, CTR-002) — 2026-09-05. Per-field state enum,
+      verdict enum, rule schema, ExtractedSpan, NormalisedField, MeasurementResult,
+      VerdictRecord, CatalogueRecord.
+- [ ] **Swap the local stand-ins for the real imports.** Two are outstanding:
+      RUL-001 (Jashwanth) drops his local `RuleDefinition`; MEA-002 (Yashashvi, PR #13,
+      changes requested) drops the local union in
+      `bck/app/modules/measurement/schemas.py`. The contracts variants match hers field
+      for field, so it is a delete-and-import. One behaviour change to know about:
+      `confidence_interval` is now `gt=0`, so a degenerate zero-width interval raises
+      instead of being emitted as a measurement.
 - [ ] **Corpus collection starts** (Aashritha). Real Indian packaging photographs across
       categories, plus the labelling schema and the eval harness. No accuracy claim in
       the PRD is currently backed by anything.
@@ -50,8 +57,14 @@ assignment record.
 
 ## Blocked / unresolved
 
-- [ ] **F18 unit sale price tolerance** — ±₹0.01 in one document, ±₹0.05 in another.
-      Needs a read of Rule 6(11)'s rounding language. Blocks encoding F18.
+*(Product name settled 2026-09-05: PCCS — Packaged Commodity Compliance System.
+Applied across README, ARCHITECTURE, AGENTS and CLAUDE in CTR-002.)*
+
+*(F18 unit sale price settled in COR-001: Rule 6(11) is a format rule prescribing the
+unit basis, with no tolerance and no rounding increment. The ±₹0.01 and ±₹0.05 figures
+were assumptions in earlier project documents, not law, and must not be encoded. See
+`rules-corpus/README.md`.)*
+
 - [ ] **Medical devices carve-out** — Amendment Rules 2025 route numeral and letter
       height to the Medical Devices Rules 2017 and disapply the Rule 33 relaxation and
       PDP declaration. Rule 7 Table-I is not universal. Not yet in the sector-override
@@ -59,7 +72,6 @@ assignment record.
       knowing this.
 - [ ] **Combination Package and Group Package** — defined by the Amendment Rules 2023,
       absent from every project document and from the rule schema.
-- [ ] **Product name** — VeriPack is a placeholder in all six documents.
 - [ ] **MVP category priority** — packaged food is the volume answer and carries the
       heaviest FSSAI override risk.
 
