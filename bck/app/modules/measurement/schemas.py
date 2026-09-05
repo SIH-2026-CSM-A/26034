@@ -14,6 +14,7 @@ class MeasurementExact(BaseModel):
     mode: Literal["exact"] = "exact"
     value: float
     unit: str
+    rule_limb: str | None = None
 
 
 class MeasurementCalibrated(BaseModel):

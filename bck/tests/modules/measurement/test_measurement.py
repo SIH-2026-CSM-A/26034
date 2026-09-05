@@ -127,3 +127,86 @@ def test_pdp_area_calculation():
     assert isinstance(res_other_calibrated, MeasurementCalibrated)
     assert np.isclose(res_other_calibrated.value, 150.0, rtol=0.10)
     assert res_other_calibrated.rule_limb == "other-panel-measured"
+
+
+def test_measurement_exact_artwork_path():
+    """Assert that using the is_artwork=True path returns MeasurementExact."""
+    numeral_image = np.ones((200, 200), dtype=np.uint8) * 255
+    numeral_image[50:151, 80:120] = 0  # 101 px height
+
+    # 300 DPI means mm_per_pixel = 25.4 / 300
+    # height_mm = 101 * (25.4 / 300) = 8.55133 mm
+    result = measure_ink_extent(numeral_image, is_artwork=True, artwork_dpi=300)
+    assert isinstance(result, MeasurementExact)
+    assert np.isclose(result.value, 8.55133, rtol=0.01)
+    assert result.unit == "mm"
+
+    # For PDP area
+    pdp_image = np.zeros((200, 300), dtype=np.uint8)
+    # height = 200 * (25.4/300) = 16.933 mm
+    # width = 300 * (25.4/300) = 25.4 mm
+    # area_mm2 = 16.933 * 25.4 = 430.1 mm^2 = 4.301 cm^2
+    res_area = calculate_pdp_area(
+        pdp_image, is_artwork=True, artwork_dpi=300, shape=PackageShape.RECTANGULAR
+    )
+    assert isinstance(res_area, MeasurementExact)
+    assert np.isclose(res_area.value, 4.301, rtol=0.01)
+    assert res_area.unit == "cm²"
+    assert res_area.rule_limb == "rectangular"
+
+
+def test_measurement_photograph_never_exact():
+    """
+    Assert that when is_artwork=False (photograph), the return type is
+    strictly Calibrated or Refusal, never Exact.
+    """
+    numeral_image = np.ones((200, 200), dtype=np.uint8) * 255
+    numeral_image[50:151, 80:120] = 0
+    ref_image = np.zeros((200, 200), dtype=np.uint8)
+    cv2.circle(ref_image, (100, 100), 27, 255, -1, cv2.LINE_AA)
+    ref_image = cv2.GaussianBlur(ref_image, (5, 5), 0)
+
+    result_calibrated = measure_ink_extent(numeral_image, ref_image, "coin_10", is_artwork=False)
+    assert not isinstance(result_calibrated, MeasurementExact)
+    assert isinstance(result_calibrated, MeasurementCalibrated)
+
+    # Trigger refusal
+    result_refusal = measure_ink_extent(numeral_image, None, "coin_10", is_artwork=False)
+    assert not isinstance(result_refusal, MeasurementExact)
+    assert isinstance(result_refusal, MeasurementRefusal)
+
+
+def test_measure_contrast_ratio():
+    """
+    Assert measure_contrast_ratio returns a MeasurementCalibrated result
+    with a dynamically calculated confidence interval.
+    """
+    # Import the new function explicitly inside the test or at the top of the file
+    from app.modules.measurement.services import measure_contrast_ratio
+
+    # Pure black text crop (BGR)
+    text_crop = np.zeros((50, 50, 3), dtype=np.uint8)
+
+    # Pure white background crop (BGR)
+    bg_crop = np.ones((50, 50, 3), dtype=np.uint8) * 255
+
+    # White luminance = 1.0, Black = 0.0
+    # Contrast ratio = (1.0 + 0.05) / (0.0 + 0.05) = 1.05 / 0.05 = 21.0
+    result = measure_contrast_ratio(text_crop, bg_crop)
+
+    assert isinstance(result, MeasurementCalibrated)
+    assert np.isclose(result.value, 21.0)
+    assert result.unit == "ratio"
+    assert result.reference_object == "color_variance"
+
+    # Because standard deviation of flat pure colors is 0, confidence interval should be 0.
+    assert result.confidence_interval == 0.0
+
+    # Test dynamic confidence interval with a noisy background
+    np.random.seed(42)
+    noisy_bg_crop = np.random.randint(200, 255, (50, 50, 3), dtype=np.uint8)
+    result_noisy = measure_contrast_ratio(text_crop, noisy_bg_crop)
+
+    assert isinstance(result_noisy, MeasurementCalibrated)
+    # The confidence interval should now be > 0 because of variance in the noisy background
+    assert result_noisy.confidence_interval > 0.0
