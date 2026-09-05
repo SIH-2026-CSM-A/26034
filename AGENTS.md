@@ -151,3 +151,10 @@ eleven people. Before starting:
   `genai-project` for anything calling a model or a paid API, `frontend-work` for UI.
 - MCP config: `.mcp.json`
 - Ticket board: ClickUp, list `26034 Build`.
+
+## Before opening any PR
+
+Rebase onto `main` immediately before opening any PR, every time, even if you don't
+suspect drift. Branches created early in a long session and pushed late are the
+recurring cause of stale-base merge conflicts and missing CI runs on this project —
+it has happened on at least three separate tickets.
