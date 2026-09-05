@@ -6,10 +6,22 @@ import pytest
 
 from app.modules.extraction.address import normalise_address
 from app.modules.extraction.consumer_care import normalise_consumer_care
+from app.modules.extraction.country_of_origin import (
+    CONFIDENCE_EXPLICIT_CANONICAL_DECLARATION,
+    CONFIDENCE_EXPLICIT_ISO_VARIANT,
+    normalise_country_of_origin,
+)
 from app.modules.extraction.date import normalise_date
+from app.modules.extraction.iso3166_data import ISO_3166_1_RECORDS
 from app.modules.extraction.mrp import normalise_mrp
 from app.modules.extraction.net_quantity import normalise_net_quantity
-from app.modules.extraction.types import AddressRole, DateType, ReasonCode
+from app.modules.extraction.types import (
+    AddressRole,
+    CountryOfOriginValue,
+    CountryOriginMode,
+    DateType,
+    ReasonCode,
+)
 
 # -----------------------------------------------------------------------------
 # 1. MRP Normaliser Tests
@@ -494,3 +506,473 @@ def test_normalise_consumer_care(
     else:
         assert res.confidence == 0.0
         assert res.value is None
+
+
+# -----------------------------------------------------------------------------
+# 6. Country of Origin Normaliser Tests (EXT-002)
+# -----------------------------------------------------------------------------
+
+COUNTRY_OF_ORIGIN_TEST_CASES = [
+    # --- Valid India Mode Declarations ---
+    ("Made in India", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Country of Origin: India", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Country of Origin - India", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Made in IN", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Made in IND", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Made in Inda", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    ("Country of Origm: India", CountryOriginMode.INDIA, "India", "IN", "IND", True, None),
+    # --- India Mode Rejection of non-India countries ---
+    (
+        "Made in Germany",
+        CountryOriginMode.INDIA,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    ("Made in DE", CountryOriginMode.INDIA, None, None, None, False, ReasonCode.UNPARSEABLE_FORMAT),
+    (
+        "Made in DEU",
+        CountryOriginMode.INDIA,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Country of Origin: Japan",
+        CountryOriginMode.INDIA,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    # --- Valid Worldwide Mode Declarations ---
+    ("Made in India", CountryOriginMode.WORLDWIDE, "India", "IN", "IND", True, None),
+    ("Made in Germany", CountryOriginMode.WORLDWIDE, "Germany", "DE", "DEU", True, None),
+    ("Country of Origin: Japan", CountryOriginMode.WORLDWIDE, "Japan", "JP", "JPN", True, None),
+    ("Made in France", CountryOriginMode.WORLDWIDE, "France", "FR", "FRA", True, None),
+    ("Made in Brazil", CountryOriginMode.WORLDWIDE, "Brazil", "BR", "BRA", True, None),
+    (
+        "Country of Origin: Australia",
+        CountryOriginMode.WORLDWIDE,
+        "Australia",
+        "AU",
+        "AUS",
+        True,
+        None,
+    ),
+    # --- Alpha-2 / Alpha-3 / Common Variants in Worldwide Mode ---
+    ("Made in DE", CountryOriginMode.WORLDWIDE, "Germany", "DE", "DEU", True, None),
+    ("Country of Origin: JP", CountryOriginMode.WORLDWIDE, "Japan", "JP", "JPN", True, None),
+    ("Country of Origin: IND", CountryOriginMode.WORLDWIDE, "India", "IN", "IND", True, None),
+    ("Made in DEU", CountryOriginMode.WORLDWIDE, "Germany", "DE", "DEU", True, None),
+    ("Made in USA", CountryOriginMode.WORLDWIDE, "United States", "US", "USA", True, None),
+    (
+        "Country of Origin: UK",
+        CountryOriginMode.WORLDWIDE,
+        "United Kingdom",
+        "GB",
+        "GBR",
+        True,
+        None,
+    ),
+    ("Made in UAE", CountryOriginMode.WORLDWIDE, "United Arab Emirates", "AE", "ARE", True, None),
+    # --- Failure: Standalone / Missing Prefix / Missing Country Token ---
+    ("India", CountryOriginMode.WORLDWIDE, None, None, None, False, ReasonCode.UNPARSEABLE_FORMAT),
+    (
+        "Germany",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Made in",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Country of Origin:",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Made in Unknownland",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    # --- Failure: Role Prefixes & Non-Standard Phrasing ---
+    (
+        "Made by India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Manufactured by ABC, India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Imported by ABC, India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Made inside India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    # --- Failure: Address Contamination, Marketing Prose, URLs ---
+    (
+        "Manufacturer: ABC Pvt Ltd, India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Available in India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "Visit India",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "India is a leading producer",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    (
+        "www.madeinindia.com",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    # --- Canonical ISO Country Names with 'and' ---
+    (
+        "Made in Antigua and Barbuda",
+        CountryOriginMode.WORLDWIDE,
+        "Antigua and Barbuda",
+        "AG",
+        "ATG",
+        True,
+        None,
+    ),
+    (
+        "Made in Bonaire, Sint Eustatius and Saba",
+        CountryOriginMode.WORLDWIDE,
+        "Bonaire, Sint Eustatius and Saba",
+        "BQ",
+        "BES",
+        True,
+        None,
+    ),
+    (
+        "Made in Bosnia and Herzegovina",
+        CountryOriginMode.WORLDWIDE,
+        "Bosnia and Herzegovina",
+        "BA",
+        "BIH",
+        True,
+        None,
+    ),
+    (
+        "Made in Heard Island and McDonald Islands",
+        CountryOriginMode.WORLDWIDE,
+        "Heard Island and McDonald Islands",
+        "HM",
+        "HMD",
+        True,
+        None,
+    ),
+    (
+        "Made in Saint Helena, Ascension and Tristan da Cunha",
+        CountryOriginMode.WORLDWIDE,
+        "Saint Helena, Ascension and Tristan da Cunha",
+        "SH",
+        "SHN",
+        True,
+        None,
+    ),
+    (
+        "Made in Saint Kitts and Nevis",
+        CountryOriginMode.WORLDWIDE,
+        "Saint Kitts and Nevis",
+        "KN",
+        "KNA",
+        True,
+        None,
+    ),
+    (
+        "Made in Saint Pierre and Miquelon",
+        CountryOriginMode.WORLDWIDE,
+        "Saint Pierre and Miquelon",
+        "PM",
+        "SPM",
+        True,
+        None,
+    ),
+    (
+        "Made in Saint Vincent and the Grenadines",
+        CountryOriginMode.WORLDWIDE,
+        "Saint Vincent and the Grenadines",
+        "VC",
+        "VCT",
+        True,
+        None,
+    ),
+    (
+        "Made in Sao Tome and Principe",
+        CountryOriginMode.WORLDWIDE,
+        "Sao Tome and Principe",
+        "ST",
+        "STP",
+        True,
+        None,
+    ),
+    (
+        "Made in South Georgia and the South Sandwich Islands",
+        CountryOriginMode.WORLDWIDE,
+        "South Georgia and the South Sandwich Islands",
+        "GS",
+        "SGS",
+        True,
+        None,
+    ),
+    (
+        "Made in Svalbard and Jan Mayen",
+        CountryOriginMode.WORLDWIDE,
+        "Svalbard and Jan Mayen",
+        "SJ",
+        "SJM",
+        True,
+        None,
+    ),
+    (
+        "Made in Trinidad and Tobago",
+        CountryOriginMode.WORLDWIDE,
+        "Trinidad and Tobago",
+        "TT",
+        "TTO",
+        True,
+        None,
+    ),
+    (
+        "Made in Turks and Caicos Islands",
+        CountryOriginMode.WORLDWIDE,
+        "Turks and Caicos Islands",
+        "TC",
+        "TCA",
+        True,
+        None,
+    ),
+    (
+        "Made in Wallis and Futuna",
+        CountryOriginMode.WORLDWIDE,
+        "Wallis and Futuna",
+        "WF",
+        "WLF",
+        True,
+        None,
+    ),
+    # --- Special ISO Codes & Punctuation Names ---
+    ("Made in AND", CountryOriginMode.WORLDWIDE, "Andorra", "AD", "AND", True, None),
+    (
+        "Made in Virgin Islands, U.S.",
+        CountryOriginMode.WORLDWIDE,
+        "Virgin Islands, U.S.",
+        "VI",
+        "VIR",
+        True,
+        None,
+    ),
+    # --- Failure: Empty / Whitespace Input ---
+    ("", CountryOriginMode.WORLDWIDE, None, None, None, False, ReasonCode.EMPTY_INPUT),
+    ("   ", CountryOriginMode.WORLDWIDE, None, None, None, False, ReasonCode.EMPTY_INPUT),
+    # --- Ambiguity: Multiple Conflicting Declarations ---
+    (
+        "Made in India / Made in Germany",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.AMBIGUOUS_VALUE,
+    ),
+    (
+        "Made in India and Germany",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.AMBIGUOUS_VALUE,
+    ),
+    (
+        "Made in India or Germany",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.AMBIGUOUS_VALUE,
+    ),
+    (
+        "Country of Origin: India Country of Origin: China",
+        CountryOriginMode.WORLDWIDE,
+        None,
+        None,
+        None,
+        False,
+        ReasonCode.AMBIGUOUS_VALUE,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "input_text",
+        "mode",
+        "exp_country",
+        "exp_a2",
+        "exp_a3",
+        "exp_success",
+        "exp_reason",
+    ),
+    COUNTRY_OF_ORIGIN_TEST_CASES,
+)
+def test_normalise_country_of_origin(
+    input_text, mode, exp_country, exp_a2, exp_a3, exp_success, exp_reason
+):
+    res = normalise_country_of_origin(input_text, mode=mode)
+    assert res.success is exp_success
+    assert res.reason_code == exp_reason
+    assert res.reason_code is None or isinstance(res.reason_code, ReasonCode)
+    if exp_success:
+        assert 0.0 < res.confidence <= 1.0
+        assert res.value is not None
+        assert isinstance(res.value, CountryOfOriginValue)
+        assert res.value.country_name == exp_country
+        assert res.value.iso_alpha2 == exp_a2
+        assert res.value.iso_alpha3 == exp_a3
+        assert isinstance(res.value.raw_declaration, str)
+        assert len(res.value.raw_declaration) > 0
+    else:
+        assert res.confidence == 0.0
+        assert res.value is None
+
+
+def test_iso_3166_dataset_integrity():
+    """Verify vendored ISO 3166-1 dataset integrity: 249 unique records with non-empty fields."""
+    assert len(ISO_3166_1_RECORDS) == 249, f"Expected 249 records, got {len(ISO_3166_1_RECORDS)}"
+
+    names = set()
+    alpha2_codes = set()
+    alpha3_codes = set()
+
+    for rec in ISO_3166_1_RECORDS:
+        assert "name" in rec and rec["name"]
+        assert "alpha_2" in rec and len(rec["alpha_2"]) == 2
+        assert "alpha_3" in rec and len(rec["alpha_3"]) == 3
+
+        names.add(rec["name"])
+        alpha2_codes.add(rec["alpha_2"].upper())
+        alpha3_codes.add(rec["alpha_3"].upper())
+
+    assert len(names) == 249, "Duplicate country names found in ISO dataset"
+    assert len(alpha2_codes) == 249, "Duplicate Alpha-2 codes found in ISO dataset"
+    assert len(alpha3_codes) == 249, "Duplicate Alpha-3 codes found in ISO dataset"
+
+
+def test_exhaustive_249_canonical_countries():
+    """Verify that all 249 ISO canonical country names succeed in WORLDWIDE mode."""
+    for record in ISO_3166_1_RECORDS:
+        input_text = f"Made in {record['name']}"
+        res = normalise_country_of_origin(input_text, mode=CountryOriginMode.WORLDWIDE)
+        assert res.success is True, f"Failed for canonical country: {record['name']}"
+        assert res.value is not None
+        assert res.value.country_name == record["name"]
+        assert res.value.iso_alpha2 == record["alpha_2"]
+        assert res.value.iso_alpha3 == record["alpha_3"]
+        assert res.confidence == CONFIDENCE_EXPLICIT_CANONICAL_DECLARATION
+        assert res.reason_code is None
+
+
+def test_exhaustive_498_iso_codes():
+    """Verify that all 498 Alpha-2 and Alpha-3 codes succeed and resolve to their record."""
+    for record in ISO_3166_1_RECORDS:
+        # Test Alpha-2
+        res_a2 = normalise_country_of_origin(
+            f"Made in {record['alpha_2']}", mode=CountryOriginMode.WORLDWIDE
+        )
+        assert res_a2.success is True, f"Failed for Alpha-2 code: {record['alpha_2']}"
+        assert res_a2.value is not None
+        assert res_a2.value.country_name == record["name"]
+        assert res_a2.value.iso_alpha2 == record["alpha_2"]
+        assert res_a2.value.iso_alpha3 == record["alpha_3"]
+        assert res_a2.confidence == CONFIDENCE_EXPLICIT_ISO_VARIANT
+
+        # Test Alpha-3
+        res_a3 = normalise_country_of_origin(
+            f"Made in {record['alpha_3']}", mode=CountryOriginMode.WORLDWIDE
+        )
+        assert res_a3.success is True, f"Failed for Alpha-3 code: {record['alpha_3']}"
+        assert res_a3.value is not None
+        assert res_a3.value.country_name == record["name"]
+        assert res_a3.value.iso_alpha2 == record["alpha_2"]
+        assert res_a3.value.iso_alpha3 == record["alpha_3"]
+        assert res_a3.confidence == CONFIDENCE_EXPLICIT_ISO_VARIANT
