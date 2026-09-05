@@ -1,7 +1,9 @@
-from enum import StrEnum
 from dataclasses import dataclass
+from enum import StrEnum
+
 import cv2
 import numpy as np
+
 
 class QualityReason(StrEnum):
     PASS = "PASS"
