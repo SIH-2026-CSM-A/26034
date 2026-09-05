@@ -31,10 +31,16 @@ pnpm-debug.log*
 *.pdparams
 
 # --- Datasets ---------------------------------------------------------------
-# Keep the directory, ignore what goes in it.
-datasets/*
-!datasets/.gitkeep
-!datasets/README.md
+# Raw images are kept in external storage (Shared Drive), not committed.
+# Annotation schemas, documentation, evaluation harnesses, and ground-truth metadata are tracked.
+datasets/**/*.jpg
+datasets/**/*.jpeg
+datasets/**/*.png
+datasets/**/*.webp
+datasets/**/*.bmp
+datasets/**/*.tiff
+datasets/raw/
+datasets/images/
 
 # --- Editors and OS ---------------------------------------------------------
 .DS_Store

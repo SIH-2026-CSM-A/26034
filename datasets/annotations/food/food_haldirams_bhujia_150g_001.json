@@ -1,0 +1,146 @@
+{
+  "sample_id": "food_haldirams_bhujia_150g_001",
+  "sku_id": "food_haldirams_bhujia_150g",
+  "image_filename": "food_haldirams_bhujia_150g_001.jpg",
+  "image_sha256": "3c9889341490289b4f9715a315b81b212f7a63be3d463e27a920fa5400eb8b3b",
+  "category": "food",
+  "difficulty_tags": [
+    "multiscript",
+    "glare",
+    "flexible_pouch",
+    "crowded",
+    "uncalibrated"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": 18.0,
+    "width_cm": 12.0,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": 216.0,
+    "is_measurable": true,
+    "rule7_band": "100_lt_A_le_500",
+    "rule7_min_height_mm": 2.5
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "Mfg by: Haldiram Foods International Pvt. Ltd., 20 Km Stone, Vill-Vihirgaon, Umred Road, Nagpur 441222, Maharashtra.",
+      "normalised_value": {
+        "name": "Haldiram Foods International Pvt. Ltd.",
+        "address": "20 Km Stone, Vill-Vihirgaon, Umred Road, Nagpur 441222, Maharashtra",
+        "role": "manufacturer"
+      },
+      "bbox": [0.05, 0.45, 0.95, 0.58],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "ALOO BHUJIA / आलू भुजिया",
+      "normalised_value": "Aloo Bhujia",
+      "bbox": [0.1, 0.1, 0.9, 0.22],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Weight / शुद्ध वजन: 150 g",
+      "normalised_value": {
+        "value": 150.0,
+        "unit": "g"
+      },
+      "bbox": [0.55, 0.25, 0.95, 0.35],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "MFD: 20/07/2026",
+      "normalised_value": {
+        "day": 20,
+        "month": 7,
+        "year": 2026
+      },
+      "bbox": [0.1, 0.6, 0.45, 0.7],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP Rs. 50.00 (Incl. of all taxes) / अधिकतम खुदरा मूल्य ₹ 50.00 (सभी कर सहित)",
+      "normalised_value": {
+        "amount_inr": 50.0,
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": [0.5, 0.6, 0.95, 0.72],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "USP: Rs. 0.33 / g",
+      "normalised_value": {
+        "rate": 0.33,
+        "unit_basis": "per g"
+      },
+      "bbox": [0.5, 0.73, 0.95, 0.81],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "Consumer Care: Phone +91-712-2779451, feedback@haldirams.com, Nagpur 441222",
+      "normalised_value": {
+        "phone": "+91-712-2779451",
+        "email": "feedback@haldirams.com",
+        "address": "Nagpur 441222"
+      },
+      "bbox": [0.05, 0.82, 0.95, 0.92],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "Product of India / भारत में निर्मित",
+      "normalised_value": "India",
+      "bbox": [0.05, 0.93, 0.55, 0.98],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "PASS",
+  "notes": "Uncalibrated image with bilingual English and Hindi Devanagari text. Font height measurement must yield INSUFFICIENT_EVIDENCE."
+}
