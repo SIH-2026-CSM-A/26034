@@ -1,7 +1,8 @@
 # AGENTS.md
 
-Cross-tool rules for 26034. Read by Antigravity, Codex, Claude Code and any other
-AGENTS.md-aware agent at session start.
+Cross-tool rules for PCCS — Packaged Commodity Compliance System, SIH 2026 PS 26034.
+Read by Antigravity, Codex, Claude Code and any other AGENTS.md-aware agent at session
+start.
 
 **This file holds standing rules, not session history.** Session history lives in
 `session-log/<your-name>.md`.
@@ -89,6 +90,22 @@ reaches a pull request.
 
 Only Abhiram edits `bck/app/contracts/`. If you need a field added or a type changed,
 comment on your ClickUp ticket. Do not add it locally and do not work around it.
+
+v1 landed in CTR-002. Import from the package, never from a file inside it:
+
+```python
+from app.contracts import DeclarationField, FieldState, MeasurementResult, VerdictRecord
+```
+
+It holds `FieldState` (five states), `Verdict` (three), `DeclarationField` (the Rule 6
+declaration set), `EvidenceProvider`, `ExtractedSpan`, `NormalisedField`,
+`MeasurementResult` and its three variants, `RuleDefinition`, `RuleSetVersion`,
+`RuleParameterSnapshot`, `FieldFinding`, `VerdictRecord` and `CatalogueRecord`. Full
+notes in `bck/app/contracts/README.md`.
+
+If you are carrying a local stand-in for one of these, delete it and import the real one.
+Two definitions of the same type in two modules is the failure this package exists to
+prevent.
 
 ## Deny rules
 

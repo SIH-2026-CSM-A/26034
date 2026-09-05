@@ -1,6 +1,8 @@
-# 26034
+# 26034 — PCCS
 
-Legal Metrology (Packaged Commodities) Rules 2011 compliance system — SIH 2026 PS 26034.
+**PCCS — Packaged Commodity Compliance System.** Compliance decision-support for
+packaged commodities under the Legal Metrology (Packaged Commodities) Rules 2011.
+SIH 2026, problem statement 26034.
 
 Monorepo: `bck/` is the FastAPI backend, `fnt/` is the frontend (not yet scaffolded).
 
