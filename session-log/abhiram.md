@@ -1,5 +1,122 @@
 # Session log — Abhiram
 
+### 2026-09-06 — PIP-002 HTTP surface and scan orchestration — Claude Code
+
+**Why now**
+There was no `app/main.py` and no `FastAPI()` instance anywhere, so `uvicorn app.main:app`
+— the dev command in both `CLAUDE.md` and `AGENTS.md` — did not run. `auth_router` had been
+exported since CORE-001 and never mounted, `core/db.py`'s `get_session` had no caller, and
+`pipeline/verdict.py` and `rule_snapshot.py` were libraries nothing invoked. Six modules
+were merged and none of them were composed. CORE-002 landed the tables that morning, which
+was the last thing this was waiting on.
+
+**Done**
+- `app/main.py` — the application, CORS restricted to the Vite dev origin from
+  `settings.cors_origins`, `auth_router` and the new `scan_router` mounted, and a lifespan
+  that verifies the three vision model paths and **refuses to start** if one is missing.
+  Not per-request and never a fallback: `detect_pdp` and `extract_panel_text` raise
+  `FileNotFoundError` without their weights, and without the gate that surfaces as a 500 on
+  an officer's first scan rather than as a boot failure on a fresh clone.
+- `pipeline/orchestrator.py` — two entry points, `run_image_scan` and `run_catalogue_scan`,
+  sharing an evaluation tail. Not one function with a mode flag: a listing arrives as fields
+  rather than pixels, and modelling it as its own path is what keeps a marketplace adapter
+  an adapter. Both pure — `evaluated_at` is a parameter, so replaying a scan returns the
+  same record.
+- `pipeline/dispositions.py`, `rule_findings.py`, `measurement_findings.py`, `findings.py` —
+  the judgement half, split four ways by the 300-line limit and along real seams:
+  what kind of obligation a rule states, how one rule becomes findings, the one place a
+  millimetre may be emitted, and the pass over the active rule set.
+- `pipeline/router.py`, `schemas.py`, `repository.py`, `responses.py`, `capture.py`,
+  `normalisation.py` — `POST /scans`, `POST /scans/image`, `GET /scans`,
+  `GET /scans/{id}`, `POST /scans/{id}/review`.
+- `core/schema.py` and `core/enums.py` split out of `models.py`, which was at 299 of 300
+  and needed `Scan.product_category` and a `reviews` table. Plumbing to `schema`,
+  vocabularies to `enums`, tables stay in `models` (292).
+- Migration `c16334c8d865`, hand-written. Autogenerate emitted `CREATE TYPE verdict` for
+  `reviews.overridden_verdict` and the upgrade failed with `type "verdict" already exists`;
+  the column references the existing type with `create_type=False` and the downgrade drops
+  only `review_action`. Full cycle verified: upgrade, downgrade -1, upgrade, downgrade base
+  leaving zero enum types and zero tables, clean-slate upgrade, `alembic check` clean.
+- `rules/` gained `rule_set_version` on `RuleStoreDocument`, one key in `rules.yaml`, and
+  `load_store` / `default_rule_set_version`. Nothing in the repo produced a rule-set version
+  at all — PIP-001 took it as a parameter and left the source open — so "every response
+  carries the rule-set version" could not have been satisfied without it. It is a property
+  of the store, not the deployment, which is why it is not in `config.py`.
+- `contracts/binding.py` and `DeclarationRole` — the EXT-004 seam. **Held for Sitanshu's
+  agreement before merge**; see below.
+- `app.main` added as a fifth import-linter layer. Proved it bites by importing
+  `app.main` from `modules/evidence/domain.py`.
+
+**Three things that were wrong and are worth knowing**
+- **The schema has foreign keys but no `relationship()`, and SQLAlchemy orders dependent
+  inserts from relationships, not from FK columns.** Writing a verdict and its findings in
+  one flush inserted the findings first and Postgres rejected them. Reproduced in isolation
+  before fixing. `add_verdict` now flushes the parent explicitly. Adding relationships would
+  be the textbook fix and is the wrong one here: a relationship on an async mapper
+  lazy-loads on attribute access and raises `MissingGreenlet` while the response is being
+  serialised, which `core/README.md` already warns about.
+- **`VerdictRow.id` is a Python-side column default applied at INSERT**, so reading it
+  before the flush handed every finding a null foreign key. Assigned explicitly now, the way
+  `new_scan` already did for `Scan`.
+- **`session.merge()` triggers an autoflush.** Two merges in the persist path flushed the
+  unit of work half-built. The scan is already persistent in that session; it is mutated
+  directly now.
+
+**A test claim I corrected rather than the code**
+I added a guard asserting `alembic/env.py` must import `Base` from `app.core.models` and not
+from `app.core.schema`, on the theory that `schema` alone would hand autogenerate an empty
+`MetaData`. **It would not.** Importing `app.core.schema` executes `app/core/__init__.py`
+first, which imports `models`, so the metadata is populated either way and no test can be
+made to fail on the difference. Both the test and the `env.py` docstring now say what is
+actually true. The subprocess `alembic check` test stayed, re-scoped to what it does prove —
+drift a same-process check can miss — and was falsified against a model column with no
+migration.
+
+**Falsification**
+Every guard was made to fail and reverted: 16 defects introduced in total. Four of them
+initially **failed to fail**, and all four for the same reason — with no confirmed product
+category the sector gate settles a rule before its own builder runs, so a test asserting
+something about Rule 7's measurement handling passed whether or not that handling existed.
+The tests were rewritten to confirm a category that carves nothing out, or to assert against
+a rule the gate does not touch. That trap is now documented at the top of
+`tests/pipeline/test_orchestrator.py`, because it will catch the next person too.
+
+**The image path does not work yet, and that is the honest state**
+EXT-004 is not merged. `app.modules.extraction` exposes nine `normalise_*(text)` functions
+and nothing that maps OCR spans to the obligation each answers, so every declaration on the
+image path comes back INSUFFICIENT_EVIDENCE carrying `EXT_004_REASON`, which names the
+ticket and the stage. An officer or a court reading that can tell "we could not read this
+package" from "this system does not do that yet". A test asserts the exact string and goes
+red the day EXT-004 lands, which is the signal to delete it. The catalogue path is fully
+functional.
+
+**Held for agreement**
+`contracts/binding.py` and `DeclarationRole` ship as their own commit and must not merge
+until Sitanshu has agreed the shape — he is mid-way through EXT-004 and would otherwise
+build the other half against a different guess. Nothing else depends on them; the
+orchestrator does not call a binder today. `BoundDeclaration` carries `field_type`,
+`span_refs`, `raw_text`, `role`, `region_id`, `binding_confidence`, and the proposed export
+is `bind_declarations(spans: Sequence[ExtractedSpan]) -> tuple[BoundDeclaration, ...]`. It
+returns bindings and not `NormalisedField`, so EXT-004 does not re-implement nine merged
+functions. `DeclarationRole` mirrors extraction's `AddressRole` member for member, with a
+test that fails on drift, so his side is an import swap.
+
+**Incomplete / for the next session**
+- A full image scan through YOLO and PaddleOCR has no test — weights are gitignored and CI
+  has none. The quality-gate rejection path is covered without them, and the catalogue path
+  end to end. A `models`-marked set mirroring the `postgres` one is the shape when there are
+  cached weights to point at.
+- 65 findings per scan, most INSUFFICIENT_EVIDENCE. Truthful — Rule 7 and Rule 9 govern
+  every declaration the store requires, and each is its own finding — but heavy to read.
+  If it should be narrower, that is a `governs_declarations` field on the rule store, not a
+  filter in the pipeline.
+- `measure_margins` still raises on a zero margin, so Rule 8(1)'s proviso is not called from
+  the chain at all. Owner unavailable; flagged for its own ticket.
+- VIS-003's PaddleOCR 3.x constructor against a 2.x call site is still there. The
+  orchestrator is its first real caller and is where it will surface.
+- `ScanStatus.PROCESSING` is never written. Nothing can observe it in a synchronous
+  request; it stays in the enum for the queue.
+
 ### 2026-09-06 — RUL-003 multi-piece package, definition 2(kc) — Claude Code
 
 **Why now**

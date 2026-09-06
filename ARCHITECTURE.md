@@ -29,9 +29,15 @@ bck/app/contracts/          Cross-module types. Imports nothing. Single source o
                             FieldFinding, VerdictRecord, CatalogueRecord.
 bck/app/core/               Auth, RBAC, jurisdiction scoping, config, cost ceilings, the
                             async engine and session dependency, and the scan-path tables.
-bck/app/pipeline/           Verdict assembly, rule-snapshot adapter, and (next) ingestion
-                            endpoints and orchestration. The only package permitted to
+bck/app/main.py             The FastAPI application. Mounts the routers, restricts CORS to
+                            the officer surface, and refuses to start without the vision
+                            model weights. A fifth import-linter layer above pipeline.
+bck/app/pipeline/           Ingestion endpoints, orchestration, verdict assembly and the
+                            rules-to-contracts adapter. The only package permitted to
                             import app.modules.* — this is what "composes modules" means.
+                            orchestrator (stage order) · findings + dispositions +
+                            rule_findings + measurement_findings (what a rule concludes) ·
+                            router + schemas + repository + responses (the HTTP surface).
 bck/app/modules/vision/         Preprocess, PDP detect, OCR providers.
 bck/app/modules/extraction/     Spans -> Rule 6 field types, spatial binding, normalisation.
 bck/app/modules/measurement/    Calibration, homography, ink extent, Rule 7 band lookup.
@@ -112,6 +118,35 @@ re-validate against the authoritative rule-set on reconnect.
   verdicts to a live rules table, which would silently re-adjudicate history. `verdicts`
   carries no rule reference of any kind and `field_findings.rule_snapshot` holds the whole
   snapshot as `jsonb`, so the persistence layer has nothing to join through.
+- **The transaction boundary is the handler, and a submission opens two** — the scan is
+  inserted and committed before any vision runs, so an officer has an identifier whatever
+  happens next; the pipeline then runs with no transaction open, because PaddleOCR and YOLO
+  would otherwise hold a pool connection for seconds; the verdict and its findings are
+  written together. A crash between them leaves a scan at RECEIVED, which is exactly true.
+  A stage that raises marks it FAILED and writes no verdict at all: a partial finding set
+  reads as "we looked and found less wrong than we did".
+- **A quality-gate rejection is not a failure and not a verdict** — the scan stays at
+  RECEIVED and the response carries a capture instruction. `QualityRejection` has no
+  `Verdict` field and `extra="forbid"`, so a refused capture has no shape in which it
+  reaches an officer looking like a conclusion.
+- **Out-of-jurisdiction reads answer 404, not 403** — the same answer as a scan that does
+  not exist. A 403 would tell an officer in one state that a package is under examination in
+  another, which is enforcement activity they have no right to know of. 403 is kept for an
+  officer inside the jurisdiction whose tier is too low for the action.
+- **Finalisation is the existence of a review row, never a column** — `ReviewRow` is
+  append-only in shape, a correction is a new row naming the one it supersedes, and the
+  repository offers no update. A structural test asserts exactly one construction site in
+  the whole application, which is what makes "no automated path finalises a scan" checkable
+  rather than promised.
+- **A confirmed product category is a precondition of rule evaluation, not a filter after
+  it** — an obligation a sector override could move is INSUFFICIENT_EVIDENCE until somebody
+  confirms the category. Stricter than `rules/sector.py`'s own default, deliberately: the
+  module answers what the packaged rules say, the pipeline answers whether we may say it
+  about this package.
+- **The rule-set version is a property of the store, not the deployment** —
+  `rules.yaml` carries it and `RuleStoreDocument` requires it, so a store nobody can name
+  fails to load. It is not in `config.py`, because two deployments running the same rules
+  must record the same version.
 - **One session per request, committed by the caller** — a dependency that commits on
   teardown does so after the response body is built, where a failure can no longer change
   the status code, and commits work the handler may have abandoned. Rejected an
@@ -159,9 +194,13 @@ re-validate against the authoritative rule-set on reconnect.
       accuracy target in the PRD is unbacked. Blocks vision, measurement and tamper from
       being evaluated at all. **This is the largest single risk in the project.**
 - [ ] `tamper/` has no code. TAM-001 written, not started.
-- [ ] No application entrypoint. There is no `bck/app/main.py` and no `FastAPI()` instance
-      anywhere; `auth_router` is exported and never mounted, so `uvicorn app.main:app` —
-      the dev command in `CLAUDE.md` and `AGENTS.md` — does not run. Belongs to PIP-002.
+- [ ] **The image path produces no usable declaration.** EXT-004 is not merged, so nothing
+      maps OCR spans to the obligation each answers and every declaration returns
+      INSUFFICIENT_EVIDENCE naming the stage. The chain runs end to end and the catalogue
+      path is fully functional; the image path is honest rather than useful.
+- [ ] No `relationship()` on any model, so SQLAlchemy cannot order dependent inserts.
+      `pipeline/repository.add_verdict` flushes the parent explicitly. Adding relationships
+      would trade this for `MissingGreenlet` on an async mapper.
 - [ ] Officers are still config-seeded from `OFFICERS`; there is no users table, and
       `Scan.officer_id` is a plain string rather than a foreign key because of it.
 - [ ] `docker-compose.yml` ships only Postgres. MinIO and Redis are not in it, so
