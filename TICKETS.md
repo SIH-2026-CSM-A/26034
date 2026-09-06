@@ -14,8 +14,8 @@ priority, the three custom field values, description.
 Postgres. 3 import contracts kept, 0 broken.
 
 **PR state below was read from GitHub on 2026-09-06, not carried forward from the last
-handoff.** The previous handoff recorded MEA-004 (#42) as merged and DAT-001 (#34) as closed.
-Neither is true. Check `gh pr list` before trusting any line in this file.
+handoff.** The previous handoff recorded MEA-004 (#42) as merged; it is not. DAT-001 (#34) is
+now genuinely closed. Check `gh pr list` before trusting any line in this file.
 
 ---
 
@@ -60,7 +60,7 @@ Neither is true. Check `gh pr list` before trusting any line in this file.
 | **VIS-003 constrained re-OCR, arbitration, offline** | Akshaya | **review — near merge** | **#45 open** |
 | **EVD-005 retention and purge** | Shiva Kumar | **review — escalate** | **#46 open** |
 | **MEA-006 permit zero-margin results** | Yashashvi | **review — escalate** | **#47 open** |
-| **DAT-001 corpus, labelling schema, eval harness** | Aashritha | **close as superseded** | **#34 open** |
+| **DAT-001 corpus, labelling schema, eval harness** | Aashritha | **closed as superseded** | **#34 closed** |
 | **VIS-004 OCR the detected panel, not the whole frame** | Akshaya | **to do** | — |
 | **EXT-005, EXT-006** | Sitanshu | **to do** | — |
 | **EVD-006 accept a real `VerdictRecord` in export** | Shiva Kumar | **to do** | — |
@@ -78,7 +78,7 @@ narrowing ticket is **RUL-004**. Do not reuse the number.
 
 ## Every open PR is on a stale base
 
-All six branched before today's four merges — between 2 and 13 commits behind `main`:
+All five branched before today's four merges — between 2 and 4 commits behind `main`:
 
 | PR | Branch | Base | Commits behind `main` |
 |---|---|---|---|
@@ -87,7 +87,6 @@ All six branched before today's four merges — between 2 and 13 commits behind 
 | #45 | `vis-003-reocr-clean` | `266b00b` | 2 |
 | #46 | `evd-005-retention-purge` | `5613944` | 4 |
 | #47 | `mea-006-zero-margin` | `266b00b` | 2 |
-| #34 | `feature/26034-DAT-001-corpus-images` | `23d224f` | 13 |
 
 The fix is the owner's, not yours:
 
@@ -201,14 +200,13 @@ the standard this project asks for.
 
 ### #34 DAT-001 corpus — Aashritha
 
-Head `47fa16d`. Red, thirteen commits behind `main`. **Aashritha is off the project and this
-is superseded by DAT-002 + DAT-003.**
+**Closed 2026-09-06 as superseded by DAT-002 + DAT-003.** Aashritha is off the project.
 
-**Close it. Do not merge it, and do not review it a fifth time.**
+**The branch `feature/26034-DAT-001-corpus-images` survives at `47fa16d` and DAT-002 branches
+from it, not from `main`. Do not delete it** — it holds the corrected sha256 hashes and the
+five fabricated-annotation deletions, and nothing else does.
 
-Closing it is an action nobody has taken — the last handoff recorded it as already closed and
-it is not. Before closing, salvage these four into DAT-002, because they are real defects in
-the annotations regardless of who finishes them:
+These four are still real defects in the annotations and belong to DAT-002:
 
 1. `cosmetics_himalaya_face_wash_100ml_001` appears **twice** in the manifest — once `.jpg`,
    once `.png`, same `sample_id` and `annotation_path`, different `sha256`. Keep the `.jpg`,
@@ -234,7 +232,6 @@ annotation open beside the actual photograph.
 4. **#43** — after #42, and only once the `pdfplumber` dependency is agreed and the
    `MagicMock` fixture is replaced with a real one.
 5. **#46** — after the contracts split, and after CI has actually run once.
-6. **#34** — close, do not merge.
 
 **Merge gate, unchanged:** checks green · one module · in ticket scope · no migration · no
 auth or permission change · no shared-contract change · no new dependency. #43, #46 and #47

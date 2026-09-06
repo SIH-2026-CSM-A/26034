@@ -377,6 +377,10 @@ Encode what the gazette says and cite the gazette.
 - **`coin_inr_5` at 25.0 mm.** The only sourced coin dimension is the Rs10 coin at 27.0 mm
   (`SIH26034_TI.md` section 15, RBI-confirmed).
 - **EAN-13 nominal width at 31.35 mm** — it is **37.29 mm**, and a regression test pins it.
+- **Keeping a test that cannot fail because it is green.** It gets deleted, not shipped.
+  `not isinstance(proposal, ProductCategory)` is unfalsifiable — a `StrEnum` with members
+  cannot be subclassed — so it restated the type system and proved nothing. The PIP-001
+  deepcopy test above is the one standing exception, and it is documented as such.
 
 ---
 
@@ -396,6 +400,13 @@ Encode what the gazette says and cite the gazette.
   module outside `root_package`.
 - **A forbidden contract that matches nothing looks identical to one that works.** Prove a
   new contract by adding a deliberate violation and confirming exit 1 — in both directions.
+- **A falsification can be run against stale bytecode and report a green pass over a real
+  defect.** Python's `.pyc` staleness check is mtime-and-size, and a falsification edit is
+  usually exactly the shape that defeats it — one string swapped for another of the same byte
+  length, `"medical_device"` → `"MEDICAL_DEVICE"`. Always run
+  `find . -name __pycache__ -type d -exec rm -rf {} +` before trusting a falsification result.
+  **Any falsification claimed on 2026-09-06 without that step is soft.** Caught in the CTR-003
+  session, which nearly believed the false pass.
 - **Check exit codes directly, not through a pipe.** `lint-imports | tail` reports `tail`'s
   status, which is always 0.
 - **A guard on a database constraint is only falsified by editing the migration.** The
@@ -677,9 +688,10 @@ are in `TICKETS.md`.
   measurement stays `gt=0`, which is the right shape. But it edits
   `app/contracts/measurement.py`: **shared-contract change, merge-gate escalation.** No
   `session-log/yashashvi.md` in the diff, which AGENTS.md requires.
-- **#34 DAT-001 (Aashritha)** — **still open on GitHub**, red, thirteen behind `main`. It is
-  superseded by DAT-002 + DAT-003 and Aashritha is off the project, so it should be **closed,
-  not merged** — closing it is an action nobody has taken yet.
+- **#34 DAT-001 (Aashritha)** — **closed on GitHub**, superseded by DAT-002 + DAT-003.
+  **Its branch `feature/26034-DAT-001-corpus-images` survives at `47fa16d` and DAT-002
+  branches from it, not from `main`.** Do not delete that branch: it carries the corrected
+  sha256 hashes and the five fabricated-annotation deletions, and they exist nowhere else.
 
 **In flight, no PR yet:** EXT-005 then EXT-006 (Sitanshu, unblocked by #44) - EVD-006
 (Shiva, behind #46) - DAT-002 then DAT-003 (Abhiram) - RUL-004 `governs_declarations`

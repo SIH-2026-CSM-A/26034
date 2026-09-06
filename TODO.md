@@ -10,9 +10,6 @@ Last updated 2026-09-06, end of session 4, by Claude Code.
 
 ## Now
 
-- [ ] **Close #34 DAT-001.** Superseded by DAT-002 + DAT-003, owner off the project, thirteen
-      commits behind `main`. The last handoff recorded it as already closed; it is not.
-      Salvage the four annotation defects into DAT-002 first (TICKETS.md lists them).
 - [ ] **Land #42 MEA-004** (Yashashvi). One `uv run ruff format .` and a rebase. The red check
       is `ruff format --check`, not a test failure — `tests/modules/measurement` passes 14/14.
 - [ ] **Land #45 VIS-003** (Akshaya). Both owed items are fixed. One thing left: the session
@@ -133,6 +130,10 @@ Last updated 2026-09-06, end of session 4, by Claude Code.
 
 ## Done
 
+- [x] **DAT-001 (#34)** closed as superseded by DAT-002 + DAT-003 — 2026-09-06. **Its branch
+      `feature/26034-DAT-001-corpus-images` stays at `47fa16d` and DAT-002 branches from it,
+      not from `main`.** Deleting that branch loses the corrected sha256 hashes and the five
+      fabricated-annotation deletions.
 - [x] **PIP-002** HTTP surface, scan orchestration, four scan endpoints, `reviews` table,
       `Scan.product_category`, migration `c16334c8d865` — #48, 2026-09-06
 - [x] **EXT-004** span classification and spatial role binder — #44, 2026-09-06

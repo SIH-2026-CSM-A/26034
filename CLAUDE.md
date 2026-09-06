@@ -96,7 +96,11 @@ evidence-backed findings.
 ## Prove your tests can fail
 
 Before claiming a guard works, introduce the defect it guards against and confirm the test
-goes red, then revert. Five separate PRs on this project shipped tests that could not fail:
+goes red, then revert. **Run `find . -name __pycache__ -type d -exec rm -rf {} +` first.**
+Python's `.pyc` staleness check is mtime-and-size, and a falsification edit is usually exactly
+the shape that defeats it — one string swapped for another of the same byte length
+(`"medical_device"` → `"MEDICAL_DEVICE"`). Stale bytecode reports a green pass over a real
+defect. Five separate PRs on this project shipped tests that could not fail:
 a network-isolation test with the library mocked, a mutation test against a frozen object, an
 adversarial test asserting a stub returned what it was told, a directory scan resolving a
 relative path to nothing.
@@ -104,6 +108,10 @@ relative path to nothing.
 If a test genuinely cannot be made to fail, **correct the claim, not the code.** Rename it to
 say what it actually proves and put the reason in its docstring. That is a better outcome
 than a decorative green tick, and it is explicitly the behaviour wanted here.
+
+If it cannot be made to fail **and** there is no true claim left to rename it to, delete it.
+`not isinstance(proposal, ProductCategory)` restated the type system — a `StrEnum` with
+members cannot be subclassed — so there was nothing to rename it to.
 
 ---
 
