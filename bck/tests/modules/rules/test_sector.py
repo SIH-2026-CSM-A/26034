@@ -12,6 +12,7 @@ import pytest
 
 from app.modules.rules import (
     OverrideTarget,
+    PackageType,
     ProductCategory,
     Rule7Route,
     SectorRoutedError,
@@ -217,7 +218,73 @@ def test_the_dispatch_is_built_from_the_rule_store() -> None:
     dispatched = {
         (override.sector, override.target, override.rule_id)
         for category in ProductCategory
-        for override in sector_overrides(category, TODAY).values()
+        for package_type in (None, *PackageType)
+        for override in sector_overrides(category, TODAY, package_type=package_type).values()
     }
 
     assert dispatched == encoded
+
+
+# --- package-type scoping ----------------------------------------------------------------
+
+
+def test_an_unscoped_override_fires_for_every_package_type() -> None:
+    """The three sector-wide overrides carry no package_type and must not have narrowed.
+
+    Adding the scoping dimension for the Rule 2(kc) proviso must not have made the
+    existing overrides conditional on a classification their gazettes never mention.
+    """
+    for package_type in (None, *PackageType):
+        assert sector_overrides(
+            ProductCategory.MEDICAL_DEVICE, TODAY, package_type=package_type
+        ).keys() >= {OverrideTarget.TABLE_HEIGHT, OverrideTarget.WIDTH_RATIO}
+        assert OverrideTarget.MANUFACTURER_DECLARATION in sector_overrides(
+            ProductCategory.FOOD, TODAY, package_type=package_type
+        )
+
+
+def test_a_food_package_routes_to_the_fssa_with_no_package_type_confirmed() -> None:
+    """Explanation III is unscoped: an ordinary food package still routes, unchanged."""
+    overrides = sector_overrides(ProductCategory.FOOD, TODAY)
+
+    assert set(overrides) == {OverrideTarget.MANUFACTURER_DECLARATION}
+    routed = overrides[OverrideTarget.MANUFACTURER_DECLARATION]
+    assert routed.controlling_framework == "Food Safety and Standards Act, 2006"
+    assert routed.rule_id == "R6-1-A-EXPL-III-FOOD"
+
+
+def test_only_a_multi_piece_food_package_picks_up_the_2kc_proviso() -> None:
+    """The proviso is scoped to multi-piece packages and must not leak to the rest.
+
+    Both routings name the same Act, so the rule id is what distinguishes them: the
+    proviso is a second, narrower obligation sitting on top of Explanation III, not a
+    restatement of it.
+    """
+    multi_piece = sector_overrides(
+        ProductCategory.FOOD,
+        TODAY,
+        package_type=PackageType.MULTI_PIECE_PACKAGE,
+    )
+
+    assert set(multi_piece) == {
+        OverrideTarget.MANUFACTURER_DECLARATION,
+        OverrideTarget.PACKAGE_DEFINITION,
+    }
+    assert multi_piece[OverrideTarget.PACKAGE_DEFINITION].rule_id == "R2-KC-MULTI-PIECE-FOOD"
+    assert (
+        multi_piece[OverrideTarget.PACKAGE_DEFINITION].controlling_framework
+        == "Food Safety and Standards Act, 2006"
+    )
+
+    for package_type in (None, PackageType.GROUP_PACKAGE, PackageType.COMBINATION_PACKAGE):
+        assert OverrideTarget.PACKAGE_DEFINITION not in sector_overrides(
+            ProductCategory.FOOD, TODAY, package_type=package_type
+        )
+
+
+def test_the_2kc_proviso_does_not_reach_a_non_food_multi_piece_package() -> None:
+    """Soap cakes are the gazette's own illustration, and soap is not a food article."""
+    for category in (ProductCategory.COSMETICS, ProductCategory.MEDICAL_DEVICE, None):
+        assert OverrideTarget.PACKAGE_DEFINITION not in sector_overrides(
+            category, TODAY, package_type=PackageType.MULTI_PIECE_PACKAGE
+        )

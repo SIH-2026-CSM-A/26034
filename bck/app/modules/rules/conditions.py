@@ -129,6 +129,16 @@ class PackageDefinitionCondition(StrictRuleModel):
     A definition classifies; it does not itself propose a violation. The rule carrying it
     therefore states ``REVIEW`` severity, because failing to *be* a group package is not
     a finding — being one and then being judged against the wrong obligations is.
+
+    The last two flags record only what a clause actually states. Rule 2(kc) alone
+    describes constituents that are "individual packaged or labelled pieces" saleable
+    "either in individual pieces or the package as a whole"; Rules 2(ka) and 2(kb) say
+    neither, so both are ``false`` there. That pair is what separates a multi-piece
+    package from a group package in the one way that matters downstream — a piece that
+    is separately labelled and separately saleable has to stand as a retail package in
+    its own right, which is a different question from what the outer wrapper carries.
+    **Which declarations follow from that is not stated in G.S.R. 722(E) and is not
+    encoded here.**
     """
 
     kind: Literal["package_definition"]
@@ -136,6 +146,8 @@ class PackageDefinitionCondition(StrictRuleModel):
     intended_for_retail_sale: Literal[True]
     minimum_constituent_count: int = Field(ge=2)
     constituent_similarity: ConstituentSimilarity
+    constituents_individually_packaged_or_labelled: bool
+    retail_sale_of_individual_pieces_permitted: bool
     illustrations: tuple[NonEmptyText, ...] = Field(min_length=1)
 
 
@@ -147,6 +159,13 @@ class SectorOverrideCondition(StrictRuleModel):
     rather than a single hard-coded sector, so a new sector is a rule in the store and
     not a branch in the evaluator.
 
+    ``package_type`` narrows an override to one kind of package. ``None`` means any
+    package type, which is what the sector-wide provisos state and how every override
+    behaves by default. The proviso to Rule 2(kc) is the case that needs it: it hands
+    food articles to the Food Safety and Standards Act, 2006 *for multi-piece packages*,
+    and an override that ignored the qualifier would fire on every food package and
+    produce a routing the gazette does not support.
+
     ``disapplies_rule_33_relaxation`` is separate from ``overrides`` on purpose. The
     other entries move an obligation elsewhere; this one removes a *relaxation* that
     would otherwise be available. Folding it into the same list would make "routed" and
@@ -156,6 +175,7 @@ class SectorOverrideCondition(StrictRuleModel):
     kind: Literal["sector_override"]
     sector: ProductCategory
     controlling_framework: NonEmptyText
+    package_type: PackageType | None = None
     overrides: tuple[OverrideTarget, ...] = Field(min_length=1)
     disapplies_rule_33_relaxation: bool = False
 

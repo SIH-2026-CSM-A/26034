@@ -1,5 +1,63 @@
 # Session log — Abhiram
 
+### 2026-09-06 — RUL-003 multi-piece package, definition 2(kc) — Claude Code
+
+**Why now**
+RUL-002 encoded 2(ka) and 2(kb) from G.S.R. 722(E) and deliberately left 2(kc) out, which
+was tracked as a deferral line in ARCHITECTURE.md rather than left as a silent absence.
+This is that line being closed. The definition matters beyond completeness: a multi-piece
+package's pieces are individually labelled and individually saleable, which is what
+decides whether an inner piece has to stand as a retail package in its own right.
+
+**Done**
+- `data/rules.yaml` — `R2-KC-MULTI-PIECE-PACKAGE` (Rule 2(kc)) and
+  `R2-KC-MULTI-PIECE-FOOD` (its proviso), both citing
+  `GSR-722E__2023-10-06__amendment-rules-2023.pdf`, effective 2024-01-01, severity REVIEW.
+- `PackageDefinitionCondition` gained `constituents_individually_packaged_or_labelled` and
+  `retail_sale_of_individual_pieces_permitted`. Both are `false` on 2(ka) and 2(kb),
+  because neither clause states either limb — the fields record what a clause says, not
+  what could be inferred about it.
+- `ConstituentSimilarity.IDENTICAL` completes the axis, so the three definitions are
+  mutually exclusive on one field and no package can satisfy two of them.
+- `SectorOverrideCondition.package_type` (optional, `None` = any package type) and the
+  matching keyword on `sector_overrides`, `controlling_framework`,
+  `rule_33_relaxation_applies` and `pdp_declaration_mandatory`.
+- `sector.py` grew a single `_applicable()` that defines "does this override apply" once.
+  `rule_33_relaxation_applies` had been re-implementing the same four checks; a second
+  copy is how a scoped override fires in one reader and not the other.
+
+**Decisions**
+- The proviso to 2(kc) is its own rule, not a field on the definition. It has its own
+  gazette text and its own scope, and the next scoped proviso is now a YAML rule rather
+  than a branch in an evaluator.
+- That proviso is scoped by `package_type`. Both it and `R6-1-A-EXPL-III-FOOD` route food
+  to the FSSA 2006, but Explanation III applies to every food package while 2(kc)'s
+  proviso applies only to multi-piece ones. An unscoped override would have fired on every
+  food package and claimed a routing G.S.R. 722(E) does not support. The rule id is what
+  distinguishes the two in a finding, since the framework string is identical.
+
+**Not encoded, and why**
+- **No multi-piece outer-wrapper rule.** G.S.R. 722(E) does not amend rule 9, and
+  "multi-piece package" appears nowhere in the Maharashtra compilation or in any other
+  gazette in `rules-corpus/` — three occurrences in the whole corpus, all in G.S.R.
+  722(E). Rule 9(3) already applies generally to any package with an outside container.
+  The two new definition fields are the hook a future ticket would join on; that join is
+  not in the gazette and was not invented. `test_the_gazette_states_no_multi_piece_outer_wrapper_rule`
+  pins this.
+- **Rule 6(11).** Paragraph 4 of G.S.R. 722(E) exempts combination, group and multi-piece
+  packages from the unit sale price declaration. It is the only other multi-piece-specific
+  obligation in the instrument and it is deliberately out of the store — Rule 6(11) is a
+  format rule stating no tolerance and no rounding increment.
+
+**Verification**
+520 passed / 2 skipped, ruff clean, `lint-imports` 3 kept 0 broken. Mutation-checked the
+scoping by deleting the `package_type` guard in `_applicable()`: three tests fail,
+including RUL-002's `test_a_sector_override_moves_only_the_obligations_it_names`.
+
+**Outstanding**
+- RUL-002 has no entry in this log — it merged as PR #32 before the docs PR was written.
+  Worth backfilling alongside `TODO.md`, which is still not updated for either ticket.
+
 ### 2026-09-06 — CORE-001 auth, RBAC, jurisdiction scoping — Claude Code
 
 **Why now**
