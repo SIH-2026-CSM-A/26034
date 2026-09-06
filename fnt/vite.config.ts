@@ -8,12 +8,17 @@ export default defineConfig({
     react(),
     VitePWA({
       injectRegister: false,
+      // The default glob omits woff2, which would leave the self-hosted
+      // faces out of the precache — the one thing they exist to survive.
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+      },
       manifest: {
         name: 'PCCS — Packaged Commodity Compliance System',
         short_name: 'PCCS',
         description: 'Compliance decision-support for packaged commodities under the Legal Metrology (Packaged Commodities) Rules, 2011.',
-        theme_color: '#0F172A',
-        background_color: '#F8FAFC',
+        theme_color: '#DCDFDB',
+        background_color: '#DCDFDB',
         display: 'standalone',
         icons: [],
       },

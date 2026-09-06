@@ -2,11 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * IBM Plex, self-hosted from public/fonts/. No CDN and no @fontsource package:
+ * the officer surface has to render with the venue network dead, and a font
+ * that arrives over the wire is a font that does not arrive. Licence in
+ * public/fonts/LICENSE.txt (SIL OFL 1.1).
+ *
+ * font-display: swap so a slow disk read shows fallback text rather than
+ * nothing. Both stacks in tailwind.config.js carry a system fallback, so a
+ * failed load degrades to a legible screen instead of a blank one.
+ */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/IBMPlexSans-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/IBMPlexMono-Medium.woff2') format('woff2');
+}
+
 :root {
+  /* Light-first. No inversion — the screen is read under sun. */
   color-scheme: light;
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+@layer base {
+  body {
+    @apply bg-paper font-sans text-body text-ink;
+    margin: 0;
+  }
+
+  /*
+   * Focus is always visible and never animated. A ring that fades in is a ring
+   * the officer's eye has already moved past. Offset keeps it clear of the
+   * hairline rules the ledger is built from.
+   */
+  :focus-visible {
+    outline: 3px solid theme('colors.ink');
+    outline-offset: 2px;
+  }
+
+  /* Measured figures align digit over digit wherever they are set. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * Spatial motion collapses to an opacity change. Nothing on these screens
+ * depends on movement to be understood, so there is nothing to preserve.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+    transition-property: opacity !important;
+    scroll-behavior: auto !important;
+  }
 }
