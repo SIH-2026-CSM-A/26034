@@ -1,4 +1,6 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.modules.evidence.chain import (
     GENESIS_PREV_HASH,
@@ -7,7 +9,7 @@ from app.modules.evidence.chain import (
     verify_chain,
 )
 from app.modules.evidence.domain import ChainVerification
-from app.modules.evidence.storage import ContentAddressedStorageClient
+from app.modules.evidence.storage import LocalStorageClient, S3ContentAddressedStorageClient
 from app.modules.evidence.timestamp import LocalRFC3161Hook
 
 
@@ -42,7 +44,6 @@ def test_long_chain_and_tampering():
     assert verify_chain(chain).is_valid is True
 
     # 2. Alter payload in entry index 42
-    # Since EvidenceEntry is frozen, we must create a new one
     original_entry = chain[42]
     tampered_entry = original_entry.model_copy(update={"payload": {"i": "TAMPERED"}})
 
@@ -104,25 +105,77 @@ def test_content_addressed_storage():
         patch("pathlib.Path.write_bytes") as mock_write,
         patch("pathlib.Path.exists") as mock_exists,
     ):
-        # First call to exists() returns False (file doesn't exist)
-        # Second call to exists() returns True (file now exists)
         mock_exists.side_effect = [False, True]
 
-        client = ContentAddressedStorageClient(base_path="test_storage")
+        client = LocalStorageClient(base_path="test_storage")
         img_bytes = b"fake-image-data"
 
         key1 = client.store_image(img_bytes)
         key2 = client.store_image(img_bytes)
 
         assert key1 == key2
-        # write_bytes should only be called once because the second exists() was True
         assert mock_write.call_count == 1
+
+
+def test_storage_path_handling(tmp_path):
+    """Verify custom base_path writes to custom_storage/evidence/..."""
+    custom_path = tmp_path / "custom_storage"
+    client = LocalStorageClient(base_path=str(custom_path))
+    img_bytes = b"test-bytes"
+
+    key = client.store_image(img_bytes)
+
+    # Verify file exists at the expected location
+    expected_file = custom_path / key
+    assert expected_file.exists()
+    assert expected_file.read_bytes() == img_bytes
+
+
+def test_s3_storage_mocked():
+    """Verify S3 client content-addressing and zero remote calls using mocks."""
+    with patch("app.modules.evidence.storage.boto3", create=True) as mock_boto_mod:
+        mock_s3 = MagicMock()
+        mock_boto_mod.client.return_value = mock_s3
+
+        client = S3ContentAddressedStorageClient(
+            endpoint_url="http://localhost:9000",
+            bucket_name="test-bucket",
+            access_key="minioadmin",
+            secret_key="minioadmin",
+        )
+
+        img_bytes = b"s3-fake-data"
+
+        # Mock S3 to return 404 for the first call, then 200
+        error_response = {"Error": {"Code": "404", "Message": "Not Found"}}
+
+        class MockClientError(Exception):
+            def __init__(self, response, operation):
+                self.response = response
+                self.operation = operation
+
+        mock_s3.head_object.side_effect = MockClientError(error_response, "HeadObject")
+
+        key = client.store_image(img_bytes)
+
+        assert "evidence/" in key
+        mock_s3.put_object.assert_called_once()
+        assert mock_s3.put_object.call_args[1]["Key"] == key
+        assert mock_s3.put_object.call_args[1]["Body"] == img_bytes
+
+
+def test_timestamp_secret_validation():
+    """Verify LocalRFC3161Hook raises ValueError if secret is missing or empty."""
+    with pytest.raises(ValueError, match="secret_key is required"):
+        LocalRFC3161Hook(secret_key="")
+
+    with pytest.raises(TypeError):
+        LocalRFC3161Hook()
 
 
 def test_isolation_no_network():
     """Assert no remote network calls occur during operation."""
-    # We use a hook to ensure LocalRFC3161Hook doesn't try to hit a TSA
-    hook = LocalRFC3161Hook()
+    hook = LocalRFC3161Hook(secret_key="test-secret")
 
     with patch("urllib.request.urlopen") as mock_url, patch("socket.socket") as mock_socket:
         token = hook.get_timestamp_token("some-hash")

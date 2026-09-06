@@ -22,7 +22,9 @@ class LocalRFC3161Hook(TimestampAuthorityHook):
     Produces deterministic tokens without external network calls.
     """
 
-    def __init__(self, secret_key: str = "local-evidence-secret-key"):
+    def __init__(self, secret_key: str):
+        if not secret_key:
+            raise ValueError("secret_key is required for LocalRFC3161Hook")
         self._secret_key = secret_key.encode("utf-8")
 
     def get_timestamp_token(self, data_hash: str) -> dict:
