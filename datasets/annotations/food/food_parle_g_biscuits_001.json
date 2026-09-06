@@ -2,7 +2,7 @@
   "sample_id": "food_parle_g_biscuits_001",
   "sku_id": "food_parle_g_biscuits",
   "image_filename": "food_parle_g_biscuits_001.jpg",
-  "image_sha256": null,
+  "image_sha256": "df6acb2faab83ef8ac358e8dc7066401a3b59ce333b4438d0259706050a11bf4",
   "category": "food",
   "difficulty_tags": [
     "small_pdp",
