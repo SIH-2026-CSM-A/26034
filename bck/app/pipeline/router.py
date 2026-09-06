@@ -146,7 +146,15 @@ async def submit_image_scan(
         return scan_detail(scan, None, finalised=False, quality=outcome)
 
     assert isinstance(outcome, ImageScanResult)
-    await repository.persist_verdict(session, scan, outcome.verdict)
+    # Every span reaches the evidence record, with the unplaced ones named inside it.
+    # `spans` already holds them, so they are identified by id rather than repeated.
+    await repository.persist_verdict(
+        session,
+        scan,
+        outcome.verdict,
+        outcome.spans,
+        [span.span_id for span in outcome.unclassified_spans],
+    )
     return scan_detail(scan, outcome.verdict, finalised=False)
 
 

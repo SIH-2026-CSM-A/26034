@@ -101,6 +101,55 @@ returns bindings and not `NormalisedField`, so EXT-004 does not re-implement nin
 functions. `DeclarationRole` mirrors extraction's `AddressRole` member for member, with a
 test that fails on drift, so his side is an import swap.
 
+**EXT-004 wired — and PR #44 is open, not merged**
+I was told EXT-004 had merged as PR #44. It has not: `gh pr view 44` reports `state: OPEN`,
+`mergedAt: null`, and its commit is not an ancestor of `origin/main`, whose head is #41
+(EVD-004). There is no `binder.py` on main. The interface is exactly as described, on
+`origin/feat/ext-004-span-classification`, and I built against that after reading it rather
+than against the description. **This branch does not import until #44 merges.**
+
+The gated `contracts/binding.py` commit is dropped entirely — `BoundDeclaration`,
+`DeclarationRole` and the `AddressRole` mirror test are gone. That was right regardless of
+merge state: the real binder returns `NormalisedField` directly, uses no role enum, and
+imports only `DeclarationField`, `ExtractedSpan` and `NormalisedField`, all of which were
+already on main. My speculative contracts change was never needed.
+
+`bind_spans` replaces the normalisation stage on the image path — extraction normalises
+internally, so stages 4 and 5 are one call. The normalisation adapter stays for the
+catalogue path only, where the obligation arrives as a dictionary key rather than as prose
+in the text; that is exactly what `identity_established` encodes and `bind_spans` has no key
+to read. `EXT_004_REASON` and its test are deleted; an unbound declaration is now
+INSUFFICIENT_EVIDENCE because no text on the panel mapped to it, which is a statement about
+the photograph. It stays INSUFFICIENT_EVIDENCE rather than becoming FAIL for a reason that
+survives the binder being good: nothing can tell a declaration never printed from one
+printed and not read.
+
+**`declared` had to become multi-valued.** `bind_spans` returns a `NormalisedField` per
+address block and its docstring says in as many words not to pick one — a package bearing
+"Manufactured by" and "Marketed by" yields two against Rule 6(1)(a), which is one
+obligation. My `Mapping[DeclarationField, NormalisedField]` would have silently dropped the
+second. It is now a tuple per obligation, and the finding cites the spans behind all of
+them.
+
+**Point 4 exposed a hole that was mine, not EXT-004's.** Nothing persisted spans at all,
+classified or otherwise, and `EvidenceEntryRow` had no writer anywhere in the application —
+the table shipped in CORE-002 and nothing had ever written to it. `repository.add_evidence_entry`
+now hash-chains the verdict together with every span, naming the unplaced ones by id inside
+the payload so the distinction is inside the hash rather than alongside it. The payload is
+hashed and stored as the same canonical string, which is what `payload_json` being text is
+for; falsified by storing a re-serialised copy and watching verification break.
+
+**Verified live, and precisely how.** No YOLO or PaddleOCR weights exist on this machine, so
+a genuine model run is still not possible — that half of the gap I flagged is not closed by
+EXT-004. What did run: a real JPEG uploaded over HTTP, with only `detect_pdp` and
+`extract_panel_text` substituted and everything downstream real. Result — the address bound
+from the anchor plus its downward cluster across three spans, net quantity `100 g`, MRP
+`₹ 45.00`, seven unbound declarations carrying the new reason, verdict REVIEW, and an
+evidence entry holding six spans with `Batch XY-7741` correctly named as unclassified. The
+chain verifies. Separately, the empty-weights attempt gave a real end-to-end confirmation of
+the failure contract: 500 with the scan id, scan at FAILED, zero verdicts, zero findings,
+zero evidence entries.
+
 **Adjusted for VIS-003, ahead of its merge**
 VIS-003 makes `extract_panel_text` return `contracts.ExtractedSpan` directly — vision mints
 `span_id` (uuid4), sets `source_provider`, and writes `region_id="panel"` — and the local

@@ -18,15 +18,17 @@ it stays the only one — that is what makes "nothing is finalised without an of
 property of the code rather than a promise about it.
 """
 
+import json
 from collections.abc import Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.contracts import DeclarationField, VerdictRecord
+from app.contracts import DeclarationField, ExtractedSpan, VerdictRecord
 from app.core import (
     CalibrationMethod,
+    EvidenceEntryRow,
     FieldFindingRow,
     Principal,
     ReviewAction,
@@ -37,6 +39,7 @@ from app.core import (
     VerdictRow,
     scope_to_jurisdiction,
 )
+from app.modules.evidence import create_genesis_entry
 from app.modules.rules import ProductCategory, default_rule_set_version
 from app.pipeline.schemas import ReviewRequest, ScanFilters
 
@@ -227,8 +230,70 @@ def record_review(
     return row
 
 
-async def persist_verdict(session: AsyncSession, scan: Scan, record: VerdictRecord) -> None:
-    """Write the verdict, its findings and the scan's completion in one transaction.
+def add_evidence_entry(
+    session: AsyncSession,
+    scan: Scan,
+    record: VerdictRecord,
+    spans: Sequence[ExtractedSpan],
+    unclassified_span_ids: Sequence[str] = (),
+) -> EvidenceEntryRow:
+    """Hash-chain the verdict and every span it was read from, and stage the entry.
+
+    The genesis entry for a scan. Re-evaluation appends rather than replacing, which is
+    what :func:`~app.modules.evidence.append_entry` is for; there is one verdict per scan
+    today so there is one entry.
+
+    **Every span goes into the payload, and which ones went unplaced is recorded with
+    them.** Text that was read and bound to nothing is evidence in its own right: it is
+    what answers "then what does the label say there?" when a finding reports a declaration
+    missing, and leaving it out would make an INSUFFICIENT_EVIDENCE finding unauditable.
+    ``spans`` is the whole set and ``unclassified_span_ids`` names the leftovers within it,
+    rather than listing them twice. Both are inside the hash for the same reason the
+    verdict is: so nobody can add, remove or quietly reclassify one afterwards.
+
+    The payload is hashed and stored as *the same string*. ``compute_payload_hash``
+    serialises a dict to canonical JSON, so the canonical form is built once here and
+    handed over as text: ``payload_json`` then holds the exact bytes that were hashed, and
+    verification cannot report a broken chain nobody touched.
+    """
+    payload = {
+        "verdict": record.model_dump(mode="json"),
+        "spans": [span.model_dump(mode="json") for span in spans],
+        # Which of those the binder could not place, by id rather than by repeating them.
+        # The distinction is the useful part and it belongs inside the hash: an officer
+        # reading "this declaration is missing" needs to know which text was read and left
+        # over, and nobody should be able to reclassify a span after the fact.
+        "unclassified_span_ids": list(unclassified_span_ids),
+    }
+    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    timestamp = record.evaluated_at.isoformat()
+    entry = create_genesis_entry(payload_json, timestamp)
+
+    row = EvidenceEntryRow(
+        scan_id=scan.id,
+        sequence=entry.sequence,
+        timestamp=entry.timestamp,
+        payload_hash=entry.payload_hash,
+        prev_hash=entry.prev_hash,
+        entry_hash=entry.entry_hash,
+        payload_json=payload_json,
+    )
+    session.add(row)
+    return row
+
+
+async def persist_verdict(
+    session: AsyncSession,
+    scan: Scan,
+    record: VerdictRecord,
+    spans: Sequence[ExtractedSpan] = (),
+    unclassified_span_ids: Sequence[str] = (),
+) -> None:
+    """Write the verdict, its findings, its evidence entry and the scan's completion.
+
+    One transaction, all of it or none. A verdict without its findings has no evidence
+    chain behind it, and a verdict without its evidence entry is one nobody can later show
+    was not edited.
 
     The scan is already persistent in this session from the first transaction, so it is
     mutated rather than merged. A ``merge`` here would emit a SELECT, and that SELECT
@@ -237,6 +302,7 @@ async def persist_verdict(session: AsyncSession, scan: Scan, record: VerdictReco
     """
     async with session.begin():
         await add_verdict(session, scan, record)
+        add_evidence_entry(session, scan, record, spans, unclassified_span_ids)
         scan.status = ScanStatus.COMPLETE
 
 

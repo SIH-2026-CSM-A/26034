@@ -8,18 +8,6 @@ assignment record.
 
 ## Now
 
-- [ ] **EXT-004 — span classification and spatial role binding** (Sitanshu). Turns OCR spans
-      into identified Rule 6 declarations. Binds Manufactured-by / Marketed-by / Packed-by /
-      Imported-by by geometry — keyword anchor, then nearest *downward* cluster containing a
-      valid PIN — not reading order. **The image path returns nothing useful until this
-      lands.** PIP-002 built to the seam and stops there by name: every declaration comes
-      back INSUFFICIENT_EVIDENCE carrying `EXT_004_REASON`. The interface is already written
-      — `contracts.BoundDeclaration` and
-      `bind_declarations(spans) -> tuple[BoundDeclaration, ...]` — and is waiting on
-      Sitanshu's agreement before that commit merges. When it lands, one call site in
-      `pipeline/orchestrator.py` changes and
-      `test_the_ext_004_refusal_names_the_stage_that_is_not_built` goes red, which is the
-      signal to delete it.
 - [ ] **VIS-004 — OCR the detected panel, not the whole frame** (Akshaya, new). `detect_pdp`
       returns a bbox that nothing consumes: `extract_panel_text` is handed the full image,
       so every span's `region_id` of `"panel"` is a claim the chain has not established.
@@ -41,6 +29,11 @@ assignment record.
       done.
 - [ ] **CI-003** — remove the `paths:` filter from `frontend.yml` so the required `frontend`
       context always reports. In flight.
+- [x] **EXT-004 consumed by the pipeline** (Claude Code). The image path binds for real:
+      `bind_spans` replaces the old adapter, stages 4 and 5 are one call, and every span
+      reaches the evidence record with the unplaced ones named inside the hash. **The
+      branch requires PR #44 to merge first** — it was open, not merged, when this was
+      written.
 - [x] **PIP-002 — HTTP surface and orchestration** (Claude Code, this session). `app/main.py`
       with a lifespan that refuses to start without the vision weights; `pipeline/`
       orchestrator, router, repository and the four-way split of the findings logic; the

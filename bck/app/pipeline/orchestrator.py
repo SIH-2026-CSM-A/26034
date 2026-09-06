@@ -16,7 +16,7 @@ runs. There is no verdict for a package we could not photograph properly, and pr
 one from a bad capture is how "we could not see it" becomes "it is not there".
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -33,6 +33,7 @@ from app.contracts import (
     VerdictRecord,
 )
 from app.core import CalibrationMethod, get_settings
+from app.modules.extraction import bind_spans
 from app.modules.measurement import (
     calculate_pdp_area,
     measure_ink_extent,
@@ -48,22 +49,23 @@ from app.pipeline.normalisation import normalise_declaration
 from app.pipeline.rule_findings import EvidenceContext
 from app.pipeline.verdict import assemble_verdict
 
-EXT_004_REASON = (
-    "spans were read from the panel but not bound to a declaration: extraction span "
-    "classification and spatial role binding (EXT-004) is not built. This is a gap in "
-    "this system, not a finding about the package."
+UNBOUND_DECLARATION_REASON = (
+    "the panel was read, and no text on it was bound to this declaration. That is not the "
+    "same as the declaration being absent: it may be present and unreadable — glared, cut "
+    "off by the crop, or too small to resolve — and an officer should look before anything "
+    "follows from it."
 )
-"""What a missing declaration means on the image path today.
+"""What a declaration with no bound field means on the image path.
 
-``app.modules.extraction`` normalises nine kinds of declaration and exposes nothing that
-maps OCR spans to the obligation each answers, so every declaration on the image path is
-INSUFFICIENT_EVIDENCE carrying this text. It names the ticket and the stage deliberately:
-an officer or a court reading the output can tell "we could not read this label" apart
-from "this pipeline stage is not built yet", and those are different statements.
+Binding is real, so this is a statement about the photograph rather than about a missing
+pipeline stage. It stays INSUFFICIENT_EVIDENCE rather than becoming FAIL for a reason that
+survives the binder being good: nothing here can tell a declaration that was never printed
+from one that was printed and not read, and only the first of those can support
+enforcement.
 
-When EXT-004 lands, :func:`run_image_scan` binds spans and passes the reason a real
-absence deserves instead. The test asserting this exact string goes red that day, which is
-the signal to delete it.
+The unbound text is not thrown away. Every span the binder could not place travels on
+:attr:`ImageScanResult.unclassified_spans` and into the evidence record, because it is
+exactly what an officer needs when the system says a declaration is missing.
 """
 
 
@@ -97,7 +99,20 @@ class ImageScanResult(ContractModel):
     """
 
     verdict: VerdictRecord
+
     spans: tuple[ExtractedSpan, ...]
+    """Every span vision read, whether the binder placed it or not."""
+
+    unclassified_spans: tuple[ExtractedSpan, ...] = ()
+    """The spans the binder could not place against any declaration.
+
+    Kept, and written into the evidence record. Text that was read and bound to nothing is
+    evidence in its own right, and it is precisely what an officer needs when the system
+    reports a declaration missing: the answer to "then what does the label actually say
+    there?" Discarding it would leave an INSUFFICIENT_EVIDENCE finding with nothing behind
+    it.
+    """
+
     panel: PanelDetection
 
 
@@ -140,6 +155,22 @@ def _measurements(image: np.ndarray, calibration: Calibration) -> Mapping[str, M
         # a declaration to a box is EXT-004. Until then there is nothing to measure from,
         # which the rule's finding reports as INSUFFICIENT_EVIDENCE rather than as a pass.
     }
+
+
+def by_obligation(
+    fields: Sequence[NormalisedField],
+) -> dict[DeclarationField, tuple[NormalisedField, ...]]:
+    """Group bound declarations by the obligation each answers, keeping every one.
+
+    Rule 6(1)(a) is one obligation covering manufacturer, packer and importer, so a
+    package bearing "Manufactured by" and "Marketed by" produces two fields against it.
+    ``bind_spans`` returns both deliberately and says not to pick one; this keeps both, in
+    the order the binder returned them, and the finding cites the spans behind all of them.
+    """
+    grouped: dict[DeclarationField, tuple[NormalisedField, ...]] = {}
+    for field in fields:
+        grouped[field.field_type] = (*grouped.get(field.field_type, ()), field)
+    return grouped
 
 
 def run_image_scan(
@@ -199,11 +230,12 @@ def run_image_scan(
         extract_panel_text(image, str(settings.ocr_det_model_dir), str(settings.ocr_rec_model_dir))
     )
 
-    # The extraction seam. `spans` is what the panel actually says; nothing yet resolves
-    # which declaration each run of text answers, so no declaration is established and
-    # every one of them is INSUFFICIENT_EVIDENCE below. One line changes when EXT-004
-    # lands: `declared = _bind(spans)`.
-    declared: dict[DeclarationField, NormalisedField] = {}
+    # Classification, spatial role binding and normalisation are one call: extraction
+    # normalises internally and hands back canonical fields, so this path has no separate
+    # normalisation stage. Every span handed in comes back either cited by a field or in
+    # unclassified_spans — the binder conserves them, and so does this.
+    extraction = bind_spans(spans)
+    declared = by_obligation(extraction.fields)
 
     context = EvidenceContext(
         rule_set_version=default_rule_set_version(),
@@ -212,7 +244,7 @@ def run_image_scan(
         measurements=_measurements(image, calibration),
         product_category=product_category,
         source_is_listing=False,
-        unreadable_reason=EXT_004_REASON,
+        unreadable_reason=UNBOUND_DECLARATION_REASON,
     )
     findings = build_findings(load_rules(), context)
     return ImageScanResult(
@@ -224,6 +256,7 @@ def run_image_scan(
             field_providers=dict.fromkeys(declared, EvidenceProvider.PADDLEOCR),
         ),
         spans=spans,
+        unclassified_spans=tuple(extraction.unclassified_spans),
         panel=PanelDetection(
             bbox=detection.bbox, area_px=detection.area, confidence=detection.confidence
         ),
@@ -248,12 +281,16 @@ def run_catalogue_scan(
     the image path: a declaration absent from ``declared_fields`` was not declared in the
     listing, which is a finding about the listing rather than a gap in our reading of it.
     """
-    declared: dict[DeclarationField, NormalisedField] = {}
+    # The normalisation adapter stays on this path and only this path. A catalogue record
+    # supplies the obligation as a dictionary key, so the role is established by the source
+    # rather than by prose in the text — which is the whole of what `identity_established`
+    # encodes. `bind_spans` is for spans and has no key to read.
+    declared: dict[DeclarationField, tuple[NormalisedField, ...]] = {}
     for field, text in record.declared_fields.items():
         span_ref = f"listing:{record.listing_id}:{field.value}"
         value = normalise_declaration(field, text, (span_ref,), identity_established=True)
         if value is not None:
-            declared[field] = value
+            declared[field] = (value,)
 
     context = EvidenceContext(
         rule_set_version=default_rule_set_version(),

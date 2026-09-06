@@ -249,3 +249,86 @@ async def test_cors_answers_the_vite_origin_and_nobody_else(client: AsyncClient)
     )
     assert allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
     assert "access-control-allow-origin" not in denied.headers
+
+
+async def test_a_verdict_is_hash_chained_with_the_spans_behind_it(
+    client: AsyncClient, configured: str
+) -> None:
+    """The stored evidence entry verifies, and the payload is the bytes that were hashed.
+
+    ``EvidenceEntryRow.payload_json`` is text and ``timestamp`` is text precisely so that
+    verification re-hashes what was written rather than a re-rendered copy of it. This
+    reads the row back and runs the real chain verifier over it, which is the only way to
+    know those two column types are still doing their job.
+    """
+    import json
+
+    from sqlalchemy import select
+
+    from app.core import EvidenceEntryRow
+    from app.core.db import get_session_factory
+    from app.modules.evidence import EvidenceEntry, verify_chain
+
+    scan = await submit(client)
+
+    async with get_session_factory()() as session:
+        rows = (
+            await session.scalars(
+                select(EvidenceEntryRow).where(EvidenceEntryRow.scan_id == scan["id"])
+            )
+        ).all()
+
+    assert len(rows) == 1, "a completed scan writes exactly one genesis evidence entry"
+    row = rows[0]
+    verification = verify_chain(
+        [
+            EvidenceEntry(
+                sequence=row.sequence,
+                timestamp=row.timestamp,
+                payload_hash=row.payload_hash,
+                prev_hash=row.prev_hash,
+                entry_hash=row.entry_hash,
+                payload=row.payload_json,
+            )
+        ]
+    )
+    assert verification.is_valid, verification.reason
+
+    payload = json.loads(row.payload_json)
+    assert payload["verdict"]["rule_set_version"] == scan["rule_set_version"]
+    assert "spans" in payload
+    assert "unclassified_span_ids" in payload
+
+
+async def test_tampering_with_a_stored_payload_breaks_the_chain(
+    client: AsyncClient, configured: str
+) -> None:
+    """The counterpart: a verifier that accepted anything would pass the test above."""
+    from sqlalchemy import select
+
+    from app.core import EvidenceEntryRow
+    from app.core.db import get_session_factory
+    from app.modules.evidence import EvidenceEntry, verify_chain
+
+    scan = await submit(client)
+    async with get_session_factory()() as session:
+        row = (
+            await session.scalars(
+                select(EvidenceEntryRow).where(EvidenceEntryRow.scan_id == scan["id"])
+            )
+        ).one()
+
+    tampered = verify_chain(
+        [
+            EvidenceEntry(
+                sequence=row.sequence,
+                timestamp=row.timestamp,
+                payload_hash=row.payload_hash,
+                prev_hash=row.prev_hash,
+                entry_hash=row.entry_hash,
+                payload=row.payload_json.replace("POTENTIAL_VIOLATION", "PASS"),
+            )
+        ]
+    )
+    assert not tampered.is_valid
+    assert tampered.reason == "payload_hash_mismatch"

@@ -51,8 +51,16 @@ class EvidenceContext:
 
     rule_set_version: str
     evaluation_date: date
-    declared: Mapping[DeclarationField, NormalisedField]
-    """Declarations resolved to canonical values, by obligation."""
+    declared: Mapping[DeclarationField, tuple[NormalisedField, ...]]
+    """Declarations resolved to canonical values, by obligation.
+
+    A *tuple* per obligation, not one value. Rule 6(1)(a) is a single obligation covering
+    manufacturer, packer and importer — and by Explanation II a marketer or brand owner —
+    so a package bearing "Manufactured by" and "Marketed by" yields two bound declarations
+    against one obligation. ``app.modules.extraction.bind_spans`` returns both and says in
+    as many words not to pick one arbitrarily; collapsing them here would do exactly that,
+    and would drop an address an officer may need to see.
+    """
 
     measurements: Mapping[str, MeasurementResult]
     """Measurement results keyed by the rule condition kind that needs them."""
@@ -145,16 +153,20 @@ def declaration_findings(
 def _one_declaration(
     rule: RuleDefinition, field: DeclarationField, context: EvidenceContext
 ) -> FieldFinding:
-    value = context.declared.get(field)
-    if value is not None:
+    values = context.declared.get(field, ())
+    if values:
+        # Every bound value for this obligation, and every span behind all of them. One
+        # finding, because one obligation, but it cites the whole of what was read.
         return finding(
             rule,
             field,
             FIELD_STATE_FROM_VERDICT[evaluate_rule(rule, Verdict.PASS)],
             "the declaration is present and was read from the package.",
             context,
-            observed_value=value.normalised_value,
-            evidence_span_ids=value.span_refs,
+            observed_value=" | ".join(value.normalised_value for value in values),
+            evidence_span_ids=tuple(
+                dict.fromkeys(ref for value in values for ref in value.span_refs)
+            ),
         )
 
     if context.unreadable_reason is not None:

@@ -18,7 +18,7 @@ the password flow.
 """
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import pytest_asyncio
@@ -54,6 +54,22 @@ CONTROLLER = Principal(
     jurisdiction=Jurisdiction(state="Maharashtra"),
 )
 """A state officer whose authority contains the district officer's."""
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """A developer's own ``.env`` must not decide what any test in this package sees.
+
+    ``run_image_scan`` reads the model paths off :class:`Settings`, so the orchestrator
+    tests construct settings even though they patch the vision calls themselves. Without
+    this they would pass or fail depending on whose machine they ran on.
+    """
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
+    monkeypatch.delenv("OFFICERS", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
