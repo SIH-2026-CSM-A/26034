@@ -1,45 +1,48 @@
-# Session log — Sitanshu
+# Session Log - Sitanshu
 
-### 2026-09-05 — EXT-001 OCR-text normalisation layer — Antigravity
-
-**Done**
-- Created bck/app/modules/extraction/types.py — defined DTO schemas (NormalizationResult[T], ReasonCode, MRPValue, NetQuantityValue, DateValue, AddressValue, ConsumerCareValue).
-- Created bck/app/modules/extraction/mrp.py — implemented MRP normaliser handling currency symbols (₹, Rs., INR), / suffix, only, thousands separators, and tax inclusivity.
-- Created bck/app/modules/extraction/net_quantity.py — implemented Net Quantity normaliser standardising units (g, kg, ml, l, N, pcs), e-mark (℮), number-then-unit, and unit-then-number formats.
-- Created bck/app/modules/extraction/date.py — implemented Date normaliser supporting absolute ISO dates (YYYY-MM-DD, YYYY-MM), text months (MAR 2026), MM/YYYY & MM/YY conflicting date ambiguity detection, calendar date validation (31.02.2026, 29.02.2025, 32.01.2026), and explicit relative expressions ("Best before N months from packing"). Unresolved without packing date.
-- Created bck/app/modules/extraction/address.py — implemented deterministic Address normaliser extracting legal metrology roles (MANUFACTURER, PACKER, MARKETER, IMPORTER, BRAND_OWNER), entity names, PIN codes (\b[1-9][0-9]{5}\b), and cleaned address blocks.
-- Created bck/app/modules/extraction/consumer_care.py — implemented Consumer Care normaliser extracting toll-free/mobile/landline phones, email addresses, and postal complaint blocks, with explicit context keywords including "reach us".
-- Created bck/app/modules/extraction/normalise.py — exposed top-level normalisation API functions.
-- Created bck/tests/modules/extraction/test_normalise.py — built comprehensive table-driven test suite with 107 test cases covering valid, edge, invalid calendar dates, ambiguous dates, and malformed inputs.
-- Verified all quality checks pass cleanly: uv run ruff check ., uv run ruff format --check ., uv run lint-imports, uv run pytest.
-
-### 2026-09-05 — EXT-001 Abhiram Review Feedback & Technical Audit Refactor — Antigravity
+## 2026-09-06 — EXT-005 Category Proposal — Antigravity
 
 **Done**
-- Addressed Abhiram Review Item A (Decimal for Net Quantity):
-  - Changed NetQuantityValue.value from float to Decimal in types.py.
-  - Refactored net_quantity.py to parse quantities directly into Decimal without passing through float conversions.
-  - Updated all net quantity test cases and type assertions to check isinstance(val, Decimal).
-- Addressed Abhiram Review Item B (Strict ReasonCode Enum):
-  - Enforced `reason_code: ReasonCode | None` contract in NormalizationResult[T] (removed `| str`).
-  - Added type assertions across test suite to guarantee reason_code is either None or an instance of ReasonCode enum.
-- Addressed Abhiram Review Item C (Confidence Constants & UNCALIBRATED PRIORS Docstrings):
-  - Replaced all magic floats (0.95, 0.90, 0.85) with descriptive module-level named constants across all five parsers (CONFIDENCE_EXPLICIT_CURRENCY_HEADER, CONFIDENCE_EXPLICIT_QUANTITY_LABEL, CONFIDENCE_FULL_DATE, CONFIDENCE_ADDRESS_WITH_PINCODE, CONFIDENCE_MULTIPLE_CONTACT_CHANNELS, etc.).
-  - Added module docstrings in mrp.py, net_quantity.py, date.py, address.py, and consumer_care.py explicitly noting that confidence values represent UNCALIBRATED PRIORS to be recalibrated once DAT-001 evaluation set exists.
-- Addressed Abhiram Review Item D (Long Regex Named Comments):
-  - Audited all extraction files for regex lines over 80 characters.
-  - Added explicit named comments for every long regex detailing 1) what it matches and 2) why it is intentionally long / cannot reasonably be split.
-- Addressed Abhiram Review Item E (MRP "45 Rupees Only" Support & False-Positive Guarding):
-  - Added explicit support for "45 Rupees Only", "45 rupees only", and "45 Rupees".
-  - Enforced strict requirement that arbitrary standalone numbers ("Call us at 45", "500 grams", "Product code 123") must NOT be parsed as MRP unless currency or MRP tokens are present.
-- Regex Boundary Fixes:
-  - Replaced hardcoded space padding in date.py, consumer_care.py, and net_quantity.py with proper boundary patterns (\b, ^, $, \s).
-- Session Log Filename:
-  - Renamed session-log/Sitanshu.md to session-log/sitanshu.md.
-- Verification:
-  - Ran ruff check ., ruff format --check ., lint-imports, and pytest (104 tests passed, 0 failures).
+- Resolved the two failing tests in `bck/tests/modules/extraction/test_category.py`:
+  1. Fixed `Point` fixture construction in `_make_span` to use tuple coordinates `(0.0, 0.0)` matching the `Point = tuple[float, float]` type alias rather than `Point(x=..., y=...)`.
+  2. Fixed double-counting regex overlap in `bck/app/modules/extraction/category.py` where a single text declaration `"Medical Devices Rules 2017"` was triggering both statutory and lexical flags. Converted text evaluation to `if / elif` matching per category so a statutory match on a field/span outranks/excludes substring lexical matches on the same text.
+- Re-verified full test suite against Abhiram's landed contracts:
+  - `uv run pytest tests/modules/extraction/test_category.py` -> **12 passed**.
+  - `uv run pytest tests/modules/extraction` -> **272 passed**.
+  - `uv run pytest` (full suite) -> **656 passed, 33 skipped**.
+- Verified static checks and import boundaries:
+  - `uv run ruff format --check .` -> **115 files formatted (PASS)**.
+  - `uv run ruff check .` -> **All checks passed (0 errors)**.
+  - `uv run lint-imports` -> **Contracts: 3 kept, 0 broken (PASS)**.
+  - `git diff --check` -> **PASS**.
+- Executed all 5 empirical mutation tests (RED on defect, GREEN when restored).
 
 **Decided**
-- NetQuantityValue.value must never convert through float to preserve exact decimal precision required for metrology compliance.
-- ReasonCode enum contract is strictly closed (no string escape hatches allowed).
-- Standalone numeric strings without currency/MRP evidence fail explicitly with ReasonCode.UNPARSEABLE_FORMAT.
+- A single statutory text phrase (e.g., `"Medical Devices Rules 2017"`) constitutes a statutory evidence signal (`0.95`), not two independent signals. Genuinely independent statutory and lexical evidence from separate fields/spans boost score to `0.98`.
+
+**Verification**
+- 12/12 EXT-005 tests passed cleanly.
+- 656/656 active repository tests passed cleanly.
+- No git commit, push, stage, or PR performed.
+
+## 2026-09-06 — EXT-006 Bilingual Declarations — Antigravity
+
+**Done**
+- Implemented deterministic script detection (`detect_script`) with `ScriptType` enum (`DEVANAGARI`, `LATIN`, `MIXED`, `NEITHER`) using Unicode regex `\u0900-\u097F`.
+- Updated `_preprocess_devanagari_text` in `bck/app/modules/extraction/binder.py` to translate Devanagari numerals (`०-९` -> `0-9`) and standard unit tokens (`gram` -> `g`, `matra` -> `Net Qty`) without broad dictionary translation.
+- Implemented 2D spatial adjacency predicate (`_are_spans_spatially_adjacent`) using polygon bounding-box geometry and named constants (`MAX_VERTICAL_GAP_MULTIPLIER = 3.0` and `MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0`).
+- Implemented spatial bilingual pairing (`_pair_bilingual_fields`) combining matching Devanagari and Latin spans of the same field type into single `NormalisedField` records with plural `span_refs`.
+- Added `bck/app/modules/extraction/evidence.py` defining `ExtractionResult`.
+- Created comprehensive test suite `bck/tests/modules/extraction/test_bilingual_declarations.py` covering all 14 required test scenarios.
+- Executed all 5 empirical mutation checks (all 5 RED on mutation, GREEN when restored).
+- All 274 pytest unit tests passed, `ruff format --check .` clean, `ruff check .` clean, `lint-imports` clean.
+
+**Decided**
+- Primary bilingual pairing signal relies on 2D bounding-box spatial adjacency and script dissimilarity rather than broad semantic translation or string equality.
+- Rule citation verified directly against corpus PDF: `rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf`, Page 9, Rule 9(4).
+
+**Verification**
+- 274/274 extraction unit tests passed in 0.45s.
+- `ruff format --check .`, `ruff check .`, and `lint-imports` all passed with 0 errors.
+- `git diff --check` cleanly passed.
+- No git commit or push performed per user rules.
