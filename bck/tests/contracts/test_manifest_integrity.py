@@ -28,8 +28,13 @@ def test_manifest_annotation_hash_integrity():
             f"manifest has {rec['sha256']}"
         )
 
+
 def test_annotation_image_sha256_matches_manifest():
-    manifest_path = "../datasets/manifest.json" if os.path.exists("../datasets/manifest.json") else "datasets/manifest.json"
+    manifest_path = (
+        "../datasets/manifest.json"
+        if os.path.exists("../datasets/manifest.json")
+        else "datasets/manifest.json"
+    )
     with open(manifest_path) as f:
         manifest = json.load(f)
 
