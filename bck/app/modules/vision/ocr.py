@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -7,12 +8,8 @@ import pytesseract
 
 from app.contracts import EvidenceProvider, ExtractedSpan
 
-# Character whitelist scoped to MRP/net-quantity values per DoCA guidelines:
-# - Digits (0-9), decimal (.), slash (/), hyphen (-) for values and dates.
-# - 'M', 'P', 'R' to read the literal token "MRP".
-# - '₹', 'R', 's' because retail sale price may be declared with ₹ or Rs.
-# - 'k', 'g', 'm', 'l' for standard unit tokens (kg, g, mg, ml, l).
-DEFAULT_REPASS_WHITELIST = "0123456789./-₹RsMPkgml"
+# Complete DoCA-compliant whitelist including Indian grouping commas and currency tokens
+DEFAULT_REPASS_WHITELIST = "0123456789.,/-₹RsMPkgmlL"
 
 
 @dataclass
@@ -29,17 +26,29 @@ class ArbitrationResult:
     primary_reading: ExtractedSpan | None = None
 
 
+def _extract_numeric_value(text: str) -> str:
+    """Strips currency symbols, whitespace, and formatting to compare underlying numbers."""
+    cleaned = re.sub(r"[^\d.]", "", text)
+    return cleaned
+
+
 def arbitrate_mrp(
     primary_text: str,
     secondary_text: str,
     span_id: str | None = None,
     primary_reading: ExtractedSpan | None = None,
 ) -> ArbitrationResult:
-    """Arbitrates between a primary (PaddleOCR) and secondary (Tesseract) reading."""
+    """
+    Arbitrates between primary and secondary readings.
+    Compares normalized numeric values to avoid false discrepancies on ₹ vs Rs.
+    """
     pt = primary_text.strip()
     tt = secondary_text.strip()
 
-    if pt and pt == tt:
+    val_pt = _extract_numeric_value(pt)
+    val_tt = _extract_numeric_value(tt)
+
+    if val_pt and val_pt == val_tt:
         return ArbitrationResult(
             primary_text=pt,
             secondary_text=tt,
@@ -62,7 +71,7 @@ def arbitrate_mrp(
 def extract_panel_text(
     image: np.ndarray, text_detection_model_dir: str, text_recognition_model_dir: str
 ) -> list[ExtractedSpan]:
-    """PaddleOCR provider for the detected panel. Requires explicit local model paths."""
+    """PaddleOCR 3.x provider for the detected panel."""
     if image is None or image.size == 0:
         return []
 
@@ -81,13 +90,27 @@ def extract_panel_text(
     results = ocr.predict(image) if hasattr(ocr, "predict") else ocr.ocr(image, cls=False)
 
     spans = []
-    if not results or not results[0]:
+    if not results:
         return spans
 
-    for line in results[0]:
-        polygon = [(int(pt[0]), int(pt[1])) for pt in line[0]]
-        text = line[1][0]
-        confidence = float(line[1][1])
+    # PaddleOCR 3.x result format normalization (handles list or dict returns)
+    lines = results[0] if isinstance(results, list) and len(results) > 0 else results
+    if not lines:
+        return spans
+
+    for line in lines:
+        if isinstance(line, dict):
+            polygon = [
+                (int(pt[0]), int(pt[1]))
+                for pt in line.get("box", line.get("text_box_position", []))
+            ]
+            text = line.get("text", line.get("transcription", ""))
+            confidence = float(line.get("confidence", line.get("score", 1.0)))
+        else:
+            polygon = [(int(pt[0]), int(pt[1])) for pt in line[0]]
+            text = line[1][0]
+            confidence = float(line[1][1])
+
         spans.append(
             ExtractedSpan(
                 span_id=str(uuid.uuid4()),
@@ -130,7 +153,6 @@ def arbitrate_field_declaration(
         )
 
     pts = np.array(primary_span.polygon)
-
     x_min = int(np.max([0, np.min(pts[:, 0])]))
     y_min = int(np.max([0, np.min(pts[:, 1])]))
     x_max = int(np.max(pts[:, 0]))
