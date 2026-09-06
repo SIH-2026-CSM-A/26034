@@ -16,17 +16,6 @@
     "confidence_interval_mm": null,
     "bbox": null
   },
-  "pdp": {
-    "shape": "cylindrical",
-    "height_cm": 14.0,
-    "width_cm": 5.0,
-    "circumference_cm": 10.0,
-    "total_surface_area_cm2": 140.0,
-    "area_cm2": 70.0,
-    "is_measurable": true,
-    "rule7_band": "A_gt_100",
-    "rule7_min_height_mm": 2.0
-  },
   "declarations": {
     "manufacturer_or_packer": {
       "declared": true,
@@ -78,7 +67,7 @@
         0.35
       ],
       "polygon": null,
-      "numeral_height_mm": 2.5,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -97,7 +86,7 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 1.8,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -116,7 +105,7 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 2.0,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -135,7 +124,7 @@
         0.8
       ],
       "polygon": null,
-      "numeral_height_mm": 1.5,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -156,7 +145,7 @@
         0.92
       ],
       "polygon": null,
-      "numeral_height_mm": 1.2,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
