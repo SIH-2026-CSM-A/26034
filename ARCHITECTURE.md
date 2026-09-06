@@ -126,9 +126,6 @@ re-validate against the authoritative rule-set on reconnect.
 
 - [ ] No labelled corpus yet. Every accuracy target in the PRD is currently unbacked.
       Blocks vision, measurement and tamper from being evaluated at all.
-- [ ] Multi-piece package (Rule 2(kc), Amendment Rules 2023) is absent from the rule
-      schema. Deliberately deferred out of RUL-002, which encoded 2(ka) and 2(kb) only.
-      Tracked as RUL-003.
 - [ ] `26167` in the same org has no branch protection. Write access there is direct-push.
 
 ---

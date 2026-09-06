@@ -154,6 +154,8 @@ EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
     "R9-3-OUTER-CONTAINER": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
     "R2-KA-COMBINATION-PACKAGE": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
     "R2-KB-GROUP-PACKAGE": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
+    "R2-KC-MULTI-PIECE-PACKAGE": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
+    "R2-KC-MULTI-PIECE-FOOD": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
     "R6-10A-GSR-128E": "GSR-128E__2026-02-13__country-of-origin-ecommerce-filter.pdf",
     "R6-10A-GSR-312E": "GSR-312E__2026-04-27__country-of-origin-second-amendment.pdf",
 }
