@@ -1,7 +1,7 @@
 {
   "sample_id": "cosmetics_himalaya_face_wash_100ml_002",
   "sku_id": "cosmetics_himalaya_face_wash_100ml",
-  "image_filename": "datasets/raw/cosmetics/himalaya_face_wash_100ml/002.jpg",
+  "image_filename": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/cosmetics_himalaya_face_wash_100ml_002.jpg",
   "image_sha256": "b1e6e1689e8b88ac3682e6126ee7a2bc32100ebd82fa494f40d76b098dc2caf5",
   "category": "cosmetics",
   "difficulty_tags": [

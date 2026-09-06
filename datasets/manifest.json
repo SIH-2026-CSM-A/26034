@@ -8,22 +8,10 @@
       "sha256": "cd91c7df2338b9fd8adeab0eb7ed770c95aa88f8b0d01fd2d4aa573aee4cb23f"
     },
     {
-      "sample_id": "cosmetics_himalaya_face_wash_100ml_001",
-      "image_path": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_001/cosmetics_himalaya_face_wash_100ml_001.png",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_face_wash_100ml_001.json",
-      "sha256": "dfbefe81ec0338c47ed6013202fc9d64302f42ea79d355110769b31de356b242"
-    },
-    {
       "sample_id": "cosmetics_himalaya_face_wash_100ml_002",
       "image_path": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/cosmetics_himalaya_face_wash_100ml_002.jpg",
       "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_face_wash_100ml_002.json",
       "sha256": "e4df70bd48a2319f3e4d61a1e312cf3244ae8f8e1eab0c2b65ab4972a20b226d"
-    },
-    {
-      "sample_id": "cosmetics_himalaya_face_wash_100ml_002",
-      "image_path": "datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/cosmetics_himalaya_face_wash_100ml_002.png",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_face_wash_100ml_002.json",
-      "sha256": "02ac721fd6a4b04a1a7e1506673f6755d1e5e2fabb0ff160da0b721dbecd7939"
     },
     {
       "sample_id": "food_parle_g_biscuits_001",
@@ -32,22 +20,10 @@
       "sha256": "df6acb2faab83ef8ac358e8dc7066401a3b59ce333b4438d0259706050a11bf4"
     },
     {
-      "sample_id": "food_parle_g_biscuits_001",
-      "image_path": "datasets/raw/food/food_parle_g_biscuits_001/food_parle_g_biscuits_001.png",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_001.json",
-      "sha256": "2a6009517b9456ba8079c45b5f918addcb0288a7b34bdb56b9d59c4b2e810321"
-    },
-    {
       "sample_id": "food_parle_g_biscuits_002",
       "image_path": "datasets/raw/food/food_parle_g_biscuits_002/food_parle_g_biscuits_002.jpg",
       "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_002.json",
       "sha256": "da0a79e77e177b36fd76478a017d58263932684223724fb5515dfc042d13f8ae"
-    },
-    {
-      "sample_id": "food_parle_g_biscuits_002",
-      "image_path": "datasets/raw/food/food_parle_g_biscuits_002/food_parle_g_biscuits_002.png",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_002.json",
-      "sha256": "b1e6e1689e8b88ac3682e6126ee7a2bc32100ebd82fa494f40d76b098dc2caf5"
     }
   ]
 }
