@@ -1,28 +1,3 @@
 {
-  "records": [
-    {
-      "sample_id": "cosmetics_himalaya_face_wash_100ml_001",
-      "image_path": "datasets/images/cosmetics_himalaya_face_wash_100ml_001.jpg",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_face_wash_100ml_001.json",
-      "sha256": null
-    },
-    {
-      "sample_id": "cosmetics_himalaya_face_wash_100ml_002",
-      "image_path": "datasets/images/cosmetics_himalaya_face_wash_100ml_002.jpg",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_face_wash_100ml_002.json",
-      "sha256": null
-    },
-    {
-      "sample_id": "food_parle_g_biscuits_001",
-      "image_path": "datasets/images/food_parle_g_biscuits_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_001.json",
-      "sha256": null
-    },
-    {
-      "sample_id": "food_parle_g_biscuits_002",
-      "image_path": "datasets/images/food_parle_g_biscuits_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_002.json",
-      "sha256": null
-    }
-  ]
+  "records": []
 }
