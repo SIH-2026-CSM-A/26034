@@ -1,4 +1,8 @@
 schema_version: 1
+# The published identity of this rule set. Copied by value onto every finding, so a
+# verdict issued today still names the set that produced it after the store is amended.
+# Bump on any change to the rules below; never reissue a version that has been used.
+rule_set_version: '2026.09.1'
 rules:
   - rule_id: R6-1-A
     clause_ref: Rule 6(1)(a)

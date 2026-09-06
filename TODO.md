@@ -8,10 +8,16 @@ assignment record.
 
 ## Now
 
-- [ ] **EXT-004 — span classification and spatial role binding** (Sitanshu). Turns OCR spans
-      into identified Rule 6 declarations. Binds Manufactured-by / Marketed-by / Packed-by /
-      Imported-by by geometry — keyword anchor, then nearest *downward* cluster containing a
-      valid PIN — not reading order. **This is what unblocks PIP-002.**
+- [ ] **VIS-004 — OCR the detected panel, not the whole frame** (Akshaya, new). `detect_pdp`
+      returns a bbox that nothing consumes: `extract_panel_text` is handed the full image,
+      so every span's `region_id` of `"panel"` is a claim the chain has not established.
+      The pipeline deliberately does **not** overwrite that field — doing so would stamp the
+      panel's identity onto spans read off the whole photograph, which is a false provenance
+      in the one field an evidence bundle uses to show an officer which crop a value came
+      from. Fixing it properly means cropping to the detection before the OCR call *and*
+      translating the returned polygons back into full-image coordinates, so an overlay
+      still lines up — which is why it is vision's ticket and not a two-line change in
+      `pipeline/`.
 - [ ] **VIS-003 rework** (Akshaya). Five items open, listed in TICKETS.md. Four pushes so far
       have been byte-identical.
 - [ ] **DAT-001 rework** (Aashritha). Two blockers plus the Himalaya MRP contradiction.
@@ -23,6 +29,18 @@ assignment record.
       done.
 - [ ] **CI-003** — remove the `paths:` filter from `frontend.yml` so the required `frontend`
       context always reports. In flight.
+- [x] **EXT-004 consumed by the pipeline** (Claude Code). The image path binds for real:
+      `bind_spans` replaces the old adapter, stages 4 and 5 are one call, and every span
+      reaches the evidence record with the unplaced ones named inside the hash. **The
+      branch requires PR #44 to merge first** — it was open, not merged, when this was
+      written.
+- [x] **PIP-002 — HTTP surface and orchestration** (Claude Code, this session). `app/main.py`
+      with a lifespan that refuses to start without the vision weights; `pipeline/`
+      orchestrator, router, repository and the four-way split of the findings logic; the
+      four scan endpoints; `reviews` table and `Scan.product_category`; migration
+      `c16334c8d865`; `rule_set_version` on the rule store. 621 tests pass. The image path
+      is built to the EXT-004 seam and refuses there by name; the catalogue path works end
+      to end.
 - [x] **CORE-002 — persistence** (Claude Code, this session). `core/db.py` (async engine,
       session factory, one request-scoped `get_session`; the caller commits), `core/models.py`
       (`Scan`, `VerdictRow`, `FieldFindingRow`, `EvidenceEntryRow`), Alembic initialised with
@@ -37,16 +55,8 @@ assignment record.
       `test_append_only_enforcement`: it resolves `Path("app/modules/evidence")` against the
       cwd, so it scans nothing and passes vacuously if pytest ever runs from elsewhere.
       Resolve relative to the test file and assert at least one file was scanned.
-- [ ] **PIP-002 — ingestion endpoints and orchestration.** `POST /scans` accepting an image
-      or a structured catalogue record; composes vision → extraction → measurement → rules →
-      evidence into a `VerdictRecord`. Blocked on EXT-004.
 - [ ] **Frontend `npm audit` gate.** `npm ci` reports 2 moderate vulnerabilities and a
       deprecated `glob@11.1.0`. Not a build failure, so the current gate misses it.
-- [ ] **`app/main.py` — the application entrypoint.** There is no `FastAPI()` instance in
-      the repo; `auth_router` is exported and never mounted, so `uvicorn app.main:app` —
-      the dev command in `CLAUDE.md` and `AGENTS.md` — does not run today. Belongs to
-      PIP-002, alongside the first endpoints and the `Depends(get_session)` that will be
-      `core/db.py`'s first real caller.
 - [ ] `core/` — a users table to replace the `OFFICERS` env list. `Scan.officer_id` is a
       plain string until there is one to key against. Not built while officers are still
       configuration.
@@ -66,6 +76,21 @@ assignment record.
 
 ## Bugs
 
+- [ ] **`measure_margins` raises on a zero margin**, so Rule 8(1)'s proviso is never called
+      from the orchestrator — the chain reports INSUFFICIENT_EVIDENCE for it instead of
+      measuring. `MeasurementExact.value` and `MeasurementCalibrated.value` are `gt=0`, and a
+      declaration flush against ink or the crop edge crashes. Owner unavailable; needs its
+      own ticket rather than a workaround in `pipeline/`.
+- [ ] **No `relationship()` anywhere in `core/models.py`.** SQLAlchemy orders dependent
+      inserts from relationships, not from `ForeignKey` columns, so a parent and its children
+      added in one flush can be inserted child-first. `pipeline/repository.add_verdict`
+      flushes the parent explicitly. Adding relationships is *not* the fix: on an async
+      mapper they lazy-load on attribute access and raise `MissingGreenlet` mid-serialisation.
+      If more parent/child writes appear, the explicit flush is the pattern to copy.
+- [ ] **65 findings per scan**, most INSUFFICIENT_EVIDENCE, because Rule 7 and Rule 9 govern
+      every declaration the store requires and each pairing is its own finding. Correct but
+      heavy for an officer to read. Narrowing it belongs in the rule store as a
+      `governs_declarations` field, not as a filter in `pipeline/`.
 - [ ] `test_append_only_enforcement` (evidence) resolves a relative path against the cwd and
       passes vacuously if it scans zero files. Fix in EVD-004.
 - [ ] `measure_margins` raises on a zero margin — `MeasurementExact.value` and

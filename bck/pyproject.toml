@@ -31,6 +31,10 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.8",
     "import-linter>=2.1",
+    # The ASGI transport behind fastapi.testclient. Present transitively via ultralytics
+    # today; declared here because an ultralytics bump could drop it and take every HTTP
+    # test with it. Dev group only — it must never reach the runtime dependency list.
+    "httpx>=0.28",
 ]
 
 [build-system]
@@ -55,18 +59,21 @@ asyncio_mode = "auto"
 # stops this set from being a permanently-skipped green tick.
 markers = ["postgres: needs a live PostgreSQL at DATABASE_URL"]
 
-# Architecture boundaries. Both contracts are enforced by `lint-imports` in CI.
+# Architecture boundaries. All three contracts are enforced by `lint-imports` in CI.
 #
 # Together they mean: a module imports from app.contracts, app.core, and itself —
 # nothing else. app.pipeline composes modules. app.contracts imports nothing.
+# app.main sits above pipeline and nothing imports it: it is the entrypoint, and a
+# module reaching back up to it would make the composition circular.
 [tool.importlinter]
 include_external_packages = true
 root_package = "app"
 
 [[tool.importlinter.contracts]]
-name = "Layers: pipeline > modules > core > contracts"
+name = "Layers: main > pipeline > modules > core > contracts"
 type = "layers"
 layers = [
+    "app.main",
     "app.pipeline",
     "app.modules",
     "app.core",

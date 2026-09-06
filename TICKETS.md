@@ -27,6 +27,7 @@ kept, 0 broken.
 | CTR-002 contracts v1 | Abhiram | done | #17 |
 | CORE-001 auth, RBAC, jurisdiction scoping | Abhiram | done | #25 |
 | **PIP-001 verdict assembly + rule snapshot adapter** | Abhiram | **done** | **#28** |
+| **PIP-002 HTTP surface, orchestration, scan endpoints** | Abhiram | **review** | — |
 | **CI-002 frontend build gate** *(no ClickUp ticket)* | Abhiram | **done** | **#30** |
 | **CTR-003 snapshot deep copy** *(no ClickUp ticket)* | Abhiram | **done** | **#33** |
 | **RUL-002 Rule 8/9, sector overrides, Combination/Group** | Abhiram *(from Jashwanth)* | **done** | **#32** |
@@ -51,6 +52,20 @@ kept, 0 broken.
 | EVD-002 MinIO + BSA report | Shiva Kumar | done | #23 |
 | FNT-001 | Yashwanth *(one-time exception)* | done | #14 |
 | **DAT-001 corpus, labelling schema, eval harness** | Aashritha | **in progress — rework** | #34 open |
+
+### PIP-002 — open questions for review
+
+1. **`contracts/binding.py` and `DeclarationRole` must not merge until Sitanshu agrees the
+   shape.** They are a separate commit at the end of the branch and nothing else depends on
+   them. `BoundDeclaration` carries `field_type`, `span_refs`, `raw_text`, `role`,
+   `region_id`, `binding_confidence`; the proposed export is
+   `bind_declarations(spans: Sequence[ExtractedSpan]) -> tuple[BoundDeclaration, ...]`.
+2. **65 findings per scan.** Rule 7 and Rule 9 govern every declaration the store requires,
+   so each pairing is its own finding and most are INSUFFICIENT_EVIDENCE. Truthful, heavy to
+   read. Narrowing it is a `governs_declarations` field on the rule store, not a pipeline
+   filter — needs a decision.
+3. **`request-recapture` records an event and nothing else.** No re-capture workflow behind
+   it; the vocabulary is complete so the UI has something to write.
 
 **Unavailable:** Jashwanth, Yashashvi, Vineeth. **Never started:** `fnt-admin` (Rohan).
 **Reserve:** Likhitha.

@@ -16,124 +16,44 @@ The one guarantee to read before editing anything here: **``FieldFindingRow.stat
 it and it falls short. There is no value the database may supply for either, because any
 value it supplied would be one of those two answers invented by storage.
 
+The vocabularies these tables store live in :mod:`app.core.enums` and the column
+plumbing in :mod:`app.core.schema`; this file is the schema itself.
+
 The jurisdiction columns and the evidence-chain column types are equally load-bearing and
 are explained on the columns themselves. ``core/README.md`` carries all of it in full.
 """
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
-    JSON,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
-    MetaData,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.contracts import DeclarationField, FieldState, Verdict
-
-NAMING_CONVENTION = {
-    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
-    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}
-"""Names every constraint and index deterministically. Without it SQLAlchemy emits
-unnamed constraints, autogenerate cannot refer to them, and a downgrade has nothing to
-drop."""
-
-Json = JSON().with_variant(JSONB(), "postgresql")
-"""``jsonb`` on PostgreSQL, ``JSON`` on anything else. One annotation, both dialects."""
-
-JURISDICTION_LEVEL_LENGTH = 120
-"""Column width for a state, region or district name."""
-
-SHA256_HEX_LENGTH = 64
-"""A SHA-256 digest as :func:`hashlib.sha256().hexdigest` renders it."""
-
-
-def _enum(python_enum: type[StrEnum], name: str) -> Enum:
-    """A closed vocabulary the database enforces.
-
-    A native ``TYPE`` on PostgreSQL and a ``VARCHAR`` with a ``CHECK`` elsewhere.
-    ``values_callable`` stores each member's *value*; SQLAlchemy stores names by default,
-    which for the enums here whose name and value differ would put the wrong string on
-    disk.
-    """
-    return Enum(
-        python_enum,
-        name=name,
-        create_constraint=True,
-        values_callable=lambda enum: [member.value for member in enum],
-    )
-
-
-class ScanSourceType(StrEnum):
-    """Which ingestion path a scan arrived by.
-
-    Both are first-class. A listing is not an image that failed to be an image, and
-    modelling it as its own source type is what keeps a marketplace adapter an adapter.
-    """
-
-    PHYSICAL_LABEL = "physical_label"
-    """An image of a package captured by an officer."""
-
-    CATALOGUE_RECORD = "catalogue_record"
-    """A structured listing — see :class:`app.contracts.CatalogueRecord`."""
-
-
-class ScanStatus(StrEnum):
-    """Where a scan has got to. Processing state, never a compliance outcome."""
-
-    RECEIVED = "received"
-    """Accepted and stored; evaluation has not started."""
-
-    PROCESSING = "processing"
-    """Somewhere between the quality gate and verdict assembly."""
-
-    COMPLETE = "complete"
-    """Evaluation finished and a verdict was written. Says nothing about what it was."""
-
-    FAILED = "failed"
-    """Processing did not finish. Distinct from every verdict: a scan that crashed has
-    no finding about the package at all."""
-
-
-class CalibrationMethod(StrEnum):
-    """What basis, if any, exists for a physical measurement of this scan.
-
-    Recorded at capture because it decides whether a millimetre figure may be emitted at
-    all. Typed rather than buried in :attr:`Scan.capture_metadata` for that reason — a
-    value that gates a legal output is queryable and constrained, not a key in a blob.
-    """
-
-    ARTWORK = "artwork"
-    """Pre-print artwork was supplied; physical sizes are known exactly."""
-
-    REFERENCE_OBJECT = "reference_object"
-    """An object of known dimensions is in frame, so a measurement carries an interval."""
-
-    NONE = "none"
-    """Neither. Measurement refuses and routes to review; it does not guess."""
-
-
-class Base(DeclarativeBase):
-    """Declarative base for every table in this schema. Alembic reads its metadata."""
-
-    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+from app.core.enums import (
+    CalibrationMethod,
+    ReviewAction,
+    ScanSourceType,
+    ScanStatus,
+)
+from app.core.schema import (
+    JURISDICTION_LEVEL_LENGTH,
+    SHA256_HEX_LENGTH,
+    Base,
+    Json,
+    enum_column,
+)
 
 
 class Scan(Base):
@@ -144,11 +64,13 @@ class Scan(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     source_type: Mapped[ScanSourceType] = mapped_column(
-        _enum(ScanSourceType, "scan_source_type"), nullable=False
+        enum_column(ScanSourceType, "scan_source_type"), nullable=False
     )
-    status: Mapped[ScanStatus] = mapped_column(_enum(ScanStatus, "scan_status"), nullable=False)
+    status: Mapped[ScanStatus] = mapped_column(
+        enum_column(ScanStatus, "scan_status"), nullable=False
+    )
     calibration_method: Mapped[CalibrationMethod] = mapped_column(
-        _enum(CalibrationMethod, "calibration_method"), nullable=False
+        enum_column(CalibrationMethod, "calibration_method"), nullable=False
     )
 
     state: Mapped[str] = mapped_column(String(JURISDICTION_LEVEL_LENGTH), nullable=False)
@@ -165,6 +87,22 @@ class Scan(Base):
 
     rule_set_version: Mapped[str] = mapped_column(String(64), nullable=False)
     """The published rule set this scan was evaluated under, by value."""
+
+    product_category: Mapped[str | None] = mapped_column(String(64))
+    """The officer's *confirmed* product category, or ``None`` where none was confirmed.
+
+    Nullable because the null is the meaningful state: an unconfirmed category routes no
+    sector override, so every obligation a sector could carve out is INSUFFICIENT_EVIDENCE
+    rather than evaluated against the packaged rules. Confirming a category is an officer
+    action, never an inference — routing a package to another Act on a classifier's guess
+    would move a real legal obligation on a guess.
+
+    A plain string rather than an enum column because the vocabulary that matters is
+    :class:`app.modules.rules.ProductCategory`, and ``core`` may not import ``app.modules``.
+    The value is constrained where it enters, in ``pipeline/schemas.py``, which is the one
+    layer allowed to name that enum; a category the sector lookup does not know is refused
+    at the request boundary rather than stored and silently failing to route.
+    """
 
     image_refs: Mapped[list[dict[str, Any]]] = mapped_column(Json, nullable=False, default=list)
     """Object-store references for the images behind this scan, one entry each. A scan
@@ -197,7 +135,7 @@ class VerdictRow(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     scan_id: Mapped[UUID] = mapped_column(ForeignKey("scans.id"), nullable=False, index=True)
 
-    verdict: Mapped[Verdict] = mapped_column(_enum(Verdict, "verdict"), nullable=False)
+    verdict: Mapped[Verdict] = mapped_column(enum_column(Verdict, "verdict"), nullable=False)
     """PASS, REVIEW or POTENTIAL_VIOLATION. Not null and with no default of any kind:
     there is no verdict the database is entitled to invent."""
 
@@ -227,7 +165,7 @@ class FieldFindingRow(Base):
     verdict_id: Mapped[UUID] = mapped_column(ForeignKey("verdicts.id"), nullable=False, index=True)
 
     field: Mapped[DeclarationField] = mapped_column(
-        _enum(DeclarationField, "declaration_field"), nullable=False
+        enum_column(DeclarationField, "declaration_field"), nullable=False
     )
 
     rule_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -240,7 +178,9 @@ class FieldFindingRow(Base):
     is no rules table to point at, and there must not be one.
     """
 
-    state: Mapped[FieldState] = mapped_column(_enum(FieldState, "field_state"), nullable=False)
+    state: Mapped[FieldState] = mapped_column(
+        enum_column(FieldState, "field_state"), nullable=False
+    )
     """The per-field outcome, always supplied by the caller: not null, no Python default,
     no server default. The module docstring says why the database may supply none."""
 
@@ -297,3 +237,56 @@ class EvidenceEntryRow(Base):
     storage_ref: Mapped[str | None] = mapped_column(String(512))
     """Where the full artefact sits in the object store, when one was written. ``None``
     when the payload is held inline and nothing was uploaded."""
+
+
+class ReviewRow(Base):
+    """One officer action on one verdict. The human confirmation step, as a record.
+
+    **Append-only in shape, not merely in intent.** There is no UPDATE path: the
+    repository exposes an insert and a select and nothing else. A reversal or a correction
+    is a *new* row whose :attr:`supersedes_id` names the row it replaces, the same way the
+    evidence chain handles a correction — because a review that can be edited is a review
+    an officer cannot be shown to have made.
+
+    That shape is what makes the guarantee structural. A scan is finalised exactly when a
+    row exists here carrying CONFIRM, REJECT or OVERRIDE. It is not a column on
+    :class:`Scan` that some later background job could set, and there is no state a scan
+    can reach on its own that means an officer agreed with it.
+    """
+
+    __tablename__ = "reviews"
+    __table_args__ = (Index("ix_reviews_scan_id_created_at", "scan_id", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    scan_id: Mapped[UUID] = mapped_column(ForeignKey("scans.id"), nullable=False, index=True)
+    verdict_id: Mapped[UUID] = mapped_column(ForeignKey("verdicts.id"), nullable=False)
+    """Which verdict was reviewed. Re-evaluating a scan writes a second verdict, so a
+    review that named only the scan would not say what the officer actually looked at."""
+
+    action: Mapped[ReviewAction] = mapped_column(
+        enum_column(ReviewAction, "review_action"), nullable=False
+    )
+
+    officer_id: Mapped[str] = mapped_column(String(JURISDICTION_LEVEL_LENGTH), nullable=False)
+    """The reviewing officer's :attr:`app.core.rbac.Principal.subject`. Not a foreign key
+    for the same reason :attr:`Scan.officer_id` is not: officers are configuration until
+    there is a users table."""
+
+    note: Mapped[str | None] = mapped_column(Text)
+    """The officer's own words. Required by the route for every action but CONFIRM — a
+    rejection or an override with no stated reason is not reviewable by anyone else."""
+
+    overridden_verdict: Mapped[Verdict | None] = mapped_column(enum_column(Verdict, "verdict"))
+    """The verdict the officer substituted, for OVERRIDE and nothing else.
+
+    Still one of the three: an officer's substitution is a recommendation reaching an
+    enforcement workflow, not a legal determination, so there is no member here that the
+    automated path could not also have produced.
+    """
+
+    supersedes_id: Mapped[UUID | None] = mapped_column(ForeignKey("reviews.id"))
+    """The review this one corrects, where it corrects one. Both rows stay."""
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

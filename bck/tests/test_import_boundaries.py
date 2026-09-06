@@ -14,11 +14,19 @@ PYPROJECT = BCK / "pyproject.toml"
 MODULES_DIR = BCK / "app" / "modules"
 
 EXPECTED_LAYERS = [
+    "app.main",
     "app.pipeline",
     "app.modules",
     "app.core",
     "app.contracts",
 ]
+"""The layer order, top first.
+
+``app.main`` is in the contract rather than left outside it because a layers contract only
+constrains the layers it names. Without this entry nothing would stop a module importing
+the FastAPI application, which would make the composition circular and would do it
+silently.
+"""
 
 
 def _import_linter_config() -> dict:
@@ -44,7 +52,7 @@ def test_root_package_is_app() -> None:
     assert _import_linter_config()["root_package"] == "app"
 
 
-def test_layers_contract_orders_all_four_layers() -> None:
+def test_layers_contract_orders_every_layer() -> None:
     assert _contract("layers")["layers"] == EXPECTED_LAYERS
 
 

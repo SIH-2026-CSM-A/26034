@@ -52,4 +52,16 @@ class RuleStoreDocument(StrictRuleModel):
     """Describe the versioned top-level YAML rule-store document."""
 
     schema_version: Literal[1]
+    """The shape of this file. Bumped when the schema changes, not when a rule does."""
+
+    rule_set_version: NonEmptyText
+    """The published identity of this set of rules, as a string.
+
+    Distinct from :attr:`schema_version`, which describes the file format. This is what a
+    verdict records having been evaluated under, copied by value onto every finding, so
+    that a record read years later names the set that produced it rather than whatever
+    the store holds by then. Required rather than defaulted: a rule set nobody can name
+    is one no verdict can cite.
+    """
+
     rules: tuple[RuleDefinition, ...] = Field(min_length=1)
