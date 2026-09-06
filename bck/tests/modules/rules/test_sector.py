@@ -72,7 +72,7 @@ def test_a_medical_device_measured_below_table_i_is_not_a_violation() -> None:
     """A height that would fail Table-I is not a finding when Table-I does not apply.
 
     0.2 mm on a 120 cm2 panel is far under the 2.5 mm band. An ordinary package is a
-    POTENTIAL VIOLATION on those numbers; a medical device is REVIEW, because the
+    POTENTIAL_VIOLATION on those numbers; a medical device is REVIEW, because the
     packaged rules have nothing to say about it.
     """
     ordinary = evaluate_rule7_height(

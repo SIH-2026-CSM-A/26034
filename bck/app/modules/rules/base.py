@@ -15,12 +15,22 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-# Re-export, not an import this file uses. ProductCategory is defined in app.contracts
-# because extraction proposes a category and may not import this module — one definition,
-# because sector_overrides keys on it and a drifting second copy would confirm a category
-# that routes to nothing. The redundant alias is what marks it as public and keeps ruff
-# from removing it as unused; deleting this line breaks four files in this package.
+# Re-exports, not imports this file uses. Both are defined in app.contracts and aliased
+# here so the schema files below can keep importing them from one place. The redundant
+# alias is what marks each as public and keeps ruff from removing it as unused; deleting
+# either line breaks files in this package.
+#
+# ProductCategory lives in contracts because extraction proposes a category and may not
+# import this module — one definition, because sector_overrides keys on it and a drifting
+# second copy would confirm a category that routes to nothing.
+#
+# RuleStatus lives in contracts because a verdict record carries it: a finding states
+# whether the rule behind it was confirmed against its gazette, so the value crosses the
+# module boundary and must not be spelled twice. This module had its own copy with
+# identical members until CTR-004; two enums with the same members and the same values
+# are one amendment away from disagreeing, and nothing would have caught the day they did.
 from app.contracts import ProductCategory as ProductCategory
+from app.contracts import RuleStatus as RuleStatus
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
@@ -33,26 +43,19 @@ class StrictRuleModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class RuleStatus(StrEnum):
-    """Represent the permitted legal-source verification states."""
-
-    VERIFIED = "VERIFIED"
-    UNVERIFIED = "UNVERIFIED"
-
-
 class Verdict(StrEnum):
     """Represent decision-support outcomes without making legal determinations."""
 
     PASS = "PASS"
     REVIEW = "REVIEW"
-    POTENTIAL_VIOLATION = "POTENTIAL VIOLATION"
+    POTENTIAL_VIOLATION = "POTENTIAL_VIOLATION"
 
 
 class Severity(StrEnum):
     """Represent the outcome used when a verified rule condition is not met."""
 
     REVIEW = "REVIEW"
-    POTENTIAL_VIOLATION = "POTENTIAL VIOLATION"
+    POTENTIAL_VIOLATION = "POTENTIAL_VIOLATION"
 
 
 class OverrideTarget(StrEnum):

@@ -953,3 +953,58 @@ Branch `docs-handoff-session4`. Documentation only, no code touched.
   `feature/26034-DAT-001-corpus-images` survives at `47fa16d` and **DAT-002 branches from it,
   not from `main`** — deleting it loses the corrected sha256 hashes and the five fabricated-
   annotation deletions. TICKETS.md's stale-base table drops to five PRs, 2 to 4 behind.
+
+---
+
+## Session 6 — 2026-09-06, CTR-004 (Claude Code)
+
+Branch `ctr-004-verdict-rulestatus-unification`. Reconciles the duplicated `Verdict` and
+`RuleStatus` between `app.contracts` and `app.modules.rules`. Not committed at session end —
+handed back for review first.
+
+**What changed, and why.**
+- `rules.RuleStatus` is deleted. `app/modules/rules/base.py` now re-exports
+  `app.contracts.RuleStatus` under the same alias pattern `ProductCategory` already used, so
+  `models.py`, `evaluator.py` and `__init__.py` keep importing it from `.base` and nothing
+  below `base.py` changed. A verdict record carries the status, so the value crosses the
+  module boundary and must not be spelled twice.
+- `rule_snapshot.py` no longer does `RuleStatus(rule.status.value)`. With one class that
+  conversion is an identity function, so it is `status=rule.status` and the `RuleStatus`
+  import is gone. The comment that justified the conversion went with it.
+- `rules.Verdict.POTENTIAL_VIOLATION` and `rules.Severity.POTENTIAL_VIOLATION` change from
+  `"POTENTIAL VIOLATION"` to `"POTENTIAL_VIOLATION"`, together with **17** `severity:` lines
+  in `rules.yaml`. Three edits, one commit: `rule_findings.py:194` builds a `Verdict` from a
+  `Severity` value and the loader builds a `Severity` from the yaml string, so any two of the
+  three agreeing without the third raises at runtime rather than at import.
+- `SEVERITY_ROUTING`'s docstring argued the two severity enums cannot be value-converted
+  *because of the space*. That reason is now gone; the real reason — the two vocabularies
+  share no word at all — is written in its place. The routing table itself is untouched:
+  `rules.Severity` and `contracts.RuleSeverity` still mean different things.
+- `app/pipeline/dispositions.py` needed no edit. It names `Verdict` members, never values.
+
+**Falsifications.** `__pycache__` cleared before each. Baseline 662 passed, 32 skipped.
+- Revert only `rules.yaml` to the spaced spelling → **102 failed**. Red.
+- Revert only `Verdict.POTENTIAL_VIOLATION` → **6 failed**, all through
+  `rule_findings.py:194` with `ValueError: 'POTENTIAL_VIOLATION' is not a valid Verdict`.
+  Red. The coupling is covered; it was not a missing test.
+- Revert only `Severity.POTENTIAL_VIOLATION` → **117 failed**. Red.
+- Reintroduce a duplicate `RuleStatus` inside `rules/base.py` → **the whole suite stayed
+  green.** `RuleParameterSnapshot.status` is typed to the contracts enum and a `StrEnum`
+  member from the duplicate arrives at validation as `"VERIFIED"`, which pydantic coerces
+  straight back into the contracts member. Nothing in the repo could see the duplication
+  come back. Added `test_the_rules_module_names_the_contracts_rule_status_and_not_a_copy`
+  in `tests/pipeline/test_rule_snapshot.py`, re-ran the same falsification, and exactly one
+  test went red.
+
+**No migration, verified rather than assumed.** `64a9392a6859` creates the `verdict` enum as
+`PASS`/`REVIEW`/`POTENTIAL_VIOLATION` — the contracts spelling, underscore already — and
+`c16334c8d865` reuses that same type for `reviews.overridden_verdict`. `field_findings.
+rule_snapshot` is `JSON` with a `JSONB` variant, and `_parameters` puts conditions,
+`applies_to`, `evidence_requirement` and `declaration_fields` into it, never a severity. No
+migration file contains the spaced string. The rules spelling never reached the database.
+
+**One correction to the ticket.** It says 18 `severity: POTENTIAL VIOLATION` lines in
+`rules.yaml`. There are **17** (the other 10 severity lines are `REVIEW`). All 17 changed.
+
+`663 passed, 32 skipped`; ruff clean, `ruff format --check` clean, `lint-imports` 3 contracts
+kept over 108 files analysed.

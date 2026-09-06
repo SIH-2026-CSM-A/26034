@@ -24,7 +24,7 @@ rules:
       exceptions:
         - In respect of packages containing food articles, the Food Safety and Standards Act, 2006 and the rules made thereunder apply.
     evidence_requirement: declaration_text_and_role_binding
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [NAME_AND_ADDRESS]
 
   - rule_id: R6-1-AA
@@ -42,7 +42,7 @@ rules:
       declarations: [country_of_origin_or_manufacture_or_assembly]
       exceptions: []
     evidence_requirement: declaration_text
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [COUNTRY_OF_ORIGIN]
 
   - rule_id: R6-1-B
@@ -63,7 +63,7 @@ rules:
         - each_product_name_and_number_or_quantity_for_packages_with_more_than_one_product
       exceptions: []
     evidence_requirement: declaration_text
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [COMMON_OR_GENERIC_NAME]
 
   - rule_id: R6-1-C
@@ -82,7 +82,7 @@ rules:
       declarations: [net_quantity_or_count]
       exceptions: []
     evidence_requirement: normalized_quantity_or_count_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [NET_QUANTITY]
 
   - rule_id: R6-1-D
@@ -109,7 +109,7 @@ rules:
         - Packages containing seeds labelled and certified under the Seeds Act, 1966 and its rules.
         - For packages containing cosmetic products, the Drugs and Cosmetics Rules, 1945 apply.
     evidence_requirement: manufacture_date_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [MANUFACTURE_DATE]
 
   - rule_id: R6-1-D-GSR-722E
@@ -131,7 +131,7 @@ rules:
       exceptions:
         - Spare parts and accessories used for servicing with a warranty and not sold to end customers.
     evidence_requirement: visible_legible_manufacture_date_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [MANUFACTURE_DATE]
 
   - rule_id: R6-1-DA
@@ -152,7 +152,7 @@ rules:
       exceptions:
         - A provision in this regard is made in another law.
     evidence_requirement: durability_date_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [BEST_BEFORE_DATE]
 
   - rule_id: R6-1-E
@@ -170,7 +170,7 @@ rules:
         - A package containing Bidi.
         - A domestic liquefied petroleum gas cylinder whose price is covered under the Administrative Price Mechanism of the Government.
     evidence_requirement: retail_sale_price_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [RETAIL_SALE_PRICE]
 
   - rule_id: R6-1-F
@@ -189,7 +189,7 @@ rules:
       declarations: [relevant_dimensions]
       exceptions: []
     evidence_requirement: dimensions_declaration_when_relevant
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [DIMENSIONS]
 
   - rule_id: R6-1-G
@@ -242,7 +242,7 @@ rules:
           normal_minimum_height_mm: 6.0
           moulded_minimum_height_mm: 6.0
     evidence_requirement: calibrated_or_artwork_character_height_and_pdp_area
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # Rule 7(2) prescribes that 'The height of any numeral and letter in the declaration
     # required under these rules shall be as per Table-I.' The minimum font height mandate
     # applies universally across letters and numerals in all mandatory declarations.
@@ -264,7 +264,7 @@ rules:
       minimum_width_to_height_ratio: 0.3333333333333333333333333333
       exempt_characters: ["1", i, I, l]
     evidence_requirement: calibrated_or_artwork_character_width_and_height
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # Rule 7(3) mandates that 'The width of the letter or numeral shall not be less than
     # one third of its height', subject to specific character exemptions ('1', i, I, l).
     # Like Rule 7(2), this proportion requirement governs letters and numerals across all
@@ -432,7 +432,7 @@ rules:
       kind: placement
       required_location: principal_display_panel
     evidence_requirement: declaration_location_on_detected_principal_display_panel
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # Rule 8(1) mandates that 'Every declaration required to be made under these rules shall
     # appear on the principal display panel.' By statutory design, this placement obligation
     # is universal across all mandatory declarations. Therefore, it genuinely governs all
@@ -459,7 +459,7 @@ rules:
       above_below_multiple_of_numeral_height: 1
       left_right_multiple_of_numeral_height: 2
     evidence_requirement: calibrated_free_space_measurement_around_quantity_declaration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     governs_declarations: [NET_QUANTITY]
 
   - rule_id: R9-1-MANNER
@@ -485,7 +485,7 @@ rules:
       contrast_exempt_surfaces: [blown_formed_or_moulded_glass, blown_formed_or_moulded_plastic]
       handwritten_must_be_clear_unambiguous_and_legible: true
     evidence_requirement: declaration_legibility_and_colour_contrast_observation
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # Rule 9(1)(b) specifically mandates contrasting colour for retail sale price and net quantity
     # numerals, which forms the actionable constraint evaluated under conditions.contrasting_colour_declarations.
     governs_declarations: [RETAIL_SALE_PRICE, NET_QUANTITY]
@@ -510,7 +510,7 @@ rules:
       transparent_outer_exempt_when_inner_readable: true
       inner_declarations_not_required_when_outer_complete: true
     evidence_requirement: outer_wrapper_transparency_and_declaration_completeness
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # Rule 9(3) explicitly governs 'all the declarations which are required to appear on the
     # package' when an outside container or wrapper is provided. By its express statutory
     # terms, this packaging wrapper requirement applies across every mandatory declaration
@@ -666,7 +666,7 @@ rules:
       searchable: true
       sortable: true
     evidence_requirement: ecommerce_listing_filter_configuration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # E-commerce listing presentation filter rather than a package declaration; unpopulated (None).
     governs_declarations: null
 
@@ -687,6 +687,6 @@ rules:
       searchable: true
       sortable: true
     evidence_requirement: ecommerce_listing_filter_configuration
-    severity: POTENTIAL VIOLATION
+    severity: POTENTIAL_VIOLATION
     # E-commerce listing presentation filter rather than a package declaration; unpopulated (None).
     governs_declarations: null

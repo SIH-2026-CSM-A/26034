@@ -44,7 +44,7 @@ def _definition(status: RuleStatus) -> RuleDefinition:
             "exceptions": [],
         },
         evidence_requirement="test_evidence",
-        severity="POTENTIAL VIOLATION",
+        severity="POTENTIAL_VIOLATION",
     )
 
 
