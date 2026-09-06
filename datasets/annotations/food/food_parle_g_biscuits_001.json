@@ -1,8 +1,8 @@
 {
   "sample_id": "food_parle_g_biscuits_001",
   "sku_id": "food_parle_g_biscuits",
-  "image_filename": "datasets/raw/food/food_parle_g_biscuits_001/food_parle_g_biscuits_001.jpg",
-  "image_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "image_filename": "food_parle_g_biscuits_001.jpg",
+  "image_sha256": null,
   "category": "food",
   "difficulty_tags": [
     "small_pdp",
@@ -13,8 +13,8 @@
   "known_issues": [],
   "reference_object": {
     "present": true,
-    "object_type": "coin_inr_5",
-    "known_dimension_mm": 25.0,
+    "object_type": null,
+    "known_dimension_mm": null,
     "confidence_interval_mm": 0.2,
     "bbox": [
       0.05,
@@ -51,7 +51,7 @@
       ],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.2,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -67,7 +67,7 @@
       ],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 3.5,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -85,8 +85,8 @@
         0.35
       ],
       "polygon": null,
-      "numeral_height_mm": 2.1,
-      "letter_height_mm": 1.4,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -104,8 +104,8 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 1.5,
-      "letter_height_mm": 1.1,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -123,8 +123,8 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 1.8,
-      "letter_height_mm": 1.1,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -142,8 +142,8 @@
         0.8
       ],
       "polygon": null,
-      "numeral_height_mm": 1.2,
-      "letter_height_mm": 1.0,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -163,8 +163,8 @@
         0.92
       ],
       "polygon": null,
-      "numeral_height_mm": 1.1,
-      "letter_height_mm": 1.0,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     },
@@ -180,7 +180,7 @@
       ],
       "polygon": null,
       "numeral_height_mm": null,
-      "letter_height_mm": 1.1,
+      "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
     }

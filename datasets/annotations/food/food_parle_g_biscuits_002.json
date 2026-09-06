@@ -1,8 +1,8 @@
 {
   "sample_id": "food_parle_g_biscuits_002",
   "sku_id": "food_parle_g_biscuits",
-  "image_filename": "datasets/raw/food/food_parle_g_biscuits_002/food_parle_g_biscuits_002.jpg",
-  "image_sha256": "02ac721fd6a4b04a1a7e1506673f6755d1e5e2fabb0ff160da0b721dbecd7939",
+  "image_filename": "food_parle_g_biscuits_002.jpg",
+  "image_sha256": null,
   "category": "food",
   "difficulty_tags": [
     "small_pdp",

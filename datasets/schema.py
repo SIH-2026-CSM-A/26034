@@ -250,7 +250,7 @@ class Rule6Declarations(BaseModel):
     consumer_care_details: DeclarationField = Field(
         description="Rule 6(1)(n) Consumer care contact cell: name, address, telephone, email."
     )
-    # Rule 6(1)(g) & GSR 128(E): Country of origin
+    # Rule 6(1)(aa) & GSR 128(E): Country of origin
     country_of_origin: DeclarationField = Field(
         description="Rule 6(1)(aa) Country of origin declaration."
     )
