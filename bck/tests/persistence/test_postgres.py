@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import uuid4
 
 import psycopg
@@ -36,18 +37,30 @@ from tests.core.test_persistence import RULE_SET_VERSION, a_finding, a_rule
 
 pytestmark = pytest.mark.postgres
 
-ENUM_TYPE_NAMES = {
-    "calibration_method",
-    "declaration_field",
-    "field_state",
-    "scan_source_type",
-    "scan_status",
-    "verdict",
+ENUM_TYPES: dict[str, type[StrEnum]] = {
+    "calibration_method": CalibrationMethod,
+    "declaration_field": DeclarationField,
+    "field_state": FieldState,
+    "scan_source_type": ScanSourceType,
+    "scan_status": ScanStatus,
+    "verdict": Verdict,
 }
+"""Every PostgreSQL enum type this schema creates, against the Python enum behind it."""
+
+ENUM_TYPE_NAMES = set(ENUM_TYPES)
 
 TABLE_NAMES = {"scans", "verdicts", "field_findings", "evidence_entries"}
 
 ENUM_TYPES_QUERY = text("select typname from pg_type where typtype = 'e'")
+
+ENUM_LABELS_QUERY = text(
+    """
+    select t.typname, e.enumlabel
+    from pg_type t
+    join pg_enum e on e.enumtypid = t.oid
+    where t.typname = any(:names)
+    """
+)
 
 
 @pytest.fixture
@@ -307,3 +320,33 @@ async def test_a_declaration_cannot_be_recorded_twice_against_one_rule(
         with pytest.raises(sqlalchemy.exc.IntegrityError):
             await session.commit()
         await session.rollback()
+
+
+def test_every_enum_type_holds_exactly_its_python_members(
+    migrated: Config, database_url: str
+) -> None:
+    """The drift ``alembic check`` cannot see.
+
+    Autogenerate compares tables and columns, not the *values* of an enum type that
+    already exists. Add a member to ``contracts.DeclarationField`` and ``alembic check``
+    stays clean; the failure surfaces later as ``invalid input value for enum
+    declaration_field`` at the first insert that uses it. PIP-002 touches every
+    declaration field, so this is a live risk rather than a hypothetical one.
+
+    Reading the labels back out of ``pg_enum`` is the only way to catch it, and it has to
+    run against a real database — which is why it lives here rather than beside the
+    portable tests.
+    """
+    engine = sqlalchemy.create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(ENUM_LABELS_QUERY, {"names": sorted(ENUM_TYPE_NAMES)}).all()
+    finally:
+        engine.dispose()
+
+    in_database: dict[str, set[str]] = {name: set() for name in ENUM_TYPE_NAMES}
+    for type_name, label in rows:
+        in_database[type_name].add(label)
+
+    in_python = {name: {member.value for member in enum} for name, enum in ENUM_TYPES.items()}
+    assert in_database == in_python
