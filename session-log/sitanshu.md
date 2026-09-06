@@ -90,3 +90,38 @@
 - 661/661 full test suite passed.
 - `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
 - 0 files committed, 0 files pushed, 0 files staged.
+
+### 2026-09-07 — EXT-006 Bilingual Declarations — Antigravity
+
+**Done**
+- Corpus verification of Rule 9(4) from `rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf` (Page 9):
+  - Verified exact statutory text permitting declarations in Hindi in Devanagari script or in English.
+- Implemented script classification in `bck/app/modules/extraction/binder.py`:
+  - Created `ScriptType` enum (`DEVANAGARI`, `LATIN`, `MIXED`, `NEITHER`) and `detect_script(text: str) -> ScriptType` using Unicode regex range `\u0900-\u097F`.
+- Implemented Devanagari numeral and unit token preprocessing:
+  - Created `_preprocess_devanagari_text` converting Devanagari digits (`०-९` -> `0-9`) and Devanagari unit / keyword tokens (`ग्राम` -> `g`, `किग्रा` -> `kg`, `मात्रा` -> `Net Qty`, `एमआरपी` -> `MRP`, `रु.` -> `Rs.`).
+- Implemented spatial bilingual pairing:
+  - Added `_are_spans_spatially_adjacent` evaluating bounding-box gap vs heights and widths (`MAX_VERTICAL_GAP_MULTIPLIER = 3.0`, `MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0`).
+  - Added `_pair_bilingual_fields` pairing Devanagari and Latin spans in the same region with matching field type, numeric value, and unit into single `NormalisedField` records with `span_refs = (latin_span_id, devanagari_span_id)`.
+- Enforced span conservation in `bind_spans`:
+  - Guaranteed every input OCR span is accounted for either in `NormalisedField.span_refs` or returned in `unclassified_spans`.
+- Created comprehensive test suite `bck/tests/modules/extraction/test_bilingual_declarations.py`:
+  - Added 10 test cases covering monolingual regression, bilingual Net Qty pairing, Devanagari-only binding, unclassified span conservation, mixed script spans, script detection unit tests, spatial adjacency, distant span non-pairing, wrong declaration non-merging, and span conservation set equality assertion.
+- Verified quality gates and mutation falsification:
+  - 10/10 bilingual tests passed cleanly.
+  - 694 passed, 32 skipped across full backend suite.
+  - `ruff check .` -> **0 errors (PASS)**.
+  - `ruff format --check .` -> **139 files formatted (PASS)**.
+  - `lint-imports` -> **3 kept, 0 broken (PASS)**.
+  - `git diff --check` -> **PASS**.
+  - Executed 3 mutation tests (script detection, spatial multiplier, bilingual pairing) asserting RED on defect and GREEN on restore.
+
+**Decided**
+- Bilingual declarations in Devanagari and Latin script representing the same declaration field are spatially paired into single `NormalisedField` records with plural `span_refs`.
+- Prohibited creating `bck/app/modules/extraction/evidence.py` or modifying contracts, normalisers, or pipeline files.
+
+**Verification**
+- 10/10 `test_bilingual_declarations.py` tests passed.
+- 694 passed, 32 skipped across full backend suite.
+- `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
+- 0 git commits, 0 git pushes, 0 staged files, 0 PRs created.

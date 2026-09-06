@@ -1,12 +1,19 @@
-"""OCR span classification and spatial role binder for Legal Metrology declarations.
+"""Declaration binder — classifies and groups OCR spans into NormalisedField records.
 
-Binds raw extracted OCR spans into canonical NormalisedField records according
-to spatial proximity, keyword anchor headers, and specialized field normalisers.
-Preserves every span in either fields or unclassified_spans (span conservation).
+Rule 9(4) of the Legal Metrology (Packaged Commodities) Rules, 2011
+(rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Page 9):
+"The particulars of the declarations required to be specified under this rule on a package
+shall either be in Hindi in Devanagiri script or in English: Provided that nothing contained
+in this sub-rule shall prevent the use of any other language in addition to Hindi or
+English language."
+
+Bilingual declarations in Hindi (Devanagari) and English (Latin) representing the same
+declaration field are spatially paired into single NormalisedField records with plural span_refs.
 """
 
 import re
 from collections.abc import Sequence
+from enum import Enum
 from typing import Final
 
 from pydantic import BaseModel, Field
@@ -28,6 +35,78 @@ class ExtractionResult(BaseModel):
 
     fields: list[NormalisedField] = Field(default_factory=list)
     unclassified_spans: list[ExtractedSpan] = Field(default_factory=list)
+
+
+MAX_VERTICAL_GAP_MULTIPLIER: Final[float] = 3.0
+MAX_HORIZONTAL_OFFSET_MULTIPLIER: Final[float] = 3.0
+
+_DEVANAGARI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0900-\u097F\uA8E0-\uA8FF\u1CD0-\u1CFF]")
+_LATIN_RE: Final[re.Pattern[str]] = re.compile(r"[a-zA-Z]")
+
+_DEVANAGARI_DIGITS: Final[dict[str, str]] = {
+    "०": "0",
+    "१": "1",
+    "२": "2",
+    "३": "3",
+    "४": "4",
+    "५": "5",
+    "६": "6",
+    "७": "7",
+    "८": "8",
+    "९": "9",
+}
+
+_DEVANAGARI_WORDS: Final[dict[str, str]] = {
+    "शुद्ध मात्रा": "Net Qty",
+    "निवल मात्रा": "Net Qty",
+    "मात्रा": "Net Qty",
+    "एमआरपी": "MRP",
+    "मूल्य": "MRP",
+    "रुपये": "Rs.",
+    "रु.": "Rs.",
+    "ग्राम": "g",
+    "किग्रा": "kg",
+    "किलोग्राम": "kg",
+    "एमएल": "ml",
+    "मिलीलीटर": "ml",
+    "लीटर": "l",
+    "सेमी": "cm",
+    "मिमी": "mm",
+    "मीटर": "m",
+}
+
+
+class ScriptType(str, Enum):  # noqa: UP042
+    """Primary script classification of an OCR text span."""
+
+    DEVANAGARI = "DEVANAGARI"
+    LATIN = "LATIN"
+    MIXED = "MIXED"
+    NEITHER = "NEITHER"
+
+
+def detect_script(text: str) -> ScriptType:
+    """Detect whether text is Devanagari, Latin, Mixed, or Neither script."""
+    has_dev = bool(_DEVANAGARI_RE.search(text))
+    has_lat = bool(_LATIN_RE.search(text))
+
+    if has_dev and has_lat:
+        return ScriptType.MIXED
+    if has_dev:
+        return ScriptType.DEVANAGARI
+    if has_lat:
+        return ScriptType.LATIN
+    return ScriptType.NEITHER
+
+
+def _preprocess_devanagari_text(text: str) -> str:
+    """Normalize Devanagari numerals and equivalent unit tokens for structured numeric parsing."""
+    cleaned = text
+    for dev_digit, ascii_digit in _DEVANAGARI_DIGITS.items():
+        cleaned = cleaned.replace(dev_digit, ascii_digit)
+    for dev_word, ascii_word in _DEVANAGARI_WORDS.items():
+        cleaned = cleaned.replace(dev_word, ascii_word)
+    return cleaned
 
 
 _BBox = tuple[float, float, float, float]
@@ -307,8 +386,9 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
     if span.confidence <= 0.0 or not span.text.strip():
         return None
     raw = span.text.strip()
+    processed_raw = _preprocess_devanagari_text(raw)
 
-    mrp_res = normalise_mrp(raw)
+    mrp_res = normalise_mrp(processed_raw)
     if mrp_res.success and mrp_res.confidence > 0.0 and mrp_res.value is not None:
         return NormalisedField(
             field_type=DeclarationField.RETAIL_SALE_PRICE,
@@ -319,7 +399,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=mrp_res.confidence,
         )
 
-    usp_res = normalise_unit_sale_price(raw)
+    usp_res = normalise_unit_sale_price(processed_raw)
     if usp_res.success and usp_res.confidence > 0.0 and usp_res.value is not None:
         return NormalisedField(
             field_type=DeclarationField.UNIT_SALE_PRICE,
@@ -330,11 +410,11 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=usp_res.confidence,
         )
 
-    usp_match = _USP_REGEX.search(raw)
+    usp_match = _USP_REGEX.search(processed_raw)
     if usp_match:
         price_str = usp_match.group(1)
         basis_str = usp_match.group(2).strip()
-        has_indicator = bool(_USP_INDICATOR_RE.search(raw))
+        has_indicator = bool(_USP_INDICATOR_RE.search(processed_raw))
         usp_conf = 0.95 if has_indicator else 0.90
         return NormalisedField(
             field_type=DeclarationField.UNIT_SALE_PRICE,
@@ -345,7 +425,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=min(span.confidence, usp_conf),
         )
 
-    nq_res = normalise_net_quantity(raw)
+    nq_res = normalise_net_quantity(processed_raw)
     if nq_res.success and nq_res.confidence > 0.0 and nq_res.value is not None:
         return NormalisedField(
             field_type=DeclarationField.NET_QUANTITY,
@@ -356,7 +436,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=nq_res.confidence,
         )
 
-    date_res = normalise_date(raw)
+    date_res = normalise_date(processed_raw)
     if date_res.success and date_res.confidence > 0.0 and date_res.value is not None:
         is_bb = date_res.value.date_type in (DateType.BEST_BEFORE, DateType.EXPIRY)
         field_type = (
@@ -371,7 +451,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=date_res.confidence,
         )
 
-    origin_res = normalise_country_of_origin(raw)
+    origin_res = normalise_country_of_origin(processed_raw)
     if origin_res.success and origin_res.confidence > 0.0 and origin_res.value is not None:
         return NormalisedField(
             field_type=DeclarationField.COUNTRY_OF_ORIGIN,
@@ -382,7 +462,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=origin_res.confidence,
         )
 
-    care_res = normalise_consumer_care(raw)
+    care_res = normalise_consumer_care(processed_raw)
     if care_res.success and care_res.confidence > 0.0 and care_res.value is not None:
         parts = [f"Phone: {care_res.value.phone}"] if care_res.value.phone else []
         if care_res.value.email:
@@ -398,7 +478,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             parse_confidence=care_res.confidence,
         )
 
-    dim_res = normalise_dimensions(raw)
+    dim_res = normalise_dimensions(processed_raw)
     if dim_res.success and dim_res.confidence > 0.0 and dim_res.value is not None:
         num_val = dim_res.value.length if dim_res.value.width is None else None
         if num_val is None and dim_res.value.diameter is not None:
@@ -416,15 +496,18 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
     # Bound only if:
     # a) Explicit keywords present, OR
     # b) Does NOT match known non-commodity phrasing / label copy and has concise name structure.
-    is_explicit_comm = bool(_EXPLICIT_COMMODITY_RE.search(raw))
+    is_explicit_comm = bool(_EXPLICIT_COMMODITY_RE.search(processed_raw))
     is_non_commodity = (
         bool(_NON_COMMODITY_RE.search(raw))
+        or bool(_NON_COMMODITY_RE.search(processed_raw))
         or bool(_LABEL_COPY_RE.search(raw))
-        or len(raw.split()) > 6
+        or bool(_LABEL_COPY_RE.search(processed_raw))
+        or len(processed_raw.split()) > 6
+        or any(t in raw for t in ["विशेष", "ऑफर", "विज्ञापन"])
     )
 
     if is_explicit_comm or not is_non_commodity:
-        comm_res = normalise_commodity_name(raw)
+        comm_res = normalise_commodity_name(processed_raw)
         if comm_res.success and comm_res.confidence > 0.0 and comm_res.value is not None:
             return NormalisedField(
                 field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
@@ -435,6 +518,96 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
                 parse_confidence=comm_res.confidence,
             )
     return None
+
+
+def _are_spans_spatially_adjacent(s1: ExtractedSpan, s2: ExtractedSpan) -> bool:
+    """Deterministic spatial-adjacency predicate using polygon bounding-box geometry."""
+    b1_min_x, b1_min_y, b1_max_x, b1_max_y = _get_bbox(s1.polygon)
+    b2_min_x, b2_min_y, b2_max_x, b2_max_y = _get_bbox(s2.polygon)
+
+    h1 = max(1.0, b1_max_y - b1_min_y)
+    h2 = max(1.0, b2_max_y - b2_min_y)
+    max_h = max(h1, h2)
+
+    w1 = max(1.0, b1_max_x - b1_min_x)
+    w2 = max(1.0, b2_max_x - b2_min_x)
+    max_w = max(w1, w2)
+
+    v_gap = max(0.0, max(b1_min_y, b2_min_y) - min(b1_max_y, b2_max_y))
+    if v_gap > MAX_VERTICAL_GAP_MULTIPLIER * max_h:
+        return False
+
+    h_offset = max(0.0, max(b1_min_x, b2_min_x) - min(b1_max_x, b2_max_x))
+    return h_offset <= MAX_HORIZONTAL_OFFSET_MULTIPLIER * max_w
+
+
+def _pair_bilingual_fields(
+    spans: Sequence[ExtractedSpan],
+    consumed_ids: set[str],
+) -> tuple[list[NormalisedField], set[str]]:
+    """Spatial pairing of Devanagari and Latin spans representing the same declaration."""
+    paired_fields: list[NormalisedField] = []
+    newly_consumed: set[str] = set()
+
+    parsed_candidates: list[tuple[ExtractedSpan, NormalisedField, ScriptType]] = []
+    for s in spans:
+        if s.span_id in consumed_ids or s.confidence <= 0.0 or not s.text.strip():
+            continue
+        field = _dispatch_single_span(s)
+        if field is not None:
+            script = detect_script(s.text)
+            parsed_candidates.append((s, field, script))
+
+    paired_span_ids: set[str] = set()
+    for i, (s1, f1, script1) in enumerate(parsed_candidates):
+        if s1.span_id in paired_span_ids:
+            continue
+        for j, (s2, f2, script2) in enumerate(parsed_candidates):
+            if i >= j or s2.span_id in paired_span_ids:
+                continue
+
+            if s1.region_id != s2.region_id:
+                continue
+
+            if script1 == script2 and script1 in (ScriptType.LATIN, ScriptType.DEVANAGARI):
+                continue
+            if script1 == ScriptType.NEITHER or script2 == ScriptType.NEITHER:
+                continue
+
+            if f1.field_type != f2.field_type:
+                continue
+
+            if (f1.numeric_value != f2.numeric_value) or (f1.unit != f2.unit):
+                continue
+
+            if not _are_spans_spatially_adjacent(s1, s2):
+                continue
+
+            refs = (
+                (s1.span_id, s2.span_id)
+                if script1 == ScriptType.LATIN
+                else (s2.span_id, s1.span_id)
+            )
+            pair_conf = max(f1.parse_confidence, f2.parse_confidence)
+
+            paired_field = NormalisedField(
+                field_type=f1.field_type,
+                span_refs=refs,
+                normalised_value=(
+                    f1.normalised_value if script1 == ScriptType.LATIN else f2.normalised_value
+                ),
+                numeric_value=f1.numeric_value,
+                unit=f1.unit,
+                parse_confidence=pair_conf,
+            )
+            paired_fields.append(paired_field)
+            paired_span_ids.add(s1.span_id)
+            paired_span_ids.add(s2.span_id)
+            newly_consumed.add(s1.span_id)
+            newly_consumed.add(s2.span_id)
+            break
+
+    return paired_fields, newly_consumed
 
 
 def bind_spans(spans: Sequence[ExtractedSpan]) -> ExtractionResult:
@@ -452,6 +625,10 @@ def bind_spans(spans: Sequence[ExtractedSpan]) -> ExtractionResult:
     address_fields, address_consumed = _bind_rule_6_1_a_addresses(spans)
     fields.extend(address_fields)
     consumed_span_ids.update(address_consumed)
+
+    bilingual_fields, bilingual_consumed = _pair_bilingual_fields(spans, consumed_span_ids)
+    fields.extend(bilingual_fields)
+    consumed_span_ids.update(bilingual_consumed)
 
     unclassified_spans: list[ExtractedSpan] = []
     for span in spans:
