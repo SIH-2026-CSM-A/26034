@@ -108,7 +108,7 @@
 - Created comprehensive test suite `bck/tests/modules/extraction/test_bilingual_declarations.py`:
   - Added 10 test cases covering monolingual regression, bilingual Net Qty pairing, Devanagari-only binding, unclassified span conservation, mixed script spans, script detection unit tests, spatial adjacency, distant span non-pairing, wrong declaration non-merging, and span conservation set equality assertion.
 - Verified quality gates and mutation falsification:
-  - 10/10 bilingual tests passed cleanly.
+  - 11/11 bilingual tests passed cleanly.
   - 694 passed, 32 skipped across full backend suite.
   - `ruff check .` -> **0 errors (PASS)**.
   - `ruff format --check .` -> **139 files formatted (PASS)**.
@@ -121,7 +121,7 @@
 - Prohibited creating `bck/app/modules/extraction/evidence.py` or modifying contracts, normalisers, or pipeline files.
 
 **Verification**
-- 10/10 `test_bilingual_declarations.py` tests passed.
+- 11/11 `test_bilingual_declarations.py` tests passed.
 - 694 passed, 32 skipped across full backend suite.
 - `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
-- 0 git commits, 0 git pushes, 0 staged files, 0 PRs created.
+- Committed (`1fb89c42bbd6aeb37496aefd136f564b90289182`), pushed to `origin/ext-006-bilingual-declarations`, 0 PRs created.
