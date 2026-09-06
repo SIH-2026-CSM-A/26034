@@ -2,12 +2,7 @@ import hashlib
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-try:
-    import boto3
-    from botocore.exceptions import ClientError
-except ImportError:
-    boto3 = None
-    ClientError = None
+import boto3
 
 
 class EvidenceStorageClient(ABC):
@@ -69,12 +64,6 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
         access_key: str,
         secret_key: str,
     ):
-        if boto3 is None:
-            raise ImportError(
-                "boto3 is required for S3ContentAddressedStorageClient. "
-                "Please install it with `pip install boto3`."
-            )
-
         self.s3 = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
