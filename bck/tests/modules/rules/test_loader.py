@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from app.modules.rules import RuleLoadError, load_rules
+from app.modules.rules import (
+    RuleLoadError,
+    default_rule_set_version,
+    load_rules,
+    load_store,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 CORPUS_DIRECTORY = REPOSITORY_ROOT / "rules-corpus"
@@ -39,7 +44,13 @@ def _write_rule_store(tmp_path: Path, rule_payload: dict[str, object]) -> Path:
     """Write a temporary YAML store containing one supplied rule payload."""
     store_path = tmp_path / "rules.yaml"
     store_path.write_text(
-        yaml.safe_dump({"schema_version": 1, "rules": [rule_payload]}),
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "rule_set_version": "test-store",
+                "rules": [rule_payload],
+            }
+        ),
         encoding="utf-8",
     )
     return store_path
@@ -187,3 +198,26 @@ def test_the_shipped_store_resolves_every_citation_against_the_real_corpus() -> 
     """The same gate, exercised against the committed store rather than a fixture."""
     for rule in load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY):
         assert (CORPUS_DIRECTORY / rule.gazette_ref).is_file()
+
+
+def test_a_store_without_a_rule_set_version_fails_to_load(tmp_path: Path) -> None:
+    """A rule set nobody can name is one no verdict can cite.
+
+    Every finding snapshots the version it was evaluated under, and every response carries
+    it, so that a record read years later names the published set that produced it rather
+    than whatever the store holds by then. A store that omits it is rejected at load
+    rather than defaulted to something invented here.
+    """
+    store_path = tmp_path / "rules.yaml"
+    store_path.write_text(
+        yaml.safe_dump({"schema_version": 1, "rules": [_valid_rule_payload()]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(RuleLoadError, match="rule_set_version"):
+        load_rules(store_path, corpus_dir=CORPUS_DIRECTORY)
+
+
+def test_the_packaged_store_names_its_version() -> None:
+    """The shipped store carries one, and the loader hands back that string and no other."""
+    assert default_rule_set_version() == load_store().rule_set_version
+    assert default_rule_set_version().strip()

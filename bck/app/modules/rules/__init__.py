@@ -41,7 +41,14 @@ from .evaluator import (
     select_effective_rule,
     validate_width_to_height,
 )
-from .loader import RuleLoadError, is_active, load_rules, rule_by_id
+from .loader import (
+    RuleLoadError,
+    default_rule_set_version,
+    is_active,
+    load_rules,
+    load_store,
+    rule_by_id,
+)
 from .models import RuleDefinition, RuleStoreDocument
 from .placement import evaluate_rule8_free_space, required_declaration_location
 from .results import (
@@ -91,6 +98,7 @@ __all__ = [
     "calculate_other_shape_pdp_area",
     "calculate_rectangular_pdp_area",
     "controlling_framework",
+    "default_rule_set_version",
     "evaluate_numeric_constraint",
     "evaluate_rule",
     "evaluate_rule7_height",
@@ -98,6 +106,7 @@ __all__ = [
     "evaluate_rule8_free_space",
     "is_active",
     "load_rules",
+    "load_store",
     "minimum_character_height",
     "pdp_declaration_mandatory",
     "required_declaration_location",
