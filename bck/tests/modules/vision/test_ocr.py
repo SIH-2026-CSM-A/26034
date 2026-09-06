@@ -154,8 +154,46 @@ def test_paddleocr_3x_parser_format():
     assert len(spans_obj[0].polygon) == 4
 
 
-@patch("pytesseract.image_to_string")
-def test_extract_numeric_value_malformed(mock_tesseract):
+def test_extract_numeric_value_malformed():
     from app.modules.vision.ocr import _extract_numeric_value
 
     assert _extract_numeric_value("150.00.5") == ""
+
+
+def test_parse_paddle_results_invalid_type():
+    import pytest
+
+    from app.modules.vision.ocr import _parse_paddle_results
+
+    with pytest.raises(TypeError):
+        _parse_paddle_results("nonsense")
+
+
+def test_parse_paddle_results_missing_score():
+    import pytest
+
+    from app.modules.vision.ocr import _parse_paddle_results
+
+    bad_data = {"dt_polys": [[[0, 0]]], "rec_texts": ["A"], "rec_scores": [None]}
+    with pytest.raises(ValueError, match="cannot be None"):
+        _parse_paddle_results(bad_data)
+
+
+def test_parse_paddle_results_missing_fields():
+    import pytest
+
+    from app.modules.vision.ocr import _parse_paddle_results
+
+    bad_data = {"dt_polys": [[[0, 0]]], "rec_scores": [0.9]}
+    with pytest.raises(ValueError, match="Missing required fields"):
+        _parse_paddle_results(bad_data)
+
+
+def test_parse_paddle_results_strict_zip():
+    import pytest
+
+    from app.modules.vision.ocr import _parse_paddle_results
+
+    bad_data = {"dt_polys": [[[0, 0]], [[1, 1]]], "rec_texts": ["A"], "rec_scores": [0.9, 0.8]}
+    with pytest.raises(ValueError):
+        _parse_paddle_results(bad_data)

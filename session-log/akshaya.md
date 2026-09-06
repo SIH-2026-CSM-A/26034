@@ -5,6 +5,10 @@
 - **Added Performance Regression Test**: Implemented `test_remap_curvature_performance_at_realistic_resolution` to guard against latency regressions[cite: 1].
 - **Verification**: All linter checks, formatting checks, import boundary contracts (`lint-imports`), and pytest suites pass cleanly[cite: 1].
 
+- Rebased branch onto main cleanly
+- Added missing coverage tests for detect_pdp
+- Updated Tesseract whitelist comment
+
 ## Session - VIS-003: Robust PaddleOCR 3.x Parser & Strict Confidence
 - Restored VIS-001 historical records (remap_curvature vectorisation, performance regression tests, rebase notes).
 - Implemented strict parsing for PaddleOCR 3.x results without 1.0 confidence fallbacks.

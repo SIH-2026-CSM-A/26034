@@ -9,8 +9,9 @@ import pytesseract
 
 from app.contracts import EvidenceProvider, ExtractedSpan
 
-# Complete DoCA-compliant whitelist including Indian grouping commas and currency tokens
-DEFAULT_REPASS_WHITELIST = "0123456789.,/-₹RsMPkgmlL"
+DEFAULT_REPASS_WHITELIST = (
+    "0123456789.,/-₹RsMPkgmlL"  # digits, currency tokens and unit letters for MRP and net quantity.
+)
 
 
 @dataclass
