@@ -34,15 +34,43 @@ Rule numbers and thresholds are never written from memory. The six findings carr
 citations supplied on the FNT-002 ticket, and one of them was additionally confirmed
 against `rules-corpus/` during the session that wrote this file:
 
-- **Rule 7(2) Table-I, ≥ 2.5 mm at a PDP area of 180 cm².** Confirmed against
-  `rules-corpus/README.md`, which records Table-I as banded by principal display panel
-  area since G.S.R. 629(E) w.e.f. 01.01.2018, with the band `100 < A ≤ 500 cm²`
-  requiring 2.5 mm for normal (non-blown, non-moulded) lettering. 180 cm² falls in that
-  band. Both letter-height findings cite it.
+- **Rule 7(2), Table-I — ≥ 2.5 mm at a PDP area of 180 cm².** Confirmed twice: against
+  `rules-corpus/README.md`, and against the encoded `R7-2-TABLE-I` band
+  `100 < A ≤ 500 cm² → 2.5 mm normal` in `bck/app/modules/rules/data/rules.yaml`.
+  180 cm² falls in that band. Both letter-height findings cite it.
+
+### Aligned to the encoded rule set, not to the ticket text
+
+`RUL-002` landed the Rule 8 and Rule 9 encodings on `main` while this ticket was being
+built. Four of the six findings correspond to rules that now exist in
+`bck/app/modules/rules/data/rules.yaml`, so their `rule_id`, `clause_ref` and
+`source_text` are taken from there verbatim rather than from the ticket:
+
+| Finding | Ticket said | Encoded as |
+|---|---|---|
+| Net quantity / retail sale price letter height | `Rule 7(2) Table-I` | `R7-2-TABLE-I` · `Rule 7(2), Table-I` |
+| Free space around the quantity declaration | `Rule 8(1)` | `R8-1-FREE-SPACE` · `Rule 8(1) proviso` |
+| Manufacturer name and address | `Rule 6(1)(a)` | `R6-1-A` · `Rule 6(1)(a)` |
+| Country of origin | `Rule 6(1)(aa)` | `R6-1-AA` · `Rule 6(1)(aa)` |
+
+The two that moved are the same provisions under their authoritative references. `Rule 8`
+now distinguishes two limbs — `R8-1-PDP-PLACEMENT` governs *where* a declaration appears,
+`R8-1-FREE-SPACE` governs the space around it — and this finding is about the second, so
+it cites the proviso. A fixture citing the wrong limb would have surfaced as a mismatch
+the day `PIP-002` wires the real endpoint.
+
+The encoded proviso also explains the ticket's `≥ 2.1 mm`: it requires free space above
+and below "equal to at least the height of the numeral in the declaration", and the
+numeral is measured at 2.1 mm in the first finding. The threshold is derived, not fixed,
+and the finding's reason now says so.
+
+**Rule 6(11) is not yet encoded.** There is no `R6-11` in `rules.yaml`; unit sale price is
+still outstanding. Its snapshot carries the ticket's citation and an id in the module's
+own naming convention, and should be re-checked against the encoded rule when one lands.
 
 The `gazette_ref` on every snapshot names a real file in `rules-corpus/`. No rule number,
-threshold or gazette reference appears here that was not either supplied on the ticket or
-read out of the corpus.
+threshold or gazette reference appears here that was not either supplied on the ticket,
+read out of the corpus, or copied from the encoded rule set.
 
 `status` and `severity` are fixture values. Neither is rendered — the authoritative
 status of an encoded rule belongs to the rules module, and the officer surface must not

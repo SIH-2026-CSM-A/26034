@@ -71,16 +71,15 @@ const LMPC = 'LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf'
 const GSR_629E = 'GSR-629E__2017-06-23__amendment-rules-2017.pdf'
 
 const RULE_7_2 = snapshot(
-  'LMPC-2011.R7.2.TABLE-I',
-  'Rule 7(2) Table-I',
+  'R7-2-TABLE-I',
+  'Rule 7(2), Table-I',
   GSR_629E,
-  'Height of letters and numerals, banded by principal display panel area. A panel of ' +
-    'more than 100 cm² and not more than 500 cm² requires a minimum height of 2.5 mm ' +
-    'for normal lettering.',
+  'The height of any numeral and letter in the declaration required under these rules ' +
+    'shall be as per Table-I.',
 )
 
 const RULE_6_11 = snapshot(
-  'LMPC-2011.R6.11',
+  'R6-11',
   'Rule 6(11)',
   LMPC,
   'The unit sale price shall be declared on the package, on the unit basis keyed to ' +
@@ -88,22 +87,26 @@ const RULE_6_11 = snapshot(
 )
 
 const RULE_6_1_A = snapshot(
-  'LMPC-2011.R6.1.a',
+  'R6-1-A',
   'Rule 6(1)(a)',
   LMPC,
-  'The name and address of the manufacturer, or of the manufacturer and packer where ' +
-    'they differ, or of the importer for an imported package.',
+  'the name and address of the manufacturer, or where the manufacturer is not the ' +
+    'packer, the name and address of the manufacturer and packer and for any imported ' +
+    'package the name and address of the importer shall be mentioned on every package.',
 )
 
 const RULE_8_1 = snapshot(
-  'LMPC-2011.R8.1',
-  'Rule 8(1)',
+  'R8-1-FREE-SPACE',
+  'Rule 8(1) proviso',
   LMPC,
-  'Free space to be left around the declaration of net quantity.',
+  'Provided that the area surrounding the quantity declaration shall be free from ' +
+    'printed information. (a) above and below by a space equal to at least the height ' +
+    'of the numeral in the declaration, and (b) to the left and right by a space at ' +
+    'least twice the height of numeral in the declaration.',
 )
 
 const RULE_6_1_AA = snapshot(
-  'LMPC-2011.R6.1.aa',
+  'R6-1-AA',
   'Rule 6(1)(aa)',
   LMPC,
   'The name of the country of origin or manufacture or assembly, in the case of ' +
@@ -222,9 +225,10 @@ export const verdictRecord: VerdictRecord = {
       observed_value: '1.8 mm below',
       expected_value: '≥ 2.1 mm',
       reason:
-        'Free space below the quantity declaration is short of the requirement by a ' +
-        'margin inside the measurement uncertainty at this capture. An officer has to ' +
-        'resolve it.',
+        'The proviso requires free space above and below equal to at least the height ' +
+        'of the numeral, measured here at 2.1 mm. The space below is short of that by ' +
+        'a margin inside the measurement uncertainty at this capture, so an officer ' +
+        'has to resolve it.',
       evidence_span_ids: ['span-netqty-block'],
     },
     {

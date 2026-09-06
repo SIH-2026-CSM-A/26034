@@ -25,12 +25,12 @@ import { VerdictBanner } from './components/VerdictBanner'
  * label would have to guess which reading of "net quantity" each one means.
  */
 const ROW_LABELS: Record<string, string> = {
-  'NET_QUANTITY|Rule 7(2) Table-I': 'Net quantity, letter height',
+  'NET_QUANTITY|Rule 7(2), Table-I': 'Net quantity, letter height',
   'UNIT_SALE_PRICE|Rule 6(11)': 'Unit sale price basis',
   'NAME_AND_ADDRESS|Rule 6(1)(a)': 'Manufacturer name and address',
-  'NET_QUANTITY|Rule 8(1)': 'Free space around the quantity declaration',
+  'NET_QUANTITY|Rule 8(1) proviso': 'Free space around the quantity declaration',
   'COUNTRY_OF_ORIGIN|Rule 6(1)(aa)': 'Country of origin',
-  'RETAIL_SALE_PRICE|Rule 7(2) Table-I': 'Retail sale price, letter height',
+  'RETAIL_SALE_PRICE|Rule 7(2), Table-I': 'Retail sale price, letter height',
 }
 
 function rowLabel(finding: FieldFinding): string {
