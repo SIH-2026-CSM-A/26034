@@ -116,8 +116,12 @@ jobs:
         run: uv sync --locked --all-groups
 
       - name: Dataset tests
-        # rootdir resolves to bck/, so bck/pyproject.toml supplies the pytest config. Its
-        # testpaths = ["tests"] is overridden by the explicit path — which is exactly why
-        # nothing under datasets/ had ever run.
+        # working-directory is bck only so uv resolves the environment synced above — the one
+        # with `app` installed. It does not bring bck's pytest config along: with ../datasets
+        # as the argument, rootdir lands on the repo root, which holds no ini file, so pytest
+        # loads no configfile at all (`asyncio: mode=Mode.STRICT`, no testpaths). Verified in
+        # the log rather than assumed. Nothing under datasets/ is async, so that changes no
+        # result — and bck/pyproject.toml's `testpaths = ["tests"]` never reaching here is the
+        # whole reason these 27 tests had never run.
         working-directory: bck
         run: uv run pytest ../datasets

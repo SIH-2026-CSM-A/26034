@@ -1097,3 +1097,12 @@ and 357 dependencies. Both counts are as-of this branch's base SHA — DAT-004 i
 `"coin_inr_10"` to `"coin_10"` in `datasets/tests/test_schema_guards.py` and adding a
 cross-module guard concurrently, so whichever of the two merges second has to re-run and
 re-report.
+
+**Correction, made after the first green run.** The `Dataset tests` comment claimed rootdir
+resolves to `bck/` and that `bck/pyproject.toml` supplies the pytest config. The CI log says
+otherwise — `rootdir: /home/runner/work/26034/26034`, no `configfile:` line,
+`asyncio: mode=Mode.STRICT` — and the same holds locally. With `../datasets` as the argument
+the common ancestor is the repo root, which has no ini file, so pytest loads no config at
+all. No result moves (nothing under `datasets/` is async, 25 passed either way) and
+`working-directory: bck` is still needed to reach the synced environment that has `app`
+installed, but the comment was wrong in both environments and now says what actually happens.
