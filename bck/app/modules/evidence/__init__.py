@@ -4,6 +4,8 @@ from .chain import (
     verify_chain,
 )
 from .domain import ChainVerification, EvidenceEntry
+from .export import export_compliance_report
+from .models import OfficerReportModel
 from .report import (
     UnconfirmedVerdictExportError,
     generate_bsa_report,
@@ -31,4 +33,6 @@ __all__ = [
     "verify_chain",
     "generate_bsa_report",
     "UnconfirmedVerdictExportError",
+    "OfficerReportModel",
+    "export_compliance_report",
 ]

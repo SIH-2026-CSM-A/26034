@@ -13,3 +13,9 @@
 - **Append-only API**: Verified zero update/edit/modify/patch functions exist in the evidence module.
 - **Decided**: Recomputed hash attack tested with internally valid entry hashes to ensure linkage checks catch sophisticated tampering.
 - **Rejected**: In-place edits (corrections must be append-only new records); verify-time RFC 3161 authority network calls.
+
+## 2026-09-06 (Continued)
+- **What was done**: Implemented `export.py` for officer compliance reports in PDF and DOCX from a unified `OfficerReportModel`.
+- **Dependencies added**: `reportlab`, `python-docx` (pure wheels, no system binaries).
+- **Enforced rules**: Human confirmation gate; strict verdict phrasing (PASS / REVIEW / POTENTIAL VIOLATION); zero occurrences of "violation confirmed" or "non-compliant"; explicit refusal and `INSUFFICIENT_EVIDENCE` handling; 100% clause reference citations.
+- **Agent used**: Claude Code

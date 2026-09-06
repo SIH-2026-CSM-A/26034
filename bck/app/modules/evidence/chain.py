@@ -70,9 +70,8 @@ def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
         return ChainVerification(is_valid=False, broken_link_index=0, reason="missing_genesis")
 
     for i, entry in enumerate(entries):
-        # 1. Timestamp validation (Offline ISO-8601 UTC)
+        # 1. Timestamp validation
         try:
-            # fromisoformat handles 'YYYY-MM-DDTHH:MM:SS' and 'YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM'
             datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             return ChainVerification(
@@ -96,19 +95,16 @@ def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
 
         # 4. Chain linkage and sequence
         if i == 0:
-            # Genesis validation
             if entry.sequence != 0 or entry.prev_hash != GENESIS_PREV_HASH:
                 return ChainVerification(
                     is_valid=False, broken_link_index=0, reason="missing_genesis"
                 )
         else:
             prev = entries[i - 1]
-            # Hash linkage
             if entry.prev_hash != prev.entry_hash:
                 return ChainVerification(
                     is_valid=False, broken_link_index=i, reason="previous_hash_mismatch"
                 )
-            # Sequence ordering
             if entry.sequence != prev.sequence + 1:
                 return ChainVerification(
                     is_valid=False, broken_link_index=i, reason="ordering_violation"
