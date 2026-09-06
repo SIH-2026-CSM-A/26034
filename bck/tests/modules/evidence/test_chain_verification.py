@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from app.modules.evidence.chain import (
     append_entry,
     compute_entry_hash,
@@ -121,25 +119,35 @@ def test_tamper_recomputed_hash_attack():
     assert result.reason == "previous_hash_mismatch"
 
 
-def test_offline_isolation():
+def test_offline_isolation(monkeypatch):
     """Assert verify_chain completes successfully with zero network calls."""
     chain = build_valid_chain(5)
 
-    with patch("socket.socket") as mock_socket:
-        mock_socket.side_effect = Exception("Network access forbidden!")
-        result = verify_chain(chain)
-        assert result.is_valid is True
-        mock_socket.assert_not_called()
+    def raise_network_error(*args, **kwargs):
+        raise RuntimeError("Network call attempted during offline verification")
+
+    monkeypatch.setattr("socket.socket", raise_network_error)
+
+    # Should complete successfully without triggering the raise_network_error
+    result = verify_chain(chain)
+    assert result.is_valid is True
 
 
 def test_append_only_enforcement():
-    """Verify no functions in the evidence module start with update_, edit_, modify_, or patch_."""
-    import inspect
-
-    import app.modules.evidence as evidence_mod
+    """Verify no functions in any evidence module file start with mutation prefixes."""
+    import ast
+    from pathlib import Path
 
     forbidden_prefixes = ("update_", "edit_", "modify_", "patch_")
-    public_members = inspect.getmembers(evidence_mod, predicate=inspect.isfunction)
+    module_path = Path("app/modules/evidence")
+    found_violations = []
 
-    for name, _ in public_members:
-        assert not name.startswith(forbidden_prefixes), f"Forbidden mutation function found: {name}"
+    for py_file in module_path.rglob("*.py"):
+        with open(py_file, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+            for node in ast.walk(tree):
+                is_func = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                if is_func and node.name.startswith(forbidden_prefixes):
+                    found_violations.append(f"{py_file}:{node.lineno} - {node.name}")
+
+    assert not found_violations, f"Forbidden mutation functions found: {found_violations}"
