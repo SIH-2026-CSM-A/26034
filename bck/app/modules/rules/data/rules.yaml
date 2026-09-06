@@ -486,6 +486,10 @@ rules:
       intended_for_retail_sale: true
       minimum_constituent_count: 2
       constituent_similarity: dissimilar
+      # Rule 2(ka) says only "individual packages, or individual pieces" and
+      # "intended for retail sale". Neither limb of Rule 2(kc) is stated here.
+      constituents_individually_packaged_or_labelled: false
+      retail_sale_of_individual_pieces_permitted: false
       illustrations:
         - A package containing dissimilar commodities such as spoons, knives, forks, cups, napkins, or the like.
     evidence_requirement: constituent_package_or_piece_inventory_and_commodity_dissimilarity
@@ -510,11 +514,79 @@ rules:
       intended_for_retail_sale: true
       minimum_constituent_count: 2
       constituent_similarity: similar_but_not_identical
+      # As with 2(ka), Rule 2(kb) states neither limb.
+      constituents_individually_packaged_or_labelled: false
+      retail_sale_of_individual_pieces_permitted: false
       illustrations:
         - A package containing two sponges 100 mm x 75 mm x 20 mm, one sponge 100 mm x 100 mm x 30 mm and four sponges 100 mm x 50 mm x 15 mm.
         - A package containing assorted biscuits.
         - A package containing similar commodities of different brands.
     evidence_requirement: constituent_package_or_piece_inventory_and_commodity_similarity
+    severity: REVIEW
+
+  # Rule 2(kc), inserted by G.S.R. 722(E) in the same instrument as (ka) and (kb).
+  # A multi-piece package is NOT a group package: its pieces are individually packaged
+  # or labelled, carry the same commodity in identical quantity, and may be sold on
+  # their own as well as together. Those two flags are the practical difference — a
+  # separately labelled, separately saleable piece has to stand as a retail package in
+  # its own right.
+  #
+  # G.S.R. 722(E) states no multi-piece-specific declaration obligation, and no
+  # amendment to Rule 9(3), so no outer-wrapper versus inner-piece rule is encoded here.
+  # The one multi-piece obligation the instrument does state is the Rule 6(11) unit sale
+  # price exemption in its paragraph 4, which is out of scope: Rule 6(11) is a format
+  # rule with no tolerance and no rounding increment and is deliberately not in this
+  # store.
+  - rule_id: R2-KC-MULTI-PIECE-PACKAGE
+    clause_ref: Rule 2(kc)
+    gazette_ref: GSR-722E__2023-10-06__amendment-rules-2023.pdf
+    source_text: >-
+      "multi-piece package" means a package containing two or more individual packaged or
+      labelled pieces of the same commodities of identical quantity, intended for retail sale,
+      either in individual pieces or the package as a whole. Illustration: (i) A package
+      containing "5 toilet soap cakes of net weight 20g each and total net weight of 100 g" is
+      a multi-piece package;
+    status: VERIFIED
+    effective_from: 2024-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: package_definition
+      package_type: multi_piece_package
+      intended_for_retail_sale: true
+      minimum_constituent_count: 2
+      constituent_similarity: identical
+      constituents_individually_packaged_or_labelled: true
+      retail_sale_of_individual_pieces_permitted: true
+      illustrations:
+        - A package containing 5 toilet soap cakes of net weight 20 g each and total net weight of 100 g.
+    evidence_requirement: constituent_piece_inventory_and_per_piece_labelling_and_quantity_identity
+    severity: REVIEW
+
+  # The proviso to Rule 2(kc) is its own obligation with its own gazette text, so it is
+  # its own rule rather than a field on the definition above.
+  #
+  # package_type scopes it. The proviso routes food articles to the FSSA 2006 *for
+  # multi-piece packages*; an unscoped food override would fire on every food package and
+  # claim a routing the gazette does not support. R6-1-A-EXPL-III-FOOD stays unscoped and
+  # keeps firing for every food package exactly as before.
+  - rule_id: R2-KC-MULTI-PIECE-FOOD
+    clause_ref: Rule 2(kc) proviso
+    gazette_ref: GSR-722E__2023-10-06__amendment-rules-2023.pdf
+    source_text: >-
+      Provided that for packages containing food articles, the provisions of the Food Safety
+      and Standards Act, 2006 (34 of 2006) and the rules made thereunder shall apply.
+    status: VERIFIED
+    effective_from: 2024-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: sector_override
+      sector: food
+      controlling_framework: Food Safety and Standards Act, 2006
+      package_type: multi_piece_package
+      overrides: [package_definition]
+    evidence_requirement: food_article_classification_and_multi_piece_package_composition
     severity: REVIEW
 
   - rule_id: R6-10A-GSR-128E

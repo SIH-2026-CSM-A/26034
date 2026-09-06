@@ -15,10 +15,10 @@ anyway produces a finding under a rule that does not apply to the package.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from datetime import date
 
-from .base import OverrideTarget, ProductCategory
+from .base import OverrideTarget, PackageType, ProductCategory
 from .conditions import SectorOverrideCondition
 from .loader import is_active, load_default_rules
 from .results import SectorOverride
@@ -34,9 +34,42 @@ class SectorRoutedError(LookupError):
     """
 
 
+def _applicable(
+    product_category: ProductCategory | None,
+    evaluation_date: date,
+    package_type: PackageType | None,
+) -> Iterator[tuple[str, SectorOverrideCondition]]:
+    """Yield ``(rule_id, condition)`` for every sector override that applies.
+
+    One definition of "applies", read by everything in this module. A second copy of
+    these four checks is how a scoped override ends up firing in one reader and not the
+    other, which is a routing bug nothing downstream could see.
+
+    A condition with no ``package_type`` applies to any package type. A condition that
+    names one applies only when the caller has confirmed that same type — an
+    unconfirmed package type routes nothing extra, for the same reason an unconfirmed
+    product category does.
+    """
+    if product_category is None:
+        return
+    for rule in load_default_rules():
+        condition = rule.conditions
+        if not isinstance(condition, SectorOverrideCondition):
+            continue
+        if condition.sector is not product_category:
+            continue
+        if condition.package_type is not None and condition.package_type is not package_type:
+            continue
+        if not is_active(rule, evaluation_date):
+            continue
+        yield rule.rule_id, condition
+
+
 def sector_overrides(
     product_category: ProductCategory | None,
     evaluation_date: date,
+    *,
+    package_type: PackageType | None = None,
 ) -> Mapping[OverrideTarget, SectorOverride]:
     """Return the obligations routed away from the packaged rules for a category.
 
@@ -44,23 +77,19 @@ def sector_overrides(
     category no rule in the store speaks to. Only overrides effective on
     ``evaluation_date`` count: G.S.R. 778(E) came into force on publication, and a scan
     dated before that is adjudicated under the rules as they then stood.
-    """
-    if product_category is None:
-        return {}
 
+    ``package_type`` is the caller's *confirmed* package classification. Leaving it unset
+    yields exactly the sector-wide overrides, unchanged; supplying one adds any override
+    the gazette scoped to that package type on top.
+    """
     routed: dict[OverrideTarget, SectorOverride] = {}
-    for rule in load_default_rules():
-        condition = rule.conditions
-        if not isinstance(condition, SectorOverrideCondition):
-            continue
-        if condition.sector is not product_category or not is_active(rule, evaluation_date):
-            continue
+    for rule_id, condition in _applicable(product_category, evaluation_date, package_type):
         for target in condition.overrides:
             routed[target] = SectorOverride(
                 sector=condition.sector,
                 target=target,
                 controlling_framework=condition.controlling_framework,
-                rule_id=rule.rule_id,
+                rule_id=rule_id,
             )
     return routed
 
@@ -69,14 +98,22 @@ def controlling_framework(
     target: OverrideTarget,
     product_category: ProductCategory | None,
     evaluation_date: date,
+    *,
+    package_type: PackageType | None = None,
 ) -> SectorOverride | None:
     """Return the framework controlling one obligation, or ``None`` for the packaged rules."""
-    return sector_overrides(product_category, evaluation_date).get(target)
+    return sector_overrides(
+        product_category,
+        evaluation_date,
+        package_type=package_type,
+    ).get(target)
 
 
 def rule_33_relaxation_applies(
     product_category: ProductCategory | None,
     evaluation_date: date,
+    *,
+    package_type: PackageType | None = None,
 ) -> bool:
     """Return whether the Rule 33 power to relax remains available to a category.
 
@@ -84,25 +121,17 @@ def rule_33_relaxation_applies(
     33(2) so that a medical device cannot be granted the relaxation *and* be routed to
     the Medical Devices Rules, 2017 at the same time.
     """
-    if product_category is None:
-        return True
-
-    for rule in load_default_rules():
-        condition = rule.conditions
-        if not isinstance(condition, SectorOverrideCondition):
-            continue
-        if (
-            condition.sector is product_category
-            and condition.disapplies_rule_33_relaxation
-            and is_active(rule, evaluation_date)
-        ):
-            return False
-    return True
+    return not any(
+        condition.disapplies_rule_33_relaxation
+        for _, condition in _applicable(product_category, evaluation_date, package_type)
+    )
 
 
 def pdp_declaration_mandatory(
     product_category: ProductCategory | None,
     evaluation_date: date,
+    *,
+    package_type: PackageType | None = None,
 ) -> bool:
     """Return whether the packaged rules still mandate the panel declaration.
 
@@ -111,6 +140,11 @@ def pdp_declaration_mandatory(
     check", never as "not required".
     """
     return (
-        controlling_framework(OverrideTarget.PDP_DECLARATION, product_category, evaluation_date)
+        controlling_framework(
+            OverrideTarget.PDP_DECLARATION,
+            product_category,
+            evaluation_date,
+            package_type=package_type,
+        )
         is None
     )

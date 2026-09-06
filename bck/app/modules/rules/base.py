@@ -65,7 +65,12 @@ class OverrideTarget(StrEnum):
     """Identify which obligation a sector override moves to another framework.
 
     ``PDP_DECLARATION`` is Rule 2(h), ``MANUFACTURER_DECLARATION`` is Rule 6(1)(a) and
-    ``DATE_DECLARATION`` is Rule 6(1)(d); the other two are Rule 7(2) and Rule 7(3).
+    ``DATE_DECLARATION`` is Rule 6(1)(d); ``TABLE_HEIGHT`` and ``WIDTH_RATIO`` are Rule
+    7(2) and Rule 7(3).
+
+    ``PACKAGE_DEFINITION`` routes what a package *is* rather than what it must declare —
+    the shape the proviso to Rule 2(kc) takes, and the same shape as Rule 2(k)'s existing
+    proviso handing "retail food package" to the Food Safety and Standards Act, 2006.
     """
 
     TABLE_HEIGHT = "table_height"
@@ -73,6 +78,7 @@ class OverrideTarget(StrEnum):
     PDP_DECLARATION = "pdp_declaration"
     MANUFACTURER_DECLARATION = "manufacturer_declaration"
     DATE_DECLARATION = "date_declaration"
+    PACKAGE_DEFINITION = "package_definition"
 
 
 class PackageType(StrEnum):
@@ -80,13 +86,20 @@ class PackageType(StrEnum):
 
     COMBINATION_PACKAGE = "combination_package"
     GROUP_PACKAGE = "group_package"
+    MULTI_PIECE_PACKAGE = "multi_piece_package"
 
 
 class ConstituentSimilarity(StrEnum):
-    """Distinguish the two package definitions inserted by G.S.R. 722(E)."""
+    """Distinguish the three package definitions inserted by G.S.R. 722(E).
+
+    One axis, three mutually exclusive values, so a package cannot satisfy two of the
+    definitions at once. Rule 2(ka) is dissimilar commodities, Rule 2(kb) is similar but
+    not identical, and Rule 2(kc) is the same commodities of identical quantity.
+    """
 
     DISSIMILAR = "dissimilar"
     SIMILAR_BUT_NOT_IDENTICAL = "similar_but_not_identical"
+    IDENTICAL = "identical"
 
 
 class Rule7Route(StrEnum):
