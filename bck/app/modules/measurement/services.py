@@ -4,12 +4,18 @@ import numpy as np
 from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
+    MeasurementMarginCalibrated,
+    MeasurementMarginExact,
     MeasurementRefusal,
     MeasurementResult,
 )
 
 from .schemas import PackageShape
 
+# If a measurement has zero variance (e.g. flush margins), we cannot claim perfect
+# physical certainty. We document an uncalibrated prior based on pixel quantisation:
+# the minimum uncertainty is exactly one pixel at the measured scale.
+UNCALIBRATED_QUANTISATION_PRIOR_PX = 1.0
 # Reference object physical dimensions
 REF_DIMS = {
     "id_card": {"width_mm": 85.60, "height_mm": 53.98},
@@ -489,6 +495,8 @@ def measure_margins(
         w = int(np.max(x_coords)) - x
         h = int(np.max(y_coords)) - y
     img_h, img_w = image.shape[:2]
+    mid_y = y + h // 2
+    mid_x = x + w // 2
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
@@ -500,7 +508,9 @@ def measure_margins(
     distances_px = {}
 
     # Above
-    above_slice = thresh[0:y, :]
+    above_slice = thresh[0:mid_y, :].copy()
+    above_slice[y:mid_y, 0:x] = 0
+    above_slice[y:mid_y, x + w :] = 0
     active_above = cv2.findNonZero(above_slice)
     if active_above is not None:
         max_y = np.max(active_above.reshape(-1, 2)[:, 1])
@@ -509,16 +519,20 @@ def measure_margins(
         distances_px["above"] = y
 
     # Below
-    below_slice = thresh[y + h : img_h, :]
+    below_slice = thresh[mid_y:img_h, :].copy()
+    below_slice[0 : (y + h - mid_y), 0:x] = 0
+    below_slice[0 : (y + h - mid_y), x + w :] = 0
     active_below = cv2.findNonZero(below_slice)
     if active_below is not None:
         min_y = np.min(active_below.reshape(-1, 2)[:, 1])
-        distances_px["below"] = min_y
+        distances_px["below"] = min_y + mid_y - (y + h)
     else:
         distances_px["below"] = img_h - (y + h)
 
     # Left
-    left_slice = thresh[:, 0:x]
+    left_slice = thresh[:, 0:mid_x].copy()
+    left_slice[0:y, x:mid_x] = 0
+    left_slice[y + h :, x:mid_x] = 0
     active_left = cv2.findNonZero(left_slice)
     if active_left is not None:
         max_x = np.max(active_left.reshape(-1, 2)[:, 0])
@@ -527,22 +541,30 @@ def measure_margins(
         distances_px["left"] = x
 
     # Right
-    right_slice = thresh[:, x + w : img_w]
+    right_slice = thresh[:, mid_x:img_w].copy()
+    right_slice[0:y, 0 : (x + w - mid_x)] = 0
+    right_slice[y + h :, 0 : (x + w - mid_x)] = 0
     active_right = cv2.findNonZero(right_slice)
     if active_right is not None:
         min_x = np.min(active_right.reshape(-1, 2)[:, 0])
-        distances_px["right"] = min_x
+        distances_px["right"] = min_x + mid_x - (x + w)
     else:
         distances_px["right"] = img_w - (x + w)
 
     results = {}
     for direction, dist_px in distances_px.items():
-        dist_mm = max(0, dist_px) * mm_per_pixel
+        dist_mm = dist_px * mm_per_pixel
+        if dist_mm < 0:
+            results[direction] = MeasurementRefusal(reason="Margin overlaps active ink region.")
+            continue
+
         if is_artwork:
-            results[direction] = MeasurementExact(value=dist_mm, unit="mm")
+            results[direction] = MeasurementMarginExact(value=dist_mm, unit="mm")
         else:
-            confidence = max(0, dist_px) * conf_interval
-            results[direction] = MeasurementCalibrated(
+            # Floor confidence at 1 pixel's mm equivalent to account for quantisation
+            confidence_floor = UNCALIBRATED_QUANTISATION_PRIOR_PX * mm_per_pixel
+            confidence = max(abs(dist_px) * conf_interval, confidence_floor)
+            results[direction] = MeasurementMarginCalibrated(
                 value=dist_mm,
                 confidence_interval=confidence,
                 unit="mm",

@@ -21,3 +21,29 @@
 - Added method-specific confidence intervals tied to reference stability (1% for ID, 5% for Coin, 10% for EAN-13).
 - Added a regression test proving the perspective warp round-trips. It does not prove absolute measurement accuracy: baseline and result run the same code path, so a systematic scale error cancels.
 - Completed MEA-004 using the Gemini AI agent.
+
+## 2026-09-07 — MEA-005
+- Replaced the global `pdfplumber` mock with a true `reportlab` round-trip test for vector PDF ingestion.
+- Moved the `pdfplumber` import to the module top-level so missing dependencies crash loudly instead of surfacing as false measurement refusals.
+
+## 2026-09-07 — MEA-006
+- Relaxed margin measurement constraints to ge=0 for MeasurementMarginExact and MeasurementMarginCalibrated to permit zero margins on flush declarations.
+- Retained gt=0 constraints on other measurement types.
+- Successfully falsified and passed test_zero_margin_is_valid.
+
+## 2026-09-07 — MEA-006 (Rework)
+- Dropped contract types in favor of main's sibling implementation.
+- Removed margin clamping to preserve negative overlap distances.
+- Added calibrated zero-margin test and overlap falsification tests.
+
+## 2026-09-07 — MEA-006 (Final)
+- Dropped local contract modifications; inheriting main's MeasurementMarginExact and MeasurementMarginCalibrated.
+- Removed max(0) clamping in measure_margins to correctly preserve and return negative overlap distances.
+- Floored calibrated confidence_interval at the pixel quantisation limit (1 pixel's mm equivalent) to prevent false-certainty 0.0 intervals.
+- Added test_zero_margin_calibrated_path and test_margin_overlap_is_negative.
+- NOTE: This PR strictly addresses measurement logic and does not restore Rule 8. Wiring the orchestrator is a separate ticket.
+
+## 2026-09-07 — MEA-006 (Overlap Refusal)
+- Updated margin slicing to extend to the bounding box center, allowing detection of active ink overlaps.
+- Intercepted negative margin distances in the loop, emitting MeasurementRefusal for overlaps.
+- Added confidence interval floor at mm_per_pixel.
