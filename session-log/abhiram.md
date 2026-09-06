@@ -818,3 +818,49 @@ the migration.** Editing the model tests Alembic's drift check, which is a diffe
 - MinIO and Redis are not in compose, so `test_minio_storage.py` still skips everywhere.
 - `.env.example` ships the DSN on port 5432. Fine for CI and a clean machine; see the port
   note above for a laptop already running PostgreSQL.
+
+---
+
+## 2026-09-06 — session 4 handoff docs (Claude Code)
+
+Docs-only ticket on `docs-handoff-session4`. No application code touched.
+
+**What was done**
+- Merged `HANDOFF-addendum-2026-09-06-session4.md` into `HANDOFF.md` section by section,
+  under the existing headings, with the superseded lines removed rather than left alongside.
+  Verified `Legal findings` (84 lines) and `The frontend design system` (38 lines) are
+  byte-identical to `HEAD`. Added one new section the protocol requires and the file had no
+  home for: **Claims that turned out wrong, and who caught them.**
+- Restored `session-log/sitanshu.md` (45 lines) from `266b00b`, the commit before PR #44's
+  merge deleted it. Deleted the stray `bck/session-log/shiva-kumar.md` and appended its one
+  real line to the root `session-log/shiva-kumar.md` under a dated heading.
+- Rewrote `TICKETS.md` and `TODO.md`, verified `ARCHITECTURE.md` against the tree rather than
+  rewriting it, and updated `AGENTS.md` and `CLAUDE.md`.
+
+**Corrected against GitHub rather than carried forward**
+The addendum was wrong on two board facts and both were checked with `gh`:
+- **MEA-004 (#42) had not merged.** It is open and red — on `ruff format --check`, not on
+  tests. Session 4 merged four PRs, not five.
+- **DAT-001 (#34) had not been closed.** It is still open, red and thirteen commits behind.
+- `RUL-003` was being used for the `governs_declarations` ticket, which is **RUL-004**;
+  RUL-003 is session 3's merged multi-piece ticket (#36).
+- **#45's two owed items are already fixed** — `_extract_numeric_value` returns `""` on
+  `"150.00.5"` and `session-log/akshaya.md` is present — but that log rewrite deleted her
+  VIS-001 history, the same defect as #44 deleting Sitanshu's.
+- **#46 and #47 are open PRs now**, not in-flight work, and both edit `app/contracts/`.
+
+**Verified, not assumed**
+- All six open PRs are on a stale base, 2 to 13 commits behind `main` (`git merge-base`).
+  A stale base does **not** reliably show as red: #45 and #47 are green two commits behind.
+- Grepping a CI log for `ERROR` returns exactly three lines on this repo and all three are
+  passing tests — Postgres server logs under the "Stop containers" step, from the
+  `field_state` enum-drift guard and the two uniqueness tests. Checked against green run
+  `34039775921`.
+- `637 passed, 33 skipped` locally; ruff clean, `ruff format` clean, 3 import contracts kept.
+
+**Incomplete / for the next session**
+- Closing #34 is an action nobody has taken. It needs doing before the board is honest.
+- Three PRs (#43, #46, #47) fail the merge gate on one clause each — a new dependency and
+  two shared-contract changes. They need an explicit decision, not a quiet merge.
+- The image path has still never run with real YOLO or PaddleOCR weights. It is in TODO under
+  Bugs, not Later, because it sits on the demo path.

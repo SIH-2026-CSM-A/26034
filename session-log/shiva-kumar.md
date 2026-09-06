@@ -19,3 +19,6 @@
 - **Dependencies added**: `reportlab`, `python-docx` (pure wheels, no system binaries).
 - **Enforced rules**: Human confirmation gate; strict verdict phrasing (PASS / REVIEW / POTENTIAL VIOLATION); zero occurrences of "violation confirmed" or "non-compliant"; explicit refusal and `INSUFFICIENT_EVIDENCE` handling; 100% clause reference citations.
 - **Agent used**: Claude Code
+
+## 2026-09-06 (Continued)
+- **What was done**: Fixed vocabulary alignment on PR #41. Replaced internal string states with `Verdict` and `FieldState` enums from `app.contracts`. Expanded `test_forbidden_vocabulary` to block `non_compliant` and `noncompliant`.

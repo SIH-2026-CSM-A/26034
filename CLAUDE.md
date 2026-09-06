@@ -50,6 +50,28 @@ evidence-backed findings.
 - **A duplicate SVG pattern `id` across breakpoint variants** resolves `url(#…)` to the
   hidden element and paints nothing. Scope with `useId`. Only a real browser at two widths
   catches this.
+- **`/tmp` is a 3.9 GB tmpfs on this machine.** Anything unpacking paddle, torch or
+  ultralytics into it runs out of space, and the failure surfaces as a file-copy error rather
+  than "out of space", so it reads like a permissions or checksum problem. Set `TMPDIR` under
+  `~` before a large `uv sync` or a model download. Relatedly, `uv cache prune` blocks on a
+  concurrent `uv` — do not `--force` it while another session is syncing.
+- **`alembic check` fails immediately after a test run, and it is not drift.** The persistence
+  suite downgrades to base when it finishes, so the database is empty and `check` reports
+  exactly what real drift reports. Run `uv run alembic upgrade head` first, then check.
+  Separately, `alembic check` does **not** detect a change to the *values* of an existing enum
+  — adding a member to `contracts.DeclarationField` passes clean and then fails at the first
+  insert with `invalid input value for enum`. That needs a hand-written
+  `ALTER TYPE ... ADD VALUE`, which cannot run inside a transaction.
+- **Compose reads the port from two different `.env` files.** `POSTGRES_PORT` comes from the
+  repo-root `.env`; `DATABASE_URL` comes from `bck/.env`. Nothing links them, so changing one
+  publishes on one port and connects to another with no error. A local Postgres cluster
+  already on `127.0.0.1:5432` shadows the container entirely — the container reports healthy
+  and the DSN quietly reaches the local cluster. Change both files together.
+- **Grepping a CI log for `ERROR` always returns three lines, and all three are passing
+  tests.** They are Postgres server logs dumped under the "Stop containers" step: the
+  `field_state` enum-drift guard firing on `"PROBABLY_FINE"`, and the two uniqueness tests
+  hitting `uq_evidence_entries_scan_id_sequence` and
+  `uq_field_findings_verdict_id_field_rule_id`. Read the step name and the conclusion.
 
 ---
 
@@ -64,6 +86,10 @@ evidence-backed findings.
 - Rule numbers and thresholds come from `rules-corpus/` and
   `SIH26034_Research_And_References.md`. Never from memory, including yours.
 - No AI-attribution trailer on a commit message or a PR body. The repo is public and scraped.
+- Rebase onto `main`; never `git merge main` into a feature branch. It replays merged history
+  as new files — it cost this repo a 62-file diff that had to be thrown away.
+- Append to `session-log/<name>.md`. Never rewrite it: two PRs have already destroyed an
+  earlier ticket's history in one.
 
 ---
 
