@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0",
-  "drive_folder_id": "1A2b3C4d5E",
+  "drive_folder_id": null,
   "total_samples": 10,
   "samples": [
     {
@@ -93,5 +93,6 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "ingestion_status": "MISSING_ANNOTATION"
     }
-  ]
+  ],
+  "records": []
 }

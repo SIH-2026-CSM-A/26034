@@ -13,7 +13,12 @@
     "object_type": "credit_card_id1",
     "known_dimension_mm": 85.6,
     "confidence_interval_mm": 0.1,
-    "bbox": [0.7, 0.7, 0.98, 0.95]
+    "bbox": [
+      0.7,
+      0.7,
+      0.98,
+      0.95
+    ]
   },
   "pdp": {
     "shape": "rectangular",
@@ -35,7 +40,12 @@
         "address": "Anand 388001, Gujarat",
         "role": "manufacturer"
       },
-      "bbox": [0.05, 0.45, 0.9, 0.6],
+      "bbox": [
+        0.05,
+        0.45,
+        0.9,
+        0.6
+      ],
       "polygon": null,
       "numeral_height_mm": 1.8,
       "letter_height_mm": 1.7,
@@ -46,7 +56,12 @@
       "declared": true,
       "raw_text": "PASTEURISED BUTTER",
       "normalised_value": "Pasteurised Butter",
-      "bbox": [0.1, 0.1, 0.9, 0.25],
+      "bbox": [
+        0.1,
+        0.1,
+        0.9,
+        0.25
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 5.0,
@@ -60,7 +75,12 @@
         "value": 100.0,
         "unit": "g"
       },
-      "bbox": [0.1, 0.28, 0.45, 0.38],
+      "bbox": [
+        0.1,
+        0.28,
+        0.45,
+        0.38
+      ],
       "polygon": null,
       "numeral_height_mm": 3.0,
       "letter_height_mm": 2.0,
@@ -75,7 +95,12 @@
         "month": 9,
         "year": 2026
       },
-      "bbox": [0.55, 0.28, 0.9, 0.38],
+      "bbox": [
+        0.55,
+        0.28,
+        0.9,
+        0.38
+      ],
       "polygon": null,
       "numeral_height_mm": 2.2,
       "letter_height_mm": 1.8,
@@ -89,7 +114,12 @@
         "amount_inr": 58.0,
         "inclusive_of_all_taxes": true
       },
-      "bbox": [0.1, 0.62, 0.5, 0.72],
+      "bbox": [
+        0.1,
+        0.62,
+        0.5,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 2.4,
       "letter_height_mm": 1.8,
@@ -103,7 +133,12 @@
         "rate": 0.58,
         "unit_basis": "per g"
       },
-      "bbox": [0.55, 0.62, 0.92, 0.72],
+      "bbox": [
+        0.55,
+        0.62,
+        0.92,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 2.0,
       "letter_height_mm": 1.6,
@@ -118,7 +153,12 @@
         "email": "customercare@amul.coop",
         "address": "GCMMF Ltd., Anand 388001"
       },
-      "bbox": [0.05, 0.75, 0.95, 0.88],
+      "bbox": [
+        0.05,
+        0.75,
+        0.95,
+        0.88
+      ],
       "polygon": null,
       "numeral_height_mm": 1.8,
       "letter_height_mm": 1.6,
@@ -129,7 +169,12 @@
       "declared": true,
       "raw_text": "Country of Origin: India",
       "normalised_value": "India",
-      "bbox": [0.05, 0.89, 0.5, 0.96],
+      "bbox": [
+        0.05,
+        0.89,
+        0.5,
+        0.96
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 1.6,
