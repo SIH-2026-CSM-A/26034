@@ -1,9 +1,9 @@
 ## Session Log - Yashwanth
-- Task: EXT-004 Span Classification & Spatial Role Binding
-- Coding Agent: Claude Code
+- Task: RUL-003 governs_declarations in rule store
+- Coding Agent: Claude Code / Antigravity
 - Actions:
-  - Implemented OCR span spatial role binder and parser dispatch in bck/app/modules/extraction/binder.py.
-  - Added robust validation for Indian PIN codes (rejecting phone number substrings) and downward spatial keyword-address clustering for Rule 6(1)(a).
-  - Maintained strict span-count conservation and verified zero occurrences of FieldState.FAIL.
-  - Added comprehensive unit tests in bck/tests/modules/extraction/test_binder.py.
-  - All linters, formatting, import contracts, and tests green.
+  - Added optional `governs_declarations: tuple[DeclarationField, ...] | None = None` to `RuleDefinition` in `bck/app/modules/rules/models.py`.
+  - Populated `governs_declarations` across statutory rules in `bck/app/modules/rules/data/rules.yaml` based on exact clause text and statutory scope.
+  - Preserved backward compatibility where `None` signifies unreviewed/broad scope and continues to evaluate all declarations.
+  - Implemented evaluation filtering in `evaluator.py` and comprehensive tests in `test_loader.py` and `test_evaluation.py` (including falsification and backward compatibility tests).
+  - All 4 checks passing cleanly (ruff check, ruff format, lint-imports, pytest).

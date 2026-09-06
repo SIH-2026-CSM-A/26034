@@ -7,14 +7,17 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from app.contracts import DeclarationField
 from app.modules.rules import (
     NumericConstraint,
     RuleDefinition,
     RuleStatus,
     Verdict,
+    declarations_governed_by_rule,
     evaluate_numeric_constraint,
     evaluate_rule,
     load_rules,
+    rule_governs_declaration,
     select_effective_rule,
 )
 
@@ -130,3 +133,75 @@ def test_rule_6_10a_has_no_active_version_before_2026_07_01() -> None:
     rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
 
     assert select_effective_rule(rules, ECOMMERCE_CLAUSE, date(2026, 6, 30)) is None
+
+
+def test_evaluation_helper_filters_by_governs_declarations() -> None:
+    """Filtering by governs_declarations evaluates only the specified fields."""
+    rule = _definition(RuleStatus.VERIFIED).model_copy(
+        update={"governs_declarations": (DeclarationField.NET_QUANTITY,)}
+    )
+    candidate_fields = (
+        DeclarationField.NET_QUANTITY,
+        DeclarationField.RETAIL_SALE_PRICE,
+        DeclarationField.NAME_AND_ADDRESS,
+    )
+
+    evaluated = declarations_governed_by_rule(rule, candidate_fields)
+    assert evaluated == (DeclarationField.NET_QUANTITY,)
+    assert rule_governs_declaration(rule, DeclarationField.NET_QUANTITY) is True
+    assert rule_governs_declaration(rule, DeclarationField.RETAIL_SALE_PRICE) is False
+    assert rule_governs_declaration(rule, DeclarationField.NAME_AND_ADDRESS) is False
+
+
+def test_widening_evaluation_scope_fails_falsification_check() -> None:
+    """Widening evaluation scope to un-governed fields fails the boundary assertion.
+
+    Falsification check: introduces the defect where an evaluation consumer bypasses
+    governs_declarations filtering and evaluates candidate declarations indiscriminately.
+    Verifies that the assertion guarding scope integrity goes red when widened.
+    """
+    rule = _definition(RuleStatus.VERIFIED).model_copy(
+        update={"governs_declarations": (DeclarationField.NET_QUANTITY,)}
+    )
+    candidate_fields = (
+        DeclarationField.NET_QUANTITY,
+        DeclarationField.RETAIL_SALE_PRICE,
+        DeclarationField.NAME_AND_ADDRESS,
+    )
+
+    # Compliant consumer filters by governs_declarations
+    governed_evaluation = declarations_governed_by_rule(rule, candidate_fields)
+    assert all(
+        rule.governs_declarations is not None and field in rule.governs_declarations
+        for field in governed_evaluation
+    )
+
+    # Defective consumer evaluates widened scope (all candidates regardless of governs_declarations)
+    widened_scope = candidate_fields
+
+    # Falsification check: invariant must fail for the widened scope
+    is_strictly_governed = all(
+        rule.governs_declarations is not None and field in rule.governs_declarations
+        for field in widened_scope
+    )
+    assert not is_strictly_governed, (
+        "Widening scope beyond governs_declarations must fail the invariant check"
+    )
+
+    unauthorized_fields = [f for f in widened_scope if not rule.governs(f)]
+    assert unauthorized_fields == [
+        DeclarationField.RETAIL_SALE_PRICE,
+        DeclarationField.NAME_AND_ADDRESS,
+    ]
+
+
+def test_unpopulated_governs_declarations_falls_back_to_broad_evaluation() -> None:
+    """None for governs_declarations evaluates all candidate declarations (broad fallback)."""
+    rule = _definition(RuleStatus.VERIFIED).model_copy(update={"governs_declarations": None})
+    candidates = (
+        DeclarationField.NET_QUANTITY,
+        DeclarationField.RETAIL_SALE_PRICE,
+    )
+    evaluated = declarations_governed_by_rule(rule, candidates)
+    assert evaluated == candidates
+    assert all(rule_governs_declaration(rule, f) for f in candidates)

@@ -25,6 +25,7 @@ rules:
         - In respect of packages containing food articles, the Food Safety and Standards Act, 2006 and the rules made thereunder apply.
     evidence_requirement: declaration_text_and_role_binding
     severity: POTENTIAL VIOLATION
+    governs_declarations: [NAME_AND_ADDRESS]
 
   - rule_id: R6-1-AA
     clause_ref: Rule 6(1)(aa)
@@ -42,6 +43,7 @@ rules:
       exceptions: []
     evidence_requirement: declaration_text
     severity: POTENTIAL VIOLATION
+    governs_declarations: [COUNTRY_OF_ORIGIN]
 
   - rule_id: R6-1-B
     clause_ref: Rule 6(1)(b)
@@ -62,6 +64,7 @@ rules:
       exceptions: []
     evidence_requirement: declaration_text
     severity: POTENTIAL VIOLATION
+    governs_declarations: [COMMON_OR_GENERIC_NAME]
 
   - rule_id: R6-1-C
     clause_ref: Rule 6(1)(c)
@@ -80,6 +83,7 @@ rules:
       exceptions: []
     evidence_requirement: normalized_quantity_or_count_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [NET_QUANTITY]
 
   - rule_id: R6-1-D
     clause_ref: Rule 6(1)(d)
@@ -106,6 +110,7 @@ rules:
         - For packages containing cosmetic products, the Drugs and Cosmetics Rules, 1945 apply.
     evidence_requirement: manufacture_date_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [MANUFACTURE_DATE]
 
   - rule_id: R6-1-D-GSR-722E
     clause_ref: Rule 6(1)(d) provisos effective 2024
@@ -127,6 +132,7 @@ rules:
         - Spare parts and accessories used for servicing with a warranty and not sold to end customers.
     evidence_requirement: visible_legible_manufacture_date_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [MANUFACTURE_DATE]
 
   - rule_id: R6-1-DA
     clause_ref: Rule 6(1)(da)
@@ -147,6 +153,7 @@ rules:
         - A provision in this regard is made in another law.
     evidence_requirement: durability_date_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [BEST_BEFORE_DATE]
 
   - rule_id: R6-1-E
     clause_ref: Rule 6(1)(e)
@@ -164,6 +171,7 @@ rules:
         - A domestic liquefied petroleum gas cylinder whose price is covered under the Administrative Price Mechanism of the Government.
     evidence_requirement: retail_sale_price_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [RETAIL_SALE_PRICE]
 
   - rule_id: R6-1-F
     clause_ref: Rule 6(1)(f)
@@ -182,6 +190,7 @@ rules:
       exceptions: []
     evidence_requirement: dimensions_declaration_when_relevant
     severity: POTENTIAL VIOLATION
+    governs_declarations: [DIMENSIONS]
 
   - rule_id: R6-1-G
     clause_ref: Rule 6(1)(g)
@@ -197,6 +206,7 @@ rules:
       exceptions: []
     evidence_requirement: rule_specific_declaration_evidence
     severity: REVIEW
+    governs_declarations: [OTHER_PRESCRIBED_MATTER]
 
   - rule_id: R7-2-TABLE-I
     clause_ref: Rule 7(2), Table-I
@@ -233,6 +243,8 @@ rules:
           moulded_minimum_height_mm: 6.0
     evidence_requirement: calibrated_or_artwork_character_height_and_pdp_area
     severity: POTENTIAL VIOLATION
+    # Numeral and letter height across declarations; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   - rule_id: R7-3-WIDTH-RATIO
     clause_ref: Rule 7(3)
@@ -250,6 +262,8 @@ rules:
       exempt_characters: ["1", i, I, l]
     evidence_requirement: calibrated_or_artwork_character_width_and_height
     severity: POTENTIAL VIOLATION
+    # Width-to-height ratio across declarations; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   - rule_id: R7-4-PDP-AREA
     clause_ref: Rule 7(4)
@@ -275,6 +289,8 @@ rules:
       excluded_regions: [top, bottom, can_top_flange, can_bottom_flange, bottle_or_jar_shoulders, bottle_or_jar_neck]
     evidence_requirement: supplied_calibrated_dimensions_or_legally_identified_pdp_area
     severity: REVIEW
+    # PDP area calculation across package surfaces; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   - rule_id: R7-5-OTHER-LAW
     clause_ref: Rule 7(5)
@@ -294,6 +310,8 @@ rules:
       preserved_declarations: [net_weight, retail_sale_price, expiry_best_before_use_by, consumer_care_details]
     evidence_requirement: declaration_type_and_other_law_applicability
     severity: REVIEW
+    # Other-law carve-out preserving certain sizing groups; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   # G.S.R. 778(E) is a CARVE-OUT, not a stricter path: it moves height, width and the
   # panel declaration to the Medical Devices Rules, 2017 and removes the Rule 33
@@ -332,6 +350,8 @@ rules:
       disapplies_rule_33_relaxation: true
     evidence_requirement: medical_device_classification_and_mdr_specific_evidence
     severity: REVIEW
+    # Medical device sector carve-out; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   # Explanation III disapplies Rule 6(1)(a) for food articles outright and routes the
   # manufacturer declaration to the Food Safety and Standards Act, 2006.
@@ -358,6 +378,7 @@ rules:
       overrides: [manufacturer_declaration]
     evidence_requirement: food_article_classification_and_fssa_declaration_evidence
     severity: REVIEW
+    governs_declarations: [NAME_AND_ADDRESS]
 
   # The third proviso to Rule 6(1)(d) routes the date declaration for cosmetics to the
   # Drugs and Cosmetics Rules, 1945.
@@ -381,6 +402,7 @@ rules:
       overrides: [date_declaration]
     evidence_requirement: cosmetic_product_classification_and_dc_rules_date_evidence
     severity: REVIEW
+    governs_declarations: [MANUFACTURE_DATE]
 
   # Rule 8 governs WHERE a declaration appears. Rule 9 below governs HOW it appears.
   # Two rules, two conditions, two evidence requirements — never one merged check.
@@ -399,6 +421,8 @@ rules:
       required_location: principal_display_panel
     evidence_requirement: declaration_location_on_detected_principal_display_panel
     severity: POTENTIAL VIOLATION
+    # Placement across declarations broadly; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   # The Rule 8(1) proviso is geometrically measurable, so its evidence requirement is a
   # calibrated MEASUREMENT, not a text span. The multiples are 1 and 2 because the
@@ -421,6 +445,7 @@ rules:
       left_right_multiple_of_numeral_height: 2
     evidence_requirement: calibrated_free_space_measurement_around_quantity_declaration
     severity: POTENTIAL VIOLATION
+    governs_declarations: [NET_QUANTITY]
 
   - rule_id: R9-1-MANNER
     clause_ref: Rule 9(1)
@@ -446,6 +471,8 @@ rules:
       handwritten_must_be_clear_unambiguous_and_legible: true
     evidence_requirement: declaration_legibility_and_colour_contrast_observation
     severity: POTENTIAL VIOLATION
+    # Governs legibility, prominence, and contrast across declarations; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   - rule_id: R9-3-OUTER-CONTAINER
     clause_ref: Rule 9(3)
@@ -468,6 +495,8 @@ rules:
       inner_declarations_not_required_when_outer_complete: true
     evidence_requirement: outer_wrapper_transparency_and_declaration_completeness
     severity: POTENTIAL VIOLATION
+    # Governs declarations on outer containers across declarations; unpopulated (None) pending corpus review.
+    governs_declarations: null
 
   # G.S.R. 722(E) inserted clauses (ka) and (kb) after rule 2 clause (k). In force on
   # 01.01.2024 per its own paragraph 1(2). A definition classifies a package; it does not
@@ -498,6 +527,8 @@ rules:
         - A package containing dissimilar commodities such as spoons, knives, forks, cups, napkins, or the like.
     evidence_requirement: constituent_package_or_piece_inventory_and_commodity_dissimilarity
     severity: REVIEW
+    # Package definition rule defining package composition rather than declarations; unpopulated (None).
+    governs_declarations: null
 
   - rule_id: R2-KB-GROUP-PACKAGE
     clause_ref: Rule 2(kb)
@@ -527,6 +558,8 @@ rules:
         - A package containing similar commodities of different brands.
     evidence_requirement: constituent_package_or_piece_inventory_and_commodity_similarity
     severity: REVIEW
+    # Package definition rule defining package composition rather than declarations; unpopulated (None).
+    governs_declarations: null
 
   # Rule 2(kc), inserted by G.S.R. 722(E) in the same instrument as (ka) and (kb).
   # A multi-piece package is NOT a group package: its pieces are individually packaged
@@ -566,6 +599,8 @@ rules:
         - A package containing 5 toilet soap cakes of net weight 20 g each and total net weight of 100 g.
     evidence_requirement: constituent_piece_inventory_and_per_piece_labelling_and_quantity_identity
     severity: REVIEW
+    # Package definition rule defining package composition rather than declarations; unpopulated (None).
+    governs_declarations: null
 
   # The proviso to Rule 2(kc) is its own obligation with its own gazette text, so it is
   # its own rule rather than a field on the definition above.
@@ -592,6 +627,8 @@ rules:
       overrides: [package_definition]
     evidence_requirement: food_article_classification_and_multi_piece_package_composition
     severity: REVIEW
+    # Sector carve-out for multi-piece food packages; unpopulated (None).
+    governs_declarations: null
 
   - rule_id: R6-10A-GSR-128E
     clause_ref: Rule 6(10A)
@@ -611,6 +648,8 @@ rules:
       sortable: true
     evidence_requirement: ecommerce_listing_filter_configuration
     severity: POTENTIAL VIOLATION
+    # E-commerce listing presentation filter rather than a package declaration; unpopulated (None).
+    governs_declarations: null
 
   - rule_id: R6-10A-GSR-312E
     clause_ref: Rule 6(10A)
@@ -630,3 +669,5 @@ rules:
       sortable: true
     evidence_requirement: ecommerce_listing_filter_configuration
     severity: POTENTIAL VIOLATION
+    # E-commerce listing presentation filter rather than a package declaration; unpopulated (None).
+    governs_declarations: null
