@@ -76,7 +76,7 @@ designed without talking to the department.
   session and applies it on the way past — noted in the function's own docstring, and it
   needs a persistence layer to exist first.
 - Officers live in `OFFICERS` rather than a table. A users migration is a separate ticket.
-- Branch was cut from `origin/main` (4ad693b), which does not yet carry EVD-002's `boto3`.
+- Branch was rebased onto `origin/main` (c5a9d6e) before merge — carries EVD-002's `boto3`, VIS-002's vision dependencies, and EXT-003.
 
 ### 2026-09-05 — CTR-002 contracts v1 — Claude Code
 
