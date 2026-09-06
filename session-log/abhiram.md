@@ -1008,3 +1008,101 @@ migration file contains the spaced string. The rules spelling never reached the 
 
 `663 passed, 32 skipped`; ruff clean, `ruff format --check` clean, `lint-imports` 3 contracts
 kept over 108 files analysed.
+
+## Session 7 — 2026-09-07, CI-004 (Claude Code)
+
+**`datasets/` had never been executed by CI, and its one test file could not be imported.**
+Two independent causes, both confirmed before anything was written.
+
+The backend job runs with `working-directory: bck`, and `bck/pyproject.toml` sets
+`testpaths = ["tests"]`. `uv run pytest` therefore never leaves `bck/tests`. Nothing in the
+repo has ever pointed pytest at `datasets/`. And pointing it there by hand did not work
+either:
+
+```
+$ cd bck && uv run pytest ../datasets/eval/test_harness.py -q --collect-only
+../datasets/eval/test_harness.py:8: in <module>
+    from datasets.eval.harness import (
+E   ModuleNotFoundError: No module named 'datasets'
+no tests collected, 1 error in 0.09s
+```
+
+27 tests, never run once. `datasets/schema.py` would have rejected all four of the
+fabricated annotations that reached `main` and survived four review rounds. The validator
+existed. Nothing ran it.
+
+**The fix to `test_harness.py` is not a copy of `test_schema_guards.py`.** That file does
+`sys.path.insert(0, DATASETS_DIR)` and then `from schema import …`. Copying it verbatim
+fails, because `datasets/eval/harness.py:22` itself does `from datasets.schema import …` and
+`datasets/eval/__init__.py` does `from datasets.eval import harness` — both by package name.
+So the anchor has to be the repo root: same mechanism (`Path(__file__).resolve().parents[N]`
+plus `sys.path.insert`, imports carrying `# noqa: E402`), one level further up. Five lines.
+
+**The `app` requirement was verified, not assumed.** DAT-004 will add a cross-module guard
+under `datasets/` that imports `app.modules.measurement`, and `app` is importable only once
+`bck` is installed. `cd bck && uv run python -c "import app.modules.measurement"` succeeds
+from the synced environment with no environment variables set, and resolves to
+`bck/app/modules/measurement/__init__.py` — the editable install. That is why the job syncs
+`bck` and runs pytest with `working-directory: bck` rather than standing up an environment of
+its own. DAT-004 will not discover this in CI.
+
+**No `paths:` filter, and the comment saying so now sits at workflow level.** A first draft
+put it on the job, which is wrong twice over: `paths:` is a trigger filter under
+`on:`, a job cannot carry one, and adding one to `ci.yml` would silence `backend` and
+`datasets` together. Confirmed by reading the block — `on: pull_request:` bare, no `paths:`,
+no `branches:`, no `types:`. The only occurrence of the string `paths` anywhere in
+`.github/workflows/` is the prose warning at the top of `frontend.yml`, which already records
+this deadlock costing `--admin` merges from #30 onward. Ours is the same one that blocked
+#32, #33, #36 and #37.
+
+**The hygiene step does not use `git ls-files -z | tr '\0' '\n'`.** That pairing reintroduces
+the hole it closes: a filename containing a newline — the same class of shell-quoting
+accident that produced #42's junk file — is split by `tr` into two lines, either of which can
+look innocent. Plain `git ls-files` quotes such a name under `core.quotePath`, so it arrives
+on one line as `"news\nline.txt"` and the double quote in it trips the first pattern.
+`^"?rules-corpus/` in the exclusion accounts for that same quoting, so an oddly-named gazette
+stays exempt rather than being unquoted into scope.
+
+Root allowlist built from `git ls-files | grep -v /` against the tree, not from memory:
+twelve files, `.gitignore` through `docker-compose.yml`.
+
+**Falsifications — three, all after `find . -name __pycache__ -type d -exec rm -rf {} +`.**
+
+- `test_the_rs10_coin_remains_available`, `"coin_inr_10"` → `"coin_inr_5"` →
+  **1 failed, 24 passed, 2 skipped.** Red. Reverted with `git checkout --`;
+  `git status --porcelain` on the file is empty, so it is byte-identical to HEAD.
+- Staged `bad")file.txt` and `-oops.txt` at the root → **both hygiene checks matched both
+  files** (`grep exit=0` twice, so both `if` blocks reach `exit 1`). `git ls-files` rendered
+  the first as `"bad\")file.txt"`, which is the quoting the step relies on. Unstaged and
+  deleted; both checks return to `grep exit=1`.
+- Free third: commented out the `sys.path.insert` → **collection error, 1 error in 0.12s**,
+  the exact `ModuleNotFoundError` this ticket exists for. Restored → 25 passed, 2 skipped.
+
+**Not done, deliberately.** No `ruff` step on `datasets/`: the seven pre-existing UP042
+findings in `datasets/schema.py` (`str, Enum` → `StrEnum`) would make the job red on arrival,
+and converting a schema that serialises to JSON is its own change. Worth a ticket. Not added
+as a required status check either — a required check cannot be added before it has reported
+once, so that is a separate step after this goes green.
+
+**One hazard noted, not fixed.** With the repo root on `sys.path` and `datasets/` also on it
+(pytest adds the latter as `eval/`'s package basedir), `schema` and `datasets.schema` are two
+distinct module objects in one session, holding two distinct copies of the pydantic classes.
+Harmless today — no test crosses them — but an `isinstance` spanning the two files would fail
+confusingly. Unifying it means editing `test_schema_guards.py`, which DAT-004 is holding in
+another worktree.
+
+`25 passed, 2 skipped` for `datasets/`, `686 passed, 32 skipped` for `bck/`; ruff clean,
+`ruff format --check` clean over 139 files, `lint-imports` 3 contracts kept over 109 files
+and 357 dependencies. Both counts are as-of this branch's base SHA — DAT-004 is renaming
+`"coin_inr_10"` to `"coin_10"` in `datasets/tests/test_schema_guards.py` and adding a
+cross-module guard concurrently, so whichever of the two merges second has to re-run and
+re-report.
+
+**Correction, made after the first green run.** The `Dataset tests` comment claimed rootdir
+resolves to `bck/` and that `bck/pyproject.toml` supplies the pytest config. The CI log says
+otherwise — `rootdir: /home/runner/work/26034/26034`, no `configfile:` line,
+`asyncio: mode=Mode.STRICT` — and the same holds locally. With `../datasets` as the argument
+the common ancestor is the repo root, which has no ini file, so pytest loads no config at
+all. No result moves (nothing under `datasets/` is async, 25 passed either way) and
+`working-directory: bck` is still needed to reach the synced environment that has `app`
+installed, but the comment was wrong in both environments and now says what actually happens.

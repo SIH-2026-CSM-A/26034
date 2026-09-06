@@ -1,17 +1,26 @@
 """Unit tests for datasets schema, evaluation metrics, and harness."""
 
+import sys
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from datasets.eval.harness import (
+# datasets/ is not an installed package and pytest's rootdir here is bck/, so nothing puts
+# the repo root on the path and this module has never been importable. Same mechanism as
+# datasets/tests/test_schema_guards.py, one level further up: harness.py imports
+# `datasets.schema` by its package name, so the root has to be importable rather than
+# datasets/ itself.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
+from datasets.eval.harness import (  # noqa: E402
     RULE_6_FIELDS,
     ComplianceEvaluator,
     MetricScores,
     generate_self_test_predictions,
 )
-from datasets.schema import (
+from datasets.schema import (  # noqa: E402
     Category,
     ComplianceVerdict,
     DeclarationField,

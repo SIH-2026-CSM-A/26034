@@ -1,5 +1,11 @@
 name: CI
 
+# This workflow has no paths: filter and must not gain one. paths: is a workflow-level
+# trigger filter — a job cannot carry its own — so adding one here silences every job
+# below at once. A workflow skipped by path posts no status at all rather than a passing
+# one, and a required context then waits on it forever: that deadlock is what blocked
+# #32, #33, #36 and #37. Same reasoning as frontend.yml, and an if: on a job is the same
+# deadlock in a different costume.
 on:
   pull_request:
 
@@ -59,3 +65,63 @@ jobs:
           DATABASE_URL: postgresql+psycopg://pccs:pccs@localhost:5432/pccs
           JWT_SECRET: ci-signing-key-not-used-anywhere-real-0123456789
         run: uv run pytest
+
+  # Separate from `backend` on purpose. That job is scoped to the bck package, sets
+  # working-directory: bck and carries a Postgres service this one has no use for; two
+  # trees that fail for different reasons are easier to read apart than together.
+  datasets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Repo hygiene
+        # PR #42 landed a 12 KB file at the repo root named from the tail of its own commit
+        # message — a shell quoting accident that passed both jobs because nothing looked at
+        # what files exist. The double quote in its name cannot be checked out on Windows.
+        #
+        # Deliberately not `git ls-files -z | tr`: tr would split a newline-bearing name
+        # across two innocent-looking lines, which is the same accident again. Default
+        # git ls-files output quotes any name with a newline or a double quote, so such a
+        # name arrives on one line containing a `"` and the first pattern catches it. The
+        # `"?` in the rules-corpus exclusion accounts for that same quoting.
+        run: |
+          if git ls-files | grep -vE '^"?rules-corpus/' | grep -E "[\"'\`]|(^|/)-"; then
+            echo "::error::tracked path above contains a quote or a backtick, or has a component starting with '-'"
+            exit 1
+          fi
+          if git ls-files | grep -v / | grep -vxE '\.gitignore|AGENTS\.md|ARCHITECTURE\.md|CLAUDE\.md|HANDOFF\.md|HANDOFF-PROTOCOL\.md|README\.md|SESSION-LOG\.md|SETUP\.md|TICKETS\.md|TODO\.md|docker-compose\.yml'; then
+            echo "::error::file above sits at the repo root and is not on the allowlist in this step"
+            exit 1
+          fi
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: bck/uv.lock
+
+      - name: Sync backend dependencies
+        # datasets/ has no environment of its own. Syncing bck installs the backend as a
+        # real package, which is what lets a test under datasets/ import app.* — DAT-004
+        # adds a cross-module guard — as well as pydantic. Verified before this job was
+        # written: `cd bck && uv run python -c "import app.modules.measurement"` succeeds
+        # with no environment variables set.
+        working-directory: bck
+        run: uv sync --locked --all-groups
+
+      - name: Dataset tests
+        # working-directory is bck only so uv resolves the environment synced above — the one
+        # with `app` installed. It does not bring bck's pytest config along: with ../datasets
+        # as the argument, rootdir lands on the repo root, which holds no ini file, so pytest
+        # loads no configfile at all (`asyncio: mode=Mode.STRICT`, no testpaths). Verified in
+        # the log rather than assumed. Nothing under datasets/ is async, so that changes no
+        # result — and bck/pyproject.toml's `testpaths = ["tests"]` never reaching here is the
+        # whole reason these 27 tests had never run.
+        working-directory: bck
+        run: uv run pytest ../datasets
