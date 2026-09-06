@@ -20,6 +20,16 @@ assignment record.
       `pipeline/orchestrator.py` changes and
       `test_the_ext_004_refusal_names_the_stage_that_is_not_built` goes red, which is the
       signal to delete it.
+- [ ] **VIS-004 — OCR the detected panel, not the whole frame** (Akshaya, new). `detect_pdp`
+      returns a bbox that nothing consumes: `extract_panel_text` is handed the full image,
+      so every span's `region_id` of `"panel"` is a claim the chain has not established.
+      The pipeline deliberately does **not** overwrite that field — doing so would stamp the
+      panel's identity onto spans read off the whole photograph, which is a false provenance
+      in the one field an evidence bundle uses to show an officer which crop a value came
+      from. Fixing it properly means cropping to the detection before the OCR call *and*
+      translating the returned polygons back into full-image coordinates, so an overlay
+      still lines up — which is why it is vision's ticket and not a two-line change in
+      `pipeline/`.
 - [ ] **VIS-003 rework** (Akshaya). Five items open, listed in TICKETS.md. Four pushes so far
       have been byte-identical.
 - [ ] **DAT-001 rework** (Aashritha). Two blockers plus the Himalaya MRP contradiction.

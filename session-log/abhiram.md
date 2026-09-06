@@ -101,6 +101,43 @@ returns bindings and not `NormalisedField`, so EXT-004 does not re-implement nin
 functions. `DeclarationRole` mirrors extraction's `AddressRole` member for member, with a
 test that fails on drift, so his side is an import swap.
 
+**Adjusted for VIS-003, ahead of its merge**
+VIS-003 makes `extract_panel_text` return `contracts.ExtractedSpan` directly — vision mints
+`span_id` (uuid4), sets `source_provider`, and writes `region_id="panel"` — and the local
+`vision.ocr.ExtractedSpan` dataclass goes. The pipeline's `_adapt_spans` is deleted; spans
+now pass through untouched. Minting an id here as well would give one run of text two
+identifiers, and `evidence_span_ids` would cite the one nothing else in the record holds.
+`tests/pipeline/test_span_provenance.py` asserts structurally that `app.pipeline` never
+constructs an `ExtractedSpan` and never writes `span_id`, `source_provider` or `region_id`
+by keyword, by dict key, or by attribute. The first version checked keyword arguments only
+and `model_copy(update={"region_id": ...})` — the way anyone would actually do it on a
+frozen model — walked straight past; caught by falsifying it, and all three routes are
+checked now.
+
+The call stays positional. VIS-003 renamed the parameters to `text_detection_model_dir` and
+`text_recognition_model_dir` without changing their order or meaning, so a positional call
+is correct against both signatures and this branch does not have to land in lockstep with
+theirs. Verified by overlaying their `ocr.py` and running `run_image_scan` end to end
+against real contract spans: identity preserved, `region_id` untouched, 65 findings, REVIEW.
+
+`tesseract_tessdata_dir` is a fourth checked model path — VIS-003 makes
+`extract_mrp_quantity` raise `FileNotFoundError` without it. The chain does not call that
+function yet, because the constrained re-read needs a bound MRP crop and binding is EXT-004;
+it is checked at startup regardless, since the point of the gate is that this lands at boot
+rather than the first time an officer scans a price.
+
+**`region_id` is left as vision writes it — and the reason is not deference**
+The hardcoded `"panel"` looked like something the pipeline should replace with a reference
+to the PDP detection. It should not, because `extract_panel_text` is handed the *whole
+frame* and not a crop of that detection. The spans were not read off the principal display
+panel; they were read off the photograph. Overwriting would put a provenance into the
+evidence chain that nothing established — worse than a vague value, in the one field an
+export uses to show an officer which crop a reading came from. Two further reasons hold
+independently: the field belongs to the layer that knows which image it read, and the moment
+vision emits spans from more than one region a pipeline that stamped every span with one
+value would erase exactly the distinction the field exists for. Where the panel *was*
+detected is recorded once, on `ImageScanResult.panel`. Raised as VIS-004.
+
 **Incomplete / for the next session**
 - A full image scan through YOLO and PaddleOCR has no test — weights are gitignored and CI
   has none. The quality-gate rejection path is covered without them, and the catalogue path

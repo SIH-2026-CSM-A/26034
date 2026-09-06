@@ -66,14 +66,6 @@ absence deserves instead. The test asserting this exact string goes red that day
 the signal to delete it.
 """
 
-PANEL_REGION_ID = "principal_display_panel"
-"""The region every span read off the detected panel belongs to.
-
-One region today because OCR runs over one crop. It is carried on each span rather than
-implied, so that a second region — a side panel, a separate declaration block — needs no
-change to what a span means.
-"""
-
 
 class PanelDetection(ContractModel):
     """Where the principal display panel was found, and how sure the detector was."""
@@ -91,6 +83,17 @@ class ImageScanResult(ContractModel):
     reading that finding should still be able to see what the panel actually said — the
     text was read, and withholding it because we could not classify it would throw away
     the one piece of evidence the scan did produce.
+
+    **The spans are exactly what vision returned, field for field.** ``app.modules.vision``
+    mints every ``span_id`` and sets every ``source_provider``, and this package changes
+    neither — a second identifier minted here would make ``evidence_span_ids`` cite a span
+    that nothing else in the record can find. Nothing in ``app.pipeline`` constructs an
+    :class:`~app.contracts.ExtractedSpan` at all, and a structural test asserts that it
+    stays that way.
+
+    ``region_id`` is left alone too, including the constant ``"panel"`` vision currently
+    writes. See :func:`run_image_scan` for why overwriting it would put a false statement
+    into the evidence chain rather than a more precise one.
     """
 
     verdict: VerdictRecord
@@ -139,28 +142,6 @@ def _measurements(image: np.ndarray, calibration: Calibration) -> Mapping[str, M
     }
 
 
-def _adapt_spans(raw: list, provider: EvidenceProvider) -> tuple[ExtractedSpan, ...]:
-    """Vision's local span dataclass into the contract type the evidence chain speaks.
-
-    ``app.modules.vision.ocr`` reports a polygon, the text and a confidence, and nothing
-    else. A contract span additionally carries a stable identifier, the region it was
-    found in and which provider produced it — the three things a finding needs to cite
-    pixels rather than just a value. Minting them is the pipeline's job, not vision's: the
-    identifier is only stable within a scan, and vision does not know it is in one.
-    """
-    return tuple(
-        ExtractedSpan(
-            span_id=f"{PANEL_REGION_ID}-{index:04d}",
-            text=span.text,
-            polygon=tuple((float(x), float(y)) for x, y in span.polygon),
-            confidence=span.confidence,
-            source_provider=provider,
-            region_id=PANEL_REGION_ID,
-        )
-        for index, span in enumerate(raw)
-    )
-
-
 def run_image_scan(
     image: np.ndarray,
     *,
@@ -175,6 +156,29 @@ def run_image_scan(
     binding, normalisation, measurement, rule evaluation, assembly. No stage is skipped
     and no stage is substituted; where a stage has nothing to give, the findings say so in
     their own words rather than the chain routing around it.
+
+    **Why this does not overwrite ``region_id``.** Vision writes the constant ``"panel"``
+    on every span, which is less specific than a reference to the detected panel — but
+    replacing it with one would be a *false* statement rather than a sharper one, because
+    ``extract_panel_text`` is handed the whole frame and not a crop of the detection below.
+    The spans have not been read off the principal display panel; they have been read off
+    the photograph. Stamping the panel's identity on them would assert a provenance the
+    pipeline did not establish, in the one field an evidence bundle uses to show an officer
+    which crop a value came from.
+
+    Two further reasons to leave it, either of which would be enough on its own. The field
+    belongs to vision, which is the only layer that knows which image it read; and the
+    moment vision emits spans from more than one region — a side panel, a separate
+    declaration block, which is what ``ExtractedSpan.region_id`` exists for — a pipeline
+    that overwrote every span with a single value would erase exactly the distinction the
+    field was added to carry, silently and at the point it started to matter.
+
+    Where the panel *was* detected is recorded once, on
+    :attr:`ImageScanResult.panel`, which is the honest place for it: that is a statement
+    about the detection, not about where each run of text was found. Making ``"panel"``
+    true means cropping the frame to the detection before the OCR call and translating the
+    resulting polygons back into full-image coordinates so an overlay still lines up. That
+    is vision's work, and it is written up in ``TODO.md`` rather than half-done here.
     """
     quality = quality_gate(image)
     if not quality.is_valid:
@@ -188,9 +192,11 @@ def run_image_scan(
 
     settings = get_settings()
     detection = detect_pdp(image, str(settings.pdp_weights_path))
-    spans = _adapt_spans(
-        extract_panel_text(image, str(settings.ocr_det_model_dir), str(settings.ocr_rec_model_dir)),
-        EvidenceProvider.PADDLEOCR,
+    # Positional, deliberately: VIS-003 renamed these to text_detection_model_dir and
+    # text_recognition_model_dir without changing their order or meaning, so a positional
+    # call is correct against both signatures.
+    spans = tuple(
+        extract_panel_text(image, str(settings.ocr_det_model_dir), str(settings.ocr_rec_model_dir))
     )
 
     # The extraction seam. `spans` is what the panel actually says; nothing yet resolves

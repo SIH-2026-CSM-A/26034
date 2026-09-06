@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     ocr_rec_model_dir: Path | None = None
     """PaddleOCR text-recognition model directory. Same reasoning as the detector."""
 
+    tesseract_tessdata_dir: Path | None = None
+    """Tesseract's ``tessdata`` directory, for the constrained re-read of MRP and net
+    quantity.
+
+    A fourth model path rather than a Tesseract detail. ``extract_mrp_quantity`` raises
+    ``FileNotFoundError`` without it, and the second pass exists because an 8 read as a B
+    is tolerable on an address and not on a price — so a deployment missing this is one
+    that would silently do without the check that protects the two declarations most worth
+    protecting. Checked at startup with the other three.
+    """
+
     jwt_secret: str = Field(min_length=32)
     """Signing key for access tokens. Required — there is deliberately no default, and a
     key shorter than the SHA-256 block that signs with it is refused."""
@@ -133,6 +144,7 @@ class Settings(BaseSettings):
         "pdp_weights_path",
         "ocr_det_model_dir",
         "ocr_rec_model_dir",
+        "tesseract_tessdata_dir",
         mode="before",
     )
     @classmethod
@@ -181,7 +193,12 @@ class Settings(BaseSettings):
         is which environment variable to set.
         """
         missing: list[str] = []
-        for name in ("pdp_weights_path", "ocr_det_model_dir", "ocr_rec_model_dir"):
+        for name in (
+            "pdp_weights_path",
+            "ocr_det_model_dir",
+            "ocr_rec_model_dir",
+            "tesseract_tessdata_dir",
+        ):
             path = getattr(self, name)
             if path is None or not path.exists():
                 missing.append(name)

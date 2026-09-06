@@ -16,7 +16,20 @@ import pytest
 
 from app.core.config import Settings, get_settings
 
-WEIGHT_SETTINGS = ("pdp_weights_path", "ocr_det_model_dir", "ocr_rec_model_dir")
+WEIGHT_SETTINGS = (
+    "pdp_weights_path",
+    "ocr_det_model_dir",
+    "ocr_rec_model_dir",
+    "tesseract_tessdata_dir",
+)
+"""Every model path a scan needs, in the order :meth:`Settings.missing_model_paths`
+reports them.
+
+``tesseract_tessdata_dir`` is the fourth because VIS-003 made ``extract_mrp_quantity``
+raise ``FileNotFoundError`` without it. The chain does not call that function yet — the
+constrained re-read needs a bound MRP crop and binding is EXT-004 — but it is checked at
+startup all the same: the whole point of the gate is that the failure lands at boot rather
+than the first time an officer scans a price."""
 
 
 @pytest.fixture
@@ -44,6 +57,7 @@ def test_a_path_that_does_not_exist_counts_as_missing(tmp_path: Path) -> None:
         pdp_weights_path=tmp_path / "gone.pt",
         ocr_det_model_dir=tmp_path,
         ocr_rec_model_dir=tmp_path,
+        tesseract_tessdata_dir=tmp_path,
     )
     assert settings.missing_model_paths() == ("pdp_weights_path",)
 
