@@ -39,16 +39,15 @@ _FOOD_STATUTORY_RE: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
-# Food Lexical Commodities: Grounded strictly in Category A statutory schedules/amendments:
+# Food Lexical Commodities: Grounded strictly in Category A statutory schedules:
 # - LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf Page 23
 #   (Fourth Schedule Item 11: "Edible oil Vanaspati ghee and butter")
-# - GSR-881E__2025-12-02__pan-masala.pdf Page 2
-#   (Clause 2(1) proviso to Rule 6: "pan masala")
-# Note: "BISCUITS" (Rule 6 group package illustration in GSR 722(E)) and "MILK"
-# (Rule 6(1)(a) Explanation II scope exception) were removed as they represent
-# Category B/C scope rules/illustrations rather than Category A statutory category definitions.
+# Note: "PAN MASALA" (GSR 881(E) Rule 26 exemption restriction), "BISCUITS" (GSR 722(E)
+# Rule 6 illustration), and "MILK" (LMPC Rule 6(1)(a) Explanation II scope exception)
+# were removed as they represent Category B/C scope rules/illustrations rather than
+# Category A statutory category definitions. "TEA" and "COFFEE" remain removed as unsourced.
 _FOOD_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER|PAN\s+MASALA)\b",
+    r"\b(?:EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER)\b",
     re.IGNORECASE,
 )
 

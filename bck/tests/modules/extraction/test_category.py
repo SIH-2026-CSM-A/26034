@@ -315,3 +315,17 @@ def test_competing_food_and_cosmetics_lexical_signals_safely_abstain() -> None:
     result = ExtractionResult(fields=[field], unclassified_spans=[])
 
     assert propose_category(result) is None
+
+
+def test_pan_masala_without_fssai_does_not_trigger_food_lexical_signal() -> None:
+    """Regression Test 18: 'Pan Masala' alone (without statutory FSSAI licence evidence)
+    does not trigger a deterministic food category proposal from lexical signals.
+    """
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Pan Masala",
+        span_refs=("span_pan_masala",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None
