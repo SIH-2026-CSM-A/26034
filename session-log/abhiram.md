@@ -1,5 +1,83 @@
 # Session log — Abhiram
 
+### 2026-09-06 — CORE-001 auth, RBAC, jurisdiction scoping — Claude Code
+
+**Why now**
+Nothing downstream was blocked on auth, which is why it waited until contracts landed. It
+was built now because a scan pipeline with no access control is not demoable to a
+government evaluator, and because a generic three-role RBAC scheme reads as a system
+designed without talking to the department.
+
+**Done**
+- `bck/app/core/rbac.py` — `RoleTier` (`STATE`/`REGIONAL`/`DISTRICT`), one ordered
+  `StrEnum` where declaration order *is* the hierarchy and each member's value *is* the
+  jurisdiction column it pins. `rank`, `scope_fields` and `covers()` all derive from
+  position, so the "each tier is one level narrower" property cannot drift. No
+  `is_controller()`/`is_deputy()`/`is_inspector()` triplet to keep in sync.
+- `Jurisdiction` and `Principal`, both on `ContractModel` (frozen, `extra="forbid"`).
+  `Principal` validates that the jurisdiction fills exactly its tier's depth, in both
+  directions. Load-bearing: a `DISTRICT` principal with `district=None` would produce a
+  filter one predicate short and quietly see its whole region, so it cannot be constructed.
+- `scope_to_jurisdiction(statement, principal, entity)` — ANDs one equality predicate per
+  pinned level onto a real SQLAlchemy `select()`. `getattr` on a missing column raises
+  rather than silently returning an unfiltered query.
+- `bck/app/core/config.py` — the first `Settings` (pydantic-settings), covering the keys
+  `.env.example` already declared plus JWT, `role_designations`, `cost_ceilings` and
+  `officers`. `get_settings()` is `lru_cache`d. `jwt_secret` has no default and a
+  32-byte minimum: a missing key fails at startup rather than shipping a guessable one.
+- `settings.cost_ceiling(provider)` — the single surface AGENTS.md's "never call a paid
+  API without the cost ceiling in `core/config.py`" deny rule refers to. It existed only
+  as a rule until now. `CLOUD_OCR` ships at `Decimal("0")`, keyed by the existing
+  `EvidenceProvider` vocabulary rather than a fresh one. Unknown provider raises rather
+  than defaulting to something permissive.
+- `bck/app/core/auth.py` — OAuth2 password flow + JWT per ARCHITECTURE.md's stack row.
+  bcrypt hashing, `create_access_token`, `principal_from_token`, the
+  `get_current_principal` dependency, a `require_tier(minimum)` factory, and
+  `POST /auth/token` on `auth_router`. Decoding pins an explicit algorithm allowlist and
+  requires `exp`, then rebuilds the `Principal` through its own validation — so a
+  tampered jurisdiction is refused even when the signature is intact.
+- `bck/tests/core/` — 41 tests, each run twice (82) via an autouse parameterised fixture.
+
+**Decided**
+- **Designations are config, tiers are code.** `SIH26034_TI.md` flags that nomenclature
+  varies by state and the pilot state is not chosen. The three structural levels are
+  fixed; every title comes from `Settings.designation(tier)` via `ROLE_DESIGNATIONS`.
+  Nothing outside the default dict in `config.py` spells "Controller" or "Inspector".
+- **The config-swap test is a parameterised autouse fixture, not an assertion.** Asserting
+  a config value changed proves nothing. Every test in `tests/core/` is collected once per
+  naming profile, so the whole permission and scoping suite runs against both. The second
+  profile is invented for the test and shares no word with the default — it is explicitly
+  not a claim about any state's actual titles.
+- **The scoping test runs a real query.** In-memory SQLite (stdlib driver, no new
+  dependency), a mapped `ScanRecord` table, records across two states / two regions /
+  three districts, and absence assertions on the rows that come back — not a call to the
+  permission function. Verified by mutation: making `scope_to_jurisdiction` a no-op fails
+  12 tests; hardcoding a designation fails the profile-swapped run only.
+- **Config-seeded officers, no users table.** Credentials are configuration until there
+  is a schema to hold them. `OFFICERS` is empty by default — a deployment that configures
+  none has no accounts, rather than a default account somebody forgets to remove. The
+  token and dependency surface does not change when a DB-backed store replaces it.
+- **No refresh token.** FastAPI's own password-flow pattern has none, and a second
+  credential lifetime is a second thing to get wrong.
+- Three new dependencies: `pyjwt`, `bcrypt`, and `python-multipart` — the last is required
+  by `OAuth2PasswordRequestForm`, so it comes with the approved password flow rather than
+  as a separate choice. No `httpx`: dependencies and route handlers are tested as the
+  callables they are.
+- No new import-linter contract. The existing layers contract already places `app.core`
+  below `app.modules`; probed it by adding a `from app.modules.rules import loader` to
+  `core/rbac.py` and confirming `lint-imports` reports BROKEN, then removed it.
+
+**Incomplete**
+- No `core/db.py`. There is still no engine or session factory, and no `app/main.py` to
+  mount `auth_router` on — the router is exercised by calling its handler directly.
+  Whoever first needs a request-scoped session adds it.
+- `scope_to_jurisdiction` constrains the statement it is handed. A caller that never calls
+  it is unscoped and nothing catches that. The fix is a repository layer that owns the
+  session and applies it on the way past — noted in the function's own docstring, and it
+  needs a persistence layer to exist first.
+- Officers live in `OFFICERS` rather than a table. A users migration is a separate ticket.
+- Branch was cut from `origin/main` (4ad693b), which does not yet carry EVD-002's `boto3`.
+
 ### 2026-09-05 — CTR-002 contracts v1 — Claude Code
 
 **Done**

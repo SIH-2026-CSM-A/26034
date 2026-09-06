@@ -34,7 +34,11 @@ assignment record.
 
 ## Next
 
-- [ ] `core/` — auth, JWT, RBAC on Controller → Deputy → Inspector, jurisdiction scoping
+- [x] `core/` — auth, JWT, RBAC on Controller → Deputy → Inspector, jurisdiction
+      scoping, cost-ceiling config. CORE-001. Designations are config, not literals;
+      scoping is a SQLAlchemy filter proved against a real query.
+- [ ] `core/` — SQLAlchemy engine and session factory, and a users table to replace
+      the `OFFICERS` env list. Needs Alembic initialised first.
 - [ ] `pipeline/` — ingestion endpoints for both image and structured catalogue record
 - [ ] `vision/` — preprocessing chain, PDP detection, PaddleOCR provider
 - [ ] `extraction/` — field classification, spatial binding, normalisation
