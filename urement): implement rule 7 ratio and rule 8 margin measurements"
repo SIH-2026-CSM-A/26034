@@ -1,0 +1,244 @@
+[1mdiff --git a/bck/app/modules/measurement/__init__.py b/bck/app/modules/measurement/__init__.py[m
+[1mindex 986903f..6d66a93 100644[m
+[1m--- a/bck/app/modules/measurement/__init__.py[m
+[1m+++ b/bck/app/modules/measurement/__init__.py[m
+[36m@@ -5,7 +5,13 @@[m [mfrom .schemas import ([m
+     MeasurementResult,[m
+     PackageShape,[m
+ )[m
+[31m-from .services import calculate_pdp_area, measure_ink_extent[m
+[32m+[m[32mfrom .services import ([m
+[32m+[m[32m    calculate_pdp_area,[m
+[32m+[m[32m    measure_contrast_ratio,[m
+[32m+[m[32m    measure_ink_extent,[m
+[32m+[m[32m    measure_margins,[m
+[32m+[m[32m    measure_width_to_height_ratio,[m
+[32m+[m[32m)[m
+ [m
+ __all__ = [[m
+     "MeasurementResult",[m
+[36m@@ -15,4 +21,7 @@[m [m__all__ = [[m
+     "PackageShape",[m
+     "measure_ink_extent",[m
+     "calculate_pdp_area",[m
+[32m+[m[32m    "measure_contrast_ratio",[m
+[32m+[m[32m    "measure_width_to_height_ratio",[m
+[32m+[m[32m    "measure_margins",[m
+ ][m
+[1mdiff --git a/bck/app/modules/measurement/services.py b/bck/app/modules/measurement/services.py[m
+[1mindex d4f2563..c9803a0 100644[m
+[1m--- a/bck/app/modules/measurement/services.py[m
+[1m+++ b/bck/app/modules/measurement/services.py[m
+[36m@@ -272,3 +272,151 @@[m [mdef measure_contrast_ratio(text_crop: np.ndarray, bg_crop: np.ndarray) -> Measur[m
+         unit="ratio",[m
+         reference_object="color_variance",[m
+     )[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef measure_width_to_height_ratio([m
+[32m+[m[32m    image: np.ndarray,[m
+[32m+[m[32m    ref_image: np.ndarray | None = None,[m
+[32m+[m[32m    ref_type: str | None = None,[m
+[32m+[m[32m    is_artwork: bool = False,[m
+[32m+[m[32m    artwork_dpi: float | None = None,[m
+[32m+[m[32m) -> MeasurementResult:[m
+[32m+[m[32m    """Measure the width-to-height ratio of a cropped numeral image."""[m
+[32m+[m[32m    if is_artwork:[m
+[32m+[m[32m        if artwork_dpi is None or artwork_dpi <= 0:[m
+[32m+[m[32m            return MeasurementRefusal([m
+[32m+[m[32m                reason=("Missing or invalid artwork_dpi for exact measurement.")[m
+[32m+[m[32m            )[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        if ref_image is None or ref_type is None:[m
+[32m+[m[32m            return MeasurementRefusal([m
+[32m+[m[32m                reason=("Missing reference object image or type for calibration.")[m
+[32m+[m[32m            )[m
+[32m+[m[32m        mm_per_pixel = detect_reference_object(ref_image, ref_type)[m
+[32m+[m[32m        if mm_per_pixel is None:[m
+[32m+[m[32m            return MeasurementRefusal([m
+[32m+[m[32m                reason=(f"Failed to detect reference object of type: {ref_type}.")[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m    # Convert numeral image to grayscale if needed[m
+[32m+[m[32m    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image[m
+[32m+[m
+[32m+[m[32m    # Apply Otsu thresholding[m
+[32m+[m[32m    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[m
+[32m+[m
+[32m+[m[32m    active_pixels = cv2.findNonZero(thresh)[m
+[32m+[m[32m    if active_pixels is None:[m
+[32m+[m[32m        return MeasurementRefusal(reason="No ink detected in the image.")[m
+[32m+[m
+[32m+[m[32m    active_pixels = active_pixels.reshape(-1, 2)[m
+[32m+[m[32m    x_coords = active_pixels[:, 0][m
+[32m+[m[32m    y_coords = active_pixels[:, 1][m
+[32m+[m
+[32m+[m[32m    width_px = np.max(x_coords) - np.min(x_coords) + 1[m
+[32m+[m[32m    height_px = np.max(y_coords) - np.min(y_coords) + 1[m
+[32m+[m
+[32m+[m[32m    if height_px == 0:[m
+[32m+[m[32m        return MeasurementRefusal(reason="Height of ink is zero, cannot calculate ratio.")[m
+[32m+[m
+[32m+[m[32m    ratio = float(width_px) / float(height_px)[m
+[32m+[m
+[32m+[m[32m    if is_artwork:[m
+[32m+[m[32m        return MeasurementExact(value=ratio, unit="ratio")[m
+[32m+[m
+[32m+[m[32m    confidence = ratio * 0.05[m
+[32m+[m
+[32m+[m[32m    return MeasurementCalibrated([m
+[32m+[m[32m        value=ratio, confidence_interval=confidence, unit="ratio", reference_object=ref_type[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef measure_margins([m
+[32m+[m[32m    image: np.ndarray,[m
+[32m+[m[32m    declaration_bbox: tuple[int, int, int, int],[m
+[32m+[m[32m    ref_image: np.ndarray | None = None,[m
+[32m+[m[32m    ref_type: str | None = None,[m
+[32m+[m[32m    is_artwork: bool = False,[m
+[32m+[m[32m    artwork_dpi: float | None = None,[m
+[32m+[m[32m) -> dict[str, MeasurementResult]:[m
+[32m+[m[32m    """Measure the margins around a declaration bounding box."""[m
+[32m+[m
+[32m+[m[32m    def make_refusals(reason: str) -> dict[str, MeasurementResult]:[m
+[32m+[m[32m        return {[m
+[32m+[m[32m            direction: MeasurementRefusal(reason=reason)[m
+[32m+[m[32m            for direction in ("above", "below", "left", "right")[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m    if is_artwork:[m
+[32m+[m[32m        if artwork_dpi is None or artwork_dpi <= 0:[m
+[32m+[m[32m            return make_refusals("Missing or invalid artwork_dpi for exact measurement.")[m
+[32m+[m[32m        mm_per_pixel = 25.4 / artwork_dpi[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        if ref_image is None or ref_type is None:[m
+[32m+[m[32m            return make_refusals("Missing reference object image or type for calibration.")[m
+[32m+[m[32m        mm_per_pixel = detect_reference_object(ref_image, ref_type)[m
+[32m+[m[32m        if mm_per_pixel is None:[m
+[32m+[m[32m            return make_refusals(f"Failed to detect reference object of type: {ref_type}.")[m
+[32m+[m
+[32m+[m[32m    x, y, w, h = declaration_bbox[m
+[32m+[m[32m    img_h, img_w = image.shape[:2][m
+[32m+[m
+[32m+[m[32m    # Convert numeral image to grayscale if needed[m
+[32m+[m[32m    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image[m
+[32m+[m
+[32m+[m[32m    # Apply Otsu thresholding[m
+[32m+[m[32m    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[m
+[32m+[m
+[32m+[m[32m    # Distances in pixels[m
+[32m+[m[32m    distances_px = {}[m
+[32m+[m
+[32m+[m[32m    # Above[m
+[32m+[m[32m    above_slice = thresh[0:y, :][m
+[32m+[m[32m    active_above = cv2.findNonZero(above_slice)[m
+[32m+[m[32m    if active_above is not None:[m
+[32m+[m[32m        max_y = np.max(active_above.reshape(-1, 2)[:, 1])[m
+[32m+[m[32m        distances_px["above"] = y - max_y - 1[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        distances_px["above"] = y[m
+[32m+[m
+[32m+[m[32m    # Below[m
+[32m+[m[32m    below_slice = thresh[y + h : img_h, :][m
+[32m+[m[32m    active_below = cv2.findNonZero(below_slice)[m
+[32m+[m[32m    if active_below is not None:[m
+[32m+[m[32m        min_y = np.min(active_below.reshape(-1, 2)[:, 1])[m
+[32m+[m[32m        distances_px["below"] = min_y[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        distances_px["below"] = img_h - (y + h)[m
+[32m+[m
+[32m+[m[32m    # Left[m
+[32m+[m[32m    left_slice = thresh[:, 0:x][m
+[32m+[m[32m    active_left = cv2.findNonZero(left_slice)[m
+[32m+[m[32m    if active_left is not None:[m
+[32m+[m[32m        max_x = np.max(active_left.reshape(-1, 2)[:, 0])[m
+[32m+[m[32m        distances_px["left"] = x - max_x - 1[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        distances_px["left"] = x[m
+[32m+[m
+[32m+[m[32m    # Right[m
+[32m+[m[32m    right_slice = thresh[:, x + w : img_w][m
+[32m+[m[32m    active_right = cv2.findNonZero(right_slice)[m
+[32m+[m[32m    if active_right is not None:[m
+[32m+[m[32m        min_x = np.min(active_right.reshape(-1, 2)[:, 0])[m
+[32m+[m[32m        distances_px["right"] = min_x[m
+[32m+[m[32m    else:[m
+[32m+[m[32m        distances_px["right"] = img_w - (x + w)[m
+[32m+[m
+[32m+[m[32m    results = {}[m
+[32m+[m[32m    for direction, dist_px in distances_px.items():[m
+[32m+[m[32m        dist_mm = max(0, dist_px) * mm_per_pixel[m
+[32m+[m[32m        if is_artwork:[m
+[32m+[m[32m            results[direction] = MeasurementExact(value=dist_mm, unit="mm")[m
+[32m+[m[32m        else:[m
+[32m+[m[32m            confidence = dist_mm * 0.05[m
+[32m+[m[32m            results[direction] = MeasurementCalibrated([m
+[32m+[m[32m                value=dist_mm,[m
+[32m+[m[32m                confidence_interval=confidence,[m
+[32m+[m[32m                unit="mm",[m
+[32m+[m[32m                reference_object=ref_type,[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m    return results[m
+[1mdiff --git a/bck/tests/modules/measurement/test_measurement.py b/bck/tests/modules/measurement/test_measurement.py[m
+[1mindex 5ad223b..a9f966f 100644[m
+[1m--- a/bck/tests/modules/measurement/test_measurement.py[m
+[1m+++ b/bck/tests/modules/measurement/test_measurement.py[m
+[36m@@ -210,3 +210,56 @@[m [mdef test_measure_contrast_ratio():[m
+     assert isinstance(result_noisy, MeasurementCalibrated)[m
+     # The confidence interval should now be > 0 because of variance in the noisy background[m
+     assert result_noisy.confidence_interval > 0.0[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_measure_width_to_height_ratio():[m
+[32m+[m[32m    """Assert measure_width_to_height_ratio calculates ratio correctly and ignores padding."""[m
+[32m+[m[32m    from app.modules.measurement.services import measure_width_to_height_ratio[m
+[32m+[m
+[32m+[m[32m    # Image with padding[m
+[32m+[m[32m    numeral_image = np.ones((200, 200), dtype=np.uint8) * 255[m
+[32m+[m[32m    # Draw ink from y=50 to 150 (height 101), x=80 to 120 (width 41)[m
+[32m+[m[32m    numeral_image[50:151, 80:121] = 0[m
+[32m+[m
+[32m+[m[32m    result = measure_width_to_height_ratio(numeral_image, is_artwork=True, artwork_dpi=300)[m
+[32m+[m[32m    assert isinstance(result, MeasurementExact)[m
+[32m+[m[32m    assert np.isclose(result.value, 41.0 / 101.0, rtol=0.01)[m
+[32m+[m[32m    assert result.unit == "ratio"[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_measure_margins():[m
+[32m+[m[32m    """Assert measure_margins calculates distance to nearest ink independently."""[m
+[32m+[m[32m    from app.modules.measurement.services import measure_margins[m
+[32m+[m
+[32m+[m[32m    # 300x300 image[m
+[32m+[m[32m    image = np.ones((300, 300), dtype=np.uint8) * 255[m
+[32m+[m[32m    # Draw some ink at the top (y=10)[m
+[32m+[m[32m    image[10:20, 100:200] = 0[m
+[32m+[m[32m    # Draw some ink on the left (x=20)[m
+[32m+[m[32m    image[100:200, 20:30] = 0[m
+[32m+[m
+[32m+[m[32m    # Bbox: x=100, y=100, w=100, h=100[m
+[32m+[m[32m    # Above margin: nearest ink is at y=19. bbox top is y=100. margin = 100 - 19 - 1 = 80 pixels.[m
+[32m+[m[32m    # Below margin: no ink below bbox (y=200 to 300). distance to edge = 300 - 200 = 100 pixels.[m
+[32m+[m[32m    # Left margin: nearest ink is at x=29. bbox left is x=100. margin = 100 - 29 - 1 = 70 pixels.[m
+[32m+[m[32m    # Right margin: no ink right of bbox (x=200 to 300). distance to edge = 300 - 200 = 100 pixels.[m
+[32m+[m[32m    bbox = (100, 100, 100, 100)[m
+[32m+[m
+[32m+[m[32m    results = measure_margins([m
+[32m+[m[32m        image,[m
+[32m+[m[32m        bbox,[m
+[32m+[m[32m        is_artwork=True,[m
+[32m+[m[32m        artwork_dpi=25.4,  # mm_per_pixel = 1.0[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    assert isinstance(results["above"], MeasurementExact)[m
+[32m+[m[32m    assert np.isclose(results["above"].value, 80.0)[m
+[32m+[m
+[32m+[m[32m    assert isinstance(results["below"], MeasurementExact)[m
+[32m+[m[32m    assert np.isclose(results["below"].value, 100.0)[m
+[32m+[m
+[32m+[m[32m    assert isinstance(results["left"], MeasurementExact)[m
+[32m+[m[32m    assert np.isclose(results["left"].value, 70.0)[m
+[32m+[m
+[32m+[m[32m    assert isinstance(results["right"], MeasurementExact)[m
+[32m+[m[32m    assert np.isclose(results["right"].value, 100.0)[m

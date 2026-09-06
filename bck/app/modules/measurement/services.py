@@ -32,11 +32,14 @@ def detect_reference_object(
     (mm_per_pixel, confidence_interval, homography_matrix).
     Returns MeasurementRefusal if the object cannot be detected.
 
-    Note on homography: The `coin_10` path returns scale only and no homography,
-    deliberately — a circle under perspective is an ellipse with no corner correspondences,
-    so any matrix built from its bounding box maps arbitrary points. Callers must handle
-    `h_matrix is None`. Consequence: a coin-calibrated measurement on an oblique capture
-    is not perspective-corrected, and the 5% prior does not cover that error.
+    Note on homography: the ``coin_10`` path returns scale only, with
+    ``h_matrix`` set to ``None``. A circle under perspective projects to an
+    ellipse with no corner correspondences, so any matrix built from its
+    bounding box maps arbitrary points — callers must handle ``None`` and
+    skip rectification. The consequence is that a coin-calibrated measurement
+    on an oblique capture is not perspective-corrected, and
+    ``PRIOR_CONFIDENCE_COIN`` does not cover that error. Recovering a real
+    homography from the coin by fitting an ellipse is MEA-007.
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
