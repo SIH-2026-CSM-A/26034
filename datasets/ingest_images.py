@@ -15,25 +15,32 @@ def calculate_sha256(filepath: Path) -> str:
     return hasher.hexdigest()
 
 def sync_manifest(drive_folder_id: str) -> Dict[str, Any]:
-    if not drive_folder_id or "TODO" in drive_folder_id or "REPLACE" in drive_folder_id:
+    if not drive_folder_id or "TODO" in drive_folder_id or "REPLACE" in drive_folder_id or drive_folder_id == "YOUR_ACTUAL_DRIVE_FOLDER_ID":
         raise ValueError("A valid Google Drive folder ID must be provided to sync the manifest.")
 
     samples = []
 
     if RAW_DIR.exists():
         for img_path in RAW_DIR.glob("**/*.[jJ][pP][gG]"):
-            rel_path = img_path.relative_to(Path.cwd())
-            sample_id = img_path.stem
+            abs_path = img_path.resolve()
+            rel_path = abs_path.relative_to(Path.cwd().resolve())
+            sample_num = img_path.stem
+            sku_name = img_path.parent.name
             category = img_path.parent.parent.name
-            anno_path = ANNOTATIONS_DIR / category / f"{sample_id}.json"
+            
+            full_sku_id = f"{category}_{sku_name}"
+            full_sample_id = f"{full_sku_id}_{sample_num}"
+            
+            anno_file_name = f"{full_sample_id}.json"
+            anno_path = ANNOTATIONS_DIR / category / anno_file_name
 
             samples.append({
-                "sample_id": sample_id,
-                "sku_id": img_path.parent.name,
+                "sample_id": full_sample_id,
+                "sku_id": full_sku_id,
                 "category": category,
                 "relative_image_path": str(rel_path),
                 "annotation_path": str(anno_path) if anno_path.exists() else None,
-                "sha256": calculate_sha256(img_path),
+                "sha256": calculate_sha256(abs_path),
                 "ingestion_status": "READY_FOR_ANNOTATION" if anno_path.exists() else "MISSING_ANNOTATION"
             })
 
@@ -47,7 +54,7 @@ def sync_manifest(drive_folder_id: str) -> Dict[str, Any]:
     with open(MANIFEST_PATH, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"Manifest updated at {MANIFEST_PATH} ({len(samples)} samples found).")
+    print(f"Manifest updated successfully at {MANIFEST_PATH} ({len(samples)} samples found).")
     return manifest
 
 if __name__ == "__main__":
