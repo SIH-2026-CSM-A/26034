@@ -17,12 +17,18 @@ from app.contracts.enums import (
     DeclarationField,
     EvidenceProvider,
     FieldState,
+    ProductCategory,
     RuleSeverity,
     RuleStatus,
     ToleranceBasis,
     Verdict,
 )
-from app.contracts.evidence import ExtractedSpan, NormalisedField, Point
+from app.contracts.evidence import (
+    CategoryProposal,
+    ExtractedSpan,
+    NormalisedField,
+    Point,
+)
 from app.contracts.measurement import (
     MeasurementCalibrated,
     MeasurementExact,
@@ -39,6 +45,7 @@ from app.contracts.rules import RuleDefinition, RuleSetVersion
 
 __all__ = [
     "CatalogueRecord",
+    "CategoryProposal",
     "ContractModel",
     "DeclarationField",
     "EvidenceProvider",
@@ -51,6 +58,7 @@ __all__ = [
     "MeasurementResult",
     "NormalisedField",
     "Point",
+    "ProductCategory",
     "RuleDefinition",
     "RuleParameterSnapshot",
     "RuleSetVersion",
