@@ -3,7 +3,7 @@
 Every sector override in the store is a row in a table this module builds by reading the
 store. There is no ``if category is MEDICAL_DEVICE`` anywhere, and adding a sector is a
 rule in ``data/rules.yaml`` plus a member of
-:class:`~app.modules.rules.base.ProductCategory` — no existing branch is edited, so no
+:class:`~app.contracts.enums.ProductCategory` — no existing branch is edited, so no
 existing sector can be broken by the addition.
 
 A sector override is a **carve-out, not a stricter path.** G.S.R. 778(E) does not raise

@@ -4,6 +4,10 @@ Two stages, kept as two types. :class:`ExtractedSpan` is what an OCR provider sa
 where it saw it. :class:`NormalisedField` is what that text resolved to as a declaration.
 Keeping them apart is what lets a finding cite the pixels behind a value rather than
 just the value.
+
+:class:`CategoryProposal` is a third shape and not a third stage: it is what a reader
+inferred about the package as a whole rather than about one declaration, and it stays a
+proposal until an officer confirms it.
 """
 
 from decimal import Decimal
@@ -11,7 +15,7 @@ from decimal import Decimal
 from pydantic import Field
 
 from app.contracts.base import ContractModel
-from app.contracts.enums import DeclarationField, EvidenceProvider
+from app.contracts.enums import DeclarationField, EvidenceProvider, ProductCategory
 
 Point = tuple[float, float]
 """A single polygon vertex in image pixel coordinates, ``(x, y)``."""
@@ -90,4 +94,45 @@ class NormalisedField(ContractModel):
     Distinct from :attr:`ExtractedSpan.confidence`, which is confidence that the
     characters were read correctly. Text can be read perfectly and still be parsed into
     the wrong declaration.
+    """
+
+
+class CategoryProposal(ContractModel):
+    """A product category a reader inferred, with the evidence it inferred it from.
+
+    **A proposal is not a confirmation, and this type exists so the two cannot be
+    confused.** :class:`~app.contracts.enums.ProductCategory` on its own is the officer's
+    confirmed category — the thing the sector dispatch keys on, which moves obligations
+    to another Act. Nothing here may be passed where that is expected. An extraction
+    reader proposes; an officer confirms; only the confirmation routes.
+
+    Every field is required and every one is constrained, so a proposal that cites no
+    evidence cannot be constructed at all rather than being discouraged by convention. A
+    category assertion with nothing behind it is the input that would let a guess reach
+    routing by looking like a reading.
+    """
+
+    category: ProductCategory
+    """The category being proposed. The same closed vocabulary a confirmation uses, so a
+    proposal the sector dispatch could never act on cannot be expressed."""
+
+    confidence: float = Field(ge=0.0, le=1.0)
+    """The reader's own confidence in the proposal. Never a threshold for acting on it:
+    no value here confirms a category, because confirmation is an officer action."""
+
+    span_refs: tuple[str, ...] = Field(min_length=1)
+    """The :attr:`ExtractedSpan.span_id` values the proposal was inferred from.
+
+    At least one, enforced at construction. An officer asked to confirm a category has to
+    be shown what it was read off, and a proposal with an empty tuple could not answer
+    that question — so it is not a valid proposal, it is an unsourced assertion.
+    """
+
+    reason: str = Field(min_length=1)
+    """Why those spans support this category, in words an officer can weigh.
+
+    Constrained the same way :attr:`~app.contracts.records.FieldFinding.reason` is, and
+    with the same known gap: a single space satisfies it. Consistency with the rest of
+    this package is worth more here than closing a hole no caller in the codebase reaches
+    for.
     """

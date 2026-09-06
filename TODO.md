@@ -37,10 +37,18 @@ Last updated 2026-09-06, end of session 4, by Claude Code.
       nothing now that PIP-002 has merged. This is what narrows 65 findings per scan, and it
       belongs in the rule store — **never as a filter in `pipeline/`.** RUL-003 is session 3's
       merged multi-piece ticket; do not reuse the number.
-- [ ] **Swap the remaining local stand-in.** `app/modules/rules/` imports nothing from
-      `app.contracts` and `models.py:21` still carries the RUL-001 stand-in comment. That is
-      why `pipeline/rule_snapshot.py` exists as a translation layer. `measurement/`'s half is
-      done.
+- [ ] **CTR-004 — reconcile the duplicated `Verdict` and `RuleStatus`** (Abhiram, next after
+      CTR-003). `rules/base.py` still defines its own `Verdict` and `RuleStatus` alongside the
+      `app.contracts` ones, and `Verdict` has **already drifted**: contracts spells it
+      `POTENTIAL_VIOLATION`, the rule store spells it `POTENTIAL VIOLATION` with a space.
+      That is exactly the failure CTR-003 moved `ProductCategory` to prevent, except it has
+      already happened. Not a rider on a contract move: the database enum and every persisted
+      verdict row depend on one of these two spellings, so reconciling them is a migration and
+      a data question, not an import change. Found during CTR-003.
+- [ ] **Swap the remaining local stand-in.** `models.py:21` still carries the RUL-001 stand-in
+      comment, and `pipeline/rule_snapshot.py` exists as a translation layer because of it.
+      `measurement/`'s half is done; CTR-003 did `ProductCategory`, CTR-004 does `Verdict` and
+      `RuleStatus`, and what is left after those is `RuleDefinition` itself.
 
 ## Next
 
@@ -53,6 +61,13 @@ Last updated 2026-09-06, end of session 4, by Claude Code.
       blocked on the corpus. `tamper/` is still an empty module.
 - [ ] **Frontend `npm audit` gate.** `npm ci` reports 2 moderate vulnerabilities and a
       deprecated `glob@11.1.0`. Not a build failure, so the current gate misses it.
+- [ ] **`Scan.product_category` could become an enum column, and deliberately did not.**
+      CTR-003 moved `ProductCategory` into `app.contracts`, so the reason the docstring used
+      to give — `core` may not import `app.modules` — no longer holds. What holds now is that
+      the change is a migration against a table already holding these strings, and it buys
+      nothing the request boundary does not already do: `pipeline/schemas.py` refuses an
+      unknown category with a 422 before anything is stored. Worth doing only if a second
+      writer ever reaches that column without going through the schema.
 - [ ] **MinIO and Redis in `docker-compose.yml`.** Only Postgres is in it, so
       `tests/modules/evidence/test_minio_storage.py` skips on every machine including CI. One
       service each.

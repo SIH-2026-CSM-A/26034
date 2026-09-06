@@ -1,9 +1,10 @@
 """Shared vocabulary for the rule store: value constraints and closed enumerations.
 
-Imports nothing from this package, so the schema files below it can depend on it in one
-direction and no other. Splitting it out is what the 300-line limit bought — the rule
-store grew a placement rule, a manner rule, two package definitions and a sector dispatch
-in RUL-002, and one file could no longer hold the schema and stay readable.
+Imports nothing from this package — only from ``app.contracts``, which is below every
+module — so the schema files below it can depend on it in one direction and no other.
+Splitting it out is what the 300-line limit bought — the rule store grew a placement
+rule, a manner rule, two package definitions and a sector dispatch in RUL-002, and one
+file could no longer hold the schema and stay readable.
 """
 
 from __future__ import annotations
@@ -13,6 +14,13 @@ from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+# Re-export, not an import this file uses. ProductCategory is defined in app.contracts
+# because extraction proposes a category and may not import this module — one definition,
+# because sector_overrides keys on it and a drifting second copy would confirm a category
+# that routes to nothing. The redundant alias is what marks it as public and keeps ruff
+# from removing it as unused; deleting this line breaks four files in this package.
+from app.contracts import ProductCategory as ProductCategory
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
@@ -45,20 +53,6 @@ class Severity(StrEnum):
 
     REVIEW = "REVIEW"
     POTENTIAL_VIOLATION = "POTENTIAL VIOLATION"
-
-
-class ProductCategory(StrEnum):
-    """Represent a *confirmed* product category that a sector override may key on.
-
-    Confirmed is the operative word. A category is an input to routing, never an
-    inference this module makes: routing a package to another Act because a classifier
-    guessed at its category would move a real legal obligation on a guess. A caller with
-    no confirmed category passes ``None`` and the packaged rules apply unchanged.
-    """
-
-    FOOD = "food"
-    COSMETICS = "cosmetics"
-    MEDICAL_DEVICE = "medical_device"
 
 
 class OverrideTarget(StrEnum):

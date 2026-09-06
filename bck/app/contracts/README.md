@@ -30,6 +30,8 @@ to six other people's imports.
 | `DeclarationField` | The Rule 6 declaration set, one member per obligation. |
 | `EvidenceProvider` | What produced a value — which OCR engine, artwork, catalogue, or an officer. |
 | `RuleStatus`, `RuleSeverity`, `ToleranceBasis` | Rule metadata vocabularies. |
+| `ProductCategory` | A *confirmed* sector that a rule override may route an obligation to. |
+| `CategoryProposal` | A category a reader inferred, with the spans behind it. Not a confirmation. |
 | `ExtractedSpan` | Text located on an image by a provider. Raw observation. |
 | `NormalisedField` | A declaration resolved from spans into a canonical value. |
 | `MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal` | The three measurement modes, as a discriminated union `MeasurementResult`. |
@@ -38,7 +40,7 @@ to six other people's imports.
 | `FieldFinding`, `VerdictRecord` | One finding, and the complete evidence record. |
 | `CatalogueRecord` | A structured listing — the non-image ingestion path. |
 
-## Four things that are load-bearing
+## Five things that are load-bearing
 
 **`INSUFFICIENT_EVIDENCE` is not `FAIL`.** FAIL says the declaration was read and falls
 short. INSUFFICIENT_EVIDENCE says we could not read it. One is a defect in the package,
@@ -57,6 +59,20 @@ value in steps; a tolerance accepts a difference. They diverge at every boundary
 tolerance additionally requires a `tolerance_basis`, because `Decimal("0.05")` on its own
 is either five paise or five percent — the First Schedule states maximum permissible error
 as a percentage, while money tolerances are absolute.
+
+**A proposal is not a confirmation.** `ProductCategory` is the officer's confirmed
+category — the value `sector_overrides` keys on, which moves an obligation to another Act
+entirely. `CategoryProposal` is what a reader inferred, and it is a separate type rather
+than a category plus a confidence number so it cannot be passed where a confirmation is
+expected. Routing a package to the Food Safety and Standards Act because a classifier
+scored 0.97 would move a real legal obligation on a guess. The enum lives here rather than
+in `modules/rules/` for the same reason `NormalisedField` does: extraction proposes a
+category and may not import another module.
+
+Its values are lowercase where every other vocabulary here is upper. That is not an
+oversight to tidy — they are the `sector:` keys in the rule store's `rules.yaml` and the
+strings already in `scans.product_category`. Changing the case stops every sector override
+matching while every type check still passes.
 
 **A rule with no `gazette_ref` fails to construct.** Not flagged later — rejected at
 construction, so an unsourced rule number cannot reach an evaluator at all. What is *not*
