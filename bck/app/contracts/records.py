@@ -5,6 +5,7 @@ why an outcome was reached is carried on it by value, so it can be read years la
 without the rest of the system agreeing with it.
 """
 
+from copy import deepcopy
 from datetime import datetime
 from decimal import Decimal
 
@@ -56,7 +57,20 @@ class RuleParameterSnapshot(ContractModel):
         """Copy the evaluation-relevant values off ``rule``.
 
         The returned snapshot shares no mutable state with ``rule``: later edits to the
-        rule, or to its ``parameters`` mapping, do not reach a snapshot already taken.
+        rule, or to its ``parameters`` mapping at any depth, do not reach a snapshot
+        already taken.
+
+        Today that isolation comes from the type, not from the copy. ``parameters`` is
+        annotated ``dict[str, JsonValue]``, and validating that annotation walks the
+        mapping and rebuilds every container in it, so the snapshot holds fresh objects
+        even if the mapping were handed over untouched.
+
+        The :func:`~copy.deepcopy` is therefore belt-and-braces, and deliberately so. It
+        makes the guarantee independent of the annotation instead of implied by it:
+        widening ``parameters`` to ``dict[str, Any]`` is a one-line change someone could
+        make for an unrelated reason, and at that moment pydantic passes nested
+        containers through by identity and this copy becomes the only thing standing
+        between an amended rule and a verdict written months earlier.
         """
         return cls(
             rule_id=rule.rule_id,
@@ -66,7 +80,7 @@ class RuleParameterSnapshot(ContractModel):
             status=rule.status,
             severity=rule.severity,
             rule_set_version=rule_set_version,
-            parameters=dict(rule.parameters),
+            parameters=deepcopy(rule.parameters),
             rounding_increment=rule.rounding_increment,
             tolerance=rule.tolerance,
             tolerance_basis=rule.tolerance_basis,
