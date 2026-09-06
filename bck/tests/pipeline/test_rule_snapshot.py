@@ -14,6 +14,7 @@ import pytest
 
 from app.contracts import DeclarationField, RuleSeverity, RuleStatus
 from app.modules.rules import RuleDefinition, load_rules
+from app.modules.rules import RuleStatus as RulesRuleStatus
 from app.modules.rules.models import Severity
 from app.pipeline.rule_snapshot import (
     DECLARATION_FIELDS,
@@ -45,7 +46,7 @@ def _rule(**overrides: object) -> RuleDefinition:
             "exceptions": [],
         },
         "evidence_requirement": "normalized_quantity_or_count_declaration",
-        "severity": "POTENTIAL VIOLATION",
+        "severity": "POTENTIAL_VIOLATION",
     }
     fields.update(overrides)
     return RuleDefinition(**fields)  # type: ignore[arg-type]
@@ -76,8 +77,13 @@ def test_every_severity_member_is_mapped() -> None:
 
 
 def test_the_two_severity_enums_are_not_interchangeable() -> None:
-    """Guards the table against being 'simplified' into a value or name conversion later."""
-    assert Severity.POTENTIAL_VIOLATION.value == "POTENTIAL VIOLATION"
+    """Guards the table against being 'simplified' into a value or name conversion later.
+
+    The disjointness is the whole claim. Before CTR-004 it also held by accident, because
+    ``Severity.POTENTIAL_VIOLATION`` was spelled with a space and so matched nothing
+    anywhere; asserting that spelling was asserting the accident. What must stay true is
+    that no member of either enum shares a name or a value with the other.
+    """
     assert {member.value for member in Severity}.isdisjoint({m.value for m in RuleSeverity})
     assert {member.name for member in Severity}.isdisjoint({m.name for m in RuleSeverity})
 
@@ -85,6 +91,23 @@ def test_the_two_severity_enums_are_not_interchangeable() -> None:
 def test_severity_routes_to_its_documented_counterpart() -> None:
     assert SEVERITY_ROUTING[Severity.POTENTIAL_VIOLATION] is RuleSeverity.MANDATORY
     assert SEVERITY_ROUTING[Severity.REVIEW] is RuleSeverity.CONDITIONAL
+
+
+def test_the_rules_module_names_the_contracts_rule_status_and_not_a_copy() -> None:
+    """One class, not two that agree. The adapter passes ``rule.status`` straight through.
+
+    Written because nothing else catches the regression. A second ``RuleStatus`` declared
+    inside ``app.modules.rules`` with the same members would leave every other test in
+    this suite green: ``RuleParameterSnapshot.status`` is typed to the contracts enum, and
+    a ``StrEnum`` member from the duplicate arrives at validation as the string
+    ``"VERIFIED"``, which pydantic coerces back into the contracts member. The two enums
+    diverge only when one gains a member or changes a value, and by then the snapshot is
+    raising on a real scan rather than failing here.
+
+    Verified by reintroducing the duplicate: the full suite stayed green, and only this
+    assertion goes red.
+    """
+    assert RulesRuleStatus is RuleStatus
 
 
 # --- declaration mapping ------------------------------------------------------------------

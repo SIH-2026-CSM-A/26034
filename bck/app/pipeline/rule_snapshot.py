@@ -28,7 +28,6 @@ from app.contracts import (
     DeclarationField,
     RuleParameterSnapshot,
     RuleSeverity,
-    RuleStatus,
 )
 from app.modules.rules import (
     DeclarationRequiredCondition,
@@ -66,7 +65,7 @@ SEVERITY_ROUTING: dict[Severity, RuleSeverity] = {
 """``rules.Severity`` to ``contracts.RuleSeverity``. **The two enums mean different things.**
 
 ``rules.Severity`` answers *what outcome a verified rule proposes when its condition is
-not met* — the evaluator's own two-way branch, REVIEW or POTENTIAL VIOLATION.
+not met* — the evaluator's own two-way branch, REVIEW or POTENTIAL_VIOLATION.
 ``contracts.RuleSeverity`` answers *how strong the underlying obligation is*, which is
 what decides how a breach routes in the officer workflow: MANDATORY, CONDITIONAL or
 ADVISORY. One is about an outcome, the other about an obligation, and they are related
@@ -74,9 +73,12 @@ only because an unconditional obligation is the kind whose breach can propose a
 POTENTIAL_VIOLATION.
 
 So this is a lookup table and not a rename. Member names do not correspond, member
-counts do not match, and the values do not either — ``Severity.POTENTIAL_VIOLATION`` is
-the string ``"POTENTIAL VIOLATION"`` with a space, so a value-based conversion would
-raise. ``RuleSeverity.ADVISORY`` is absent from the range on purpose: guidance with no
+counts do not match, and the values do not either — no ``RuleSeverity`` member is spelled
+REVIEW or POTENTIAL_VIOLATION, so a value-based conversion in either direction would
+raise. That was true before CTR-004 for the accidental reason that
+``Severity.POTENTIAL_VIOLATION`` carried a space; it is true now because the two
+vocabularies genuinely share no word, which is the reason that was always meant.
+``RuleSeverity.ADVISORY`` is absent from the range on purpose: guidance with no
 standalone obligation behind it is not something the rule store can currently express,
 and inventing a source member to reach it would be inventing law.
 """
@@ -199,10 +201,7 @@ def snapshot_from_rule(rule: RuleDefinition, rule_set_version: str) -> RuleParam
         clause_ref=rule.clause_ref,
         gazette_ref=rule.gazette_ref,
         source_text=rule.source_text,
-        # Members and values coincide across the two RuleStatus enums today. Converting
-        # through the value states that dependency instead of assuming the objects are
-        # interchangeable, and raises the day one of them gains a member.
-        status=RuleStatus(rule.status.value),
+        status=rule.status,
         severity=SEVERITY_ROUTING[rule.severity],
         rule_set_version=rule_set_version,
         parameters=deepcopy(_parameters(rule, declaration_fields(rule))),

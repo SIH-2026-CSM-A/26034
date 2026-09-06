@@ -40,7 +40,7 @@ def _valid_rule_payload() -> dict[str, object]:
             "exceptions": [],
         },
         "evidence_requirement": "test_evidence",
-        "severity": "POTENTIAL VIOLATION",
+        "severity": "POTENTIAL_VIOLATION",
     }
 
 
