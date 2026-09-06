@@ -4,9 +4,8 @@
 
 Infrastructure every module needs and none should re-implement: settings
 (`pydantic-settings`, read from environment — see `bck/.env.example`), authentication,
-the role hierarchy and jurisdiction scoping, and the cost ceilings every paid call
-checks. The SQLAlchemy engine and session factory land here too, when something needs
-one.
+the role hierarchy and jurisdiction scoping, the cost ceilings every paid call checks,
+and the database — the engine and session factory in `db.py`, the tables in `models.py`.
 
 May import `app.contracts`. May not import `app.modules` or `app.pipeline`.
 
@@ -19,7 +18,22 @@ Import from the package, never from a file inside it:
 from app.core import Principal, RoleTier, get_current_principal, get_settings
 ```
 
-## Three things that are load-bearing
+## Why the tables are here
+
+`models.py` sits uneasily beside the rule below that `core` holds no business rules: a
+`FieldFindingRow` keyed by `DeclarationField` plainly knows what a Legal Metrology
+declaration is. It is here anyway, and deliberately, because every alternative is worse.
+No module owns persistence; modules may not import one another, so a schema shared
+between them cannot live in any of them; and Alembic needs one stable `MetaData` to point
+at. `core` is the only place that satisfies all three.
+
+The line that still holds is the one that matters: these are *tables*, not rules. Nothing
+in `models.py` decides an outcome, and nothing in it may. `contracts` holds the shapes
+that cross a module boundary and `models.py` the shapes that cross a process restart; the
+enums appear in both because they are imported from `contracts`, never restated, so a
+state cannot mean one thing in memory and another on disk.
+
+## Five things that are load-bearing
 
 **The hierarchy is one ordered enum, not three roles.** `RoleTier` has `STATE`,
 `REGIONAL` and `DISTRICT`, broadest first, and both `rank` and `scope_fields` are derived
@@ -38,6 +52,20 @@ then rebuilds the `Principal` through its own validation, so a tampered jurisdic
 refused even when the signature is intact. A tier or jurisdiction in a request body is
 the client describing its own authority; no endpoint may act on one.
 
+**A session lasts one request, and the dependency does not commit.** `get_session` opens
+one, yields it to a single handler and closes it; committing is the caller's, because a
+teardown-commit fires after the response body is built — a failure at that point cannot
+change the status code the client already has, and it commits work the handler may have
+decided to abandon. There is no module-level session and no engine built at import time:
+`get_engine` and `get_session_factory` are `lru_cache`d the way `get_settings` is, so a
+missing `DATABASE_URL` fails at first use with a message naming the setting.
+
+**One DSN string serves both the app and Alembic.** `postgresql+psycopg://` is valid for
+`create_engine` and `create_async_engine` alike — SQLAlchemy picks the mode from the
+constructor, not from the URL. The application runs async, `alembic/env.py` runs the same
+string synchronously, and neither rewrites the other's scheme. The `+psycopg` suffix is
+required: bare `postgresql://` resolves to psycopg2, which is not installed.
+
 ## Scoping a query
 
 `scope_to_jurisdiction` narrows a SELECT to what the principal may see — one equality
@@ -49,9 +77,12 @@ records = session.scalars(statement).all()
 ```
 
 It constrains the statement it is handed and nothing else. A query that never passes
-through it is not scoped, and no permission check elsewhere will notice. When there is a
-persistence layer to put it in, the repository that owns the session should apply this on
-the way past.
+through it is not scoped, and no permission check elsewhere will notice — `get_session`
+does not apply it either. `Scan` carries `state`, `region` and `district` as three real
+columns with exactly those names because this function reaches them by `getattr`; folding
+them into a JSON document would make every scoped query raise. Closing the remaining hole
+properly means a repository that owns the session and applies this on the way past, which
+waits for a module with a caller for one.
 
 ## Cost ceilings
 

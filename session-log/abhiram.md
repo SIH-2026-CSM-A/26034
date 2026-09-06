@@ -446,3 +446,119 @@ designed without talking to the department.
   @Abhiram-0910 in CODEOWNERS and AGENTS.md. Update both files together when known.
 - Branch protection on `main` (PR-only, CI green) is a GitHub settings change, not a file
   — still needs doing in the repo settings.
+
+---
+
+## 2026-09-06 — CORE-002 persistence (Claude Code, Opus 5)
+
+Branch `core-002-persistence`. Closes the two-part debt item left by CORE-001: `alembic/`
+was `.gitkeep` + README, and `core/db.py` was deliberately unbuilt because no caller
+existed to decide session scope. PIP-002 is that caller.
+
+**Built**
+- `app/core/db.py` — async engine, session factory, one request-scoped `get_session`.
+  Both factories `lru_cache`d like `get_settings`, so importing `app.core` opens no pool
+  and a missing `DATABASE_URL` fails at first use naming the setting. No module-level
+  engine or session.
+- `app/core/models.py` — `Scan`, `VerdictRow`, `FieldFindingRow`, `EvidenceEntryRow`,
+  plus `ScanSourceType` / `ScanStatus` / `CalibrationMethod`. 298 lines, under the limit.
+- `alembic.ini`, `alembic/env.py`, one revision `64a9392a6859`.
+- `docker-compose.yml` (repo root) — `db` only, `pgvector/pgvector:pg16`.
+- `.github/workflows/ci.yml` — a `postgres` service on the same image, plus
+  `DATABASE_URL`/`JWT_SECRET` on the test step.
+- `tests/core/test_persistence.py` (SQLite, portable) and `tests/persistence/`
+  (postgres-marked, skips when unreachable).
+
+**Decided**
+- **One session per request; the caller commits, the dependency does not.** A
+  teardown-commit fires after the response body is built, where a failure can no longer
+  change the status code, and it commits work a handler may have abandoned.
+  `expire_on_commit=False` because a post-commit attribute read otherwise raises
+  `MissingGreenlet` mid-serialisation. `pool_pre_ping=True` because the demo laptop sleeps.
+- **One DSN string for both modes.** `postgresql+psycopg://` is valid for `create_engine`
+  and `create_async_engine` alike; the app runs async, `env.py` runs the same string
+  synchronously. No URL rewriting, no async Alembic template, no new dependency —
+  psycopg 3 and greenlet were already in the lock.
+- **JSONB where the shape varies and nothing joins on it** (`image_refs`,
+  `capture_metadata`, `field_providers`, `rule_snapshot`, `evidence_span_ids`,
+  `evidence_regions`); typed everywhere something filters or constrains.
+- **`calibration_method` is a typed column, not a key in `capture_metadata`** — it gates
+  whether a millimetre figure may be emitted at all, so it is constrained and queryable.
+- **`evidence_entries.timestamp` is text and the payload is text, not `timestamptz` and
+  not `jsonb`.** `compute_entry_hash` hashes the timestamp *string* and
+  `compute_payload_hash` hashes canonical JSON bytes; both column types re-render what
+  they store, and re-rendered bytes hash differently. Storing them as text is the only
+  shape where a reloaded chain verifies.
+- **Snapshot goes on `FieldFindingRow`, not `VerdictRow`** — the ticket said VerdictRow,
+  but in `contracts` a snapshot hangs off each `FieldFinding`, and findings under one
+  verdict can cite different rules. One snapshot per verdict would lose rules.
+- **`EvidenceEntryRow`, not `EvidenceEntry`** — the latter already exists as a frozen
+  pydantic type in `modules/evidence/domain.py`.
+- Ticket's `EvidenceEntry` column list (`hash`, `prev_hash`, `storage_ref`) was
+  incomplete: `verify_chain` also needs `sequence`, `timestamp`, `payload_hash`,
+  `entry_hash` and the payload. Persisted the full entry.
+- `models.py` in `core/` contradicts `core/README.md`'s "no business rules". Kept it there
+  — no module owns persistence, modules cannot import each other, Alembic needs one
+  `MetaData` — and said so in the README rather than leaving the contradiction silent.
+
+**Proved able to fail** (introduced the defect, confirmed red, reverted — nine in all)
+- Renaming `Scan.district` away → the scoping tests cannot even collect.
+- `server_default="FAIL"` on `field_findings.state` → the schema-property test red.
+- Enum column replaced by a bare `String` → the round-trip and INSUFFICIENT_EVIDENCE
+  tests red. `StrEnum` compares equal to its own value, so that test carries an explicit
+  `isinstance` assertion; without it the substitution would have passed.
+- Reloading the snapshot from the live rule instead of from storage → snapshot test red.
+- Non-canonical JSON on the way to storage → chain verification red.
+- A `rule_id` column, and a foreign key to a non-`scans` table, on `verdicts` → red.
+- Removing the enum drops from the migration downgrade → `type "scan_source_type" already
+  exists` on the next upgrade, exactly as predicted; the migration test goes red.
+- Removing `UniqueConstraint(scan_id, sequence)` → the duplicate-entry test red.
+- `alembic check` has its own guard-the-guard: a column dropped behind Alembic's back,
+  asserting `check` reports it. Without that, a `check` comparing nothing would look
+  identical to a clean one.
+
+**Gate** — 557 passed / 2 skipped with a database, 551 / 8 without (the 6 postgres tests
+skip cleanly). ruff clean, format clean, `lint-imports` 3 kept / 0 broken, all exit codes
+read directly rather than through a pipe.
+
+**Compose verified on the real image** (same session, after WSL integration was enabled)
+
+`docker compose down -v` → `up -d db` → `alembic upgrade head` on a clean volume, against
+`pgvector/pgvector:pg16`, server reporting `PostgreSQL 16.13`. Then `alembic check` clean,
+`downgrade base` leaving zero enum types, `upgrade head` again, `pytest -m postgres` 6/6,
+and the full suite 557 passed / 2 skipped. ruff, format and `lint-imports` all exit 0.
+**Nothing behaved differently on 16 from the 18.6 run** — same DDL, same `alembic check`
+result, same six tests, same failure classes from the falsifications.
+
+**`localhost:5432` does not reach the container on this machine.** The system PostgreSQL
+18 cluster holds `127.0.0.1:5432` and shadows Docker's `0.0.0.0:5432` publish, so the
+default DSN in `.env.example` silently hits the local cluster instead — it happens to fail
+authentication rather than connecting, which is luck, not a safeguard. Everything above ran
+with `POSTGRES_PORT=5433` and `DATABASE_URL=...@localhost:5433/pccs`; the compose file
+already parameterises the host port for exactly this. Either stop the local cluster or
+export `POSTGRES_PORT`. Worth knowing before someone trusts a green run on 5432.
+
+**Correction to the falsification record above.** Two of the nine were not valid as first
+run, and were redone properly on pg16:
+
+- *Enum column replaced by a `String`* and *`UniqueConstraint` removed* were originally
+  applied to `app/core/models.py` only. The schema comes from the **migration**, not the
+  model, so in both cases the constraint was still present in the database and the test was
+  never actually deprived of what it tests. The first attempt showed an ERROR (the
+  model/migration disagreement, which is `alembic check`'s job) and the second showed a
+  PASS. Neither proved the guard.
+- Redone by editing the migration as well: removing `UniqueConstraint` gives
+  `Failed: DID NOT RAISE IntegrityError`, and making `field_state` a `VARCHAR` so the type
+  is never created gives `assert isinstance(..., InvalidTextRepresentation)` → `assert
+  False`, because the cast then fails with `UndefinedObject` instead. Both red. That second
+  one is precisely what the `isinstance` assertion was added for — a bare
+  `pytest.raises(DBAPIError)` would have passed against a schema with no enum type in it.
+
+The lesson worth carrying: **a guard on a database constraint is only falsified by editing
+the migration.** Editing the model tests Alembic's drift check, which is a different guard.
+
+**Incomplete / for the next session**
+- No `app/main.py` still. Added to TODO under PIP-002 — see the note there.
+- MinIO and Redis are not in compose, so `test_minio_storage.py` still skips everywhere.
+- `.env.example` ships the DSN on port 5432. Fine for CI and a clean machine; see the port
+  note above for a laptop already running PostgreSQL.
