@@ -1,1 +1,0 @@
-Fixed vocabulary alignment on PR #41. Replaced internal string states with `Verdict` and `FieldState` enums from `app.contracts`. Expanded `test_forbidden_vocabulary` to block `non_compliant` and `noncompliant`.

@@ -101,6 +101,15 @@ introduce the defect it guards against, confirm red, revert."* Twice, Claude Cod
 check on itself, found the guard was not load-bearing, and corrected the **claim** rather
 than shipping a decorative test. That is the behaviour to reward.
 
+Session 4 added six more of the same shape: an import contract that matched nothing, a
+curvature test asserting `sin(arcsin(x)) == x`, a manifest-integrity test looping over an
+empty list, six tests masked by the unconfirmed-category sector gate, two falsifications
+claimed red that were not red, and a structural guard that checked only keyword arguments
+and missed `model_copy(update={...})`.
+
+**Assume a green suite proves nothing until someone has introduced the defect and watched it
+go red.** That standard caught real bugs every time it was applied in session 4.
+
 **2. Fabricated ground truth.** Plausible-looking values written instead of read. Invented
 MRP text, millimetre heights on uncalibrated photographs, samples hashing to the SHA-256 of
 an empty file — `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Memorise
@@ -115,10 +124,37 @@ rollup containing exactly one check, twice. Read `statusCheckRollup` instead.
 
 ---
 
+## Claims that turned out wrong, and who caught them
+
+- A previous session told the PIP-002 session that EXT-004 was merged when it was not. That
+  session checked `mergedAt`, found the PR open, read the real binder off its branch rather
+  than working from the description, and corrected it. **Verify claims about repository state
+  against the repository — including the claims in this file.**
+- A previous session told Abhiram in its first turn that `HANDOFF-PROTOCOL.md` did not exist
+  in project knowledge. It did, under `HANDOFF-PROTOCOL__1_.md`, the whole time.
+- Claude Code claimed nine falsifications in CORE-002; two were invalid. It found and
+  retracted them itself.
+- Claude Code added a guard asserting `alembic/env.py` must import `Base` from `models` and
+  not `schema`, then proved the guard was decorative and corrected the claim rather than
+  keeping a green tick.
+
+---
+
 ## Infrastructure state, 2026-09-06
 
-`main` at `bc41ea5` plus the docs PR #37 and CI-003. **529 tests passing**, 3 import
+**`main` at `9f68683`. The pipeline is composed and produces verdicts.** It carries an
+application entrypoint (`bck/app/main.py`), a scan orchestrator, four scan endpoints,
+persistence with Alembic, span binding, and a hash-chained evidence record written atomically
+with each verdict. Before session 4, eight modules were merged and nothing composed them.
+**637 tests pass locally** (33 skip without MinIO, Redis and a local Postgres), 3 import
 contracts kept, 0 broken.
+
+**What has never run: the image path with real models.** There are no YOLO or PaddleOCR
+weights on the dev machine. Every image-path verification substituted `detect_pdp` and
+`extract_panel_text`; everything downstream of them is real and verified live. The app now
+refuses to boot without four model paths that do not exist locally. **This is the largest gap
+between "the tests pass" and "the system works", and it sits on the demo path.**
+`ultralytics` is a runtime dependency, so the YOLO stack ships with the backend.
 
 Org `SIH-2026-CSM-A`, shared with a second team. Repo `26034` public, `26167` is
 Yashwanth's. **Both public deliberately: branch protection does not exist on private repos
@@ -166,42 +202,53 @@ Statuses `to do` / `doubt` / `in progress` / `review` / `done` / `complete`.
 | Jashwanth | `badugujashwanth-create` | 106878760 | rules — **unavailable** |
 | Akshaya | `aksha08-ya` | 106878763 | vision, **tamper** |
 | Sitanshu | `krishbattula4` | 106878761 | extraction |
-| Yashashvi | `Yashashvi-05` | 106878758 | measurement — **unavailable** |
+| Yashashvi | `Yashashvi-05` | 106878758 | measurement |
 | Shiva Kumar | `Shiva-Kumar-Akula` | 106878759 | evidence |
 | Vineeth | `vineethsimha2151` | 106878762 | fnt officer — **unavailable** |
 | Shivasai | `adepushivasai901-ops` | 106878753 | tamper — never engaged, reassigned |
 | Rohan | `A-Rohan99` | 216234631 | fnt admin — never started |
-| Aashritha | `aashrithareddybodanampally-byte` | 106878813 | datasets |
+| Aashritha | `aashrithareddybodanampally-byte` | 106878813 | datasets — **off the project** |
 | Likhitha | `Likhitha-rachelly` | 106878764 | reserve |
 
 Jashwanth runs Codex; everyone else Antigravity + Gemini Pro; Abhiram Claude Code.
 
 **B.V. Yashwanth (`ybaddam8-png`, ClickUp 240010980) is not on the team** — he leads 26167
 and is an org Owner, therefore admin on `26034` too. That is deliberate, not a
-misconfiguration. Never assign him work. FNT-001 was a one-time explicit exception for
-Vineeth's absence and does not extend to anyone else. He is a different person from
-Yashashvi; the near-identical names are a real hazard when assigning by ID.
+misconfiguration. Never assign him work. FNT-001 was an explicit exception for Vineeth's
+absence and EXT-004 a second, for a ticket Sitanshu had never started and which B.V.
+Yashwanth delivered the same day. Neither extends to anyone else.
+**B.V. Yashwanth, Jashwanth Badugu and Yashashvi are three different people** — a misroute on
+the near-identical names actually happened in session 4. Check the ClickUp ID, not the name.
 
 ### Ownership shifts — recorded, not violations
 
 - **`rules/`** — Jashwanth unavailable. RUL-002 reassigned to Abhiram mid-session, RUL-003
-  built by him. He owns it for now.
+  built by him. He owns it for now. **RUL-004** (`governs_declarations`) is B.V. Yashwanth's
+  and is blocked on nothing now that PIP-002 has merged. **RUL-003 is session 3's merged
+  multi-piece ticket (#36) — it is not the narrowing ticket. Do not reuse the number.**
 - **`fnt/` officer surface** — Vineeth unavailable. Abhiram builds it directly rather than
   handing another person's module to a third party.
 - **`tamper/`** — Shivasai never received a ticket and never worked. Directory transferred
   to Akshaya (TAM-001); she now owns `vision/` and `tamper/`.
-- **`measurement/`** — Yashashvi unavailable. **No new measurement work is assigned and none
-  should be forced onto someone else.** Reference-object calibration (₹10 coin at 27.0mm via
+- **`measurement/`** — Yashashvi is active again, with three PRs open at once: MEA-004 (#42),
+  MEA-005 (#43) and MEA-006 (#47). Reference-object calibration (₹10 coin at 27.0mm via
   Circle Hough, EAN-13 at **37.29mm not 31.35mm**, 50mm printable card) is the remaining
   depth there and it waits. If it is still waiting near demo, scenario 4 (calibrated font
   measurement) drops from the demo set and scenarios 5 (the refusal) and 8 (artwork mode)
   carry that story instead. Say that out loud rather than quietly cutting it.
+- **`datasets/`** — Aashritha is off the project. Assign her nothing. DAT-001 is superseded
+  by DAT-002 + DAT-003, both Abhiram's.
+- **`extraction/`** — EXT-004 moved Sitanshu -> B.V. Yashwanth (never started) and was
+  delivered the same day. Sitanshu is back on extraction with EXT-005 and EXT-006.
 - **Known unfixed bug in `measurement/`:** `measure_margins` raises on a zero margin, because
   `MeasurementExact.value` and `MeasurementCalibrated.value` are `gt=0`. A declaration flush
-  against ink or the crop edge crashes instead of measuring. Logged, not lost, owner away.
+  against ink or the crop edge crashes instead of measuring. **The orchestrator therefore does
+  not call it and Rule 8 free-space evaluation is dark.** MEA-006.
 
-CODEOWNERS still reflects the original map. If these shifts persist past another ticket or
-two, change CODEOWNERS rather than letting the file lie.
+CODEOWNERS still reflects the original map: `datasets/` in CODEOWNERS and AGENTS.md still
+names Aashritha, `extraction/` still names Sitanshu. Both are corrected in DAT-003, which is
+unmerged. If these shifts persist past another ticket or two, change CODEOWNERS rather than
+letting the file lie.
 
 ---
 
@@ -312,6 +359,28 @@ Encode what the gazette says and cite the gazette.
   required context then waits forever. Same bug as the `paths:` filter, different costume.
 - **Fixing PIP-001's "unfalsifiable" deepcopy test** — it is documented as unfalsifiable
   under the current annotation, on purpose.
+- **An LLM call or an agent loop anywhere in the verdict path.** Deterministic by design.
+- **Pipeline-side filtering of findings** — see the 65-findings decision below.
+- **`relationship()` on the async schema** — they lazy-load and raise `MissingGreenlet`
+  mid-serialisation.
+- **`BoundDeclaration` / `DeclarationRole` / `app/contracts/binding.py`** — EXT-004's shape
+  won; these do not exist and must not be recreated.
+- **PyMuPDF** — AGPL-3.0, and its network clause would attach to the whole work.
+  `pdfplumber` instead.
+- **An AI-attribution trailer on a commit or a PR body.** Claude Code has correctly refused
+  this twice against a conflicting session instruction — confirm the refusal, do not amend it.
+- **A millimetre figure from an uncalibrated photograph**, in output **or** in ground-truth
+  annotations. `null` is a correct annotation. Requirements may carry millimetres and
+  observations may not: `rule_snapshot` and `expected_value` legitimately hold Table-I
+  thresholds, so the grep excludes them and covers `observed_value`, measurement blocks and
+  `reason`.
+- **`coin_inr_5` at 25.0 mm.** The only sourced coin dimension is the Rs10 coin at 27.0 mm
+  (`SIH26034_TI.md` section 15, RBI-confirmed).
+- **EAN-13 nominal width at 31.35 mm** — it is **37.29 mm**, and a regression test pins it.
+- **Keeping a test that cannot fail because it is green.** It gets deleted, not shipped.
+  `not isinstance(proposal, ProductCategory)` is unfalsifiable — a `StrEnum` with members
+  cannot be subclassed — so it restated the type system and proved nothing. The PIP-001
+  deepcopy test above is the one standing exception, and it is documented as such.
 
 ---
 
@@ -331,6 +400,13 @@ Encode what the gazette says and cite the gazette.
   module outside `root_package`.
 - **A forbidden contract that matches nothing looks identical to one that works.** Prove a
   new contract by adding a deliberate violation and confirming exit 1 — in both directions.
+- **A falsification can be run against stale bytecode and report a green pass over a real
+  defect.** Python's `.pyc` staleness check is mtime-and-size, and a falsification edit is
+  usually exactly the shape that defeats it — one string swapped for another of the same byte
+  length, `"medical_device"` → `"MEDICAL_DEVICE"`. Always run
+  `find . -name __pycache__ -type d -exec rm -rf {} +` before trusting a falsification result.
+  **Any falsification claimed on 2026-09-06 without that step is soft.** Caught in the CTR-003
+  session, which nearly believed the false pass.
 - **Check exit codes directly, not through a pipe.** `lint-imports | tail` reports `tail`'s
   status, which is always 0.
 - **A guard on a database constraint is only falsified by editing the migration.** The
@@ -371,6 +447,46 @@ Encode what the gazette says and cite the gazette.
   silently fails at the other. Scope with `useId`. No build step or unit test catches this —
   only driving a real browser at two widths does.
 - **Before any `git reset --hard` or `checkout --ours/--theirs`, run `git status` first.**
+- **`git merge main` into a feature branch destroyed a PR** — 62 files, 6,398 additions,
+  replaying merged history as new files. It was thrown away and the two real files re-applied
+  on a fresh branch. **Rebase onto main, never merge main in.**
+- **`alembic check` fails immediately after a test run** because the persistence suite
+  downgrades to base at the end. It looks exactly like drift and is not — run `upgrade head`
+  first.
+- **The unconfirmed-category sector gate silently masks tests.** With no confirmed category a
+  sector-gated rule is settled before its own builder runs, so a test asserting anything about
+  that rule's downstream handling passes whether the handling exists or not. It masked six.
+  A README note did not stop it recurring. `tests/pipeline/sector_gate.findings_for_rule` is
+  now the only sanctioned way to select a rule's findings; it raises when every finding it
+  returns carries the gate's own reason. **It takes no category argument** — an argument is a
+  thing a test can pass wrongly. It catches the shape people write, not every evasion, and
+  says so in its docstring.
+- **The schema has foreign keys but no `relationship()`, and SQLAlchemy orders dependent
+  inserts from relationships, not FK columns** — findings were being inserted before their
+  verdict. Fixed with an explicit parent flush. Adding relationships is the textbook fix and
+  the wrong one: on an async mapper they lazy-load and raise `MissingGreenlet` mid-
+  serialisation.
+- **`EvidenceEntryRow` shipped in CORE-002 with no writer anywhere in the application.** The
+  table existed, the chain functions existed, nothing was ever chained until PIP-002. **A
+  merged table with no caller is invisible to CI and to review.**
+- **`/tmp` is a 3.9 GB tmpfs.** Anything unpacking paddle, torch or ultralytics into it fails,
+  and the error surfaces as a file-copy failure rather than "out of space". Work in `~`.
+- **`uv cache prune` blocks on a concurrent `uv`.** Do not `--force` it while a Claude Code
+  session is syncing.
+- **Grepping a CI log for `ERROR` on this repo always returns three lines, and all three are
+  passing tests.** They are Postgres *server* logs, dumped under the "Stop containers" step,
+  from tests doing exactly their job: the `field_state` enum-drift guard firing on
+  `invalid input value for enum field_state: "PROBABLY_FINE"`, and the two uniqueness tests
+  hitting `uq_evidence_entries_scan_id_sequence` and
+  `uq_field_findings_verdict_id_field_rule_id`. Verified against run `34039775921`, which is
+  green. **Read the step name and the conclusion, not a grep for `ERROR`.**
+- **Every open PR branched before today's merges — all six are on a stale base**, between 2
+  and 13 commits behind `main`. The fix is `git rebase origin/main` then
+  `git push --force-with-lease`, **run by the branch owner**: never rebase someone else's
+  branch for them, and where one person has stacked branches in one module, rebase
+  oldest-first. **A stale base does not reliably show as red** — #45 and #47 are green on
+  bases two commits behind, so a green check on a stale branch is evidence about the base it
+  ran on and about nothing else.
 
 ---
 
@@ -427,7 +543,8 @@ Metrology Inspector. **The pilot state is still not chosen and this will very li
 **Measurement contracts.** `MeasurementResult`'s variants keep Yashashvi's original names
 (`MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal`).
 `MeasurementCalibrated.confidence_interval` is `ge=0`, not `gt=0` — a zero-variance
-contrast-ratio measurement is a genuine result. Do not re-litigate either.
+contrast-ratio measurement is a genuine result. Do not re-litigate either. TODO.md was stale
+on this.
 
 **Cloud providers.** Featherless is the sole copilot generation provider. An OpenAI
 query-rewriting/retrieval-expansion step ahead of hybrid retrieval was proposed but **not
@@ -437,6 +554,66 @@ evidence records, ever.
 **No AI-attribution trailer on commit messages *or* PR bodies.** The rule names commits, but
 the reason behind it is that the repo is public and scraped, and a PR body is as public as a
 commit message.
+
+**Persistence (CORE-002).**
+- One `AsyncSession` per request; the dependency does **not** commit — services own the
+  transaction boundaries. *Rejected:* teardown-commit, which fires after the response body is
+  built and commits work a handler decided to abandon.
+- `POST /scans` opens **two** transactions with orchestration between them: the scan is
+  inserted and committed first so the officer holds an id whatever follows, then verdict +
+  findings + evidence are written atomically. *Rejected:* one transaction spanning the CV
+  work, which would pin a pool connection for seconds.
+- Mid-chain failure leaves `Scan` at `FAILED` with no `VerdictRecord`. *Rejected:* a partial
+  finding set, which reads as "we looked and found less wrong than we did".
+- **Quality-gate rejection is not a failure** — the scan stays `RECEIVED`, 200 with a capture
+  instruction, `verdict: null`, no `VerdictRow`.
+- `evidence_entries.timestamp` is `String` and `payload_json` is `Text`. **Not** timestamptz
+  and **not** JSONB: `compute_entry_hash` hashes the timestamp string and
+  `compute_payload_hash` hashes canonical JSON bytes, so a re-rendering column type produces
+  `entry_hash_mismatch` on a chain nobody touched. Do not "tidy" these.
+- `field_findings.state` is not nullable, with no Python default and no server default. There
+  is no value the database could supply, so nothing can supply `FAIL`.
+- `rule_id` is a typed, indexed column with `UNIQUE(verdict_id, field, rule_id)`, not only a
+  key inside `rule_snapshot` JSONB. F32 filters on rule clause, and one finding per
+  (verdict, field, rule) cannot be expressed otherwise.
+
+**Out-of-jurisdiction reads return 404, not 403.** Reversed mid-flight: a 403 tells an officer
+in one state that a scan exists in another, disclosing cross-jurisdiction enforcement
+activity. 403 is kept for `require_tier` on the review route. The test asserts the 404 body is
+byte-identical to one for an unknown id, so the disclosure cannot be reintroduced.
+
+**Model weights are checked at boot**, four paths, failing with the setting name and the
+missing path. *Rejected:* a per-request `FileNotFoundError`, which is a 500 in front of a
+judge; and any fallback.
+
+**The extraction seam changed shape mid-flight.** PIP-002 planned
+`bind_declarations(spans) -> tuple[BoundDeclaration, ...]` with a new `app/contracts/binding.py`
+and a `DeclarationRole` enum, with the pipeline running normalisers afterwards. EXT-004
+shipped `bind_spans(spans) -> ExtractionResult`, carrying `fields: list[NormalisedField]` and
+`unclassified_spans`, normalising inside the module. **EXT-004's shape won; the contracts
+commit was dropped from history, not reverted.**
+
+**`bind_spans` returns multiple `NormalisedField`s per obligation** — "Manufactured by" and
+"Marketed by" both bind to Rule 6(1)(a) — so the orchestrator's `declared` mapping is
+multi-valued. A single-valued mapping silently drops the second: a finding that never gets
+made.
+
+**65 findings per scan stays.** It is truthful — Rule 7 and Rule 9 genuinely govern every
+required declaration. Narrowing belongs in the rule store as `governs_declarations` (RUL-004),
+**never as a pipeline filter** — a filter would be the system deciding which obligations to
+report.
+
+**`region_id` is not overwritten by the pipeline.** `extract_panel_text` is handed the whole
+frame, not a crop of `detect_pdp`'s output, so stamping the panel's identity on those spans
+asserts a provenance nothing established — in the one field an evidence export uses to show an
+officer which crop a reading came from. The real fix is to crop before OCR and translate
+polygons back to full-image coordinates. That is **VIS-004**, vision's work.
+
+**`ExtractionResult` lives in `app.modules.extraction`, not `contracts`.** The layer rules
+permit it. Moving it is a tidy-up, not a violation.
+
+**`pdfplumber`, not PyMuPDF.** PyMuPDF is AGPL-3.0 and its network clause would attach to the
+whole work.
 
 ---
 
@@ -480,61 +657,75 @@ no Google Fonts link, because it would fail at exactly the moment F51 exists to 
 
 ## Where the board stands, 2026-09-06
 
-**Merged this session (8 PRs):** #28 PIP-001 · #30 CI-002 · #33 CTR-003 · #32 RUL-002 ·
-#35 FNT-002 · #36 RUL-003 · #31 EVD-003 · #37 docs. CI-003 (frontend always reports) in
-flight at handoff time.
+**Merged in session 4 (4 PRs):** EVD-004 (#41) - CORE-002 (#40) - EXT-004 (#44) -
+PIP-002 (#48). Session 3 merged eight before them: PIP-001 (#28) - CI-002 (#30) -
+CTR-003 (#33) - RUL-002 (#32) - FNT-002 (#35) - RUL-003 (#36) - EVD-003 (#31) -
+docs (#37), plus CI-003.
 
-**Open, in rework:**
+**Open PRs — all six, verified against GitHub on 2026-09-06.** Exact remaining items per PR
+are in `TICKETS.md`.
 
-- **#29 VIS-003 (Akshaya)** — four pushes, all byte-identical to the first (`ef2dd9d..5587ce4`).
-  Five items open: a socket test that can't fail because PaddleOCR is mocked; no synthetic-crop
-  test for 8/B, 0/O, 5/S, 1/l; `ArbitrationResult` carries no `EvidenceProvider`;
-  `arbitrate_mrp` has no caller so the constrained pass is disconnected; the whitelist
-  `"0123456789.Rskgmlg/-"` excludes `₹` and has no `M` or `P`. **Do not re-review until the
-  blob hashes change.** Separately: the PaddleOCR constructor uses 3.x kwargs
-  (`text_detection_model_dir`, `use_textline_orientation`, `device="cpu"`) while the call site
-  is `ocr.ocr(image, cls=False)`, the 2.x signature — a runtime crash no mocked test can catch.
-- **#34 DAT-001 (Aashritha)** — four rounds, genuine progress each time. **Fixed:** all
-  `letter_height_mm` and `numeral_height_mm` nulled on uncalibrated packs; stale `pdp` block
-  removed from the Himalaya files; `pdp_geometry` correct at 56.0 cm² in the 50–100 band at
-  1.5mm; manifest cut from 89 lines to 53 with **every empty-file hash gone**; placeholder
-  `drive_folder_id` removed; `schema.py` cites Rule 6(1)(aa) alone. The Tata Salt annotation
-  correctly derives `Rs. per kg` from a ≥1 kg net quantity under Rule 6(11) and says so in its
-  notes — she is now reasoning from the rule rather than pattern-matching, which is the change
-  that matters.
+- **#42 MEA-004 homography before scale (Yashashvi)** — **did not merge**, despite an earlier
+  claim in this file that it had. `backend` is red on `ruff format --check`, not on tests;
+  `ruff check` passes and `tests/modules/measurement` passes 14/14 once rebased. Base
+  `5613944`, four behind.
+- **#43 MEA-005 artwork ingest (Yashashvi)** — changes requested, `CONFLICTING`. A missing
+  library returns `MeasurementRefusal` instead of failing loudly — a deployment fact rendered
+  as a finding about the package — and the tests inject
+  `sys.modules["pdfplumber"] = MagicMock()`, so real pdfplumber output is never parsed.
+  `reportlab` is already a dependency and can generate a genuine vector PDF fixture. Adds
+  `pdfplumber` to `pyproject.toml` and `uv.lock`: **new dependency, merge-gate escalation.**
+- **#45 VIS-003 rebuild (Akshaya)** — green, and **both owed items are now fixed**:
+  `_extract_numeric_value` returns `""` for `"150.00.5"`, and `session-log/akshaya.md` is
+  present. But that rewrite **deleted her VIS-001 history from the log** rather than appending
+  to it — the same defect as #44 deleting `session-log/sitanshu.md`. Ask for the history back
+  before merging.
+- **#46 EVD-005 retention and purge (Shiva)** — `CONFLICTING`, no checks have run. Touches
+  `app/contracts/enums.py` and `core/config.py`: **shared-contract change, merge-gate
+  escalation**, and `contracts/` is Abhiram's.
+- **#47 MEA-006 zero margin (Yashashvi)** — green, one file. Splits margins into
+  `MeasurementMarginExact` / `MeasurementMarginCalibrated` at `ge=0` while every other
+  measurement stays `gt=0`, which is the right shape. But it edits
+  `app/contracts/measurement.py`: **shared-contract change, merge-gate escalation.** No
+  `session-log/yashashvi.md` in the diff, which AGENTS.md requires.
+- **#34 DAT-001 (Aashritha)** — **closed on GitHub**, superseded by DAT-002 + DAT-003.
+  **Its branch `feature/26034-DAT-001-corpus-images` survives at `47fa16d` and DAT-002
+  branches from it, not from `main`.** Do not delete that branch: it carries the corrected
+  sha256 hashes and the five fabricated-annotation deletions, and they exist nowhere else.
 
-  **Four remaining:** (1) `cosmetics_himalaya_face_wash_100ml_001` appears twice in the
-  manifest, once `.jpg` and once `.png`, same `sample_id` and `annotation_path`, different
-  `sha256` — the harness would double-load it and the hashes disagree about which file it is;
-  (2) `food_parle_g_biscuits_001` has `reference_object.present: false` with all heights
-  nulled, but its notes still claim a "calibrated coin reference target" — a note asserting a
-  calibration the annotation denies; (3) the Himalaya MRP question is **still unanswered after
-  four rounds** — both files tagged `export_pack` and `non_domestic` while declaring
-  `MRP Rs. 180.00`; (4) manifest `image_path` uses
-  `datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_001/…` while the annotations'
-  `image_filename` says `datasets/raw/cosmetics/himalaya_face_wash_100ml/001.jpg` — two path
-  schemes, so nothing downstream can resolve an image from an annotation.
+**In flight, no PR yet:** EXT-005 then EXT-006 (Sitanshu, unblocked by #44) - EVD-006
+(Shiva, behind #46) - DAT-002 then DAT-003 (Abhiram) - RUL-004 `governs_declarations`
+(B.V. Yashwanth, blocked on nothing) - TAM-001 (Akshaya, never started).
 
-**To do, not started:** EXT-004 (Sitanshu, span classification and spatial role binding —
-this is what unblocks PIP-002), TAM-001 (Akshaya, behind VIS-003).
+**Never started:** `tamper/` is an empty module. `fnt-admin` has never had a ticket started.
+The offline path (F51, P0) does not exist. Dashboard aggregates (F32) do not exist. The
+frontend still runs on fixtures with no generated client. Still unticketed as well: a
+frontend `npm audit` gate (2 moderate vulns, deprecated `glob@11.1.0`).
 
-**Not ticketed yet:** EVD-004 (report export in PDF and editable format, unblocked now that
-`VerdictRecord` exists; must also fix EVD-003's `test_append_only_enforcement`, which resolves
-`Path("app/modules/evidence")` against the cwd and passes vacuously if it scans nothing —
-resolve relative to the test file and assert at least one file was scanned), PIP-002
-(ingestion endpoints + orchestration, blocked on EXT-004), a frontend `npm audit` gate
-(2 moderate vulns, deprecated `glob@11.1.0`).
+**Open questions carried forward:**
+
+- `measure_margins` still raises on a zero margin (`value` is `gt=0`), so the orchestrator
+  does not call it and Rule 8 free-space evaluation is dark. **MEA-006 is now PR #47** and
+  fixes the contract; the orchestrator still has to be wired to call it.
+- `ix_reviews_scan_id` is redundant — `ix_reviews_scan_id_created_at` leads with the same
+  column.
+- Nothing stops two `reviews` rows sharing a `supersedes_id`, forking the correction chain. A
+  unique constraint would make single-successor structural, as `(scan_id, sequence)` does for
+  evidence. **Do it before any review data exists.**
+- `tesseract_tessdata_dir` is checked at boot but never called — the constrained re-read needs
+  a bound MRP crop.
+- EVD-004's tests use mock record shapes, so `export_compliance_report` does not accept a real
+  `VerdictRecord`. EVD-006.
 
 **`rules/` imports nothing from `contracts`** and `models.py:21` still carries a stand-in
 comment — that is why `rule_snapshot.py` exists as a translation layer. Live work, in TODO.
 
-**Biggest unmanaged risk remains DAT-001.** After three review rounds the corpus is a handful
-of genuinely-annotated Indian retail samples, mostly packaged food; cosmetics has effectively
-nothing behind it. Every accuracy target in the PRD is unbacked and vision, measurement and
-tamper cannot be evaluated at all. **Written review has failed three times here.** The next
-move is a fifteen-minute call opening one annotation beside the actual photograph, not a
-fourth written round. Demo scope stays: packaged food primary, cosmetics secondary, FSSAI
-explicitly out of scope.
+**Biggest unmanaged risk remains the corpus.** It is **four samples**, not the 8-12
+planned, and every accuracy figure in the PRD carries that sample size. DAT-003 is unmerged.
+Vision, measurement and tamper cannot be evaluated against it at all. **Written review failed
+three times on DAT-001 before it was superseded** — the next move is a fifteen-minute call
+opening one annotation beside the actual photograph, not a fifth written round. Demo scope
+stays: packaged food primary, cosmetics secondary, FSSAI explicitly out of scope.
 
 ---
 
