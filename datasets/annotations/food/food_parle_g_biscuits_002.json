@@ -78,7 +78,7 @@
         0.35
       ],
       "polygon": null,
-      "numeral_height_mm": 2.1,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -97,7 +97,7 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 1.5,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -116,7 +116,7 @@
         0.7
       ],
       "polygon": null,
-      "numeral_height_mm": 1.8,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -135,7 +135,7 @@
         0.8
       ],
       "polygon": null,
-      "numeral_height_mm": 1.2,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
@@ -156,7 +156,7 @@
         0.92
       ],
       "polygon": null,
-      "numeral_height_mm": 1.1,
+      "numeral_height_mm": null,
       "letter_height_mm": null,
       "expected_field_state": "PASS",
       "non_compliance_reason": null
