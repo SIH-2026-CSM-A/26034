@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -17,4 +19,14 @@ class ChainVerification(BaseModel):
 
     is_valid: bool
     broken_link_index: int | None = None
-    reason: str | None = None
+    reason: (
+        Literal[
+            "payload_hash_mismatch",
+            "previous_hash_mismatch",
+            "ordering_violation",
+            "entry_hash_mismatch",
+            "missing_genesis",
+            "corrupted_timestamp",
+        ]
+        | None
+    ) = None

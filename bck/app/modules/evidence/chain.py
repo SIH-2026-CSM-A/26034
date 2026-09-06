@@ -1,5 +1,6 @@
 import hashlib
 import json
+from datetime import datetime
 
 from .domain import ChainVerification, EvidenceEntry
 
@@ -66,39 +67,51 @@ def append_entry(prev_entry: EvidenceEntry, payload: dict | str, timestamp: str)
 def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
     """Verifies the integrity and continuity of the evidence chain."""
     if not entries:
-        return ChainVerification(is_valid=False, broken_link_index=0, reason="Chain is empty")
+        return ChainVerification(is_valid=False, broken_link_index=0, reason="missing_genesis")
 
     for i, entry in enumerate(entries):
-        # 1. Verify payload hash
-        if entry.payload_hash != compute_payload_hash(entry.payload):
+        # 1. Timestamp validation (Offline ISO-8601 UTC)
+        try:
+            # fromisoformat handles 'YYYY-MM-DDTHH:MM:SS' and 'YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM'
+            datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
             return ChainVerification(
-                is_valid=False, broken_link_index=i, reason="Payload hash mismatch"
+                is_valid=False, broken_link_index=i, reason="corrupted_timestamp"
             )
 
-        # 2. Verify entry hash
+        # 2. Payload integrity
+        if entry.payload_hash != compute_payload_hash(entry.payload):
+            return ChainVerification(
+                is_valid=False, broken_link_index=i, reason="payload_hash_mismatch"
+            )
+
+        # 3. Entry hash integrity
         actual_entry_hash = compute_entry_hash(
             entry.sequence, entry.timestamp, entry.payload_hash, entry.prev_hash
         )
         if entry.entry_hash != actual_entry_hash:
             return ChainVerification(
-                is_valid=False, broken_link_index=i, reason="Entry hash mismatch"
+                is_valid=False, broken_link_index=i, reason="entry_hash_mismatch"
             )
 
-        # 3. Verify sequence and continuity
+        # 4. Chain linkage and sequence
         if i == 0:
+            # Genesis validation
             if entry.sequence != 0 or entry.prev_hash != GENESIS_PREV_HASH:
                 return ChainVerification(
-                    is_valid=False, broken_link_index=0, reason="Invalid genesis entry"
+                    is_valid=False, broken_link_index=0, reason="missing_genesis"
                 )
         else:
             prev = entries[i - 1]
+            # Hash linkage
             if entry.prev_hash != prev.entry_hash:
                 return ChainVerification(
-                    is_valid=False, broken_link_index=i, reason="Chain link broken"
+                    is_valid=False, broken_link_index=i, reason="previous_hash_mismatch"
                 )
+            # Sequence ordering
             if entry.sequence != prev.sequence + 1:
                 return ChainVerification(
-                    is_valid=False, broken_link_index=i, reason="Sequence gap detected"
+                    is_valid=False, broken_link_index=i, reason="ordering_violation"
                 )
 
     return ChainVerification(is_valid=True)
