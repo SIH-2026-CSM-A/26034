@@ -25,7 +25,13 @@ def detect_reference_object(
 ) -> tuple[float, float, np.ndarray] | MeasurementRefusal:
     """Detects the reference object in the image and returns
     (mm_per_pixel, confidence_interval, homography_matrix).
-    Returns MeasurementRefusal if the object cannot be detected."""
+    Returns MeasurementRefusal if the object cannot be detected.
+    
+    Note on homography: The `coin_10` path cannot recover a true projective homography. 
+    A circle under perspective becomes an ellipse with no distinct corners, meaning the 
+    bounding box maps arbitrary points. It recovers scale and aspect, but should not be 
+    trusted for highly oblique camera angles.
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
     def get_ordered_corners(pts):
@@ -435,6 +441,9 @@ def measure_width_to_height_ratio(
     if is_artwork:
         return MeasurementExact(value=ratio, unit="ratio")
 
+    # Note: The scale error cancels between the numerator and denominator, 
+    # making this calculated interval wider than the truth. 
+    # This safely errs toward REVIEW rather than PASS.
     rel_conf = conf_interval / mm_per_pixel
     confidence = ratio * rel_conf
 
