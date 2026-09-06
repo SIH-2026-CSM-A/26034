@@ -20,14 +20,59 @@ REF_DIMS = {
 MIN_PLANARITY_THRESHOLD = 0.85
 
 
-def detect_reference_object(image: np.ndarray, ref_type: str) -> float | None:
-    """Detects the reference object in the image and returns mm_per_pixel scale factor.
-    Returns None if the object cannot be detected."""
+def detect_reference_object(
+    image: np.ndarray, ref_type: str
+) -> tuple[float, float, np.ndarray] | MeasurementRefusal:
+    """Detects the reference object in the image and returns
+    (mm_per_pixel, confidence_interval, homography_matrix).
+    Returns MeasurementRefusal if the object cannot be detected."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
+    def get_ordered_corners(pts):
+        rect = np.zeros((4, 2), dtype="float32")
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        diff = np.diff(pts, axis=1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        return rect
+
+    def safe_warp(src_pts, w, h, cx, cy):
+        dst_pts = np.float32(
+            [
+                [cx - w / 2, cy - h / 2],
+                [cx + w / 2, cy - h / 2],
+                [cx + w / 2, cy + h / 2],
+                [cx - w / 2, cy + h / 2],
+            ]
+        )
+        return cv2.getPerspectiveTransform(src_pts, dst_pts)
+
     if ref_type == "coin_10":
-        # Blur before Hough circles
-        blurred = cv2.medianBlur(gray, 5)
+        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
+        c = max(contours, key=cv2.contourArea)
+        rect = cv2.minAreaRect(c)
+        src_pts = get_ordered_corners(cv2.boxPoints(rect))
+
+        cx, cy = rect[0]
+        side = max(rect[1])
+        if side == 0:
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
+
+        h_matrix = safe_warp(src_pts, side, side, cx, cy)
+        warped = cv2.warpPerspective(
+            gray, h_matrix, (gray.shape[1], gray.shape[0]), borderValue=255
+        )
+
+        blurred = cv2.medianBlur(warped, 5)
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
@@ -36,65 +81,121 @@ def detect_reference_object(image: np.ndarray, ref_type: str) -> float | None:
             param1=50,
             param2=30,
             minRadius=10,
-            maxRadius=max(gray.shape) // 2,
+            maxRadius=max(warped.shape) // 2,
         )
         if circles is not None and len(circles) > 0:
             circles = np.uint16(np.around(circles))
-            # Take the largest circle as the coin
             max_circle = max(circles[0, :], key=lambda c: c[2])
-            radius_px = max_circle[2]
-            diameter_px = radius_px * 2
+            diameter_px = max_circle[2] * 2
             if diameter_px > 0:
-                return REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
-        return None
+                scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
+                return scale, scale * 0.05, h_matrix
+        return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
 
     elif ref_type == "id_card":
-        # Edge detection and contour finding
         edges = cv2.Canny(gray, 50, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            return None
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
 
-        # Find largest rectangular contour
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        best_box = None
         for cnt in contours:
             epsilon = 0.02 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
             if len(approx) == 4:
-                rect = cv2.minAreaRect(cnt)
-                w, h = rect[1]
-                if w == 0 or h == 0:
-                    continue
-                # ID card aspect ratio is 85.60 / 53.98 ≈ 1.585
-                aspect = max(w, h) / min(w, h)
-                if 1.4 < aspect < 1.8:
-                    return REF_DIMS["id_card"]["width_mm"] / max(w, h)
-        return None
+                best_box = approx.reshape(4, 2)
+                break
+
+        if best_box is None:
+            rect = cv2.minAreaRect(contours[0])
+            best_box = cv2.boxPoints(rect)
+
+        src_pts = get_ordered_corners(best_box)
+        rect = cv2.minAreaRect(contours[0])
+        cx, cy = rect[0]
+        w, h = rect[1]
+        if max(w, h) == 0:
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
+
+        d01 = np.linalg.norm(src_pts[0] - src_pts[1])
+        d12 = np.linalg.norm(src_pts[1] - src_pts[2])
+        if d01 > d12:
+            dst_w = max(w, h)
+            dst_h = dst_w * (53.98 / 85.60)
+        else:
+            dst_h = max(w, h)
+            dst_w = dst_h * (53.98 / 85.60)
+
+        h_matrix = safe_warp(src_pts, dst_w, dst_h, cx, cy)
+        warped = cv2.warpPerspective(
+            gray, h_matrix, (gray.shape[1], gray.shape[0]), borderValue=255
+        )
+
+        edges = cv2.Canny(warped, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            c = max(contours, key=cv2.contourArea)
+            rect = cv2.minAreaRect(c)
+            w, h = rect[1]
+            if max(w, h) > 0:
+                scale = REF_DIMS["id_card"]["width_mm"] / max(w, h)
+                return scale, scale * 0.01, h_matrix
+        return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
 
     elif ref_type == "ean_13":
-        # Simplified barcode detection: find largest bounding box of high frequency vertical edges
-        # We can use Sobel to find vertical edges
         sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
         sobelx = cv2.convertScaleAbs(sobelx)
         _, thresh = cv2.threshold(sobelx, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # Morphological close to group lines together
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (21, 7))
         closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
         contours, _ = cv2.findContours(closed.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            return None
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
 
         c = max(contours, key=cv2.contourArea)
         rect = cv2.minAreaRect(c)
-        w, h = rect[1]
-        if w > 0 and h > 0:
-            width_px = max(w, h)
-            return REF_DIMS["ean_13"]["width_mm"] / width_px
-        return None
+        src_pts = get_ordered_corners(cv2.boxPoints(rect))
+        cx, cy = rect[0]
 
-    return None
+        dst_w = float(np.linalg.norm(src_pts[0] - src_pts[1]))
+        if dst_w == 0:
+            return MeasurementRefusal(
+                reason="Rectification failed: unable to identify adequately planar panel"
+            )
+
+        dst_h = dst_w * (25.93 / 37.29)  # True EAN-13 aspect ratio
+
+        h_matrix = safe_warp(src_pts, dst_w, dst_h, cx, cy)
+        warped = cv2.warpPerspective(
+            gray, h_matrix, (gray.shape[1], gray.shape[0]), borderValue=255
+        )
+
+        sobelx = cv2.Sobel(warped, cv2.CV_64F, 1, 0, ksize=3)
+        sobelx = cv2.convertScaleAbs(sobelx)
+        _, thresh = cv2.threshold(sobelx, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(closed.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if contours:
+            c = max(contours, key=cv2.contourArea)
+            rect = cv2.minAreaRect(c)
+            w, h = rect[1]
+            if max(w, h) > 0:
+                scale = REF_DIMS["ean_13"]["width_mm"] / max(w, h)
+                return scale, scale * 0.10, h_matrix
+        return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
+
+    return MeasurementRefusal(
+        reason="Rectification failed: unable to identify adequately planar panel"
+    )
 
 
 def measure_ink_extent(
@@ -118,11 +219,16 @@ def measure_ink_extent(
             return MeasurementRefusal(
                 reason=("Missing reference object image or type for calibration.")
             )
-        mm_per_pixel = detect_reference_object(ref_image, ref_type)
-        if mm_per_pixel is None:
-            return MeasurementRefusal(
-                reason=(f"Failed to detect reference object of type: {ref_type}.")
-            )
+        calib = detect_reference_object(ref_image, ref_type)
+        if isinstance(calib, MeasurementRefusal):
+            return calib
+        mm_per_pixel, conf_interval, h_matrix = calib
+
+        # Warp the original image using homography
+        bw = (255, 255, 255) if len(image.shape) == 3 else 255
+        image = cv2.warpPerspective(
+            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+        )
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
@@ -149,8 +255,7 @@ def measure_ink_extent(
     if is_artwork:
         return MeasurementExact(value=height_mm, unit="mm")
 
-    # We assume a base ±5% confidence interval for estimated homography
-    confidence = height_mm * 0.05
+    confidence = height_px * conf_interval
 
     return MeasurementCalibrated(
         value=height_mm, confidence_interval=confidence, unit="mm", reference_object=ref_type
@@ -178,11 +283,14 @@ def calculate_pdp_area(
             return MeasurementRefusal(
                 reason=("Missing reference object image or type for calibration.")
             )
-        mm_per_pixel = detect_reference_object(ref_image, ref_type)
-        if mm_per_pixel is None:
-            return MeasurementRefusal(
-                reason=(f"Failed to detect reference object of type: {ref_type}.")
-            )
+        calib = detect_reference_object(ref_image, ref_type)
+        if isinstance(calib, MeasurementRefusal):
+            return calib
+        mm_per_pixel, conf_interval, h_matrix = calib
+        bw = (255, 255, 255) if len(image.shape) == 3 else 255
+        image = cv2.warpPerspective(
+            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+        )
 
     height_px, width_px = image.shape[:2]
     height_mm = height_px * mm_per_pixel
@@ -207,8 +315,8 @@ def calculate_pdp_area(
     if is_artwork:
         return MeasurementExact(value=area_cm2, unit="cm²", rule_limb=rule_limb)
 
-    # Confidence interval approx ±10% for area
-    confidence = area_cm2 * 0.10
+    rel_conf = conf_interval / mm_per_pixel
+    confidence = area_cm2 * (rel_conf * 2)
 
     return MeasurementCalibrated(
         value=area_cm2,
@@ -293,11 +401,14 @@ def measure_width_to_height_ratio(
             return MeasurementRefusal(
                 reason=("Missing reference object image or type for calibration.")
             )
-        mm_per_pixel = detect_reference_object(ref_image, ref_type)
-        if mm_per_pixel is None:
-            return MeasurementRefusal(
-                reason=(f"Failed to detect reference object of type: {ref_type}.")
-            )
+        calib = detect_reference_object(ref_image, ref_type)
+        if isinstance(calib, MeasurementRefusal):
+            return calib
+        mm_per_pixel, conf_interval, h_matrix = calib
+        bw = (255, 255, 255) if len(image.shape) == 3 else 255
+        image = cv2.warpPerspective(
+            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+        )
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
@@ -324,7 +435,8 @@ def measure_width_to_height_ratio(
     if is_artwork:
         return MeasurementExact(value=ratio, unit="ratio")
 
-    confidence = ratio * 0.05
+    rel_conf = conf_interval / mm_per_pixel
+    confidence = ratio * rel_conf
 
     return MeasurementCalibrated(
         value=ratio, confidence_interval=confidence, unit="ratio", reference_object=ref_type
@@ -354,11 +466,25 @@ def measure_margins(
     else:
         if ref_image is None or ref_type is None:
             return make_refusals("Missing reference object image or type for calibration.")
-        mm_per_pixel = detect_reference_object(ref_image, ref_type)
-        if mm_per_pixel is None:
-            return make_refusals(f"Failed to detect reference object of type: {ref_type}.")
+        calib = detect_reference_object(ref_image, ref_type)
+        if isinstance(calib, MeasurementRefusal):
+            return make_refusals(calib.reason)
+        mm_per_pixel, conf_interval, h_matrix = calib
+        bw = (255, 255, 255) if len(image.shape) == 3 else 255
+        image = cv2.warpPerspective(
+            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+        )
 
     x, y, w, h = declaration_bbox
+    if not is_artwork and h_matrix is not None:
+        pts = np.array([[[x, y], [x + w, y], [x + w, y + h], [x, y + h]]], dtype=np.float32)
+        warped_pts = cv2.perspectiveTransform(pts, h_matrix)
+        x_coords = warped_pts[0, :, 0]
+        y_coords = warped_pts[0, :, 1]
+        x = max(0, int(np.min(x_coords)))
+        y = max(0, int(np.min(y_coords)))
+        w = int(np.max(x_coords)) - x
+        h = int(np.max(y_coords)) - y
     img_h, img_w = image.shape[:2]
 
     # Convert numeral image to grayscale if needed
@@ -412,7 +538,7 @@ def measure_margins(
         if is_artwork:
             results[direction] = MeasurementExact(value=dist_mm, unit="mm")
         else:
-            confidence = dist_mm * 0.05
+            confidence = max(0, dist_px) * conf_interval
             results[direction] = MeasurementCalibrated(
                 value=dist_mm,
                 confidence_interval=confidence,
