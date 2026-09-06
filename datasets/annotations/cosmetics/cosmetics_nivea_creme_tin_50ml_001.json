@@ -15,7 +15,12 @@
     "object_type": "coin_inr_5",
     "known_dimension_mm": 25.0,
     "confidence_interval_mm": 0.2,
-    "bbox": [0.05, 0.75, 0.22, 0.95]
+    "bbox": [
+      0.05,
+      0.75,
+      0.22,
+      0.95
+    ]
   },
   "pdp": {
     "shape": "circular",
@@ -37,7 +42,12 @@
         "address": "Plot No. SM-9/1, Sanand GIDC-II, Industrial Estate, Bol Village, Sanand, Ahmedabad, Gujarat 382110",
         "role": "manufacturer"
       },
-      "bbox": [0.1, 0.45, 0.9, 0.6],
+      "bbox": [
+        0.1,
+        0.45,
+        0.9,
+        0.6
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 1.1,
@@ -48,7 +58,12 @@
       "declared": true,
       "raw_text": "NIVEA CREME",
       "normalised_value": "Nivea Creme",
-      "bbox": [0.2, 0.1, 0.8, 0.22],
+      "bbox": [
+        0.2,
+        0.1,
+        0.8,
+        0.22
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 3.0,
@@ -62,7 +77,12 @@
         "value": 50.0,
         "unit": "ml"
       },
-      "bbox": [0.6, 0.25, 0.9, 0.35],
+      "bbox": [
+        0.6,
+        0.25,
+        0.9,
+        0.35
+      ],
       "polygon": null,
       "numeral_height_mm": 1.8,
       "letter_height_mm": 1.2,
@@ -76,7 +96,12 @@
         "month": 6,
         "year": 2026
       },
-      "bbox": [0.1, 0.62, 0.45, 0.72],
+      "bbox": [
+        0.1,
+        0.62,
+        0.45,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 1.4,
       "letter_height_mm": 1.1,
@@ -90,7 +115,12 @@
         "amount_inr": 130.0,
         "inclusive_of_all_taxes": true
       },
-      "bbox": [0.5, 0.62, 0.9, 0.72],
+      "bbox": [
+        0.5,
+        0.62,
+        0.9,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 1.5,
       "letter_height_mm": 1.1,
@@ -104,7 +134,12 @@
         "rate": 2.6,
         "unit_basis": "per ml"
       },
-      "bbox": [0.5, 0.74, 0.9, 0.82],
+      "bbox": [
+        0.5,
+        0.74,
+        0.9,
+        0.82
+      ],
       "polygon": null,
       "numeral_height_mm": 1.2,
       "letter_height_mm": 1.0,
@@ -119,7 +154,12 @@
         "email": "care@nivea.in",
         "address": "Nivea India Pvt Ltd, Mumbai 400072"
       },
-      "bbox": [0.1, 0.82, 0.9, 0.92],
+      "bbox": [
+        0.1,
+        0.82,
+        0.9,
+        0.92
+      ],
       "polygon": null,
       "numeral_height_mm": 1.1,
       "letter_height_mm": 1.0,
@@ -130,7 +170,12 @@
       "declared": true,
       "raw_text": "Country of Origin: India",
       "normalised_value": "India",
-      "bbox": [0.1, 0.92, 0.5, 0.98],
+      "bbox": [
+        0.1,
+        0.92,
+        0.5,
+        0.98
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 1.0,
@@ -139,5 +184,5 @@
     }
   },
   "ground_truth_verdict": "PASS",
-  "notes": "Small circular tin PDP (pi * r^2 = 44.18 cm²). Complies with Rule 7 Table-I Band A <= 50 (min 1.0 mm)."
+  "notes": "Small circular tin PDP (pi * r^2 = 44.18 cm\u00b2). Complies with Rule 7 Table-I Band A <= 50 (min 1.0 mm)."
 }

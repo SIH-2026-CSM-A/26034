@@ -39,7 +39,12 @@
         "address": "20 Km Stone, Vill-Vihirgaon, Umred Road, Nagpur 441222, Maharashtra",
         "role": "manufacturer"
       },
-      "bbox": [0.05, 0.45, 0.95, 0.58],
+      "bbox": [
+        0.05,
+        0.45,
+        0.95,
+        0.58
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -48,9 +53,14 @@
     },
     "commodity_name": {
       "declared": true,
-      "raw_text": "ALOO BHUJIA / आलू भुजिया",
+      "raw_text": "ALOO BHUJIA / \u0906\u0932\u0942 \u092d\u0941\u091c\u093f\u092f\u093e",
       "normalised_value": "Aloo Bhujia",
-      "bbox": [0.1, 0.1, 0.9, 0.22],
+      "bbox": [
+        0.1,
+        0.1,
+        0.9,
+        0.22
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -59,12 +69,17 @@
     },
     "net_quantity": {
       "declared": true,
-      "raw_text": "Net Weight / शुद्ध वजन: 150 g",
+      "raw_text": "Net Weight / \u0936\u0941\u0926\u094d\u0927 \u0935\u091c\u0928: 150 g",
       "normalised_value": {
         "value": 150.0,
         "unit": "g"
       },
-      "bbox": [0.55, 0.25, 0.95, 0.35],
+      "bbox": [
+        0.55,
+        0.25,
+        0.95,
+        0.35
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -79,7 +94,12 @@
         "month": 7,
         "year": 2026
       },
-      "bbox": [0.1, 0.6, 0.45, 0.7],
+      "bbox": [
+        0.1,
+        0.6,
+        0.45,
+        0.7
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -88,12 +108,17 @@
     },
     "retail_sale_price_mrp": {
       "declared": true,
-      "raw_text": "MRP Rs. 50.00 (Incl. of all taxes) / अधिकतम खुदरा मूल्य ₹ 50.00 (सभी कर सहित)",
+      "raw_text": "MRP Rs. 50.00 (Incl. of all taxes) / \u0905\u0927\u093f\u0915\u0924\u092e \u0916\u0941\u0926\u0930\u093e \u092e\u0942\u0932\u094d\u092f \u20b9 50.00 (\u0938\u092d\u0940 \u0915\u0930 \u0938\u0939\u093f\u0924)",
       "normalised_value": {
         "amount_inr": 50.0,
         "inclusive_of_all_taxes": true
       },
-      "bbox": [0.5, 0.6, 0.95, 0.72],
+      "bbox": [
+        0.5,
+        0.6,
+        0.95,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -107,7 +132,12 @@
         "rate": 0.33,
         "unit_basis": "per g"
       },
-      "bbox": [0.5, 0.73, 0.95, 0.81],
+      "bbox": [
+        0.5,
+        0.73,
+        0.95,
+        0.81
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -122,7 +152,12 @@
         "email": "feedback@haldirams.com",
         "address": "Nagpur 441222"
       },
-      "bbox": [0.05, 0.82, 0.95, 0.92],
+      "bbox": [
+        0.05,
+        0.82,
+        0.95,
+        0.92
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,
@@ -131,9 +166,14 @@
     },
     "country_of_origin": {
       "declared": true,
-      "raw_text": "Product of India / भारत में निर्मित",
+      "raw_text": "Product of India / \u092d\u093e\u0930\u0924 \u092e\u0947\u0902 \u0928\u093f\u0930\u094d\u092e\u093f\u0924",
       "normalised_value": "India",
-      "bbox": [0.05, 0.93, 0.55, 0.98],
+      "bbox": [
+        0.05,
+        0.93,
+        0.55,
+        0.98
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": null,

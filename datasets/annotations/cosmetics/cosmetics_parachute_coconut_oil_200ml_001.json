@@ -17,7 +17,12 @@
     "object_type": "coin_inr_5",
     "known_dimension_mm": 25.0,
     "confidence_interval_mm": 0.2,
-    "bbox": [0.75, 0.78, 0.92, 0.95]
+    "bbox": [
+      0.75,
+      0.78,
+      0.92,
+      0.95
+    ]
   },
   "pdp": {
     "shape": "cylindrical",
@@ -39,7 +44,12 @@
         "address": "7th Floor, Grande Palladium, 175, CST Road, Kalina, Santacruz East, Mumbai 400098",
         "role": "manufacturer"
       },
-      "bbox": [0.1, 0.48, 0.9, 0.6],
+      "bbox": [
+        0.1,
+        0.48,
+        0.9,
+        0.6
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 1.6,
@@ -50,7 +60,12 @@
       "declared": true,
       "raw_text": "100% PURE COCONUT OIL",
       "normalised_value": "100% Pure Coconut Oil",
-      "bbox": [0.1, 0.1, 0.9, 0.22],
+      "bbox": [
+        0.1,
+        0.1,
+        0.9,
+        0.22
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 4.5,
@@ -64,12 +79,17 @@
         "value": 200.0,
         "unit": "ml"
       },
-      "bbox": [0.1, 0.25, 0.45, 0.35],
+      "bbox": [
+        0.1,
+        0.25,
+        0.45,
+        0.35
+      ],
       "polygon": null,
       "numeral_height_mm": 1.2,
       "letter_height_mm": 1.1,
       "expected_field_state": "FAIL",
-      "non_compliance_reason": "Net quantity numeral height (1.2 mm) is below statutory minimum (1.5 mm) for PDP band 50 < A <= 100 cm² (Rule 7 Table-I)."
+      "non_compliance_reason": "Net quantity numeral height (1.2 mm) is below statutory minimum (1.5 mm) for PDP band 50 < A <= 100 cm\u00b2 (Rule 7 Table-I)."
     },
     "date_of_manufacture_or_packing": {
       "declared": true,
@@ -78,7 +98,12 @@
         "month": 7,
         "year": 2026
       },
-      "bbox": [0.55, 0.25, 0.9, 0.35],
+      "bbox": [
+        0.55,
+        0.25,
+        0.9,
+        0.35
+      ],
       "polygon": null,
       "numeral_height_mm": 1.6,
       "letter_height_mm": 1.5,
@@ -92,7 +117,12 @@
         "amount_inr": 90.0,
         "inclusive_of_all_taxes": true
       },
-      "bbox": [0.1, 0.62, 0.5, 0.72],
+      "bbox": [
+        0.1,
+        0.62,
+        0.5,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 1.8,
       "letter_height_mm": 1.5,
@@ -106,7 +136,12 @@
         "rate": 0.45,
         "unit_basis": "per ml"
       },
-      "bbox": [0.55, 0.62, 0.9, 0.72],
+      "bbox": [
+        0.55,
+        0.62,
+        0.9,
+        0.72
+      ],
       "polygon": null,
       "numeral_height_mm": 1.6,
       "letter_height_mm": 1.5,
@@ -121,7 +156,12 @@
         "email": "csc@marico.com",
         "address": "Marico Ltd, Mumbai 400098"
       },
-      "bbox": [0.1, 0.75, 0.9, 0.88],
+      "bbox": [
+        0.1,
+        0.75,
+        0.9,
+        0.88
+      ],
       "polygon": null,
       "numeral_height_mm": 1.6,
       "letter_height_mm": 1.5,
@@ -132,7 +172,12 @@
       "declared": true,
       "raw_text": "Country of Origin: India",
       "normalised_value": "India",
-      "bbox": [0.1, 0.9, 0.5, 0.96],
+      "bbox": [
+        0.1,
+        0.9,
+        0.5,
+        0.96
+      ],
       "polygon": null,
       "numeral_height_mm": null,
       "letter_height_mm": 1.5,
@@ -141,5 +186,5 @@
     }
   },
   "ground_truth_verdict": "POTENTIAL_VIOLATION",
-  "notes": "PDP area 96 cm² (Rule 7 Table-I minimum height 1.5 mm). Calibrated measurement confirms net quantity numeral height is 1.2 mm (< 1.5 mm)."
+  "notes": "PDP area 96 cm\u00b2 (Rule 7 Table-I minimum height 1.5 mm). Calibrated measurement confirms net quantity numeral height is 1.2 mm (< 1.5 mm)."
 }
