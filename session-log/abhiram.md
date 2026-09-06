@@ -101,12 +101,37 @@ returns bindings and not `NormalisedField`, so EXT-004 does not re-implement nin
 functions. `DeclarationRole` mirrors extraction's `AddressRole` member for member, with a
 test that fails on drift, so his side is an import swap.
 
-**EXT-004 wired — and PR #44 is open, not merged**
-I was told EXT-004 had merged as PR #44. It has not: `gh pr view 44` reports `state: OPEN`,
-`mergedAt: null`, and its commit is not an ancestor of `origin/main`, whose head is #41
-(EVD-004). There is no `binder.py` on main. The interface is exactly as described, on
-`origin/feat/ext-004-span-classification`, and I built against that after reading it rather
-than against the description. **This branch does not import until #44 merges.**
+**An executable guard for the sector-gate trap, and a sixth mask it found**
+The README note had not stopped it recurring, so the guard is now code.
+`tests/pipeline/sector_gate.findings_for_rule` is the only sanctioned way to select a
+rule's findings and raises when every finding it returned carries
+`UNCONFIRMED_CATEGORY_REASON` — meaning the gate answered, not the builder under test. It
+takes no product-category argument deliberately: an argument is a thing a test can pass
+wrongly, and the condition is readable off the findings themselves. The reason string was
+promoted to a named constant in `rule_findings.py` so the helper imports it rather than
+matching a substring that could drift. `test_sector_gate_guard.py` keeps it the only route,
+refusing a direct `rule_snapshot.rule_id == "…"` comparison elsewhere in the package.
+
+Writing it found a sixth mask I had not counted:
+`test_an_uncalibrated_scan_refuses_every_letter_height_field` ran with no category and
+asserted `"was not made" in reason or "not been confirmed" in reason` — it accepted the
+gate's own answer, so the measurement path never ran in it. Now confirms food and asserts
+the measurement reason specifically.
+
+The first version of the AST predicate matched any `x.rule_id == "literal"` and flagged
+`test_rule_snapshot.py`, which asserts about a snapshot it built itself — no gate, no
+finding, nothing to mask. Narrowed to comparisons reaching through `.rule_snapshot.`, which
+is what distinguishes selecting a finding from asserting on an object.
+
+Falsified four ways: the masked shape written fresh outside the helper (caught
+structurally), the same shape through the helper (fails at selection with the explanation),
+the gate deleted from production code, and the helper's own selection removed so the
+structural guard cannot go vacuous.
+
+**EXT-004 wired**
+When this was written PR #44 was still open, and the branch was built against the interface
+on `origin/feat/ext-004-span-classification` after reading it rather than against a
+description. #44 has since merged as `fe7591e`; the branch is rebased onto it and green.
 
 The gated `contracts/binding.py` commit is dropped entirely — `BoundDeclaration`,
 `DeclarationRole` and the `AddressRole` mirror test are gone. That was right regardless of

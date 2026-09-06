@@ -28,10 +28,17 @@ where it sits in the run.
 
 **The sector gate runs before every builder.** With no confirmed product category, every
 rule in `SECTOR_GOVERNED_RULES` is settled as INSUFFICIENT_EVIDENCE before its own builder
-is reached. A test asserting something about Rule 7's measurement handling while leaving
-the category unconfirmed passes whether or not that handling exists — four tests were
-written that way here before being caught. Confirm a category that carves nothing out, or
-assert against a rule the gate does not touch.
+is reached, so a test asserting about that rule's downstream handling passes whether the
+handling exists, is broken, or is deleted. Six selections in the test suite were wrong that
+way.
+
+This paragraph used to be the whole defence and it did not work — prose does not run. The
+guard is now executable: `tests/pipeline/sector_gate.findings_for_rule` is the only
+sanctioned way to pick a rule's findings, and it raises when everything it selected carries
+the gate's own reason. `tests/pipeline/test_sector_gate_guard.py` keeps it the only route by
+refusing a direct `rule_snapshot.rule_id == "…"` comparison anywhere else in the package.
+Either confirm a category that leaves the rule alone, assert against an ungated rule, or
+pass `gate_is_the_subject=True` when the gate is what you are testing.
 
 **There are no `relationship()` declarations on the models, so insert order is not
 automatic.** `repository.add_verdict` flushes the verdict before its findings, deliberately.

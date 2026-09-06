@@ -35,6 +35,8 @@ from app.pipeline.findings import build_findings
 from app.pipeline.rule_findings import EvidenceContext
 from app.pipeline.verdict import assemble_verdict
 
+from .sector_gate import findings_for_rule
+
 EVALUATION_DATE = date(2026, 9, 6)
 NO_CALIBRATION = MeasurementRefusal(reason="no reference object was in frame")
 UNREADABLE = "the panel was read but no declaration was bound to a span."
@@ -123,11 +125,18 @@ def test_an_uncalibrated_scan_refuses_every_letter_height_field() -> None:
 
     INSUFFICIENT_EVIDENCE and never FAIL: the package may well comply, and we did not
     obtain the evidence to say either way.
+
+    Food is confirmed so that Rule 7 is actually evaluated. This test previously ran with
+    no category and accepted *either* the measurement reason or the sector gate's, which
+    meant it passed without the measurement path running at all — the guard in
+    ``sector_gate`` is what surfaced that, and the reason assertion is now specific.
     """
-    measured = [f for f in findings_for() if f.rule_snapshot.rule_id == "R7-2-TABLE-I"]
+    measured = findings_for_rule(
+        findings_for(product_category=ProductCategory.FOOD), "R7-2-TABLE-I"
+    )
     assert measured, "Rule 7 Table-I produced no finding at all"
     assert {f.state for f in measured} == {FieldState.INSUFFICIENT_EVIDENCE}
-    assert all("was not made" in f.reason or "not been confirmed" in f.reason for f in measured)
+    assert all("the measurement this rule needs was not made" in f.reason for f in measured)
 
 
 def test_an_uncalibrated_response_states_no_millimetre_it_claims_to_have_measured() -> None:
@@ -186,11 +195,9 @@ def test_an_unconfirmed_category_never_produces_a_fail() -> None:
 
 def test_a_confirmed_sector_routes_its_obligations_out_of_the_packaged_rules() -> None:
     """A medical device carves out of Table-I rather than being judged more strictly."""
-    routed = [
-        f
-        for f in findings_for(product_category=ProductCategory.MEDICAL_DEVICE)
-        if f.rule_snapshot.rule_id == "R7-2-TABLE-I"
-    ]
+    routed = findings_for_rule(
+        findings_for(product_category=ProductCategory.MEDICAL_DEVICE), "R7-2-TABLE-I"
+    )
     assert {f.state for f in routed} == {FieldState.NOT_APPLICABLE}
     assert all("Medical Devices" in f.reason for f in routed)
 
@@ -203,8 +210,9 @@ def test_a_confirmed_category_does_not_carve_out_an_unrelated_sector() -> None:
     """
     states = {
         f.state
-        for f in findings_for(product_category=ProductCategory.FOOD)
-        if f.rule_snapshot.rule_id == "R7-2-TABLE-I"
+        for f in findings_for_rule(
+            findings_for(product_category=ProductCategory.FOOD), "R7-2-TABLE-I"
+        )
     }
     assert FieldState.NOT_APPLICABLE not in states
 
@@ -236,11 +244,10 @@ def test_a_calibrated_measurement_is_compared_rather_than_refused() -> None:
             value=60.0, confidence_interval=1.0, unit="cm2", reference_object="10-rupee coin"
         ),
     }
-    findings = [
-        f
-        for f in findings_for(measurements=calibrated, product_category=ProductCategory.FOOD)
-        if f.rule_snapshot.rule_id == "R7-2-TABLE-I"
-    ]
+    findings = findings_for_rule(
+        findings_for(measurements=calibrated, product_category=ProductCategory.FOOD),
+        "R7-2-TABLE-I",
+    )
     assert findings, "Table-I produced no finding with a calibrated measurement"
     assert {f.state for f in findings} <= {FieldState.PASS, FieldState.FAIL}
     assert all(f.expected_value and "mm" in f.expected_value for f in findings)
@@ -254,6 +261,6 @@ def test_a_declaration_absent_from_a_listing_is_a_finding_about_the_listing() ->
     test that only ever saw INSUFFICIENT_EVIDENCE would not show they were distinguished.
     """
     findings = findings_for(source_is_listing=True, unreadable_reason=None, measurements={})
-    absent = [f for f in findings if f.rule_snapshot.rule_id == "R6-1-C"]
+    absent = findings_for_rule(findings, "R6-1-C")
     assert {f.state for f in absent} == {FieldState.FAIL}
     assert all("looked for and is not present" in f.reason for f in absent)

@@ -42,6 +42,8 @@ from app.pipeline.orchestrator import (
     run_image_scan,
 )
 
+from .sector_gate import findings_for_rule
+
 NOW = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
 
 
@@ -141,7 +143,7 @@ def test_a_catalogue_scan_never_reports_a_measurement_as_passing() -> None:
         evaluated_at=NOW,
         subject_ref="scan-listing-measure",
     )
-    sizing = [f for f in record.findings if f.rule_snapshot.rule_id == "R8-1-FREE-SPACE"]
+    sizing = findings_for_rule(record.findings, "R8-1-FREE-SPACE")
     assert sizing
     assert FieldState.PASS not in {f.state for f in sizing}
     assert FieldState.NOT_APPLICABLE not in {f.state for f in sizing}
@@ -163,8 +165,8 @@ def test_a_listing_field_whose_role_the_key_establishes_is_not_discarded() -> No
     )
     origin = [
         f
-        for f in record.findings
-        if f.field is DeclarationField.COUNTRY_OF_ORIGIN and f.rule_snapshot.rule_id == "R6-1-AA"
+        for f in findings_for_rule(record.findings, "R6-1-AA")
+        if f.field is DeclarationField.COUNTRY_OF_ORIGIN
     ]
     assert {f.state for f in origin} == {FieldState.PASS}
     assert all(f.observed_value == "India" for f in origin)
@@ -267,8 +269,8 @@ def test_a_bound_address_reaches_a_finding_once_the_category_is_confirmed() -> N
     result = scan_panel(product_category=ProductCategory.MEDICAL_DEVICE)
     address = next(
         f
-        for f in result.verdict.findings
-        if f.field is DeclarationField.NAME_AND_ADDRESS and f.rule_snapshot.rule_id == "R6-1-A"
+        for f in findings_for_rule(result.verdict.findings, "R6-1-A")
+        if f.field is DeclarationField.NAME_AND_ADDRESS
     )
     assert address.state is FieldState.PASS
     assert "Acme Foods" in (address.observed_value or "")
@@ -320,8 +322,8 @@ def test_an_unbound_declaration_says_so_about_the_photograph() -> None:
     result = scan_panel()
     dimensions = [
         f
-        for f in result.verdict.findings
-        if f.field is DeclarationField.DIMENSIONS and f.rule_snapshot.rule_id == "R6-1-F"
+        for f in findings_for_rule(result.verdict.findings, "R6-1-F")
+        if f.field is DeclarationField.DIMENSIONS
     ]
     assert {f.state for f in dimensions} == {FieldState.INSUFFICIENT_EVIDENCE}
     assert all(f.reason == UNBOUND_DECLARATION_REASON for f in dimensions)

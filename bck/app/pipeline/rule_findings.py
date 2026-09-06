@@ -39,6 +39,22 @@ from app.modules.rules import (
 from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, SECTOR_GOVERNED_RULES
 from app.pipeline.rule_snapshot import snapshot_from_rule
 
+UNCONFIRMED_CATEGORY_REASON = (
+    "the product category has not been confirmed, and a sector rule may move this "
+    "obligation to another framework. Confirm the category to evaluate it — an "
+    "unconfirmed category is not a finding about the package."
+)
+"""Why a sector-gated obligation was not evaluated.
+
+Named rather than inline because the test suite needs to recognise a finding the gate
+produced. A test that selects a sector-gated rule's findings without confirming a category
+gets only findings carrying this reason, and is then asserting about the gate rather than
+about whatever builder it meant to exercise —
+``tests/pipeline/sector_gate.findings_for_rule`` refuses that shape by looking for this
+exact text, so the two cannot drift apart into a substring match that silently stops
+matching.
+"""
+
 
 @dataclass(frozen=True)
 class EvidenceContext:
@@ -115,9 +131,7 @@ def sector_findings(
                 rule,
                 field,
                 FieldState.INSUFFICIENT_EVIDENCE,
-                "the product category has not been confirmed, and a sector rule may move "
-                "this obligation to another framework. Confirm the category to evaluate "
-                "it — an unconfirmed category is not a finding about the package.",
+                UNCONFIRMED_CATEGORY_REASON,
                 context,
             )
             for field in fields
