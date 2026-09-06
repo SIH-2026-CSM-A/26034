@@ -1,8 +1,7 @@
 # AGENTS.md
 
 Cross-tool rules for PCCS — Packaged Commodity Compliance System, SIH 2026 PS 26034.
-Read by Antigravity, Codex, Claude Code and any other AGENTS.md-aware agent at session
-start.
+Read by Antigravity, Codex, Claude Code and any other AGENTS.md-aware agent at session start.
 
 **This file holds standing rules, not session history.** Session history lives in
 `session-log/<your-name>.md`.
@@ -12,14 +11,14 @@ start.
 ## What this is
 
 A compliance decision-support system for packaged commodities under the Legal Metrology
-(Packaged Commodities) Rules, 2011. It extracts evidence and recommends. It never issues
-a legal determination.
+(Packaged Commodities) Rules, 2011. It extracts evidence and recommends. It never issues a
+legal determination.
 
 ## Stack
 
-Python 3.11, FastAPI, PostgreSQL 16 + pgvector, Redis + arq, MinIO, PaddleOCR,
-Tesseract, YOLO (ultralytics), React 18 + TypeScript + Vite + Tailwind, Docker Compose.
-Dependencies managed with `uv`.
+Python 3.11, FastAPI, PostgreSQL 16 + pgvector, Redis + arq, MinIO, PaddleOCR, Tesseract,
+YOLO (ultralytics), React 18 + TypeScript + Vite + Tailwind, Docker Compose. Dependencies
+managed with `uv`.
 
 ## Commands
 
@@ -30,26 +29,33 @@ test:       cd bck && uv run pytest
 lint:       cd bck && uv run ruff check .
 format:     cd bck && uv run ruff format --check .
 imports:    cd bck && uv run lint-imports
+frontend:   cd fnt && npm ci && npx tsc -b && npx vite build
 ```
 
-All five must pass before a PR is opened. CI runs the same set.
+All five backend commands must pass before a PR is opened. CI runs the same set, plus the
+frontend build on every PR.
 
 ## Standing constraints — these never bend
 
-1. **Verdicts are PASS / REVIEW / POTENTIAL VIOLATION.** Never "violation confirmed",
-   never "non-compliant" as a finding. A human confirmation step sits between any output
-   and any enforcement action. This applies to code, UI copy, logs and documentation.
-2. **Never emit a millimetre font measurement from an uncalibrated photograph.** Three
-   modes only: exact from pre-print artwork; a measurement with a stated confidence
-   interval when a reference object is in frame; an explicit refusal otherwise, routed
-   to human review.
-3. **Every legal, factual or statistical claim traces to `SIH26034_Research_And_References.md`.**
-   If it is not in that file, do not assert it — not in code, not in a comment, not in a
-   UI string.
-4. **Rule numbers and thresholds are never written from memory.** They come from the
-   files in `rules-corpus/`. A rule with no gazette reference does not ship.
-5. **No stubs, no placeholders, no TODO comments, no fake data in committed code.**
-   Production-grade from the first commit.
+1. **Verdicts are PASS / REVIEW / POTENTIAL VIOLATION.** Never "violation confirmed", never
+   "non-compliant" as a finding, never "illegal". A human confirmation step sits between any
+   output and any enforcement action. This applies to code, UI copy, logs, comments, fixture
+   data and documentation.
+2. **Never emit a millimetre font measurement from an uncalibrated photograph.** Three modes
+   only: exact from pre-print artwork; a measurement with a stated confidence interval when a
+   reference object is in frame; an explicit refusal otherwise, routed to human review. This
+   applies to ground-truth annotations as much as to runtime output.
+3. **Every legal, factual or statistical claim traces to `rules-corpus/` or
+   `SIH26034_Research_And_References.md`.** If it is not there, do not assert it — not in
+   code, not in a comment, not in a UI string, not in a test fixture.
+4. **Rule numbers and thresholds are never written from memory.** They come from
+   `rules-corpus/`. A rule with no resolvable `gazette_ref` fails to load.
+5. **INSUFFICIENT_EVIDENCE is not FAIL.** "We could not read it" and "it is not there" are
+   different findings with different legal consequences. Never collapse them, and never put
+   them in the same branch of a conditional — including a set membership test.
+6. **No stubs, placeholders, TODO comments or fake data in committed code.** Production-grade
+   from the first commit.
+7. **No LLM call and no agent loop anywhere in the verdict path.** Deterministic by design.
 
 ## Module ownership is absolute
 
@@ -62,99 +68,111 @@ You own directories. Nobody else edits them, and you edit nobody else's.
 | `bck/app/pipeline/` | Abhiram |
 | `bck/alembic/` | Abhiram |
 | `.github/` | Abhiram |
-| `bck/app/modules/rules/` | Jashwanth |
+| `bck/app/modules/rules/` | Abhiram *(from Jashwanth, unavailable)* |
 | `bck/app/modules/vision/` | Akshaya |
+| `bck/app/modules/tamper/` | Akshaya *(from Shivasai)* |
 | `bck/app/modules/extraction/` | Sitanshu |
-| `bck/app/modules/measurement/` | Yashashvi |
+| `bck/app/modules/measurement/` | Yashashvi *(unavailable — no new work assigned)* |
 | `bck/app/modules/evidence/` | Shiva Kumar |
-| `bck/app/modules/tamper/` | Shivasai |
-| `fnt/` officer surface | Vineeth |
+| `fnt/` officer surface | Abhiram *(Vineeth's module, he is unavailable)* |
 | `fnt/` admin surface | Rohan |
 | `datasets/` | Aashritha |
 
-If a ticket would make you edit outside your directory, that is a ticket bug. Say so and
-stop. It gets split into two tickets with a contract between them.
+Reassignments are recorded, not silent. If a ticket would make you edit outside your
+directory, that is a ticket bug. Say so and stop — it gets split into two tickets with a
+contract between them.
 
 ## The import rule
 
-A module may import from `contracts` and `core` and itself. **Nothing else.**
-`pipeline` composes modules. `contracts` imports nothing.
+A module may import from `contracts` and `core` and itself. **Nothing else.** `pipeline`
+composes modules and is the one package permitted to import from `app.modules.*`.
+`contracts` imports nothing.
 
-Two modules never import each other. When they need to exchange something, it becomes a
-type in `contracts/` and `pipeline` passes it.
+Two modules never import each other. When they need to exchange something, it becomes a type
+in `contracts/` and `pipeline` passes it.
 
-CI enforces this with import-linter. A cross-module import fails the build before it
-reaches a pull request.
+CI enforces this with import-linter — three contracts: layer order, module independence, and
+no `bck.*` import path. Import from `app.…`, never `bck.app.…`; the second creates a parallel
+import path that defeats the contracts silently.
 
 ## Contracts are not yours to change
 
-Only Abhiram edits `bck/app/contracts/`. If you need a field added or a type changed,
-comment on your ClickUp ticket. Do not add it locally and do not work around it.
+Only Abhiram edits `bck/app/contracts/`. If you need a field added or a type changed, comment
+on your ClickUp ticket. Do not add it locally and do not work around it.
 
-v1 landed in CTR-002. Import from the package, never from a file inside it:
+Import from the package, never from a file inside it:
 
 ```python
 from app.contracts import DeclarationField, FieldState, MeasurementResult, VerdictRecord
 ```
 
-It holds `FieldState` (five states), `Verdict` (three), `DeclarationField` (the Rule 6
-declaration set), `EvidenceProvider`, `ExtractedSpan`, `NormalisedField`,
-`MeasurementResult` and its three variants, `RuleDefinition`, `RuleSetVersion`,
-`RuleParameterSnapshot`, `FieldFinding`, `VerdictRecord` and `CatalogueRecord`. Full
-notes in `bck/app/contracts/README.md`.
-
 If you are carrying a local stand-in for one of these, delete it and import the real one.
-Two definitions of the same type in two modules is the failure this package exists to
-prevent.
+
+## Testing
+
+- **Every guard needs a test that can fail.** Before you claim a test proves something,
+  introduce the defect it guards against and confirm the test goes red, then revert. A test
+  that passes against a broken implementation is worse than no test — it is a false
+  assurance that survives review.
+- If a test cannot be made to fail, say so and **correct the claim**, not the code. Rename it
+  to state what it actually proves and put the reason in its docstring.
+- Mocking the library under test and then asserting the mock behaved is not a test.
 
 ## Deny rules
 
 - Never modify an existing migration — write a new one.
 - Never commit `.env` or any file containing a secret.
-- Never add AI-attribution trailers to commit messages.
+- **Never add AI-attribution trailers to commit messages or PR bodies.** The repo is public
+  and scraped.
 - Never call a paid API without the cost ceiling in `core/config.py` in the loop.
-- Never put an LLM or an agent loop in the verdict path. It is deterministic by design.
 - Never widen a verdict enum or a per-field state enum locally.
+- Never add a dependency without flagging it in the PR description first.
 
 ## Files not to touch
 
 - `fnt/src/services/generated/` — regenerated from the backend OpenAPI schema.
 - `rules-corpus/` — immutable source PDFs. Add, never edit.
+- `fnt/src/layout/AppShell.tsx` — shared with the admin surface.
 - Anyone else's module directory.
 
 ## Git
 
-- Branch base is `main`. The four-branch develop chain in the shared GitHub doc is
-  superseded for this project.
+- Branch base is `main`. The four-branch develop chain in the shared GitHub doc is superseded.
 - One ticket = one branch = one PR. Branch name comes pre-written on the ticket.
 - Squash merge only. Never merge to `main` yourself — only Abhiram merges.
-- Commit incrementally with messages that name the change and its trigger. Evaluators
-  read commit history.
+- Commit incrementally with messages that name the change and its trigger. Evaluators read
+  commit history.
 - Set your commit email to your GitHub no-reply alias
-  (`ID+username@users.noreply.github.com`, found at github.com/settings/emails).
-  The repository is public and author emails are scraped.
+  (`ID+username@users.noreply.github.com`). The repository is public and author emails are
+  scraped.
+- **`git branch` does not switch to the branch.** Run `git status -sb` before every commit.
+- **`--ours` and `--theirs` mean opposite things in rebase versus merge.** Know which
+  operation you are in before using either.
 
 ## Multi-agent
 
-More than one agent works this project — Claude Code, Antigravity and Codex, across
-eleven people. Before starting:
+More than one agent works this project — Claude Code, Antigravity and Codex, across eleven
+people. Before starting:
 
-1. Read your ClickUp ticket. It names your module, the files you may edit, the branch
-   name, and the acceptance criteria.
-2. Work on your own branch. Never share a working tree.
-3. Record what you did in `session-log/<your-name>.md`, including which agent you are.
-   Never write to a shared session log.
+1. Read your ClickUp ticket. It names your module, the files you may edit, the branch name,
+   and the acceptance criteria.
+2. Work on your own branch. **Never share a working tree** — use `git worktree add` if you
+   need a second checkout, and never run manual git commands in a folder another agent has
+   open.
+3. Record what you did in `session-log/<your-name>.md`, including which agent you are. Never
+   write to a shared session log.
 
 ## Skills and tools
 
-- Skills load on demand — `engineering-standards` for structure and standards,
-  `genai-project` for anything calling a model or a paid API, `frontend-work` for UI.
-- MCP config: `.mcp.json`
-- Ticket board: ClickUp, list `26034 Build`.
+- `engineering-standards` for structure and standards · `genai-project` for anything calling
+  a model or a paid API · `frontend-work` and `hallmark` for UI · `playwright-cli` for
+  verifying a UI in a real browser, which is the only thing that catches breakpoint-specific
+  rendering failures.
+- MCP config: `.mcp.json` · Ticket board: ClickUp, list `26034 Build`.
 
 ## Before opening any PR
 
-Rebase onto `main` immediately before opening any PR, every time, even if you don't
-suspect drift. Branches created early in a long session and pushed late are the
-recurring cause of stale-base merge conflicts and missing CI runs on this project —
-it has happened on at least three separate tickets.
+**Rebase onto `main` immediately before opening, every time**, even if you don't suspect
+drift. Branches created early and pushed late are the recurring cause of stale-base conflicts
+and missing CI runs on this project. If `gh pr checks` says "no checks reported", that is a
+rebase signal, not a CI outage.
