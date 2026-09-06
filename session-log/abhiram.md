@@ -1167,3 +1167,119 @@ sites — `ge=0` on the two margin `value` fields and on the untouched base
 
 `693 passed, 32 skipped`; ruff clean, `ruff format --check` clean, `lint-imports` 3
 contracts kept over 109 files analysed. Exit codes read directly, not through a pipe.
+
+## Session 9 — 2026-09-06, DAT-004 (Claude Code)
+
+Branch `dat-004-reference-object-vocabulary`, from `origin/main`.
+
+- **The drift.** `datasets/schema.py` offered `coin_inr_10` / `credit_card_id1`;
+  `detect_reference_object` dispatches on `coin_10` / `id_card` / `ean_13` and everything
+  else falls to the terminal `MeasurementRefusal` at `services.py:191`. No annotation could
+  reach measurement. The dimensions already agreed exactly — 27.0 mm, 85.60 x 53.98 mm,
+  37.29 mm — only the spelling differed. Hidden because the corpus is empty and no eval
+  harness has ever run against measurement. Blocked DAT-005 and demo scenario 4.
+- **Measurement's names won; the schema adopted them.** Not a coin toss:
+  `app/pipeline/orchestrator.py:124` already documents `Calibration.reference_type` as
+  "the reference object in frame — as `app.modules.measurement` names it". The pipeline
+  had ruled measurement authoritative; the schema was the outlier. Renaming in measurement
+  would have touched merged reviewed code and PR #47, open against that module.
+- **`ARUCO_MARKER` / `RULER_SCALE` / `CHECKERBOARD` deleted.** No `REF_DIMS` entry, no
+  detector branch, no sourced dimension, no reference anywhere in the repo outside their
+  own declaration line. An annotation naming one hit the same refusal `coin_inr_10` hit —
+  unreachable capability. Keeping them would have meant an exemption list in the new guard,
+  and the exemption list is the thing that rots.
+- **The rule this establishes, and it is in the guard's docstring:** a
+  `ReferenceObjectType` member exists only alongside its `REF_DIMS` entry and its detector
+  branch. When ArUco or a checkerboard is genuinely built, the member arrives in the same
+  PR as its dimension and its branch. `TestMeasurementCanConsumeEveryOfferedObject` is what
+  enforces that, so it carries no exemptions.
+- **`datasets/README.md:42` — dropped the identifier, kept the warning.** It named
+  `coin_inr_5`. Re-spelling it `coin_5` was rejected: that invents a third identifier
+  appearing nowhere in the repo, which is the same defect the three deletions above remove.
+  The warning is about a physical object whose 25.0 mm figure was written from memory, so
+  it now names the ₹5 coin in plain English and says the figure is sourced in neither
+  `rules-corpus/` nor `SIH26034_Research_And_References.md`. Same reasoning applied to the
+  enum's own Rs 1 / Rs 2 / Rs 5 comment. `HANDOFF.md:377` carries the same prose and was
+  left alone — docs PR, not this one.
+- **Falsified twice**, `__pycache__` purged with `/usr/bin/find` before each. Note `rtk`
+  refuses `find -exec` and prints a message rather than running it, so the CLAUDE.md purge
+  command silently does nothing through the wrapper — the first attempt here purged nothing
+  and the baseline that followed was worthless. Use `/usr/bin/find` explicitly.
+  (1) `COIN_10 = "coin_ten"` → guard red naming `coin_ten`, plus four literal-asserting
+  tests. (2) `ARUCO_MARKER = "aruco_marker"` re-added → guard red naming `aruco_marker`,
+  and **nothing else failed**, which is the stronger proof: the claim is about a new member
+  without a `REF_DIMS` entry, not about a rename. Both reverted, 9 passed / 2 skipped.
+- **The guard is inert in CI until CI-004 lands.** `bck/pyproject.toml` sets
+  `testpaths = ["tests"]` and `ci.yml` has one job with `working-directory: bck`, so
+  nothing collects `datasets/tests/`. No `sys.path` hack was needed or added — `bck`
+  installs editable into `bck/.venv`, so `cd bck && uv run pytest
+  ../datasets/tests/test_schema_guards.py` imports `app` cleanly.
+- **For CI-004, found while verifying:** `datasets/` is not ruff-clean under `bck`'s
+  config. Seven pre-existing UP042 (every enum class in `schema.py` is `(str, Enum)`, not
+  `StrEnum`) and one pre-existing `ruff format` diff in
+  `test_no_annotation_claims_a_millimetre_height`. None of it is in this diff and none of
+  it was touched. A datasets job that runs ruff will go red on arrival.
+- **Raised, not added:** `REF_DIMS` has no entry for the printable 50 mm calibration card
+  F2 (manufacturer self-check) names. Own ticket on Yashashvi. No placeholder enum member
+  left for it — that would be the defect this PR deletes three of.
+- **Gate:** `686 passed, 32 skipped`; ruff clean, `ruff format --check` clean,
+  `lint-imports` 3 contracts kept over 109 files. `datasets/eval/test_harness.py` 17 passed.
+
+**Rebased onto CI-004 (#60) on 2026-09-07**, which is when this guard first executed anywhere
+but a laptop, then onto CTR-005 (#58). Numbered 9 rather than 6 on landing: 6 was already
+CTR-004, and CI-004 (7) and CTR-005 (8) reached `main` first. Both times this entry was
+appended below theirs rather than inserted above it, and both times the resolution was checked
+as a pure append — `git diff origin/main -- session-log/abhiram.md` shows one hunk, 0
+deletions, and everything above this heading hashes identical to `main`.
+
+**The `rtk` / `find` interception, pinned down.** My earlier note was right that it happens and
+wrong about why, and the correction matters because it decides how much past work is suspect.
+It is **not** intermittent and it does **not** exit zero:
+
+- `find . -name __pycache__ -type d -exec rm -rf {} +` as the **first token** of a command →
+  `rtk: rtk find does not support compound predicates or actions (e.g. -not, -exec). Use
+  `find` directly.`, **exit 1**, and **51 `__pycache__` directories still there afterwards**.
+  A measured no-op, not a partial one.
+- `/usr/bin/find` with the identical arguments → exit 0, 51 → 0.
+- The trigger is position, not shape. `echo x && find … -exec …`, `find` inside `$( )`, and
+  `find` inside a `for` loop all reach the real binary and work. Three consecutive loop runs
+  purged 51 → 0 with empty output, which is why this first read as flaky.
+
+Because it exits **1**, a falsification written `find … && pytest` is blocked rather than
+silently misled — the failure is loud. The hazard is the **semicolon**: `find … ; pytest` is
+what CLAUDE.md's phrasing invites and what I ran, and it discards the 1 and runs the suite on
+stale bytecode. So the exposure is real but bounded to `;`-separated purges with `find` first,
+not to every falsification on the project.
+
+**CI-004's datasets job has no ruff step**, deliberately. It runs `uv run pytest ../datasets`
+with `working-directory: bck`, and nothing else. That matches what I found before it landed —
+`datasets/` carries seven pre-existing UP042 (every enum class in `schema.py` is `(str, Enum)`)
+and one `ruff format` diff in `test_no_annotation_claims_a_millimetre_height`. None is mine.
+Anyone adding a ruff step to that job turns it red on arrival; the pre-existing findings have
+to be cleared in their own PR first.
+
+**Correction to the `rtk` note above, made after measuring it properly.** The claim that "the
+trigger is position, not shape" is **wrong**, and so was the earlier note on PR #59 saying it
+merely "runs nothing". `echo x && find … -exec …` is refused exactly as a bare `find …` is —
+position within the line is irrelevant. What actually reproduces:
+
+- a **single-line** command containing `find … -exec rm -rf {} +` → refusal, **exit 1**,
+  51 `__pycache__` dirs before and 51 after;
+- the same `find` line inside a **multi-line** command → exit 0, 51 → 0;
+- `/usr/bin/find`, either shape → exit 0, 51 → 0.
+
+`type -t find` reports `function` in both shapes, so it is not a question of whether the
+wrapper is installed. I am deliberately not asserting the internal cause — I have now been
+wrong about the mechanism twice, and the observable rule is what anyone here needs.
+
+The load-bearing part is unchanged and is the answer to whether older work is suspect: it
+exits **1**, not 0. `find … && pytest` is blocked loudly. Only `find … ; pytest` — single
+line, semicolon, which is the shape CLAUDE.md's wording invites — discards the 1 and runs on
+stale bytecode. Anything that used `&&` or `/usr/bin/find` is sound. The safe form is
+`/usr/bin/find`, and that belongs in CLAUDE.md and HANDOFF.md in the next docs PR.
+
+**CI result after rebasing onto CI-004 (#60).** All three checks green — `CI/datasets`,
+`CI/backend`, `Frontend/frontend`. The datasets job log reports
+`rootdir: /home/runner/work/26034/26034`, `collected 28 items`, `26 passed, 2 skipped in
+0.71s`. CI-004 documented 27 (25 passed, 2 skipped), so the delta is exactly the one new
+guard, executing outside a laptop for the first time.
