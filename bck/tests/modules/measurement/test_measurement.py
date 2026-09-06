@@ -271,3 +271,67 @@ def test_measure_margins():
 
     assert isinstance(results["right"], MeasurementExact)
     assert np.isclose(results["right"].value, 100.0)
+
+
+def test_ean_13_exact_width_regression():
+    """Assert REF_DIMS['ean_13']['width_mm'] is exactly 37.29."""
+    from app.modules.measurement.services import REF_DIMS
+
+    assert REF_DIMS["ean_13"]["width_mm"] == 37.29
+
+
+def test_oblique_camera_angle_rectification():
+    """
+    Create a synthetic oblique image, warp it, and prove the perspective warp
+    round-trips correctly. Note: This does not prove absolute measurement accuracy
+    because systematic scale errors cancel out in this path.
+    """
+    from app.modules.measurement.services import measure_ink_extent
+
+    # 1. Create a synthetic EAN-13 barcode (fronto-parallel) in a 400x400 image
+    ref_image = np.ones((400, 400), dtype=np.uint8) * 255
+    cv2.rectangle(ref_image, (150, 165), (250, 235), 0, -1)
+    for x in range(160, 250, 5):
+        cv2.line(ref_image, (x, 165), (x, 235), 255, 1)
+
+    # Create the product image (numeral ink)
+    numeral_image = np.ones((400, 400), dtype=np.uint8) * 255
+    cv2.rectangle(numeral_image, (200, 200), (220, 250), 0, -1)
+
+    # ESTABLISH BASELINE on the unwarped, orthogonal images first
+    baseline_result = measure_ink_extent(numeral_image, ref_image, "ean_13", is_artwork=False)
+    assert isinstance(baseline_result, MeasurementCalibrated)
+    expected_height_mm = baseline_result.value
+
+    # Define a known perspective warp (simulate camera tilt)
+    src_pts = np.float32([[0, 0], [400, 0], [400, 400], [0, 400]])
+    dst_pts = np.float32([[50, 80], [350, 20], [380, 350], [20, 320]])
+    h_matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+    # Warp both images
+    warped_ref = cv2.warpPerspective(ref_image, h_matrix, (400, 400), borderValue=255)
+    warped_numeral = cv2.warpPerspective(numeral_image, h_matrix, (400, 400), borderValue=255)
+
+    # Pass the WARPED images to the pipeline. It must detect, unwarp,
+    # and recover the baseline height.
+    result = measure_ink_extent(warped_numeral, warped_ref, "ean_13", is_artwork=False)
+
+    assert isinstance(result, MeasurementCalibrated)
+    # Allow 10% tolerance (EAN-13 confidence interval) for the warp and rasterization
+    assert np.isclose(result.value, expected_height_mm, rtol=0.10)
+
+
+def test_rectification_failure_returns_refusal():
+    """Assert rectification failure returns MeasurementRefusal."""
+    from app.modules.measurement.services import detect_reference_object
+
+    # Empty image should fail to find any contours or corners
+    empty_img = np.ones((400, 400), dtype=np.uint8) * 255
+
+    res_id = detect_reference_object(empty_img, "id_card")
+    assert isinstance(res_id, MeasurementRefusal)
+    assert "Rectification failed" in res_id.reason
+
+    res_ean = detect_reference_object(empty_img, "ean_13")
+    assert isinstance(res_ean, MeasurementRefusal)
+    assert "Rectification failed" in res_ean.reason
