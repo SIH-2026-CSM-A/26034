@@ -1,5 +1,6 @@
 """Strict, safe loader for YAML-backed legal rule definitions."""
 
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -75,3 +76,24 @@ def load_rules(
 def load_default_rules() -> tuple[RuleDefinition, ...]:
     """Load and cache the immutable packaged rule store."""
     return load_rules()
+
+
+def rule_by_id(rule_id: str) -> RuleDefinition:
+    """Return one packaged rule by stable identifier.
+
+    Lives here rather than in an evaluator because every evaluator needs it and none of
+    them should need each other to get it. A miss or a duplicate raises: an evaluator
+    silently falling back to a built-in threshold is how a figure that is not in the
+    gazette reaches a finding.
+    """
+    matches = [rule for rule in load_default_rules() if rule.rule_id == rule_id]
+    if len(matches) != 1:
+        raise ValueError(f"expected one rule for {rule_id}, found {len(matches)}")
+    return matches[0]
+
+
+def is_active(rule: RuleDefinition, evaluation_date: date) -> bool:
+    """Return whether a rule is effective on the supplied date."""
+    return rule.effective_from <= evaluation_date and (
+        rule.effective_to is None or evaluation_date <= rule.effective_to
+    )

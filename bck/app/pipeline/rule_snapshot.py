@@ -30,12 +30,12 @@ from app.contracts import (
     RuleSeverity,
     RuleStatus,
 )
-from app.modules.rules import NumericConstraint, RuleDefinition
-
-# ``Severity`` and ``DeclarationRequiredCondition`` are not on the rules package's public
-# surface, and that package is single-owner — reaching into ``models`` is the only way to
-# name them without editing someone else's module.
-from app.modules.rules.models import DeclarationRequiredCondition, Severity
+from app.modules.rules import (
+    DeclarationRequiredCondition,
+    NumericConstraint,
+    RuleDefinition,
+    Severity,
+)
 
 
 class UnmappedDeclarationError(LookupError):
