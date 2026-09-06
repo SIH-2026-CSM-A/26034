@@ -1,9 +1,9 @@
 # Session Log - Akshaya
 ## Date: September 2026
 ### Ticket VIS-001: Vision Preprocessing Module Optimization
-- **Vectorized `remap_curvature`**: Replaced the $O(h \times w)$ raw Python double for-loop with NumPy vectorization (`np.arange`, `np.clip`, `np.sin`, `np.tile`) to ensure high-resolution images ($3000 \times 4000$) process comfortably within performance targets[cite: 1].
-- **Added Performance Regression Test**: Implemented `test_remap_curvature_performance_at_realistic_resolution` to guard against latency regressions[cite: 1].
-- **Verification**: All linter checks, formatting checks, import boundary contracts (`lint-imports`), and pytest suites pass cleanly[cite: 1].
+- **Vectorized `remap_curvature`**: Replaced the $O(h \times w)$ raw Python double for-loop with NumPy vectorization (`np.arange`, `np.clip`, `np.sin`, `np.tile`) to ensure high-resolution images ($3000 \times 4000$) process comfortably within performance targets.
+- **Added Performance Regression Test**: Implemented `test_remap_curvature_performance_at_realistic_resolution` to guard against latency regressions.
+- **Verification**: All linter checks, formatting checks, import boundary contracts (`lint-imports`), and pytest suites pass cleanly.
 
 - Rebased branch onto main cleanly
 - Added missing coverage tests for detect_pdp
@@ -23,3 +23,13 @@
   - Pytest: 645 passed, 33 skipped cleanly (0 failures, 0 errors).
   - Ruff: `ruff check .` and `ruff format --check .` pass with 0 errors.
   - Import Linter: `lint-imports` passes with 3 kept, 0 broken contracts.
+
+## Date: September 2026 - TAM-001 Rework
+- **Sticker Overlay False Positive Fix**: Refactored boundary analysis in `detect_sticker_overlay` to check outer border margin strip rather than whole interior crop, preventing text glyphs (e.g. `cv2.putText` text) from triggering false positives. Added `test_detect_sticker_text_glyphs_clean_print` and verified falsification proof (RED on whole crop analysis, GREEN on boundary analysis).
+- **Rule 6(11) Anchor & Unit Sale Price Exclusion**: Enforced explicit MRP anchors (`MRP`, `M.R.P.`, `Maximum Retail Price`, or exact region ID) and excluded unit sale prices (`per kg`, `per 10g`, unit basis, discounts). Fixed number extraction to isolate price digits directly following anchor rather than concatenating non-MRP numbers (e.g. `MRP Rs. 100 Net Wt 250g` extracts `100.00`).
+- **Provider Overlap Grouping**: Grouped candidate MRP spans by spatial bounding box overlap (`_spans_spatially_overlap`). Overlapping spans from different OCR engines (e.g. `PADDLEOCR` vs `TESSERACT`) are treated as readings of the same physical site and do not trigger false conflicts.
+- **Uncalibrated Priors & Constants**: Extracted module-level probability constants (`PRIOR_CONFLICTING_MRP_PROBABILITY = 1.0`, `PRIOR_STICKER_OVERLAY_PROBABILITY = 0.85`) with explicit docstrings explaining they are uncalibrated priors.
+- **Boundary Validation & Precision Assertions**: Replaced `test_tamper_result_zero_bounds` with real boundary validation tests asserting `ValidationError` for `-0.1` and `1.1` probabilities. Updated `test_detect_sticker_hard_edge` to assert `0.85` exact probability.
+- **Empty List Semantics & Precondition Validation**: Documented that `[]` signifies "no tampering detected". Added `ValueError` check for empty/None image inputs.
+- **File Permissions**: Set `chmod 644` on `detector.py`, `domain.py`, and `test_detector.py`.
+- **Verification**: `ruff check .`, `ruff format --check .`, `lint-imports` (3 kept, 0 broken), and 12 tamper tests pass cleanly.
