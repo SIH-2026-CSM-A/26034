@@ -9,6 +9,7 @@ from app.contracts import EvidenceProvider, ExtractedSpan, Point
 from app.modules.tamper.detector import (
     PRIOR_CONFLICTING_MRP_PROBABILITY,
     PRIOR_STICKER_OVERLAY_PROBABILITY,
+    _extract_mrp_value,
     detect_conflicting_mrps,
     detect_sticker_overlay,
 )
@@ -128,6 +129,33 @@ def test_detect_conflicting_mrps_number_parsing_with_non_mrp_text():
     )
     # Both normalize to 100.00 rather than concatenating 100250
     assert detect_conflicting_mrps([span1, span2]) == []
+
+
+def test_extract_mrp_value_reversed_order():
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Wt 250g MRP Rs. 100",
+        polygon=((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)),
+        confidence=0.9,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="mrp",
+    )
+    assert _extract_mrp_value(span) == "100.00"
+
+
+def test_detect_sticker_neighboring_text_clean():
+    img = np.full((200, 200, 3), 200, dtype=np.uint8)
+    cv2.putText(img, "MRP Rs. 100", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+    cv2.putText(img, "Net Wt 250g", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+    span = ExtractedSpan(
+        span_id="s1",
+        text="MRP Rs. 100",
+        polygon=((10.0, 30.0), (180.0, 30.0), (180.0, 65.0), (10.0, 65.0)),
+        confidence=0.9,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="mrp",
+    )
+    assert detect_sticker_overlay(img, [span]) == []
 
 
 def test_detect_conflicting_mrps_overlapping_providers_ignored():

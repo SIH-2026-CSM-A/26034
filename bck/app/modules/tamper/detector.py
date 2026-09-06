@@ -19,9 +19,9 @@ PRIOR_STICKER_OVERLAY_PROBABILITY: float = 0.85
 # Empirical defaults awaiting dataset tuning against SIH research references.
 CV_CANNY_LOW: int = 50
 CV_CANNY_HIGH: int = 150
-CV_BORDER_SHADOW_GRADIENT: float = 40.0
+CV_STEP_DISCONTINUITY_THRESHOLD: float = 35.0
 CV_PADDING: int = 10
-CV_BORDER_MARGIN: int = 8
+CV_BORDER_MARGIN: int = 5
 CV_SPATIAL_OVERLAP_THRESHOLD: float = 0.3
 
 
@@ -62,17 +62,19 @@ def _is_mrp_span(span: ExtractedSpan) -> bool:
 
 
 def _extract_mrp_value(span: ExtractedSpan) -> str | None:
-    """Extracts a normalized numeric MRP value following the MRP anchor token.
+    """Extracts a normalized numeric MRP value following the mandatory MRP anchor token.
 
-    Prevents concatenating numbers across non-MRP text (e.g. 'MRP Rs. 100 Net Wt 250g').
+    Requires an explicit anchor prefix (without quantifier star) to ensure the number
+    following the anchor is extracted rather than arbitrary leading text numbers
+    (e.g., 'Net Wt 250g MRP Rs. 100' extracts 100.00).
     """
     if not _is_mrp_span(span):
         return None
 
     text = span.text.strip()
-    # Match price digits immediately following or associated with MRP / currency token
+    # Match price digits immediately following mandatory MRP / currency anchor
     match = re.search(
-        r"(?:M\.?R\.?P\.?|Maximum\s+Retail\s+Price|₹|Rs\.?|Rupees)*\s*[:.-]?\s*(?:₹|Rs\.?|Rupees)?\s*([\d,]+(?:\.\d{1,2})?)",
+        r"(?:M\.?R\.?P\.?|Maximum\s+Retail\s+Price|₹|Rs\.?|Rupees)\s*[:.-]?\s*(?:₹|Rs\.?|Rupees)?\s*([\d,]+(?:\.\d{1,2})?)",
         text,
         re.IGNORECASE,
     )
@@ -183,10 +185,11 @@ def detect_conflicting_mrps(spans: list[ExtractedSpan]) -> list[TamperDetectionR
 def detect_sticker_overlay(
     image: np.ndarray, spans: list[ExtractedSpan]
 ) -> list[TamperDetectionResult]:
-    """Detects physical sticker overlay tampering (step edge + drop shadow) along span crop borders.
+    """Detects physical sticker overlay tampering along span crop boundaries.
 
-    Analyzes the outer border margin of the crop to detect physical sticker paper edges
-    and drop shadow gradients without triggering false positives on interior text glyphs.
+    Uses directional step-discontinuity analysis comparing mean pixel intensity just inside
+    the border vs. just outside the border across the four sides of the span crop boundary
+    to detect true physical sticker paper edges while rejecting neighboring text glyphs.
 
     Returns:
         list[TamperDetectionResult]: A list of tamper findings for detected sticker overlays.
@@ -208,10 +211,13 @@ def detect_sticker_overlay(
         if not span.polygon:
             continue
         pts = np.array(span.polygon, dtype=np.int32)
-        x0 = max(0, int(np.min(pts[:, 0])) - CV_PADDING)
-        y0 = max(0, int(np.min(pts[:, 1])) - CV_PADDING)
-        x1 = min(w, int(np.max(pts[:, 0])) + CV_PADDING)
-        y1 = min(h, int(np.max(pts[:, 1])) + CV_PADDING)
+        px_min, py_min = int(np.min(pts[:, 0])), int(np.min(pts[:, 1]))
+        px_max, py_max = int(np.max(pts[:, 0])), int(np.max(pts[:, 1]))
+
+        x0 = max(0, px_min - CV_PADDING)
+        y0 = max(0, py_min - CV_PADDING)
+        x1 = min(w, px_max + CV_PADDING)
+        y1 = min(h, py_max + CV_PADDING)
 
         crop = image[y0:y1, x0:x1]
         if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
@@ -224,24 +230,32 @@ def detect_sticker_overlay(
         if m < 2:
             continue
 
-        # Border mask: outer perimeter margin strip surrounding central region
-        # (where text glyphs reside).
+        # Directional step-discontinuity analysis:
+        # Compare mean pixel intensity just inside vs just outside perimeter borders.
         # Gradient thresholds and border margin parameters are uncalibrated heuristics
         # awaiting empirical dataset tuning against SIH research references.
-        border_mask = np.zeros((ch, cw), dtype=bool)
-        border_mask[0:m, :] = True
-        border_mask[ch - m : ch, :] = True
-        border_mask[:, 0:m] = True
-        border_mask[:, cw - m : cw] = True
+        sides = [
+            (gray[0:m, :], gray[m : 2 * m, :]),  # Top
+            (gray[ch - m : ch, :], gray[ch - 2 * m : ch - m, :]),  # Bottom
+            (gray[:, 0:m], gray[:, m : 2 * m]),  # Left
+            (gray[:, cw - m : cw], gray[:, cw - 2 * m : cw - m]),  # Right
+        ]
 
         edges = cv2.Canny(gray, CV_CANNY_LOW, CV_CANNY_HIGH)
-        border_edges = edges[border_mask]
-        outer_pixels = gray[border_mask]
 
-        if (
-            np.count_nonzero(border_edges) > 0
-            and float(np.std(outer_pixels)) > CV_BORDER_SHADOW_GRADIENT
-        ):
+        has_sticker_edge = False
+        for outer, inner in sides:
+            if outer.size == 0 or inner.size == 0:
+                continue
+            mean_outer = float(np.mean(outer))
+            mean_inner = float(np.mean(inner))
+            step_diff = abs(mean_outer - mean_inner)
+
+            if step_diff > CV_STEP_DISCONTINUITY_THRESHOLD and np.count_nonzero(edges) > 0:
+                has_sticker_edge = True
+                break
+
+        if has_sticker_edge:
             results.append(
                 TamperDetectionResult(
                     probability=PRIOR_STICKER_OVERLAY_PROBABILITY,
