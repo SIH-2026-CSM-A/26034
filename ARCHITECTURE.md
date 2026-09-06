@@ -35,9 +35,11 @@ bck/app/main.py             The FastAPI application. Mounts the routers, restric
 bck/app/pipeline/           Ingestion endpoints, orchestration, verdict assembly and the
                             rules-to-contracts adapter. The only package permitted to
                             import app.modules.* — this is what "composes modules" means.
-                            orchestrator (stage order) · findings + dispositions +
-                            rule_findings + measurement_findings (what a rule concludes) ·
-                            router + schemas + repository + responses (the HTTP surface).
+                            orchestrator (stage order) · capture + normalisation (input
+                            adaptation) · findings + dispositions + rule_findings +
+                            measurement_findings (what a rule concludes) · verdict +
+                            rule_snapshot (assembly) · router + schemas + repository +
+                            responses (the HTTP surface).
 bck/app/modules/vision/         Preprocess, PDP detect, OCR providers.
 bck/app/modules/extraction/     Spans -> Rule 6 field types, spatial binding, normalisation.
 bck/app/modules/measurement/    Calibration, homography, ink extent, Rule 7 band lookup.
@@ -164,6 +166,12 @@ re-validate against the authoritative rule-set on reconnect.
 - **Jurisdiction is three typed columns, not a JSON document** — `scope_to_jurisdiction`
   reaches `state`/`region`/`district` by `getattr`, so the column names are a contract
   with `core/rbac.py`, not a style choice.
+- **`ExtractionResult` lives in `app.modules.extraction`, not `contracts`** — the layer rules
+  permit it, because `pipeline` is the only package that reads it and no second module needs
+  the type. Moving it into `contracts` is a tidy-up, not a correction. PIP-002 had planned a
+  `contracts/binding.py` with `BoundDeclaration` and a `DeclarationRole` enum; EXT-004's
+  `bind_spans(spans) -> ExtractionResult` shape won and that contracts commit was dropped from
+  history rather than reverted. Do not recreate it.
 - **The rule-snapshot adapter lives in `pipeline/`** — `rules.RuleDefinition` is the permanent
   internal shape of that module, richer than what contracts exposes, because no other module
   needs to introspect a rule's condition *shape*, only that a snapshot exists.
@@ -189,15 +197,22 @@ re-validate against the authoritative rule-set on reconnect.
 
 ## Technical debt
 
-- [ ] **No usable labelled corpus.** After three rounds, a handful of genuinely-annotated
-      Indian retail samples, mostly packaged food; cosmetics has effectively nothing. Every
-      accuracy target in the PRD is unbacked. Blocks vision, measurement and tamper from
-      being evaluated at all. **This is the largest single risk in the project.**
+- [ ] **No usable labelled corpus — four samples, not the 8–12 planned.** After four review
+      rounds, a handful of genuinely-annotated Indian retail samples, mostly packaged food;
+      cosmetics has effectively nothing. Every accuracy figure in the PRD carries that sample
+      size. Blocks vision, measurement and tamper from being evaluated at all. DAT-001 was
+      closed as superseded; DAT-003 is unmerged. **This is the largest single risk in the
+      project.**
 - [ ] `tamper/` has no code. TAM-001 written, not started.
-- [ ] **The image path produces no usable declaration.** EXT-004 is not merged, so nothing
-      maps OCR spans to the obligation each answers and every declaration returns
-      INSUFFICIENT_EVIDENCE naming the stage. The chain runs end to end and the catalogue
-      path is fully functional; the image path is honest rather than useful.
+- [ ] **The image path has never run with real model weights. This is on the demo path.**
+      EXT-004 merged, so spans now bind to the obligation each answers and the catalogue path
+      works end to end. But there are no YOLO or PaddleOCR weights on the dev machine: every
+      image-path verification substituted `detect_pdp` and `extract_panel_text`, and
+      everything downstream of those two calls is what has actually been exercised. `main.py`
+      refuses to boot without four model paths that do not exist locally. **The largest gap in
+      the project is between "the tests pass" and "the system works", and it is here.**
+- [ ] `tesseract_tessdata_dir` is a required boot path with no reader — the constrained
+      re-OCR needs a bound MRP crop before it can be called.
 - [ ] No `relationship()` on any model, so SQLAlchemy cannot order dependent inserts.
       `pipeline/repository.add_verdict` flushes the parent explicitly. Adding relationships
       would trade this for `MissingGreenlet` on an async mapper.
@@ -210,10 +225,17 @@ re-validate against the authoritative rule-set on reconnect.
 - [ ] `test_append_only_enforcement` (evidence) resolves a relative path against the cwd and
       passes vacuously if it scans zero files.
 - [ ] `measure_margins` raises on a zero margin because `value` is `gt=0`; a declaration
-      flush against ink or the crop edge crashes instead of measuring. Owner unavailable.
+      flush against ink or the crop edge crashes instead of measuring, so the orchestrator
+      does not call it and Rule 8 free-space evaluation is dark. MEA-006 (PR #47) fixes the
+      contract; wiring the orchestrator to call it is a separate ticket.
 - [ ] No `npm audit` gate; `npm ci` reports two moderate vulnerabilities and a deprecated
       `glob@11.1.0`.
 - [ ] Pan masala (G.S.R. 881(E)) not encoded.
+- [ ] The frontend runs entirely on `fnt/src/fixtures/`. `fnt/src/services/generated/`
+      contains only a README — there is no generated client against the OpenAPI schema
+      `main.py` now serves.
+- [ ] `docker-compose.yml` defines one service, `db`. The offline path (F51) and the dashboard
+      aggregates (F32) do not exist in any form.
 - [ ] `26167` in the same org has no branch protection. Write access there is direct-push.
 
 ---

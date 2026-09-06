@@ -56,6 +56,16 @@ frontend build on every PR.
 6. **No stubs, placeholders, TODO comments or fake data in committed code.** Production-grade
    from the first commit.
 7. **No LLM call and no agent loop anywhere in the verdict path.** Deterministic by design.
+8. **Rebase onto `main`. Never merge `main` into your branch.** `git merge main` on a feature
+   branch replays merged history as new work — it produced a 62-file, 6,398-addition diff on
+   this repo that had to be thrown away and the two real files re-applied on a fresh branch.
+   `git fetch origin && git rebase origin/main && git push --force-with-lease`, run by the
+   branch's own owner. **Never rebase someone else's branch for them.** If you have stacked
+   branches in one module, rebase them oldest-first or the later ones replay conflicts you
+   already resolved.
+9. **`session-log/<your-name>.md` is appended to, never rewritten.** Two PRs have destroyed
+   history in one: #44 deleted `session-log/sitanshu.md` outright, #45 replaced an earlier
+   ticket's entries with the current one's. Add a dated section; leave what is above it alone.
 
 ## Module ownership is absolute
 
@@ -72,15 +82,22 @@ You own directories. Nobody else edits them, and you edit nobody else's.
 | `bck/app/modules/vision/` | Akshaya |
 | `bck/app/modules/tamper/` | Akshaya *(from Shivasai)* |
 | `bck/app/modules/extraction/` | Sitanshu |
-| `bck/app/modules/measurement/` | Yashashvi *(unavailable — no new work assigned)* |
+| `bck/app/modules/measurement/` | Yashashvi |
 | `bck/app/modules/evidence/` | Shiva Kumar |
 | `fnt/` officer surface | Abhiram *(Vineeth's module, he is unavailable)* |
 | `fnt/` admin surface | Rohan |
-| `datasets/` | Aashritha |
+| `datasets/` | Abhiram *(from Aashritha, off the project)* |
 
 Reassignments are recorded, not silent. If a ticket would make you edit outside your
 directory, that is a ticket bug. Say so and stop — it gets split into two tickets with a
 contract between them.
+
+**Recorded shifts, 2026-09-06.** `datasets/` moved off Aashritha to Abhiram — she is off the
+project, DAT-001 is superseded by DAT-002 + DAT-003, assign her nothing. `extraction/` is
+**Sitanshu's**: EXT-004 was a one-off exception delivered by B.V. Yashwanth because Sitanshu
+had never started it, and it does not extend past that ticket — EXT-005 and EXT-006 are his.
+`measurement/` is Yashashvi's and she is active again. CODEOWNERS still names Aashritha on
+`datasets/`; DAT-003 corrects it and is unmerged, so the file currently lies.
 
 ## The import rule
 
