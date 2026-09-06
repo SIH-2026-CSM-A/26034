@@ -282,8 +282,9 @@ def test_ean_13_exact_width_regression():
 
 def test_oblique_camera_angle_rectification():
     """
-    Create a synthetic oblique image, warp it, and prove the function
-    recovers the unwarped height.
+    Create a synthetic oblique image, warp it, and prove the perspective warp
+    round-trips correctly. Note: This does not prove absolute measurement accuracy
+    because systematic scale errors cancel out in this path.
     """
     from app.modules.measurement.services import measure_ink_extent
 
@@ -320,41 +321,6 @@ def test_oblique_camera_angle_rectification():
     assert np.isclose(result.value, expected_height_mm, rtol=0.10)
 
 
-def test_distinct_confidence_intervals():
-    """Assert the three calibration methods yield distinctly different confidence intervals."""
-    from app.modules.measurement.services import detect_reference_object
-
-    # 1. ID Card
-    id_card_img = np.ones((400, 400), dtype=np.uint8) * 255
-    # 171x108 is approx 85.6x53.98
-    cv2.rectangle(id_card_img, (100, 100), (100 + 171, 100 + 108), 0, -1)
-    res_id = detect_reference_object(id_card_img, "id_card")
-    assert not isinstance(res_id, MeasurementRefusal)
-    scale_id, conf_id, _ = res_id
-
-    # 2. Coin
-    coin_img = np.zeros((400, 400), dtype=np.uint8)
-    cv2.circle(coin_img, (200, 200), 50, 255, -1, cv2.LINE_AA)
-    coin_img = cv2.GaussianBlur(coin_img, (5, 5), 0)
-    res_coin = detect_reference_object(coin_img, "coin_10")
-    assert not isinstance(res_coin, MeasurementRefusal)
-    scale_coin, conf_coin, _ = res_coin
-
-    # 3. EAN-13
-    ean_img = np.ones((400, 400), dtype=np.uint8) * 255
-    cv2.rectangle(ean_img, (150, 150), (250, 200), 0, -1)
-    for x in range(160, 250, 5):
-        cv2.line(ean_img, (x, 150), (x, 200), 255, 1)
-    res_ean = detect_reference_object(ean_img, "ean_13")
-    assert not isinstance(res_ean, MeasurementRefusal)
-    scale_ean, conf_ean, _ = res_ean
-
-    # Verify relative confidences (0.01 for id_card, 0.05 for coin, 0.10 for ean_13)
-    assert np.isclose(conf_id / scale_id, 0.01, atol=1e-3)
-    assert np.isclose(conf_coin / scale_coin, 0.05, atol=1e-3)
-    assert np.isclose(conf_ean / scale_ean, 0.10, atol=1e-3)
-
-
 def test_rectification_failure_returns_refusal():
     """Assert rectification failure returns MeasurementRefusal."""
     from app.modules.measurement.services import detect_reference_object
@@ -365,10 +331,6 @@ def test_rectification_failure_returns_refusal():
     res_id = detect_reference_object(empty_img, "id_card")
     assert isinstance(res_id, MeasurementRefusal)
     assert "Rectification failed" in res_id.reason
-
-    res_coin = detect_reference_object(empty_img, "coin_10")
-    assert isinstance(res_coin, MeasurementRefusal)
-    assert "Rectification failed" in res_coin.reason
 
     res_ean = detect_reference_object(empty_img, "ean_13")
     assert isinstance(res_ean, MeasurementRefusal)

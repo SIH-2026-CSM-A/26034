@@ -17,6 +17,11 @@ REF_DIMS = {
     "ean_13": {"width_mm": 37.29},
 }
 
+# Uncalibrated priors to be recalibrated once an evaluation set exists.
+PRIOR_CONFIDENCE_CARD = 0.01
+PRIOR_CONFIDENCE_COIN = 0.05
+PRIOR_CONFIDENCE_EAN = 0.10
+
 MIN_PLANARITY_THRESHOLD = 0.85
 
 
@@ -27,10 +32,11 @@ def detect_reference_object(
     (mm_per_pixel, confidence_interval, homography_matrix).
     Returns MeasurementRefusal if the object cannot be detected.
 
-    Note on homography: The `coin_10` path cannot recover a true projective homography.
-    A circle under perspective becomes an ellipse with no distinct corners, meaning the
-    bounding box maps arbitrary points. It recovers scale and aspect, but should not be
-    trusted for highly oblique camera angles.
+    Note on homography: The `coin_10` path returns scale only and no homography,
+    deliberately — a circle under perspective is an ellipse with no corner correspondences,
+    so any matrix built from its bounding box maps arbitrary points. Callers must handle
+    `h_matrix is None`. Consequence: a coin-calibrated measurement on an oblique capture
+    is not perspective-corrected, and the 5% prior does not cover that error.
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
@@ -56,29 +62,7 @@ def detect_reference_object(
         return cv2.getPerspectiveTransform(src_pts, dst_pts)
 
     if ref_type == "coin_10":
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            return MeasurementRefusal(
-                reason="Rectification failed: unable to identify adequately planar panel"
-            )
-        c = max(contours, key=cv2.contourArea)
-        rect = cv2.minAreaRect(c)
-        src_pts = get_ordered_corners(cv2.boxPoints(rect))
-
-        cx, cy = rect[0]
-        side = max(rect[1])
-        if side == 0:
-            return MeasurementRefusal(
-                reason="Rectification failed: unable to identify adequately planar panel"
-            )
-
-        h_matrix = safe_warp(src_pts, side, side, cx, cy)
-        warped = cv2.warpPerspective(
-            gray, h_matrix, (gray.shape[1], gray.shape[0]), borderValue=255
-        )
-
-        blurred = cv2.medianBlur(warped, 5)
+        blurred = cv2.medianBlur(gray, 5)
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
@@ -87,7 +71,7 @@ def detect_reference_object(
             param1=50,
             param2=30,
             minRadius=10,
-            maxRadius=max(warped.shape) // 2,
+            maxRadius=max(gray.shape) // 2,
         )
         if circles is not None and len(circles) > 0:
             circles = np.uint16(np.around(circles))
@@ -95,7 +79,7 @@ def detect_reference_object(
             diameter_px = max_circle[2] * 2
             if diameter_px > 0:
                 scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
-                return scale, scale * 0.05, h_matrix
+                return scale, scale * PRIOR_CONFIDENCE_COIN, None
         return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
 
     elif ref_type == "id_card":
@@ -108,19 +92,22 @@ def detect_reference_object(
 
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         best_box = None
+        best_cnt = None
         for cnt in contours:
             epsilon = 0.02 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
             if len(approx) == 4:
                 best_box = approx.reshape(4, 2)
+                best_cnt = cnt
                 break
 
         if best_box is None:
-            rect = cv2.minAreaRect(contours[0])
+            best_cnt = contours[0]
+            rect = cv2.minAreaRect(best_cnt)
             best_box = cv2.boxPoints(rect)
 
         src_pts = get_ordered_corners(best_box)
-        rect = cv2.minAreaRect(contours[0])
+        rect = cv2.minAreaRect(best_cnt)
         cx, cy = rect[0]
         w, h = rect[1]
         if max(w, h) == 0:
@@ -150,7 +137,7 @@ def detect_reference_object(
             w, h = rect[1]
             if max(w, h) > 0:
                 scale = REF_DIMS["id_card"]["width_mm"] / max(w, h)
-                return scale, scale * 0.01, h_matrix
+                return scale, scale * PRIOR_CONFIDENCE_CARD, h_matrix
         return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
 
     elif ref_type == "ean_13":
@@ -196,7 +183,7 @@ def detect_reference_object(
             w, h = rect[1]
             if max(w, h) > 0:
                 scale = REF_DIMS["ean_13"]["width_mm"] / max(w, h)
-                return scale, scale * 0.10, h_matrix
+                return scale, scale * PRIOR_CONFIDENCE_EAN, h_matrix
         return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
 
     return MeasurementRefusal(
@@ -230,11 +217,12 @@ def measure_ink_extent(
             return calib
         mm_per_pixel, conf_interval, h_matrix = calib
 
-        # Warp the original image using homography
+        # Warp the original image using homography if supported
         bw = (255, 255, 255) if len(image.shape) == 3 else 255
-        image = cv2.warpPerspective(
-            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
-        )
+        if h_matrix is not None:
+            image = cv2.warpPerspective(
+                image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+            )
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
@@ -294,9 +282,10 @@ def calculate_pdp_area(
             return calib
         mm_per_pixel, conf_interval, h_matrix = calib
         bw = (255, 255, 255) if len(image.shape) == 3 else 255
-        image = cv2.warpPerspective(
-            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
-        )
+        if h_matrix is not None:
+            image = cv2.warpPerspective(
+                image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+            )
 
     height_px, width_px = image.shape[:2]
     height_mm = height_px * mm_per_pixel
@@ -412,9 +401,10 @@ def measure_width_to_height_ratio(
             return calib
         mm_per_pixel, conf_interval, h_matrix = calib
         bw = (255, 255, 255) if len(image.shape) == 3 else 255
-        image = cv2.warpPerspective(
-            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
-        )
+        if h_matrix is not None:
+            image = cv2.warpPerspective(
+                image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+            )
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
@@ -480,9 +470,10 @@ def measure_margins(
             return make_refusals(calib.reason)
         mm_per_pixel, conf_interval, h_matrix = calib
         bw = (255, 255, 255) if len(image.shape) == 3 else 255
-        image = cv2.warpPerspective(
-            image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
-        )
+        if h_matrix is not None:
+            image = cv2.warpPerspective(
+                image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
+            )
 
     x, y, w, h = declaration_bbox
     if not is_artwork and h_matrix is not None:

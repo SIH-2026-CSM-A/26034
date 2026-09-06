@@ -17,7 +17,7 @@
 
 - Implemented perspective distortion correction using Homography for physical measurements.
 - Antigravity completed this phase, updating `detect_reference_object` to return `(scale, conf, H)`.
-- Applied `cv2.getPerspectiveTransform` and `cv2.warpPerspective` *before* scale calculations for all reference types (`id_card`, `coin_10`, `ean_13`) to enforce "Homography before scale".
+- Applied `cv2.getPerspectiveTransform` and `cv2.warpPerspective` *before* scale calculations for `id_card` and `ean_13`. `coin_10` skips warping because scale-only recovery is used.
 - Added method-specific confidence intervals tied to reference stability (1% for ID, 5% for Coin, 10% for EAN-13).
-- Added comprehensive regression tests to prove oblique camera angle rectification recovers true physical heights.
+- Added comprehensive regression tests to prove oblique camera angle rectification round-trips correctly, as systematic scale errors cancel out on that path.
 - Completed MEA-004 using the Gemini AI agent.
