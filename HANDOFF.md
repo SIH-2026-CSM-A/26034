@@ -1,7 +1,7 @@
 # HANDOFF.md
 
 For a fresh Claude chat resuming as strategist / architect / engineering lead on PCCS
-(SIH 2026, PS 26034). This is the fourth handoff in the project's history.
+(SIH 2026, PS 26034). This is the **fifth** handoff in the project's history.
 
 Read after `AGENTS.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `TODO.md`, `TICKETS.md` and
 `RULES-CORPUS-INDEX.md`. This file carries only what is written down nowhere else.
@@ -15,19 +15,23 @@ merely true, it was cut.
 
 Decide, don't offer menus. One recommendation with the tradeoff in one line. Exact
 pasteable terminal commands, never a command described in prose, and **never a placeholder
-like `<number>` inside a command** — substitute the real value every time. Chain
-multi-step commands with `&&` when a later step depends on an earlier one; newline-
-separated commands silently continue past a failure and that has already cost this project
-a broken `uv.lock` and a git command run against the wrong branch.
+like `<number>` inside a command** — substitute the real value every time. Chain multi-step
+commands with `&&` when a later step depends on an earlier one.
 
-For anything outside the terminal — a settings panel, a form — every click and every
-field, assuming he has not seen the screen.
+For anything outside the terminal — a settings panel, a form — every click and every field,
+assuming he has not seen the screen.
 
 Say when something won't work instead of finding a way to agree. Mark unverifiable claims
 soft. Never claim a probability of winning.
 
-**One thing at a time when he asks for it.** He will say so explicitly. When he does, give
-one question or one task per message and wait. Do not batch.
+**One thing at a time when he asks for it.** He will say so explicitly. Give one question or
+one task per message and wait. Do not batch.
+
+**Write teammate tickets as complete work orders.** This changed in session 5 and it
+matters: teammates were spending hours per ticket because the tickets assumed context they
+did not have. Exact files, exact signatures, commands in order, falsification steps spelled
+out, an explicit out-of-scope list, and a "Before you raise the PR" block built from that
+ticket's own failure modes. CI-004, DAT-004, DAT-005, MEA-007 and PIP-003 are the format.
 
 **Standing orders, verbatim in force:** don't ask how much time is left, don't wind down.
 When a ticket closes the next one already exists; when the board runs low, extend it from
@@ -37,160 +41,177 @@ before stopping — only then switch to wrapping up.
 He runs Claude Code in WSL Ubuntu at `~/NewProjects/26034`. Windows paths are under
 `/mnt/c/Users/drona/`.
 
+**On AI-generated images:** he has stated he uses them and does not want the objection
+repeated. It was raised once in session 5 and dropped. Do not re-litigate it. Annotate
+honestly per image — a garbled or illegible field annotates as `null`, whatever produced it.
+
 ---
 
 ## What you can and cannot do
 
-**ClickUp connector works.** Create and update tickets directly; do not hand him ticket
-text to paste unless it rate-limits again, in which case say so explicitly and switch to
-pasteable blocks (title, assignee, status, priority, three custom fields, description).
+**ClickUp connector — rate-limited 2026-09-06 19:30 for 600 minutes.** It worked for most of
+session 5 and then hard-stopped. When limited, hand Abhiram each ticket as one pasteable
+markdown block: title, assignee, status, priority, the three custom field values,
+description. **Two status moves were owed when it hit: DAT-002 → done, CTR-004 → done.**
 
 The connector cannot: create or edit custom field *definitions*, create or edit statuses,
 remove members, delete folders. **Posting comments prompts for approval each time and often
 fails — put information in the task description, not a comment.**
 
+**The `Module 26034` dropdown rejects a plain string** — it needs an option UUID, which
+`clickup_get_custom_fields` can fetch. Five tickets created in session 5 went in without it.
+
 **There is no GitHub MCP connector.** You read `api.github.com` directly from the sandbox:
-public data only, unauthenticated, ~60 requests/hour from a rotating shared IP pool. **You
-will hit that ceiling immediately** — it fired on the first call of the last session and
-never recovered. Assume it is unavailable and use the PR review protocol below. Private
-data returns 401. You cannot merge, comment, approve or push.
+public data only, unauthenticated, ~60 requests/hour from a rotating shared IP pool. In
+session 5 it worked for a handful of calls (a tree listing, a job step query) before
+limiting. Assume it is unavailable and use the PR review protocol below. You cannot merge,
+comment, approve or push.
+
+**Abhiram handles all GitHub PR comments himself.** Give him draft text for ClickUp ticket
+comments only.
 
 ---
 
 ## The PR review protocol — use this, it works
 
-1. He gives you a PR number. You give him this exact command shape:
+1. **Check the head OID before spending a diff.** He last saw head X; if it is unchanged, the
+   owed items are still owed and you say so in one line rather than re-reading.
 
 ```
-cd ~/NewProjects/26034 && gh pr checks 29; gh pr view 29 --json headRefOid,updatedAt -q '.headRefOid + "  " + .updatedAt'; gh pr diff 29 > /mnt/c/Users/drona/Downloads/pr29.md; wc -l /mnt/c/Users/drona/Downloads/pr29.md
+cd ~ && R=SIH-2026-CSM-A/26034 && gh pr view 46 --repo $R --json headRefOid,mergeable,changedFiles,additions,deletions -q '"head=\(.headRefOid[0:7]) \(.mergeable) files=\(.changedFiles) +\(.additions)/-\(.deletions)"'; gh pr checks 46 --repo $R
 ```
 
-2. **Filename convention: `pr<number>.md`, then `pr<number>-v2.md`, `-v3.md` for reworks.**
-   Never overwrite — retrieval will hand you a stale copy if two files share a name.
-   **`.diff` files cannot be uploaded to project knowledge; `.md` can.** Always `.md`.
-3. He uploads to project knowledge; you read it with `project_knowledge_search`.
-4. **Always ask for the head OID.** Four times last session a teammate said they had pushed
-   fixes and the diff was byte-identical — same blob hashes, only a rebase. Compare the OID
-   *and* the blob hashes in the diff header before reviewing. If unchanged, say so in one
-   line and don't re-review.
-5. **Delete a PR's files from project knowledge once it merges.** Stale diffs compete with
-   live ones during retrieval.
-6. Under ~300 lines, pasting into chat is fine.
+2. Then the full pull:
+
+```
+cd ~ && R=SIH-2026-CSM-A/26034 && D=/mnt/c/Users/drona/Downloads && N=46 && \
+OUT=$D/pr$N-review.md && SHA=$(gh pr view $N --repo $R --json headRefOid -q .headRefOid) && \
+{ echo "# PR #$N — head $SHA"; echo
+  gh pr view $N --repo $R --json title,author,state,mergeable,additions,deletions,changedFiles,headRefName,updatedAt
+  echo; echo "## Checks"; gh pr checks $N --repo $R 2>&1 || true
+  echo; echo "## Files"; gh pr diff $N --repo $R --name-only
+  echo; echo "## Diff"; echo '```diff'; gh pr diff $N --repo $R; echo '```'; } > "$OUT" && \
+echo "$OUT $(wc -c < "$OUT")"
+```
+
+3. **Filename convention: `pr<n>-review.md`, then `-v2`, `-v3`.** Never overwrite —
+   retrieval hands you a stale copy if two files share a name. **`.diff` cannot be uploaded
+   to project knowledge; `.md` can.**
+4. **Read the file list and byte count BEFORE the diff.** This caught a real defect in
+   session 5: #42 came back as 4 files when it should have been 3, and the fourth was a 12 KB
+   junk file at the repo root named from a shell quoting accident. The list told us in one
+   line what the diff would have buried.
+5. **Never ask for more than two diffs at a time.**
+6. **Read the migration in full for any PR that adds one** — it can never be edited after merge.
+7. **Delete a PR's files from project knowledge once it merges.**
+8. Under ~300 lines, pasting into chat is fine.
+9. `gh pr diff` takes **no pathspec** — `gh pr diff N -- path` fails.
 
 **Merge gate — recommend merge only if all hold:** checks green · one module · in ticket
 scope · no migration · no auth or permission change · no shared-contract change · no new
 dependency. Otherwise escalate with a recommendation. When a PR fails, comment the specific
-fixes — never fix it yourself; the owner learns nothing and their branch diverges.
+fixes — never fix it yourself.
 
-`session-log/<name>.md` in a diff is **not** an out-of-scope violation. AGENTS.md requires
-it. Every ticket's Files field must include it — its absence produced false flags on every
-review last session.
+`session-log/<n>.md` in a diff is **not** an out-of-scope violation. AGENTS.md requires it.
 
 ---
 
-## The three failure patterns that recur — check for these first
+## The failure patterns that recur — check for these first
 
-**1. Tests that cannot fail.** This appeared in five separate PRs. A socket-isolation test
-where the library under test is mocked, so nothing runs. A mutation test whose source object
-is frozen all the way down. An adversarial test that stubs the verifier, calls the stub, and
-asserts the stub returned what it was told to return. A directory scan resolving a relative
-path that yields zero files and passes vacuously.
+**1. Tests that cannot fail.** Five PRs in session 4; **five of five PRs in session 5**
+shipped at least one. Session 5's crop: a socket-isolation test that patched both providers
+so nothing ran under the block; a glyph test whose mock was told the answer and asserted it
+got it back; a directory scan over four candidate paths that always skipped; a confidence
+test asserting `(scale * 0.05) / scale == 0.05`; a falsification test asserting a
+three-element tuple is not contained in a one-element tuple, both written as literals three
+lines above.
 
-The instruction that works, in every ticket's pre-PR block: *"prove the test can fail —
-introduce the defect it guards against, confirm red, revert."* Twice, Claude Code ran that
-check on itself, found the guard was not load-bearing, and corrected the **claim** rather
-than shipping a decorative test. That is the behaviour to reward.
+The instruction that works, in every ticket: *"prove the test can fail — introduce the defect
+it guards against, confirm red, revert."* **Assume a green suite proves nothing until someone
+has introduced the defect and watched it go red.**
 
-Session 4 added six more of the same shape: an import contract that matched nothing, a
-curvature test asserting `sin(arcsin(x)) == x`, a manifest-integrity test looping over an
-empty list, six tests masked by the unconfirmed-category sector gate, two falsifications
-claimed red that were not red, and a structural guard that checked only keyword arguments
-and missed `model_copy(update={...})`.
-
-**Assume a green suite proves nothing until someone has introduced the defect and watched it
-go red.** That standard caught real bugs every time it was applied in session 4.
-
-**2. Fabricated ground truth.** Plausible-looking values written instead of read. Invented
-MRP text, millimetre heights on uncalibrated photographs, samples hashing to the SHA-256 of
-an empty file — `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Memorise
-that string; it is the tell.
+**2. Fabricated ground truth.** Session 5 found this was not four bad annotations but a
+fabricated corpus end to end — see "Decisions this session". Memorise
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, the SHA-256 of an empty
+file; it is the tell.
 
 **3. Stale branch bases.** `gh pr checks` reporting "no checks reported" almost always means
-the branch is stale relative to `main`, not a CI outage. Check whether already-merged files
-show as "new" in the diff before assuming anything else.
+a stale branch. Also: **`gh pr checks` returns a stale rollup for roughly 90 seconds after a
+push** — it showed a 47-second-old failure on a branch that had just been fixed. Read
+`statusCheckRollup` with `startedAt` and confirm the head OID matches.
 
-Also: **`gh pr checks --watch` is unreliable.** It reported "2 passed, 7 pending" against a
-rollup containing exactly one check, twice. Read `statusCheckRollup` instead.
+**4. Session logs rewritten instead of appended.** Four PRs in session 5 destroyed an earlier
+ticket's history. It only stopped when the instruction went into the ticket text with the
+exact lines to restore.
 
 ---
 
 ## Claims that turned out wrong, and who caught them
 
-- A previous session told the PIP-002 session that EXT-004 was merged when it was not. That
-  session checked `mergedAt`, found the PR open, read the real binder off its branch rather
-  than working from the description, and corrected it. **Verify claims about repository state
-  against the repository — including the claims in this file.**
-- A previous session told Abhiram in its first turn that `HANDOFF-PROTOCOL.md` did not exist
-  in project knowledge. It did, under `HANDOFF-PROTOCOL__1_.md`, the whole time.
-- Claude Code claimed nine falsifications in CORE-002; two were invalid. It found and
-  retracted them itself.
-- Claude Code added a guard asserting `alembic/env.py` must import `Base` from `models` and
-  not `schema`, then proved the guard was decorative and corrected the claim rather than
-  keeping a green tick.
+- **I repeated the handoff's line that #42 was "the cheapest PR on the board, nothing about
+  the code in dispute."** That came from reading the check status, not the diff. Reading it
+  properly found a fabricated coin homography and three unsourced confidence figures. **One
+  of the four review rounds on #42 was mine.** Read the diff before characterising a PR.
+- **I told Abhiram CTR-004 needed no yaml change** because `rules.Severity` was
+  rules-internal. Wrong: `rule_findings.py:194` does `Verdict(rule.severity.value)`, so the
+  two enums are value-coupled and the yaml had to change with them. Found by grepping
+  `app/pipeline/` before writing the ticket.
+- **I said 18 `severity:` lines.** There are 17. Claude Code checked and corrected it.
+- **I guessed #53's lint failure was `E402` in my own new file.** It was a pre-existing
+  `E501` in `tests/contracts/test_manifest_integrity.py`. Read the log, don't guess.
+- A previous session told the PIP-002 session that EXT-004 was merged when it was not.
+  **Verify claims about repository state against the repository — including this file's.**
 
 ---
 
 ## Infrastructure state, 2026-09-06
 
-**`main` at `9f68683`. The pipeline is composed and produces verdicts.** It carries an
-application entrypoint (`bck/app/main.py`), a scan orchestrator, four scan endpoints,
-persistence with Alembic, span binding, and a hash-chained evidence record written atomically
-with each verdict. Before session 4, eight modules were merged and nothing composed them.
-**637 tests pass locally** (33 skip without MinIO, Redis and a local Postgres), 3 import
-contracts kept, 0 broken.
+**`main` at `5ff81d0`. 686 tests pass locally**, 32 skip without MinIO, Redis and a local
+Postgres. 3 import contracts kept, 109 files analysed.
 
-**What has never run: the image path with real models.** There are no YOLO or PaddleOCR
-weights on the dev machine. Every image-path verification substituted `detect_pdp` and
-`extract_panel_text`; everything downstream of them is real and verified live. The app now
-refuses to boot without four model paths that do not exist locally. **This is the largest gap
-between "the tests pass" and "the system works", and it sits on the demo path.**
-`ultralytics` is a runtime dependency, so the YOLO stack ships with the backend.
+**What has never run: the image path with real models.** Two blockers were found in session
+5. The first is fixed: `ocr.py` on `main` was written against the PaddleOCR **2.x** API
+(`det_model_dir`, `use_gpu`, `show_log`, `ocr(cls=False)`) while **3.7.0** is installed, so
+`extract_panel_text` could not construct a `PaddleOCR` at all — downloading weights would
+only have moved the failure from boot to first call. #45 fixed it.
 
-Org `SIH-2026-CSM-A`, shared with a second team. Repo `26034` public, `26167` is
+The second is open and is a **decision, not a download**: there is no PDP-trained YOLO model.
+`detect_pdp` takes `boxes.conf.argmax()` of whatever weights it is handed, so stock
+`yolov8n.pt` returns a COCO bounding box as the principal display panel, and its area feeds
+the Rule 7 Table-I band lookup. Its empty-detection branch returns the **whole image** with
+`confidence 0.0`, overestimating area and biasing toward POTENTIAL VIOLATION. **Do not point
+`PDP_WEIGHTS_PATH` at stock weights to make boot succeed.**
+
+`bck/.env` **does not exist**. The four required settings are `PDP_WEIGHTS_PATH` (a file),
+`OCR_DET_MODEL_DIR`, `OCR_REC_MODEL_DIR`, `TESSERACT_TESSDATA_DIR` (directories). Blank is
+treated as unset; each is checked for existence at boot. `tesseract` is not installed on the
+dev machine. Installed and current: ultralytics 8.4.142, paddleocr 3.7.0, paddle, pytesseract, cv2.
+
+Org `SIH-2026-CSM-A`, shared with a second team. Repo `26034` public, `26167` is B.V.
 Yashwanth's. **Both public deliberately: branch protection does not exist on private repos
-under GitHub Free for organisations, and flipping a repo to private silently deactivates
-protection with no warning. Never propose making it private.**
+under GitHub Free for organisations. Never propose making it private.**
 
 **Two stacked protections on `main`.** The `main-protection` ruleset (PR required, 1
 approval, dismiss stale, code-owner review, no force push, linear history, `backend` and
-`frontend` as required status checks, repository-admin bypass) decides *whether* a PR is
-mergeable. A classic rule restricting push to `Abhiram-0910` decides *who clicks merge* —
-without it, two teammates approving each other is a complete path around him.
+`frontend` as required checks, repository-admin bypass) decides *whether* a PR is mergeable.
+A classic rule restricting push to `Abhiram-0910` decides *who clicks merge*. The ruleset is
+at the **repo** level: `github.com/SIH-2026-CSM-A/26034/settings/rules`. Org rulesets need
+GitHub Team and do not exist here.
 
-**The ruleset lives at the repo level, not the org level:**
-`github.com/SIH-2026-CSM-A/26034/settings/rules`. Org rulesets require GitHub Team and do
-not exist here. Do not send him to the org settings page.
+**`--admin` is the standard merge command for every PR.** CODEOWNERS assigns exactly one
+owner per path and that owner is always the PR's author, so codeowner review can never be
+satisfied. `--admin` also skips required checks, so always run `gh pr checks` in the same
+breath. Abhiram cannot approve his own PRs.
 
-**`--admin` is the standard merge command for every PR, for every contributor.** CODEOWNERS
-assigns exactly one owner per path and that owner is always the PR's author, so codeowner
-review can never be satisfied. `--admin` also skips required checks, so always run
-`gh pr checks` in the same breath. Abhiram cannot approve his own PRs — GitHub blocks it
-outright; go straight to `gh pr merge N --squash --admin --delete-branch`.
-
-**Worktrees.** `~/NewProjects/26034` on `main` (use this for all `gh` commands), plus
-`26034-ci`, `26034-fnt`, `26034-rules` parked on detached HEAD as agent workspaces.
-`git checkout main` fails in any worktree while another holds it — this caused three
-confusing failures in one session. **Never run manual git commands in a folder a Claude Code
-session has open**; use a separate worktree.
-
-Claude GitHub App installed on the org, scoped to `26034`, `@claude` on mention only.
-Auto-review on every PR was deliberately declined.
+**Worktrees.** `~/NewProjects/26034` (use for `gh` commands), plus `26034-ci`, `26034-fnt`,
+`26034-rules` parked on detached HEAD, `26034-dat` on `dat-002-corpus-annotations`, and
+`26034-docs` on `docs-session-5-handoff`. `git checkout main` fails in any worktree while
+another holds it. **Never run manual git commands in a folder a Claude Code session has open.**
 
 ClickUp: space `SIH Team` (`1300450000003833`), list `26034 Build` (`1300450000005736`).
 Field IDs — `Module 26034` `87d708c9-d795-41d5-bae7-be56090b3ff1`, `Files`
 `21d1ae6f-d983-44db-b2ac-d390d30b6469`, `Branch` `589b8355-8072-4ec7-b615-d78c6778bd87`.
-Statuses `to do` / `doubt` / `in progress` / `review` / `done` / `complete`.
-**`done` is the terminal status. Nothing goes to `complete`** — Abhiram decided this.
+**`done` is the terminal status. Nothing goes to `complete`.**
 
 ---
 
@@ -198,7 +219,7 @@ Statuses `to do` / `doubt` / `in progress` / `review` / `done` / `complete`.
 
 | Person | GitHub | ClickUp ID | Module |
 |---|---|---|---|
-| Abhiram | `Abhiram-0910` | 240010775 | contracts, core, pipeline, alembic, .github, **rules**, **fnt officer** |
+| Abhiram | `Abhiram-0910` | 240010775 | contracts, core, pipeline, alembic, .github, **rules**, **fnt officer**, **datasets** |
 | Jashwanth | `badugujashwanth-create` | 106878760 | rules — **unavailable** |
 | Akshaya | `aksha08-ya` | 106878763 | vision, **tamper** |
 | Sitanshu | `krishbattula4` | 106878761 | extraction |
@@ -213,42 +234,12 @@ Statuses `to do` / `doubt` / `in progress` / `review` / `done` / `complete`.
 Jashwanth runs Codex; everyone else Antigravity + Gemini Pro; Abhiram Claude Code.
 
 **B.V. Yashwanth (`ybaddam8-png`, ClickUp 240010980) is not on the team** — he leads 26167
-and is an org Owner, therefore admin on `26034` too. That is deliberate, not a
-misconfiguration. Never assign him work. FNT-001 was an explicit exception for Vineeth's
-absence and EXT-004 a second, for a ticket Sitanshu had never started and which B.V.
-Yashwanth delivered the same day. Neither extends to anyone else.
-**B.V. Yashwanth, Jashwanth Badugu and Yashashvi are three different people** — a misroute on
-the near-identical names actually happened in session 4. Check the ClickUp ID, not the name.
+and is an org Owner, therefore admin on `26034` too. Never assign him work. FNT-001, EXT-004
+and RUL-004 were explicit exceptions. **B.V. Yashwanth, Jashwanth Badugu and Yashashvi are
+three different people** — check the ClickUp ID, not the name.
 
-### Ownership shifts — recorded, not violations
-
-- **`rules/`** — Jashwanth unavailable. RUL-002 reassigned to Abhiram mid-session, RUL-003
-  built by him. He owns it for now. **RUL-004** (`governs_declarations`) is B.V. Yashwanth's
-  and is blocked on nothing now that PIP-002 has merged. **RUL-003 is session 3's merged
-  multi-piece ticket (#36) — it is not the narrowing ticket. Do not reuse the number.**
-- **`fnt/` officer surface** — Vineeth unavailable. Abhiram builds it directly rather than
-  handing another person's module to a third party.
-- **`tamper/`** — Shivasai never received a ticket and never worked. Directory transferred
-  to Akshaya (TAM-001); she now owns `vision/` and `tamper/`.
-- **`measurement/`** — Yashashvi is active again, with three PRs open at once: MEA-004 (#42),
-  MEA-005 (#43) and MEA-006 (#47). Reference-object calibration (₹10 coin at 27.0mm via
-  Circle Hough, EAN-13 at **37.29mm not 31.35mm**, 50mm printable card) is the remaining
-  depth there and it waits. If it is still waiting near demo, scenario 4 (calibrated font
-  measurement) drops from the demo set and scenarios 5 (the refusal) and 8 (artwork mode)
-  carry that story instead. Say that out loud rather than quietly cutting it.
-- **`datasets/`** — Aashritha is off the project. Assign her nothing. DAT-001 is superseded
-  by DAT-002 + DAT-003, both Abhiram's.
-- **`extraction/`** — EXT-004 moved Sitanshu -> B.V. Yashwanth (never started) and was
-  delivered the same day. Sitanshu is back on extraction with EXT-005 and EXT-006.
-- **Known unfixed bug in `measurement/`:** `measure_margins` raises on a zero margin, because
-  `MeasurementExact.value` and `MeasurementCalibrated.value` are `gt=0`. A declaration flush
-  against ink or the crop edge crashes instead of measuring. **The orchestrator therefore does
-  not call it and Rule 8 free-space evaluation is dark.** MEA-006.
-
-CODEOWNERS still reflects the original map: `datasets/` in CODEOWNERS and AGENTS.md still
-names Aashritha, `extraction/` still names Sitanshu. Both are corrected in DAT-003, which is
-unmerged. If these shifts persist past another ticket or two, change CODEOWNERS rather than
-letting the file lie.
+CODEOWNERS still names Aashritha on `datasets/`; DAT-003 corrects it and is unmerged, so the
+file currently lies.
 
 ---
 
@@ -261,359 +252,204 @@ than one third of height, except the numeral "1" and the letters i, I, l. A flat
 a 1.7mm figure both appear in older project documents — **`SIH26034_PSR.md` §3 is the
 offender and is not a source for rule facts.**
 
-**Rule 6(11) is a FORMAT rule, not a tolerance.** It prescribes the unit basis — `Rs. per g`
-below 1 kg, `Rs. per kg` at or above; `per cm`/`per metre`; `per ml`/`per litre`;
-`per number` by count. It contains no tolerance, no rounding increment, no permitted
-difference. **The ±₹0.01 and ±₹0.05 figures in project documents are assumptions, not law,
-and must never be encoded.** F18 is two checks: is a unit sale price declared, and is it on
-the correct unit basis for the net quantity.
+**Rule 6(11) is a FORMAT rule, not a tolerance.** `Rs. per g` below 1 kg, `per kg` at or
+above; `per cm`/`per metre`; `per ml`/`per litre`; `per number` by count. **The ±₹0.01 and
+±₹0.05 figures in project documents are assumptions, not law, and must never be encoded.**
 
-**Rounding increment ≠ tolerance.** "Rounded to nearest ₹0.05" transforms in steps; "±₹0.05"
-accepts a difference. They diverge at boundaries. The schema expresses both separately, and
-a tolerance without a `tolerance_basis` fails to construct — `Decimal("0.05")` alone is
-either five paise or five percent.
+**Rounding increment ≠ tolerance.** A tolerance without a `tolerance_basis` fails to
+construct — `Decimal("0.05")` alone is either five paise or five percent.
 
-**Rule 8 governs placement, Rule 9 governs manner.** Distinct rules, never one check. Now
-encoded as four: `R8-1-PDP-PLACEMENT`, `R8-1-FREE-SPACE`, `R9-1-MANNER`,
-`R9-3-OUTER-CONTAINER`. Rule 8(1)'s proviso requires clear space above and below of at least
-the **numeral's** height and left and right of at least twice it — **derive it from
-`numeral_height_mm`, not `letter_height_mm`**; they are distinct measurements on a real
-package and only coincide by accident in fixtures.
+**Rule 8 governs placement, Rule 9 governs manner.** Encoded as four: `R8-1-PDP-PLACEMENT`,
+`R8-1-FREE-SPACE`, `R9-1-MANNER`, `R9-3-OUTER-CONTAINER`. Rule 8(1)'s proviso derives from
+`numeral_height_mm`, **not** `letter_height_mm`.
 
 **Rule 7(4) PDP area:** rectangular = height × width; cylindrical = **40%** of (height ×
 circumference); other = 40% of total surface area, **OR an area considered to be the
-principal display panel**. That second limb is the answer for irregular shapes — measure the
-identified panel through the homography rather than refusing. Refuse only when no panel can
-be identified or it is not adequately planar. Excludes tops, bottoms, can flanges, and the
-shoulder and neck of bottles and jars.
+principal display panel** — that second limb is the answer for irregular shapes.
 
-**Medical devices are a carve-out, not a stricter path.** G.S.R. 778(E) (23.10.2025, in force
-from publication 24.10.2025) routes numeral and letter height to MDR 2017 via a rule 2(h)
-proviso, disapplies the Rule 33 relaxation, and makes PDP declaration non-mandatory.
-**Table-I is not universal.** `SIH26034_TI.md` §5 uses "Medical Device" as its routing
-example without knowing this.
+**Medical devices are a carve-out, not a stricter path.** G.S.R. 778(E) routes numeral and
+letter height to MDR 2017, disapplies the Rule 33 relaxation, and makes PDP declaration
+non-mandatory. **Table-I is not universal.** A false medical-device classification therefore
+removes Rule 7 from evaluation entirely — which is why EXT-005's regex anchoring matters.
 
 **Rule 6(1)(aa) vs Rule 6(10A).** 6(1)(aa) is the package declaration of country of origin.
-6(10A), inserted by G.S.R. 128(E) (13.02.2026), is a *separate* obligation on e-commerce
-platforms to provide a searchable country-of-origin filter, evaluated against a
-`CatalogueRecord`, not a package scan. G.S.R. 128(E) does not touch Rule 6(1) at all.
-G.S.R. 312(E) substitutes that sub-rule effective **01.07.2027** — encode with
-`effective_from: 2027-07-01` rather than omitting it.
+6(10A), inserted by G.S.R. 128(E), is a *separate* obligation on e-commerce platforms,
+evaluated against a `CatalogueRecord`. G.S.R. 312(E) substitutes that sub-rule effective
+**01.07.2027** — encode with `effective_from: 2027-07-01`.
 
-**Combination (2(ka)) and Group (2(kb)) packages** — G.S.R. 722(E), in force 01.01.2024.
-**Multi-piece package (2(kc))** and its food proviso — same instrument, encoded in RUL-003
-as `R2-KC-MULTI-PIECE-FOOD` with `package_type` scoping. G.S.R. 722(E) paragraph 4's Rule
-6(11) unit-sale-price exemption is deliberately **not** encoded; a test asserts the rule
-store excludes it.
+**Rule 26 — packages of 10 g or 10 ml or less are exempt, except tobacco products.** This
+became live in session 5: the first real capture is a **2 g** Maggi sachet. Read the corpus
+before writing its ground truth; if the exemption applies, most Rule 6(1) obligations are
+`NOT_APPLICABLE`, not `FAIL`, and marking them FAIL trains the eval set to punish correct
+behaviour.
 
-**"multi-piece package" occurs three times in the entire corpus, all inside G.S.R. 722(E),
-and that instrument does not amend rule 9.** So no multi-piece/Rule 9(3) interaction is
-encoded, and `test_the_gazette_states_no_multi_piece_outer_wrapper_rule` asserts the absence.
-Do not invent one.
+**Combination (2(ka)), Group (2(kb)), Multi-piece (2(kc))** — G.S.R. 722(E), in force
+01.01.2024. Paragraph 4's Rule 6(11) exemption is deliberately **not** encoded.
 
-**Sector overrides:** Rule 6(1)(a) Explanation III routes the manufacturer declaration for
-food to FSSA 2006. Rule 6(1)(d) third proviso routes the date declaration for cosmetics to
-the Drugs and Cosmetics Rules 1945. Neither states a separate commencement in the
-compilation; both inherit their parent clause's committed date, documented in a YAML comment.
+**"multi-piece package" occurs three times in the corpus, all inside G.S.R. 722(E), and that
+instrument does not amend rule 9.** No multi-piece/Rule 9(3) interaction is encoded and a
+test asserts the absence. Do not invent one.
 
-**Two evidence gaps, recorded not papered over.** The DoCA consolidated e-book returns
-Access denied — no consolidated text covering Nov 2021 to Oct 2023. The 11.11.2025 DoCA FAQ
-is not captured; two claims in EXT-001 (both `₹` and `Rs.` acceptable; "Marketed by" /
-"Brand Owner" satisfies Rule 6(1)(a)) rest on three secondary sources and are marked
+**Two evidence gaps.** The DoCA consolidated e-book returns Access denied. The 11.11.2025
+DoCA FAQ is not captured; two EXT-001 claims rest on secondary sources and are marked
 **[SOURCED], not [VERIFIED]**.
 
-**LMPC applies to packages intended for retail sale in India.** An EU export pack carries no
-INR MRP obligation — the correct field state is `NOT_APPLICABLE`, not FAIL and not a
-`known_issue`. *(The scope limb itself is soft — verify against the corpus before encoding it
-as a rule rather than an annotation convention.)*
-
-**G.S.R. 778(E) says "rule 33 shall be numbered as sub-rule (1)" while the Maharashtra
-compilation already shows a 33(1) and 33(2).** That is a semi-official compilation artefact.
-Encode what the gazette says and cite the gazette.
+**LMPC applies to packages intended for retail sale in India.** An export pack carries no INR
+MRP obligation — `NOT_APPLICABLE`, not FAIL. *(The scope limb itself is [SOFT].)*
 
 `consumeraffairs.gov.in`, `doca.gov.in` and `egazette.gov.in` all refuse automated access.
-**Do not build a fetcher.** The corpus is updated by hand.
+**Do not build a fetcher.**
 
 ---
 
 ## Hard nos — do not re-propose
 
-- **Supabase** — free projects auto-pause after 7 days; sovereignty.
-- **Cloud-primary OCR** — makes the offline path a second, weaker extraction implementation
-  and puts product images outside the sovereign boundary. Self-hosted PaddleOCR primary;
-  cloud is opt-in per request, disabled by default, daily page cap 0.
-- **A custom rules DSL / Drools / OPA** — versioned YAML plus a deterministic evaluator.
-  This is the project's most likely over-engineering failure.
-- **A separate vector database** — pgvector in the same Postgres.
-- **Next.js** — SSR buys nothing for an authenticated internal tool.
-- **Two repositories** — monorepo with CODEOWNERS and import-linter.
-- **Python 3.12** — 3.11, because PaddlePaddle and CV wheels lag.
-- **Horizontal layer directories** — layers nest *inside* modules.
-- **Empty `router.py`/`service.py` stubs per module** — 24 stubs, breaks the no-stubs rule.
-- **Auto-review on every PR** — burns quota, trains people to scroll past Claude.
-- **A develop chain** — `main` plus feature branches. T4's `develop` references superseded.
-- **Making the repo private** — kills branch protection silently.
-- **Lightening the frontend focus tint to fix contrast** — a focus signal at 1.04:1 against
-  the ground is not a signal. Unfilled chips ground on Field Paper instead.
-- **An `if:` guard to skip the frontend CI job** — a skipped job posts no status and a
-  required context then waits forever. Same bug as the `paths:` filter, different costume.
-- **Fixing PIP-001's "unfalsifiable" deepcopy test** — it is documented as unfalsifiable
-  under the current annotation, on purpose.
-- **An LLM call or an agent loop anywhere in the verdict path.** Deterministic by design.
-- **Pipeline-side filtering of findings** — see the 65-findings decision below.
-- **`relationship()` on the async schema** — they lazy-load and raise `MissingGreenlet`
-  mid-serialisation.
-- **`BoundDeclaration` / `DeclarationRole` / `app/contracts/binding.py`** — EXT-004's shape
-  won; these do not exist and must not be recreated.
-- **PyMuPDF** — AGPL-3.0, and its network clause would attach to the whole work.
-  `pdfplumber` instead.
-- **An AI-attribution trailer on a commit or a PR body.** Claude Code has correctly refused
-  this twice against a conflicting session instruction — confirm the refusal, do not amend it.
+- **Supabase** · **Cloud-primary OCR** · **A custom rules DSL / Drools / OPA** · **A separate
+  vector database** · **Next.js** · **Two repositories** · **Python 3.12** · **Horizontal
+  layer directories** · **Empty stub files per module** · **Auto-review on every PR** ·
+  **A develop chain** · **Making the repo private**
+- **Lightening the frontend focus tint to fix contrast.**
+- **An `if:` guard to skip the frontend CI job** — a skipped job posts no status.
+- **Fixing PIP-001's "unfalsifiable" deepcopy test** — documented as unfalsifiable on purpose.
+- **An LLM call or an agent loop anywhere in the verdict path.**
+- **Pipeline-side filtering of findings.**
+- **`relationship()` on the async schema** — `MissingGreenlet` mid-serialisation.
+- **`BoundDeclaration` / `DeclarationRole` / `app/contracts/binding.py`** — EXT-004's shape won.
+- **A second `ExtractionResult`.** `binder.py` owns it. Sitanshu's EXT-006 log claimed a new
+  `evidence.py` defining one; that must not be created.
+- **PyMuPDF** — AGPL-3.0.
+- **An AI-attribution trailer on a commit or a PR body.**
 - **A millimetre figure from an uncalibrated photograph**, in output **or** in ground-truth
-  annotations. `null` is a correct annotation. Requirements may carry millimetres and
-  observations may not: `rule_snapshot` and `expected_value` legitimately hold Table-I
-  thresholds, so the grep excludes them and covers `observed_value`, measurement blocks and
-  `reason`.
-- **`coin_inr_5` at 25.0 mm.** The only sourced coin dimension is the Rs10 coin at 27.0 mm
-  (`SIH26034_TI.md` section 15, RBI-confirmed).
+  annotations. `null` is a correct annotation.
+- **`coin_inr_5` at 25.0 mm**, and now `coin_inr_1` / `coin_inr_2` — all written from memory.
+  The ₹10 at 27.0 mm is the only sourced coin dimension.
 - **EAN-13 nominal width at 31.35 mm** — it is **37.29 mm**, and a regression test pins it.
 - **Keeping a test that cannot fail because it is green.** It gets deleted, not shipped.
-  `not isinstance(proposal, ProductCategory)` is unfalsifiable — a `StrEnum` with members
-  cannot be subclassed — so it restated the type system and proved nothing. The PIP-001
-  deepcopy test above is the one standing exception, and it is documented as such.
+- **The `coin_10` bounding-box homography.** #42 removed it: a circle under perspective is an
+  ellipse with no corner correspondences, so any matrix from its bounding box maps arbitrary
+  points. `coin_10` returns scale only with `h_matrix = None`. MEA-007 is the correct fix.
+- **Another rule-store ticket to reduce the 65 findings.** RUL-004's corpus audit confirmed
+  Rule 7(2) and 7(3) genuinely govern every declaration. It is a presentation problem now.
+- **Asking a module owner to write a migration.** `alembic/` is single-owner. Split the ticket.
 
 ---
 
 ## Constraints discovered the hard way
 
-- **`--ours`/`--theirs` mean opposite things in `git rebase` versus `git merge`.** Rebase:
-  `--ours` = the branch being rebased *onto* (main), `--theirs` = the commit being replayed.
-  Merge: the reverse. State which operation is in play every time before giving either flag.
-- **Never hand-resolve conflict markers in `uv.lock`.** Delete it and run `uv lock` fresh
-  once `pyproject.toml` is confirmed correct.
-- **A required status check plus a `paths:` filter on its workflow is a deadlock.** A
-  workflow skipped by path posts no status, so the required context never arrives. This
-  blocked #32, #33, #36 and #37 and was misread as the review requirement. Fixed in CI-003
-  by removing the filter so the workflow always runs and always reports.
+- **`--ours`/`--theirs` mean opposite things in `git rebase` versus `git merge`.** State which
+  operation is in play every time before giving either flag.
+- **Never hand-resolve conflict markers in `uv.lock`.** Delete it and run `uv lock` fresh.
+- **A required status check plus a `paths:` filter on its workflow is a deadlock.**
 - **Required status checks cannot be added before the check has run once.**
 - **import-linter needs `include_external_packages = true`** for a forbidden contract on a
-  module outside `root_package`.
-- **A forbidden contract that matches nothing looks identical to one that works.** Prove a
-  new contract by adding a deliberate violation and confirming exit 1 — in both directions.
-- **A falsification can be run against stale bytecode and report a green pass over a real
-  defect.** Python's `.pyc` staleness check is mtime-and-size, and a falsification edit is
-  usually exactly the shape that defeats it — one string swapped for another of the same byte
-  length, `"medical_device"` → `"MEDICAL_DEVICE"`. Always run
-  `find . -name __pycache__ -type d -exec rm -rf {} +` before trusting a falsification result.
-  **Any falsification claimed on 2026-09-06 without that step is soft.** Caught in the CTR-003
-  session, which nearly believed the false pass.
-- **Check exit codes directly, not through a pipe.** `lint-imports | tail` reports `tail`'s
-  status, which is always 0.
-- **A guard on a database constraint is only falsified by editing the migration.** The
-  schema comes from the migration, not from `app/core/models.py`, so removing a
-  `UniqueConstraint` or swapping a native enum for a `String` *in the model* leaves the
-  constraint standing in the database and the test never loses what it tests. What that
-  edit actually exercises is Alembic's drift check, which is a different guard. Two of the
-  nine falsifications claimed in CORE-002 were done this way and were **not** red: one
-  errored on the model/migration disagreement and was misread as a failure, and the other
-  passed outright. Both were redone by editing the migration as well, and only then went
-  red — `DID NOT RAISE IntegrityError`, and an `InvalidTextRepresentation` assertion
-  failing because a missing type raises `UndefinedObject` instead.
+  module outside `root_package`. If `lint-imports` finishes suspiciously fast it is analysing
+  nothing — check the file count in its output.
+- **A falsification can run against stale bytecode and report a green pass over a real
+  defect.** Always `find . -name __pycache__ -type d -exec rm -rf {} +` first. CTR-004's edit
+  — `"POTENTIAL VIOLATION"` → `"POTENTIAL_VIOLATION"` — is the same byte length.
+- **Check exit codes directly, not through a pipe.**
+- **A guard on a database constraint is only falsified by editing the migration.**
 - **`alembic check` does not detect changes to the values of an existing enum type.**
-  Add a member to `contracts.DeclarationField` and `check` reports "No new upgrade
-  operations detected" — verified, not assumed. The failure appears later as
-  `invalid input value for enum declaration_field` at the first insert. Adding an enum
-  member needs a hand-written `ALTER TYPE ... ADD VALUE` revision (which cannot run inside
-  a transaction). `tests/persistence/test_postgres.py` compares `pg_enum` labels against
-  the Python members so the drift is caught at test time instead.
-- **`pytest.raises(DBAPIError)` is almost never a proof.** A schema with no enum type in it
-  fails the same cast as a schema that rejects a bad value. Assert the specific error
-  class, or the test passes against the defect it exists to catch.
-- **A published container port is shadowed by any local server already on it.** The
-  container reports healthy, and the DSN quietly reaches the local cluster instead. See
-  the note at the top of `docker-compose.yml`; `POSTGRES_PORT` (repo-root `.env`) and
-  `DATABASE_URL` (`bck/.env`) live in two files and must be changed together.
-- **Deleting the ClickUp list destroyed all ten tickets and Trash was unavailable.** Be
-  precise about "folder" versus "list".
-- **Custom fields are workspace-level and shared with the other team.** Prefix new fields
-  with the problem statement number.
-- **A ClickUp assignee filter silently hides everyone else's tickets.** The sidebar count is
-  the truth.
-- **`git branch` does not switch to the branch.** Run `git status -sb` before every commit.
-- **`mv /mnt/c/.../*.pdf`** moved an entire Downloads folder into the repo. Name files
-  explicitly.
-- **A duplicate SVG pattern `id` across two breakpoint variants** resolves `url(#…)` to the
-  `display:none` element and paints nothing. Renders perfectly at the width you test and
-  silently fails at the other. Scope with `useId`. No build step or unit test catches this —
-  only driving a real browser at two widths does.
+- **`pytest.raises(DBAPIError)` is almost never a proof.**
+- **A published container port is shadowed by any local server already on it.**
+  `POSTGRES_PORT` (repo-root `.env`) and `DATABASE_URL` (`bck/.env`) must change together.
+- **Deleting the ClickUp list destroyed all ten tickets and Trash was unavailable.**
+- **`git branch` does not switch to the branch.** Run `git status -sb` before every commit —
+  it would have caught #42's junk file immediately.
+- **A commit message containing `(` or `"` will do surprising things in bash.** #42 landed a
+  12 KB file at the repo root named `urement): implement rule 7 ratio and rule 8 margin
+  measurements"`. A filename containing `"` **cannot be checked out on Windows**. It passed
+  both CI jobs, because nothing checks what files exist. CI-004 adds that check.
 - **Before any `git reset --hard` or `checkout --ours/--theirs`, run `git status` first.**
-- **`git merge main` into a feature branch destroyed a PR** — 62 files, 6,398 additions,
-  replaying merged history as new files. It was thrown away and the two real files re-applied
-  on a fresh branch. **Rebase onto main, never merge main in.**
+- **`git merge main` into a feature branch destroyed a PR.** Rebase onto main, never merge in.
 - **`alembic check` fails immediately after a test run** because the persistence suite
-  downgrades to base at the end. It looks exactly like drift and is not — run `upgrade head`
-  first.
-- **The unconfirmed-category sector gate silently masks tests.** With no confirmed category a
-  sector-gated rule is settled before its own builder runs, so a test asserting anything about
-  that rule's downstream handling passes whether the handling exists or not. It masked six.
-  A README note did not stop it recurring. `tests/pipeline/sector_gate.findings_for_rule` is
-  now the only sanctioned way to select a rule's findings; it raises when every finding it
-  returns carries the gate's own reason. **It takes no category argument** — an argument is a
-  thing a test can pass wrongly. It catches the shape people write, not every evasion, and
-  says so in its docstring.
-- **The schema has foreign keys but no `relationship()`, and SQLAlchemy orders dependent
-  inserts from relationships, not FK columns** — findings were being inserted before their
-  verdict. Fixed with an explicit parent flush. Adding relationships is the textbook fix and
-  the wrong one: on an async mapper they lazy-load and raise `MissingGreenlet` mid-
-  serialisation.
-- **`EvidenceEntryRow` shipped in CORE-002 with no writer anywhere in the application.** The
-  table existed, the chain functions existed, nothing was ever chained until PIP-002. **A
-  merged table with no caller is invisible to CI and to review.**
-- **`/tmp` is a 3.9 GB tmpfs.** Anything unpacking paddle, torch or ultralytics into it fails,
-  and the error surfaces as a file-copy failure rather than "out of space". Work in `~`.
-- **`uv cache prune` blocks on a concurrent `uv`.** Do not `--force` it while a Claude Code
-  session is syncing.
-- **Grepping a CI log for `ERROR` on this repo always returns three lines, and all three are
-  passing tests.** They are Postgres *server* logs, dumped under the "Stop containers" step,
-  from tests doing exactly their job: the `field_state` enum-drift guard firing on
-  `invalid input value for enum field_state: "PROBABLY_FINE"`, and the two uniqueness tests
-  hitting `uq_evidence_entries_scan_id_sequence` and
-  `uq_field_findings_verdict_id_field_rule_id`. Verified against run `34039775921`, which is
-  green. **Read the step name and the conclusion, not a grep for `ERROR`.**
-- **Every open PR branched before today's merges — all six are on a stale base**, between 2
-  and 13 commits behind `main`. The fix is `git rebase origin/main` then
-  `git push --force-with-lease`, **run by the branch owner**: never rebase someone else's
-  branch for them, and where one person has stacked branches in one module, rebase
-  oldest-first. **A stale base does not reliably show as red** — #45 and #47 are green on
-  bases two commits behind, so a green check on a stale branch is evidence about the base it
-  ran on and about nothing else.
+  downgrades to base. Run `upgrade head` first.
+- **The unconfirmed-category sector gate silently masks tests.** It masked six.
+  `tests/pipeline/sector_gate.findings_for_rule` is the only sanctioned selector.
+- **`EvidenceEntryRow` shipped in CORE-002 with no writer.** A merged table — or function —
+  with no caller is invisible to CI and to review. `propose_category` is currently in that
+  state; PIP-003 fixes it.
+- **`/tmp` is a 3.9 GB tmpfs.** Work in `~`. `uv cache prune` blocks on a concurrent `uv`.
+- **Grepping a CI log for `ERROR` on this repo always returns three lines, all passing tests.**
+  They are Postgres server logs from the "Stop containers" step. **Read the step name and
+  conclusion:** `gh api repos/$R/actions/jobs/<id> -q '.steps[] | "\(.conclusion)  \(.name)"'`
+  names the failing step in one line. `gh run view --log-failed` returns the job tail, which
+  on this repo is teardown noise.
+- **`gh pr checks` returns a stale rollup for ~90 seconds after a push.** Confirm the head OID
+  and read `startedAt`.
+- **`gh pr view --repo` requires a PR number argument.** `gh pr diff` takes no pathspec.
+- **A `gh pr checks` non-zero exit breaks an `&&` chain** — use `;` between check calls.
+- **`datasets/` has never been executed by CI.** The backend job is `working-directory: bck`
+  with `testpaths = ["tests"]`. `datasets/eval/test_harness.py` cannot even be collected.
 
 ---
 
 ## Decisions this session — do not re-litigate
 
-**PIP-001.** `derive_verdict(findings)` and `assemble_verdict(...)` are two functions, not
-one, because `VerdictRecord.findings` is `min_length=1` and "zero findings returns REVIEW"
-cannot produce a record. The contract won; the spec bent. Derivation uses four separate
-`any()` passes with `is` comparisons and no set membership anywhere — `REVIEW_REQUIRED` and
-`INSUFFICIENT_EVIDENCE` reach the same verdict but never through the same expression, because
-collapsing them into one `in {...}` is one edit away from a set that also contains `FAIL`.
-The timestamp is a parameter, never a clock read.
+**The corpus was fabricated end to end, and is now empty.** Session 4 recorded four
+annotation defects. Opening the four annotations beside their photographs, and running them
+through `schema.py` for the first time, found something else: **4 of 4 failed their own
+schema**, and none of the four annotations described its own image.
 
-**The rule-snapshot adapter lives in `pipeline/`**, not `rules/` or `contracts/`.
-`rules.RuleDefinition` / `RuleCondition` are the **permanent internal shape** of that module,
-legitimately richer than what contracts exposes, because no other module needs to introspect
-a rule's condition *shape* — only that a snapshot exists.
-`conditions.model_dump(mode="json")` is mandatory, not stylistic: Table-I bands are `Decimal`
-and `Decimal` is not a `JsonValue`. A `NumericConstraint` carrying a bare tolerance with no
-basis raises rather than being carried through.
+- Both Himalaya annotations described a 100 ml Indian retail tube, MRP ₹180.00, Bengaluru
+  manufacturer. The images are two **different** EU export products, 150 ml, country of
+  origin UAE, UK responsible-person address, **no MRP, no unit sale price, no Indian
+  consumer-care declaration**. They shared one `sku_id` while being different products.
+- Both Parle-G annotations declared 55 g. The packs read `55g+10g EXTRA=65g` and
+  `110g+20g EXTRA=130g`. The consumer-care number was wrong. The unit sale price was computed
+  (5.00 ÷ 55), not read; Parle-G wrappers carry none.
+- One claimed a calibration reference object that is not in the frame.
+- All eight declaration bboxes were byte-identical across all four files.
+- None were photographs; all four were e-commerce catalogue renders.
 
-**CTR-003.** The deepcopy in `RuleParameterSnapshot.from_rule` is **not** what provides
-isolation today — pydantic's `JsonValue` re-validation rebuilds every container. It ships as
-*annotation-independence* against a future widening to `dict[str, Any]`. The test pins the
-property and **cannot fail under the current annotation**; that is stated in its own
-docstring, with a falsification matrix in the PR body.
+**Why four written review rounds missed it: nobody opened an image or ran the validator,
+including me until session 5.** `datasets/README.md` described a 14-SKU corpus that never
+existed, with a Drive folder ID still set to the literal placeholder and an absolute WSL path
+on a former teammate's machine — it read like a corpus existed. `SELF_TEST_REPORT.md`
+reported 1.0000 across eight samples and nine difficulty tags the corpus never had.
 
-**RUL-002.** `Rule7Route` generalised from `MEDICAL_DEVICES_RULES_2017` to
-`LMPC_TABLE_I` / `SECTOR_FRAMEWORK` — a route enum carrying one sector's answer is an
-if/else chain in disguise. The medical-device guard moved into `minimum_character_height()`
-rather than the two evaluator callsites, because the sector-blind public lookup was the
-actual bug. Sector dispatch is a table built by reading the store; adding a sector is a YAML
-rule plus an enum member, touching no existing logic. Schema split three ways to stay under
-300 lines: `base.py` (vocabulary) → `conditions.py` (obligation shapes) → `models.py` (the
-record), plus `results.py`. One direction, no cycle.
+All of it is deleted (#53). Fifteen real captures are staged at
+`~/26034-dat/datasets/raw/_staging/`, six SKUs, gitignored. **DAT-005 owns annotating them.**
 
-**RUL-003.** `rule_33_relaxation_applies` and the dispatch collapsed onto one `_applicable()`
-— two copies of an applicability check is how a scoped override fires in one reader and not
-the other. `package_type` defaults to `None` meaning any package type, so RUL-002's three
-overrides fire unchanged; three tests hold that down.
+**`schema.py` is hardened so the fabrication is unrepresentable.** `ReferenceObject` refuses
+`present: true` without an identified object of known size, and `present: false` carrying a
+dimension or bbox. Six guards, each falsified against a real fabrication shape before
+committing. `object_type` is required with no default — a default lets an incoherent
+calibration claim pass review silently.
 
-**Every new rule gets its own condition kind rather than `declaration_required`**, because
-`bck/tests/pipeline/test_rule_snapshot.py` asserts exact equality between `DECLARATION_FIELDS`
-and the strings encoded in `rules.yaml`. Do not edit that assertion to make room for a rule.
+**CTR-004: the drift was the value, not the duplicate vocabulary.** `rules.Verdict` stays —
+`rules/` is allowed its own internal vocabulary and `rule_snapshot.py` argues that well.
+`rules.RuleStatus` was deleted and re-exports the contracts one. **`rules.Severity` is NOT
+merged into `contracts.RuleSeverity`** — they answer different questions and `SEVERITY_ROUTING`
+maps between them deliberately.
 
-**CORE-001 shape.** Officer credentials are config-seeded (`OFFICERS` env var, JSON list of
-username/bcrypt-hash/tier/jurisdiction) — no `User` model, no migration, no DB store yet.
-`core/db.py` was deliberately **not** built: no real caller exists to tell a session-scope
-decision right, and building it speculatively is exactly what the Hard Nos exist to catch.
-`RoleTier` is an ordered `StrEnum` (`STATE`/`REGIONAL`/`DISTRICT`); designations configurable
-via `ROLE_DESIGNATIONS`, default Controller of Legal Metrology / Deputy Controller / Legal
-Metrology Inspector. **The pilot state is still not chosen and this will very likely change.**
+**The most important falsification of the session:** re-adding a duplicate `RuleStatus` inside
+`rules/` left the whole suite green. `RuleParameterSnapshot.status` is typed to the contracts
+enum, and a `StrEnum` member from the duplicate arrives at validation as the plain string
+`"VERIFIED"`, which pydantic coerces straight back. The duplication CTR-004 removes could
+have been reintroduced and nothing would notice until the enums diverged — on a live scan.
+`test_the_rules_module_names_the_contracts_rule_status_and_not_a_copy` guards it.
 
-**Measurement contracts.** `MeasurementResult`'s variants keep Yashashvi's original names
-(`MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal`).
-`MeasurementCalibrated.confidence_interval` is `ge=0`, not `gt=0` — a zero-variance
-contrast-ratio measurement is a genuine result. Do not re-litigate either. TODO.md was stale
-on this.
+**RUL-004 cannot deliver the reduction its ticket promised.** The corpus audit confirmed Rule
+7(2) and 7(3) genuinely govern every declaration. Only `R9-1-MANNER` narrowed, to retail sale
+price and net quantity, per Rule 9(1)(b)'s contrasting-colour requirement. **The remaining 65
+findings are a presentation problem for the officer surface.**
 
-**Cloud providers.** Featherless is the sole copilot generation provider. An OpenAI
-query-rewriting/retrieval-expansion step ahead of hybrid retrieval was proposed but **not
-confirmed** — don't build against it. AWS is unallocated reserve: no product data, no
-evidence records, ever.
+**The `asset_type` migration for EVD-005 is Abhiram's, split out of #46.** Shiva does not
+write it. The column lands first, then #46 rebases onto it.
 
-**No AI-attribution trailer on commit messages *or* PR bodies.** The rule names commits, but
-the reason behind it is that the repo is public and scraped, and a PR body is as public as a
-commit message.
+**EVD-005 legal hold, decided:** hold on any POTENTIAL_VIOLATION with **no** review row, and
+on any with CONFIRM or OVERRIDE. Release only on REJECT. The shipped code is inverted.
 
-**Persistence (CORE-002).**
-- One `AsyncSession` per request; the dependency does **not** commit — services own the
-  transaction boundaries. *Rejected:* teardown-commit, which fires after the response body is
-  built and commits work a handler decided to abandon.
-- `POST /scans` opens **two** transactions with orchestration between them: the scan is
-  inserted and committed first so the officer holds an id whatever follows, then verdict +
-  findings + evidence are written atomically. *Rejected:* one transaction spanning the CV
-  work, which would pin a pool connection for seconds.
-- Mid-chain failure leaves `Scan` at `FAILED` with no `VerdictRecord`. *Rejected:* a partial
-  finding set, which reads as "we looked and found less wrong than we did".
-- **Quality-gate rejection is not a failure** — the scan stays `RECEIVED`, 200 with a capture
-  instruction, `verdict: null`, no `VerdictRow`.
-- `evidence_entries.timestamp` is `String` and `payload_json` is `Text`. **Not** timestamptz
-  and **not** JSONB: `compute_entry_hash` hashes the timestamp string and
-  `compute_payload_hash` hashes canonical JSON bytes, so a re-rendering column type produces
-  `entry_hash_mismatch` on a chain nobody touched. Do not "tidy" these.
-- `field_findings.state` is not nullable, with no Python default and no server default. There
-  is no value the database could supply, so nothing can supply `FAIL`.
-- `rule_id` is a typed, indexed column with `UNIQUE(verdict_id, field, rule_id)`, not only a
-  key inside `rule_snapshot` JSONB. F32 filters on rule clause, and one finding per
-  (verdict, field, rule) cannot be expressed otherwise.
+**MEA-004's coin path:** scale only, no homography, `h_matrix = None`, callers guard on it.
+The 5% prior does **not** cover the resulting oblique error, and the docstring says so.
 
-**Out-of-jurisdiction reads return 404, not 403.** Reversed mid-flight: a 403 tells an officer
-in one state that a scan exists in another, disclosing cross-jurisdiction enforcement
-activity. 403 is kept for `require_tier` on the review route. The test asserts the 404 body is
-byte-identical to one for an unknown id, so the disclosure cannot be reintroduced.
+**MEA-006's contracts edit (#47):** my position is to approve it as a recorded exception
+rather than re-cut a seventeen-line diff already reviewed as correct — conditional on a real
+falsified test appearing.
 
-**Model weights are checked at boot**, four paths, failing with the setting name and the
-missing path. *Rejected:* a per-request `FileNotFoundError`, which is a 500 in front of a
-judge; and any fallback.
-
-**The extraction seam changed shape mid-flight.** PIP-002 planned
-`bind_declarations(spans) -> tuple[BoundDeclaration, ...]` with a new `app/contracts/binding.py`
-and a `DeclarationRole` enum, with the pipeline running normalisers afterwards. EXT-004
-shipped `bind_spans(spans) -> ExtractionResult`, carrying `fields: list[NormalisedField]` and
-`unclassified_spans`, normalising inside the module. **EXT-004's shape won; the contracts
-commit was dropped from history, not reverted.**
-
-**`bind_spans` returns multiple `NormalisedField`s per obligation** — "Manufactured by" and
-"Marketed by" both bind to Rule 6(1)(a) — so the orchestrator's `declared` mapping is
-multi-valued. A single-valued mapping silently drops the second: a finding that never gets
-made.
-
-**65 findings per scan stays.** It is truthful — Rule 7 and Rule 9 genuinely govern every
-required declaration. Narrowing belongs in the rule store as `governs_declarations` (RUL-004),
-**never as a pipeline filter** — a filter would be the system deciding which obligations to
-report.
-
-**`region_id` is not overwritten by the pipeline.** `extract_panel_text` is handed the whole
-frame, not a crop of `detect_pdp`'s output, so stamping the panel's identity on those spans
-asserts a provenance nothing established — in the one field an evidence export uses to show an
-officer which crop a reading came from. The real fix is to crop before OCR and translate
-polygons back to full-image coordinates. That is **VIS-004**, vision's work.
-
-**`ExtractionResult` lives in `app.modules.extraction`, not `contracts`.** The layer rules
-permit it. Moving it is a tidy-up, not a violation.
-
-**`pdfplumber`, not PyMuPDF.** PyMuPDF is AGPL-3.0 and its network clause would attach to the
-whole work.
+**EXT-005's confidence scores** (0.95 / 0.80 / 0.98) are named constants documented as
+uncalibrated priors. Same for MEA-004's 1% / 5% / 10%. Neither has a source; both say so.
 
 ---
 
@@ -622,138 +458,66 @@ whole work.
 Palette: Gazette Ink `#101A24` · Field Paper `#DCDFDB` · Attest Green `#14603C` · Query Ochre
 `#845605` · Seal Vermilion `#A32A1E` · Slate Void `#4A5560`. Hairlines `#A8AFAC`, focus tint
 `#C9CEC9`. IBM Plex Sans for language, IBM Plex Mono for anything measured, cited or
-timestamped — the mono is tabular, and measured-over-required must align digit over digit.
-17px base, read at arm's length in glare. Scale 44/600 · 27/600 · 21/500 · 17/400 · 15/400 ·
-13/500. Sentence case; verdicts in capitals because they are quoted verbatim in the report.
+timestamped. 17px base. Scale 44/600 · 27/600 · 21/500 · 17/400 · 15/400 · 13/500.
 
-**Query Ochre was `#8A5A05` and failed at 4.43:1 on Field Paper. It is `#845605` at 4.77:1.**
-Two further contrast findings are recorded in DESIGN.md: ochre at 3.97:1 on the focus tint
-(fixed by grounding unfilled chips on Field Paper) and the hatch at 3.4:1 where a stroke
-crosses a letter (fixed with an inset plate).
+**Query Ochre was `#8A5A05` and failed at 4.43:1. It is `#845605` at 4.77:1.**
 
 Five field states, four independent channels, colour last: PASS filled + tick · FAIL unfilled
 + cross + 5px vermilion left edge · REVIEW REQUIRED dashed + `?` + ochre · NOT APPLICABLE
 lightest weight + em dash + slate · INSUFFICIENT EVIDENCE 45° hatch + hollow ring + dotted
 slate border. **FAIL and INSUFFICIENT EVIDENCE share no channel.** INSUFFICIENT EVIDENCE rows
-always carry Request recapture; FAIL rows never do — **the remedy tells the officer which one
-they are looking at before the label does.**
+always carry Request recapture; FAIL rows never do.
 
-Three verdicts distinguished by rule weight at banner scale: PASS solid, REVIEW dashed,
-POTENTIAL VIOLATION double and the heaviest object on screen. A verdict must never render
-identically to a field state.
+Three verdicts by rule weight at banner scale: PASS solid, REVIEW dashed, POTENTIAL VIOLATION
+double and heaviest. A verdict must never render identically to a field state.
 
-Layout: masthead as permanent furniture (inspection id, rule-set version, capture timestamp,
-offline marker), findings ledger in ruled rows with no cards, the package photo as a pinned
-second register that follows row focus, officer actions at thumb reach behind a heavy rule.
-Row focus is a 4px ink left bar plus a tint shift, never a shadow lift. The machine's column
-and the officer's column never share a background.
-
-Fixtures live in `fnt/src/fixtures/` and cite `rules.yaml` on `main`, not ticket text — the
-encoded rule set is authoritative. Fonts are vendored OFL `.woff2` in `fnt/public/fonts/`;
-no Google Fonts link, because it would fail at exactly the moment F51 exists to survive.
-`AppShell` is shared with Rohan's admin surface and is not restyled by officer work.
+Fixtures cite `rules.yaml` on `main`, not ticket text. Fonts are vendored OFL `.woff2`; no
+Google Fonts link. `AppShell` is shared with Rohan's admin surface.
 
 ---
 
-## Where the board stands, 2026-09-06
+## Where the board stands, 2026-09-06 (end of session 5)
 
-**Merged in session 4 (4 PRs):** EVD-004 (#41) - CORE-002 (#40) - EXT-004 (#44) -
-PIP-002 (#48). Session 3 merged eight before them: PIP-001 (#28) - CI-002 (#30) -
-CTR-003 (#33) - RUL-002 (#32) - FNT-002 (#35) - RUL-003 (#36) - EVD-003 (#31) -
-docs (#37), plus CI-003.
+**Merged in session 5:** #42 MEA-004 · #45 VIS-003 · #51 RUL-004 · #52 EXT-005 · #53 DAT-002
+· #54 CTR-004. `main` carries nothing of Abhiram's unfinished.
 
-**Open PRs — all six, verified against GitHub on 2026-09-06.** Exact remaining items per PR
-are in `TICKETS.md`.
+**Open PRs — all three are teammate rework:** #43 MEA-005 · #46 EVD-005 (head moved to
+`e510224` after review; re-pull) · #47 MEA-006.
 
-- **#42 MEA-004 homography before scale (Yashashvi)** — **did not merge**, despite an earlier
-  claim in this file that it had. `backend` is red on `ruff format --check`, not on tests;
-  `ruff check` passes and `tests/modules/measurement` passes 14/14 once rebased. Base
-  `5613944`, four behind.
-- **#43 MEA-005 artwork ingest (Yashashvi)** — changes requested, `CONFLICTING`. A missing
-  library returns `MeasurementRefusal` instead of failing loudly — a deployment fact rendered
-  as a finding about the package — and the tests inject
-  `sys.modules["pdfplumber"] = MagicMock()`, so real pdfplumber output is never parsed.
-  `reportlab` is already a dependency and can generate a genuine vector PDF fixture. Adds
-  `pdfplumber` to `pyproject.toml` and `uv.lock`: **new dependency, merge-gate escalation.**
-- **#45 VIS-003 rebuild (Akshaya)** — green, and **both owed items are now fixed**:
-  `_extract_numeric_value` returns `""` for `"150.00.5"`, and `session-log/akshaya.md` is
-  present. But that rewrite **deleted her VIS-001 history from the log** rather than appending
-  to it — the same defect as #44 deleting `session-log/sitanshu.md`. Ask for the history back
-  before merging.
-- **#46 EVD-005 retention and purge (Shiva)** — `CONFLICTING`, no checks have run. Touches
-  `app/contracts/enums.py` and `core/config.py`: **shared-contract change, merge-gate
-  escalation**, and `contracts/` is Abhiram's.
-- **#47 MEA-006 zero margin (Yashashvi)** — green, one file. Splits margins into
-  `MeasurementMarginExact` / `MeasurementMarginCalibrated` at `ge=0` while every other
-  measurement stays `gt=0`, which is the right shape. But it edits
-  `app/contracts/measurement.py`: **shared-contract change, merge-gate escalation.** No
-  `session-log/yashashvi.md` in the diff, which AGENTS.md requires.
-- **#34 DAT-001 (Aashritha)** — **closed on GitHub**, superseded by DAT-002 + DAT-003.
-  **Its branch `feature/26034-DAT-001-corpus-images` survives at `47fa16d` and DAT-002
-  branches from it, not from `main`.** Do not delete that branch: it carries the corrected
-  sha256 hashes and the five fabricated-annotation deletions, and they exist nowhere else.
+**Branches pushed with no PR:** `ext-006-bilingual-declarations` (Sitanshu),
+`feat/tam-001-dual-mrp-sticker-detection` (Akshaya). Ask both where they stand.
 
-**In flight, no PR yet:** EXT-005 then EXT-006 (Sitanshu, unblocked by #44) - EVD-006
-(Shiva, behind #46) - DAT-002 then DAT-003 (Abhiram) - RUL-004 `governs_declarations`
-(B.V. Yashwanth, blocked on nothing) - TAM-001 (Akshaya, never started).
+**Never started:** `fnt-admin`. The offline path (F51, P0) does not exist. Dashboard
+aggregates (F32) do not exist. The frontend still runs on fixtures with no generated client.
 
-**Never started:** `tamper/` is an empty module. `fnt-admin` has never had a ticket started.
-The offline path (F51, P0) does not exist. Dashboard aggregates (F32) do not exist. The
-frontend still runs on fixtures with no generated client. Still unticketed as well: a
-frontend `npm audit` gate (2 moderate vulns, deprecated `glob@11.1.0`).
-
-**Open questions carried forward:**
-
-- `measure_margins` still raises on a zero margin (`value` is `gt=0`), so the orchestrator
-  does not call it and Rule 8 free-space evaluation is dark. **MEA-006 is now PR #47** and
-  fixes the contract; the orchestrator still has to be wired to call it.
-- `ix_reviews_scan_id` is redundant — `ix_reviews_scan_id_created_at` leads with the same
-  column.
-- Nothing stops two `reviews` rows sharing a `supersedes_id`, forking the correction chain. A
-  unique constraint would make single-successor structural, as `(scan_id, sequence)` does for
-  evidence. **Do it before any review data exists.**
-- `tesseract_tessdata_dir` is checked at boot but never called — the constrained re-read needs
-  a bound MRP crop.
-- EVD-004's tests use mock record shapes, so `export_compliance_report` does not accept a real
-  `VerdictRecord`. EVD-006.
-
-**`rules/` imports nothing from `contracts`** and `models.py:21` still carries a stand-in
-comment — that is why `rule_snapshot.py` exists as a translation layer. Live work, in TODO.
-
-**Biggest unmanaged risk remains the corpus.** It is **four samples**, not the 8-12
-planned, and every accuracy figure in the PRD carries that sample size. DAT-003 is unmerged.
-Vision, measurement and tamper cannot be evaluated against it at all. **Written review failed
-three times on DAT-001 before it was superseded** — the next move is a fifteen-minute call
-opening one annotation beside the actual photograph, not a fifth written round. Demo scope
-stays: packaged food primary, cosmetics secondary, FSSAI explicitly out of scope.
+**Biggest unmanaged risk is still the corpus** — but its character changed. It is no longer
+"four thin samples"; it is **zero samples and fifteen unannotated images**, with the schema
+and guards now in place to make the next attempt honest. DAT-005 is the unblock.
 
 ---
 
 ## Golden examples from this project
 
-**A test that passes and proves nothing.** The deepcopy mutation test specified for PIP-001
-could not be made to fail — the source `RuleDefinition` is frozen all the way down. Claude
-Code found that, corrected the docstring rather than the code, and renamed the tests to state
-what they actually prove. *Reward this. It is worth more than the test that was asked for.*
+**A test that passes and proves nothing.** PIP-001's deepcopy mutation test could not be made
+to fail. Claude Code found that, corrected the docstring rather than the code, and renamed the
+tests to state what they actually prove. *Reward this.*
 
-**CI passing on a PR that breaks the architecture.** PR #5 was green. A `bck.*` import path
-defeated the module contracts silently. Green checks mean the checks ran, not that the design
-holds. Read the diff.
+**CI passing on a PR that breaks the architecture.** PR #5 was green; a `bck.*` import path
+defeated the module contracts silently.
 
-**A rule figure appearing in two documents with different values.** Neither was law. Both were
-assumptions argued about long enough to look like facts. Go to the gazette.
+**A rule figure appearing in two documents with different values.** Neither was law.
 
-**Two options presented, both wrong.** Yashashvi asked whether to approximate PDP area from a
-bounding box or refuse outright, and recommended refusing. The right answer was a third path
-written into Rule 7(4) itself. Read the primary source before choosing between someone's
-options — and tell them their instinct was right even when the answer isn't theirs.
+**Two options presented, both wrong.** The right answer was a third path written into Rule
+7(4) itself. Read the primary source before choosing between someone's options.
 
-**A confident claim not verified.** The last session told Abhiram to add `frontend` as a
-required check and separately endorsed its `paths:` filter. Each is right alone; together they
-deadlock every backend-only PR. The resulting `BLOCKED` was then attributed to the review
-requirement without checking. Claude Code found it. *Check before attributing a cause, and say
-so plainly when you were wrong.*
+**Deleting your own work because the source doesn't support it.** Sitanshu was asked to cite
+the corpus for EXT-005's commodity word lists. He went to the PDFs and **removed** the terms
+he could not source — `TEA`, `COFFEE`, `BISCUITS`, `MILK`, `PAN MASALA` — keeping only what
+cites a file and page. *That is the standard, and it is rare.*
 
-**Deleting a test rather than repairing it.** Shiva Kumar's adversarial-verifier file was
-asked to be rewritten; he deleted it instead and moved the falsification into the PR
-description where it belonged. That took more judgement than patching would have.
+**Writing the proof that your own code is wrong.** Yashashvi's MEA-004 docstring stated that
+the coin path cannot recover a true homography — while the code built one anyway. The
+docstring was right. When someone documents a limitation honestly, read it as a finding.
+
+**A file list catching what a diff would have buried.** #42 came back as 4 files when 3 were
+expected; the fourth was a junk file from a shell quoting accident. Check the list first.

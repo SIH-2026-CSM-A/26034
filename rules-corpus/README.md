@@ -152,6 +152,17 @@ general labelling. G.S.R. 312(E) takes effect **01.07.2027** and is therefore no
 force — encode it with `effective_from: 2027-07-01` so it evaluates correctly against a scan
 date, rather than omitting it.
 
+## Rule 26 — small-package exemption
+
+Packages of **10 g or 10 ml or less are exempt**, except tobacco products. Medical devices
+declared as drugs get no exemption.
+
+This is load-bearing for the evaluation corpus, not a footnote: the first real capture is a
+**2 g** sachet. If the exemption applies, most Rule 6(1) obligations on it are
+`NOT_APPLICABLE`, not `FAIL` — and ground truth that marks them FAIL would train the eval set
+to score a correct refusal as a miss. Read the corpus text before annotating any sample at or
+under the threshold.
+
 ## Scope of the Rules themselves
 
 LMPC 2011 governs packages **intended for retail sale in India**. An export pack carrying no
