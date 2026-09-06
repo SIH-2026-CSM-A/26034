@@ -8,139 +8,108 @@ assignment record.
 
 ## Now
 
-- [ ] **EXT-004** (Sitanshu). Not started.
-- [ ] **VIS-003** (Akshaya). In rework.
-- [ ] **DAT-001 — corpus** (Aashritha). In rework. Root cause diagnosed: fabricated
-      annotations and empty-file placeholders. Plan is to rewrite the four real
-      annotations from actual photo content, send images to Abhiram outside git, and close
-      honestly at four real samples. No accuracy claim in the PRD is backed until this
-      lands.
-- [ ] **TAM-001** (Akshaya). Queued behind VIS-003.
-- [ ] **`rules/` still carries its own `RuleDefinition` stand-in.** `app/modules/rules/`
-      imports nothing from `app.contracts`; `models.py` says so in its own docstring. This
-      is why `pipeline/rule_snapshot.py` has to exist as a translation layer. The swap is
-      a rules-module ticket and was deliberately out of scope for RUL-002 and RUL-003.
-      MEA-002's half of this item is done.
+- [ ] **EXT-004 — span classification and spatial role binding** (Sitanshu). Turns OCR spans
+      into identified Rule 6 declarations. Binds Manufactured-by / Marketed-by / Packed-by /
+      Imported-by by geometry — keyword anchor, then nearest *downward* cluster containing a
+      valid PIN — not reading order. **This is what unblocks PIP-002.**
+- [ ] **VIS-003 rework** (Akshaya). Five items open, listed in TICKETS.md. Four pushes so far
+      have been byte-identical.
+- [ ] **DAT-001 rework** (Aashritha). Two blockers plus the Himalaya MRP contradiction.
+- [ ] **TAM-001 — conflicting MRP and sticker overlay** (Akshaya, behind VIS-003). Classical
+      CV only, so not blocked on the corpus.
+- [ ] **Swap the remaining local stand-in.** `app/modules/rules/` imports nothing from
+      `app.contracts` and `models.py:21` still carries the RUL-001 stand-in comment. That is
+      why `pipeline/rule_snapshot.py` exists as a translation layer. `measurement/`'s half is
+      done.
+- [ ] **CI-003** — remove the `paths:` filter from `frontend.yml` so the required `frontend`
+      context always reports. In flight.
 
 ## Next
 
-- [ ] **EVD-004 — report export**, PDF and editable format. Unblocked: `VerdictRecord`
-      exists as of PIP-001. Also carries the `test_append_only_enforcement` fix below.
-- [ ] **PIP-002 — ingestion and orchestration**, for both image and structured catalogue
-      record. Blocked on EXT-004.
-- [ ] **Frontend `npm audit` gate.** `npm ci` currently reports two moderate
-      vulnerabilities and a deprecated `glob@11.1.0`. CI-002 builds the frontend but does
-      not audit it.
+- [ ] **EVD-004 — officer report export**, PDF and editable format, identical content
+      (F28/F29). Unblocked now that `VerdictRecord` exists. Must also fix
+      `test_append_only_enforcement`: it resolves `Path("app/modules/evidence")` against the
+      cwd, so it scans nothing and passes vacuously if pytest ever runs from elsewhere.
+      Resolve relative to the test file and assert at least one file was scanned.
+- [ ] **PIP-002 — ingestion endpoints and orchestration.** `POST /scans` accepting an image
+      or a structured catalogue record; composes vision → extraction → measurement → rules →
+      evidence into a `VerdictRecord`. Blocked on EXT-004.
+- [ ] **Frontend `npm audit` gate.** `npm ci` reports 2 moderate vulnerabilities and a
+      deprecated `glob@11.1.0`. Not a build failure, so the current gate misses it.
 - [ ] `core/` — SQLAlchemy engine and session factory, and a users table to replace the
-      `OFFICERS` env list. Needs Alembic initialised first.
-- [ ] `measurement/` — calibration, homography, ink extent, three-mode policy
-- [ ] `fnt/` admin surface (Rohan) — rule-set draft, review and publish
+      `OFFICERS` env list. Needs Alembic initialised first. Deliberately not built until a
+      real caller exists.
+- [ ] `pipeline/` — offline sync and re-validation against the authoritative rule set on
+      reconnect (F51's second half).
+- [ ] `fnt/` — admin surface (Rohan's, never started).
 
 ## Later
 
-- [ ] `tamper/` — field-localised detection, once the corpus can support training
-- [ ] Copilot (F39) — hybrid retrieval, rerank, citations bound at generation time
-- [ ] Offline sync and conflict resolution against the authoritative rule-set
-- [ ] Admin console — rule-set draft → review → publish with diff view
+- [ ] Copilot (F39) — hybrid retrieval, rerank, citations bound at generation time.
+- [ ] Admin console — rule-set draft → review → publish with diff view.
+- [ ] Measurement depth — reference-object calibration (₹10 coin 27.0mm, EAN-13 **37.29mm**,
+      50mm card). **Waits: Yashashvi unavailable and this is not reassigned.**
 
 ## Bugs
 
-- [ ] `claude.yml` re-triggers on Claude's own reply comments. Fix is an
-      `github.actor != 'claude'` guard in the `if:` condition. Included in VP-CI-001.
-- [ ] **`frontend` is a required status check but never reports on backend-only PRs.**
-      `main-protection` requires contexts `backend` and `frontend`, while
-      `.github/workflows/frontend.yml` is filtered to `paths: fnt/**`. A skipped-by-path
-      workflow posts no status at all, so every backend-only PR sits at
-      `mergeStateStatus: BLOCKED` on a check that can never arrive. Verified on #33, #32
-      and #36 — all three show only `backend` in their rollup and all three were merged by
-      hand. The protection is currently costing an override per PR and buying nothing. Two
-      fixes: drop `frontend` from the required contexts, or remove the `paths:` filter and
-      let the job skip internally so it still reports. Prefer the second — it keeps the
-      gate real.
-- [ ] **`test_append_only_enforcement` (EVD-003) passes vacuously.** It resolves
-      `Path("app/modules/evidence")` relative to the working directory, so `rglob` yields
-      nothing and `assert not found_violations` succeeds against an empty scan whenever
-      pytest runs from anywhere but `bck/`. Fix belongs in **EVD-004**: resolve the path
-      relative to the test file, and assert at least one file was actually scanned. A test
-      that cannot fail is worse than no test, because it reads as coverage.
+- [ ] `test_append_only_enforcement` (evidence) resolves a relative path against the cwd and
+      passes vacuously if it scans zero files. Fix in EVD-004.
+- [ ] `measure_margins` raises on a zero margin — `MeasurementExact.value` and
+      `MeasurementCalibrated.value` are `gt=0`, so a declaration flush against ink or the crop
+      edge crashes instead of measuring. Owner unavailable.
+- [ ] `gh pr checks --watch` reports phantom pending checks against a single-check rollup.
+      Read `statusCheckRollup` instead. Tooling issue, not ours to fix.
 
 ## Blocked / unresolved
 
-*(Product name settled 2026-09-05: PCCS — Packaged Commodity Compliance System.
-Applied across README, ARCHITECTURE, AGENTS and CLAUDE in CTR-002.)*
-
-*(F18 unit sale price settled in COR-001: Rule 6(11) is a format rule prescribing the
-unit basis, with no tolerance and no rounding increment. The ±₹0.01 and ±₹0.05 figures
-were assumptions in earlier project documents, not law, and must not be encoded. See
-`rules-corpus/README.md`.)*
-
-- [ ] **MVP category priority** — packaged food is the volume answer and carries the
-      heaviest FSSAI override risk.
-- [ ] **`SIH26034_TI.md` §5 is stale on medical devices.** It uses "Medical Device" as a
-      routing example without knowing about G.S.R. 778(E). Not a source for rule facts;
-      `rules-corpus/` is. Left here so nobody re-derives the old behaviour from it.
-
-## Cut
-
-- **Automated Claude review on every PR** — cut because ten agents opening PRs
-  continuously would burn subscription quota and train everyone to scroll past the
-  output. `@claude` on mention is kept.
-- **Two repositories (`-bck` / `-fnt`)** — cut because it doubles branch protection and
-  CI and creates a cross-repo type-sync problem policed by hand. CODEOWNERS plus
-  import-linter gives directory-level isolation in one repo.
-- **Custom DSL for rules** — cut because a small YAML interpreter is correct for MVP and
-  a DSL is this project's most likely over-engineering failure.
-- **Separate vector database** — cut because the corpus is a few hundred pages and
-  pgvector handles it without adding a service.
-- **Supabase** — cut because free projects auto-pause after 7 days and a DoCA deployment
-  must be sovereign.
-- **Cloud-primary OCR** — cut because it makes the offline verdict path a second, weaker
-  extraction implementation and puts product images outside the sovereign boundary.
-  Retained as an opt-in per-request escalation, disabled by default.
-
-## Deferred, and what it costs
-
-- **Flutter native app** — PWA ships instead. Costs true on-device offline capture and
-  camera guidance. Acceptable while the demo runs on a laptop; not acceptable for a
-  field pilot.
-- **Kubernetes on MeitY GI Cloud / NIC MeghRaj** — Compose ships instead. Costs
-  horizontal scaling and the sovereignty story being demonstrable rather than described.
-  Mitigated by keeping every service S3- and Postgres-compatible.
-- **Live ONDC integration** — the ingestion interface accepts a structured catalogue
-  record as a first-class type, so this stays an adapter. Deferring the live connection
-  costs a demo talking point, not an architecture change.
-- **Bhashini output localisation** — costs the multilingual story. Note it is output
-  localisation only; conflating it with regional-script OCR is a technical error a judge
-  can challenge.
-- **DigiLocker** — costs an integration talking point. No architectural dependency.
-- **Component tests and web performance work** — costs regression safety in the frontend.
-  Accepted deliberately given the timeline.
+- [ ] **Pilot state not chosen.** `ROLE_DESIGNATIONS` defaults to Controller of Legal
+      Metrology / Deputy Controller / Legal Metrology Inspector, and nomenclature varies by
+      state. This will change.
+- [ ] **DoCA FAQ of 11.11.2025 not captured.** Two EXT-001 claims rest on secondary sources
+      and are marked [SOURCED], not [VERIFIED].
+- [ ] **No consolidated LMPC text covering Nov 2021 – Oct 2023.** The DoCA e-book refuses
+      automated access.
+- [ ] **OpenAI query-rewriting scope unconfirmed.** Do not build against it.
 
 ## Done
 
-- [x] GitHub org `SIH-2026-CSM-A`, repos `26034` and `26167` — 2026-09-05
-- [x] Branch protection on `main`: ruleset + push restriction + squash-only — 2026-09-05
-- [x] Claude GitHub App installed on the org, `@claude` on-mention workflow — 2026-09-05
-- [x] ClickUp list `26034 Build` with statuses and Module / Files / Branch fields — 2026-09-05
-- [x] **VP-CI-001 repo scaffold** — 2026-09-05. Includes the `claude.yml` actor guard.
-- [x] **Rule corpus** committed to `rules-corpus/` — 2026-09-05. Eight documents. Two
-      known gaps recorded in its README: the consolidated e-book, and the 11.11.2025 DoCA
-      FAQ (two clauses sourced from secondary reports, marked [SOURCED] not [VERIFIED]).
-- [x] **CTR-002 contracts v1** — 2026-09-05.
-- [x] **CORE-001** auth, JWT, RBAC, jurisdiction scoping — 2026-09-06 (#25).
-- [x] **PIP-001** verdict assembly and rule parameter snapshot adapter — 2026-09-06 (#28).
-- [x] **CI-002** frontend build gate on `fnt/**` — 2026-09-06 (#30).
-- [x] **CTR-003** deep-copy rule parameters into the snapshot — 2026-09-06 (#33).
-- [x] **RUL-002** Rule 8 placement and free space, Rule 9 manner, sector override
-      dispatch, medical device carve-out, Combination and Group packages — 2026-09-06
-      (#32). Closes the two rule bullets formerly in this file and in `ARCHITECTURE.md`.
-- [x] **FNT-002** officer design system, verdict detail, review queue — 2026-09-06 (#35).
-- [x] **RUL-003** multi-piece package 2(kc) and its food proviso, package-type scoping on
-      the sector dispatch — 2026-09-06 (#36).
-- [x] **EVD-003** hash chain verification and append-only enforcement — 2026-09-06 (#31).
-      See Bugs: its append-only test currently passes vacuously.
-- [x] **MEA-002's local measurement union dropped** for the real `app.contracts` imports
-      — 2026-09-06.
-- [x] **CI added as required status checks** on the `main-protection` ruleset —
-      2026-09-06. Contexts: `backend`, `frontend`. See Bugs: `frontend` is required but
-      path-filtered.
+- [x] **PIP-001** verdict assembly + rule parameter snapshot adapter — #28, 2026-09-06
+- [x] **CI-002** frontend build gate on `fnt/**` — #30, 2026-09-06
+- [x] **CTR-003** deep-copy rule parameters into the snapshot — #33, 2026-09-06
+- [x] **RUL-002** Rule 8 placement and free space, Rule 9 manner, sector override dispatch,
+      medical device carve-out, Combination and Group packages — #32, 2026-09-06
+- [x] **FNT-002** officer design system, verdict detail, review queue — #35, 2026-09-06
+- [x] **RUL-003** multi-piece package 2(kc) and its food proviso, package-type scoping —
+      #36, 2026-09-06
+- [x] **EVD-003** hash chain verification and append-only enforcement — #31, 2026-09-06
+- [x] `frontend` added as a required status check on `main-protection` — 2026-09-06
+- [x] `contracts/` v1 — CTR-002, 2026-09-05
+- [x] `core/` auth, JWT, RBAC, jurisdiction scoping — CORE-001, 2026-09-05
+- [x] GitHub org, repos, branch protection, Claude App, ClickUp board — 2026-09-05
+
+## Cut
+
+- **Automated Claude review on every PR** — burns quota, trains people to scroll past it.
+- **Two repositories** — doubles branch protection and CI, creates a cross-repo type-sync
+  problem policed by hand.
+- **Custom DSL for rules** — the project's most likely over-engineering failure.
+- **Separate vector database** — pgvector handles a few hundred pages.
+- **Supabase** — free projects auto-pause after 7 days.
+- **Cloud-primary OCR** — makes the offline verdict path a second, weaker implementation.
+- **A multi-piece / Rule 9(3) interaction** — the gazette does not amend rule 9. A test
+  asserts the absence.
+- **G.S.R. 722(E) paragraph 4's Rule 6(11) exemption** — deliberately not encoded.
+
+## Deferred, and what it costs
+
+- **Flutter native app** — PWA ships instead. Costs true on-device offline capture and camera
+  guidance. Acceptable on a laptop demo; not for a field pilot.
+- **Kubernetes on MeitY GI Cloud / NIC MeghRaj** — Compose ships instead. Costs horizontal
+  scaling and a demonstrable sovereignty story. Mitigated by staying S3- and
+  Postgres-compatible.
+- **Live ONDC integration** — the ingestion interface accepts a structured catalogue record as
+  a first-class type, so this stays an adapter. Costs a talking point, not architecture.
+- **Bhashini output localisation** — costs the multilingual story. **Output localisation only;
+  conflating it with regional-script OCR is a technical error a judge can challenge.**
+- **DigiLocker** — a talking point, no architectural dependency.
+- **Component tests and web performance work** — costs frontend regression safety. Accepted.
