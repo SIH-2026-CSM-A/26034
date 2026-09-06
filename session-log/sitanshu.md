@@ -1,4 +1,4 @@
-# Session log — Sitanshu
+# Session Log - Sitanshu
 
 ### 2026-09-05 — EXT-001 OCR-text normalisation layer — Antigravity
 
@@ -43,3 +43,50 @@
 - NetQuantityValue.value must never convert through float to preserve exact decimal precision required for metrology compliance.
 - ReasonCode enum contract is strictly closed (no string escape hatches allowed).
 - Standalone numeric strings without currency/MRP evidence fail explicitly with ReasonCode.UNPARSEABLE_FORMAT.
+
+## 2026-09-06 — EXT-005 Category Proposal — Antigravity
+
+**Done**
+- Resolved the two failing tests in `bck/tests/modules/extraction/test_category.py`:
+  1. Fixed `Point` fixture construction in `_make_span` to use tuple coordinates `(0.0, 0.0)` matching the `Point = tuple[float, float]` type alias rather than `Point(x=..., y=...)`.
+  2. Fixed double-counting regex overlap in `bck/app/modules/extraction/category.py` where a single text declaration `"Medical Devices Rules 2017"` was triggering both statutory and lexical flags. Converted text evaluation to `if / elif` matching per category so a statutory match on a field/span outranks/excludes substring lexical matches on the same text.
+- Re-verified full test suite against Abhiram's landed contracts:
+  - `uv run pytest tests/modules/extraction/test_category.py` -> **12 passed**.
+  - `uv run pytest tests/modules/extraction` -> **272 passed**.
+  - `uv run pytest` (full suite) -> **656 passed, 33 skipped**.
+- Verified static checks and import boundaries:
+  - `uv run ruff format --check .` -> **115 files formatted (PASS)**.
+  - `uv run ruff check .` -> **All checks passed (0 errors)**.
+  - `uv run lint-imports` -> **Contracts: 3 kept, 0 broken (PASS)**.
+  - `git diff --check` -> **PASS**.
+- Executed all 5 empirical mutation tests (RED on defect, GREEN when restored).
+
+**Decided**
+- A single statutory text phrase (e.g., `"Medical Devices Rules 2017"`) constitutes a statutory evidence signal (`0.95`), not two independent signals. Genuinely independent statutory and lexical evidence from separate fields/spans boost score to `0.98`.
+
+**Verification**
+- 12/12 EXT-005 tests passed cleanly.
+- 656/656 active repository tests passed cleanly.
+- No git commit, push, stage, or PR performed.
+
+### 2026-09-06 — EXT-005 Category Proposal Review Fixes — Antigravity
+
+**Done**
+- Resolved Medical Device false positive by removing bare `MD-\d+` pattern from `_COSMETICS_STATUTORY_RE` / `_MEDICAL_DEVICE_STATUTORY_RE` regexes and strictly anchoring to explicit regulatory patterns (`MFG/MD/\d+`, `CDSCO`, `Medical Devices Rules`, `MDR 2017`).
+- Resolved Food 14-digit false positive by fixing `_FOOD_STATUTORY_RE` pattern in `bck/app/modules/extraction/category.py` to require explicit FSSAI licensing tokens (e.g., `FSSAI Lic. No. 10012022000123`).
+- Documented exact Legal Metrology corpus grounding citations in module docstrings for lexical commodity matching (LMPC 2011 Second Schedule, Third Schedule, Rule 6(8), G.S.R. 881(E), G.S.R. 778(E)).
+- Added regression test `test_cream_biscuits_ambiguity_safely_abstains` for overlapping signals (Food biscuits vs Cosmetics cream) returning `None`.
+- Replaced raw float magic numbers with module-level named constants for uncalibrated prior evidence scores: `CONFIDENCE_STATUTORY_SIGNAL = 0.95`, `CONFIDENCE_LEXICAL_SIGNAL = 0.80`, `CONFIDENCE_MUTUALLY_REINFORCING = 0.98`.
+- Added unit tests `test_bare_md_batch_code_does_not_trigger_medical_device` and `test_arbitrary_14_digit_number_does_not_trigger_food`.
+- Verified quality gates: 17/17 category tests passed, 277/277 extraction tests passed, 661/661 backend tests passed, `ruff check` passed, `ruff format --check` passed, `lint-imports` passed.
+- Executed mutation falsification check (asserted RED on mutation, GREEN when restored).
+
+**Decided**
+- Bare numbers and generic batch prefixes must not trigger category proposals without explicit statutory or lexical token anchoring.
+- Ambiguous multi-category commodity overlaps (e.g. cream biscuits) must safely return `None`.
+
+**Verification**
+- 17/17 category tests passed.
+- 661/661 full test suite passed.
+- `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
+- 0 files committed, 0 files pushed, 0 files staged.
