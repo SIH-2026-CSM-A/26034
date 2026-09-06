@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from app.contracts import DeclarationField
+
 from .base import NonEmptyText, RuleStatus, Severity, StrictRuleModel
 from .conditions import RuleCondition
 
@@ -31,6 +33,24 @@ class RuleDefinition(StrictRuleModel):
     conditions: RuleCondition
     evidence_requirement: NonEmptyText
     severity: Severity
+    governs_declarations: tuple[DeclarationField, ...] | None = None
+    """The declaration obligations this rule governs.
+
+    ``None`` means not yet reviewed / unpopulated (falls back to broad evaluation across
+    all declarations). An explicit tuple limits evaluation strictly to those specific
+    DeclarationField obligations.
+    """
+
+    def governs(self, field: DeclarationField) -> bool:
+        """Return whether this rule governs the specified declaration field.
+
+        Returns ``True`` if :attr:`governs_declarations` is ``None`` (unpopulated
+        fallback to broad evaluation across all declarations) or if ``field`` is
+        explicitly present in :attr:`governs_declarations`.
+        """
+        if self.governs_declarations is None:
+            return True
+        return field in self.governs_declarations
 
     @field_validator("gazette_ref")
     @classmethod

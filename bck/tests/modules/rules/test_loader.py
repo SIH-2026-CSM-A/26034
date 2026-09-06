@@ -5,12 +5,16 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
+from app.contracts import DeclarationField
 from app.modules.rules import (
+    RuleDefinition,
     RuleLoadError,
     default_rule_set_version,
     load_rules,
     load_store,
+    rule_by_id,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -221,3 +225,92 @@ def test_the_packaged_store_names_its_version() -> None:
     """The shipped store carries one, and the loader hands back that string and no other."""
     assert default_rule_set_version() == load_store().rule_set_version
     assert default_rule_set_version().strip()
+
+
+def test_governs_declarations_defaults_to_none_for_backward_compatibility(
+    tmp_path: Path,
+) -> None:
+    """A rule payload omitting governs_declarations must default to None."""
+    payload = _valid_rule_payload()
+    assert "governs_declarations" not in payload
+
+    rules = load_rules(_write_rule_store(tmp_path, payload), corpus_dir=CORPUS_DIRECTORY)
+    assert len(rules) == 1
+    assert rules[0].governs_declarations is None
+
+    rule_def = RuleDefinition.model_validate(payload)
+    assert rule_def.governs_declarations is None
+
+
+def test_populated_governs_declarations_parsed_into_declaration_field_enums(
+    tmp_path: Path,
+) -> None:
+    """Explicit declaration strings are parsed into DeclarationField enum members."""
+    payload = _valid_rule_payload()
+    payload["governs_declarations"] = ["NAME_AND_ADDRESS", "NET_QUANTITY"]
+
+    rules = load_rules(_write_rule_store(tmp_path, payload), corpus_dir=CORPUS_DIRECTORY)
+    assert len(rules) == 1
+    assert rules[0].governs_declarations == (
+        DeclarationField.NAME_AND_ADDRESS,
+        DeclarationField.NET_QUANTITY,
+    )
+    for field in rules[0].governs_declarations:
+        assert isinstance(field, DeclarationField)
+
+
+def test_committed_store_governs_declarations_validity() -> None:
+    """Every populated governs_declarations entry is a valid tuple of DeclarationFields."""
+    rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
+    assert any(rule.governs_declarations is not None for rule in rules)
+
+    for rule in rules:
+        if rule.governs_declarations is not None:
+            assert isinstance(rule.governs_declarations, tuple)
+            assert len(rule.governs_declarations) >= 1
+            for field in rule.governs_declarations:
+                assert isinstance(field, DeclarationField)
+            # Property: must not contain duplicate fields
+            assert len(rule.governs_declarations) == len(set(rule.governs_declarations))
+
+        # Property: governs() method is total and deterministic for all candidate fields
+        for candidate in DeclarationField:
+            assert isinstance(rule.governs(candidate), bool)
+            if rule.governs_declarations is not None:
+                assert rule.governs(candidate) == (candidate in rule.governs_declarations)
+            else:
+                assert rule.governs(candidate) is True
+
+    assert rule_by_id("R6-1-A").governs_declarations == (DeclarationField.NAME_AND_ADDRESS,)
+    assert rule_by_id("R6-1-AA").governs_declarations == (DeclarationField.COUNTRY_OF_ORIGIN,)
+    assert rule_by_id("R6-1-B").governs_declarations == (DeclarationField.COMMON_OR_GENERIC_NAME,)
+    assert rule_by_id("R6-1-C").governs_declarations == (DeclarationField.NET_QUANTITY,)
+    assert rule_by_id("R6-1-D").governs_declarations == (DeclarationField.MANUFACTURE_DATE,)
+    assert rule_by_id("R6-1-D-GSR-722E").governs_declarations == (
+        DeclarationField.MANUFACTURE_DATE,
+    )
+    assert rule_by_id("R6-1-DA").governs_declarations == (DeclarationField.BEST_BEFORE_DATE,)
+    assert rule_by_id("R6-1-E").governs_declarations == (DeclarationField.RETAIL_SALE_PRICE,)
+    assert rule_by_id("R6-1-F").governs_declarations == (DeclarationField.DIMENSIONS,)
+    assert rule_by_id("R6-1-G").governs_declarations == (DeclarationField.OTHER_PRESCRIBED_MATTER,)
+    assert rule_by_id("R8-1-FREE-SPACE").governs_declarations == (DeclarationField.NET_QUANTITY,)
+    assert rule_by_id("R6-1-A-EXPL-III-FOOD").governs_declarations == (
+        DeclarationField.NAME_AND_ADDRESS,
+    )
+    assert rule_by_id("R6-1-D-COSMETICS").governs_declarations == (
+        DeclarationField.MANUFACTURE_DATE,
+    )
+
+
+def test_invalid_declaration_in_governs_declarations_raises_validation_error(
+    tmp_path: Path,
+) -> None:
+    """An unrecognised declaration string in governs_declarations raises ValidationError."""
+    payload = _valid_rule_payload()
+    payload["governs_declarations"] = ["INVALID_DECLARATION_NAME"]
+
+    with pytest.raises(ValidationError):
+        RuleDefinition.model_validate(payload)
+
+    with pytest.raises(RuleLoadError, match="governs_declarations"):
+        load_rules(_write_rule_store(tmp_path, payload), corpus_dir=CORPUS_DIRECTORY)
