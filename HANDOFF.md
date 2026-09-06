@@ -284,3 +284,130 @@ standard merge command for every merge in this repo, for every contributor. `--a
 also skips the required status check, so always run `gh pr checks <n>` in the same
 breath as the merge — the ruleset itself won't catch a red build once `--admin` is
 in play.
+
+## Decisions — addendum (this session)
+
+**Measurement contracts finalized.** `MeasurementResult`'s three variants keep Yashashvi's
+original names (`MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal`), not
+the ticket's suggested `ExactFromArtwork`/`CalibratedEstimate`/`Refused` — matching her
+already-merged, already-tested shape made the swap a true delete-and-import.
+`MeasurementExact.rule_limb` was missing in the first CTR-002 pass and had to be added
+after review caught that her merged `calculate_pdp_area` constructs it with that field.
+`MeasurementCalibrated.confidence_interval` is `ge=0`, not `gt=0` — a zero-variance
+contrast-ratio measurement is a genuine result, not an error; her own merged test proves
+it. Do not re-litigate either of these.
+
+**`RuleDefinition`/`RuleCondition` in `rules/` are the permanent internal shape of that
+module, not a stand-in awaiting a CTR-002 import.** Jashwanth's structured, multi-variant
+`RuleCondition` union, single-string `evidence_requirement`, and outcome-flavoured
+`Severity` enum are legitimately richer than what `contracts.RuleDefinition` exposes
+(a generic `dict[str, JsonValue]` for conditions, a `tuple[DeclarationField, ...]` for
+evidence, a routing-flavoured `RuleSeverity`) — and that's correct, because no other module
+ever needs to introspect a rule's condition *shape*, only that a snapshot of it exists.
+The migration is a small adapter function at verdict-assembly time that builds a
+`contracts.RuleParameterSnapshot` from a `RuleDefinition` — `conditions.model_dump()` into
+the generic parameters dict, declaration-name strings mapped to real `DeclarationField`
+members, severity mapped deliberately (not renamed, the two enums mean different things).
+Not yet built — no `VerdictRecord` is assembled anywhere yet.
+
+**Country of origin, settled with an actual primary-source check.** Rule 6(1)(aa) is the
+package declaration ("the name of the country of origin or manufacture or assembly...
+shall be mentioned on the package"). G.S.R. 128(E) does not touch Rule 6(1) at all — it
+inserts Rule 6(10A), a *separate* obligation on e-commerce platforms to provide a
+searchable country-of-origin filter in listings, evaluated against `CatalogueRecord`, not
+a package scan. G.S.R. 312(E) substitutes that sub-rule from 2027-07-01. `contracts.py`'s
+`DeclarationField.COUNTRY_OF_ORIGIN` correctly cites only 6(1)(aa).
+**`datasets/schema.py` still incorrectly cites "Rule 6(1)(g) / GSR 128(E)" for this
+field — flagged to Aashritha, not yet fixed as of this handoff.** Fix it the next time
+that file is touched.
+
+**CORE-001 locked shape.** Three auth dependencies: PyJWT, bcrypt, python-multipart
+(the third is required by FastAPI's own `OAuth2PasswordRequestForm`, not a separate
+choice). Officer credentials are config-seeded (`OFFICERS` env var, JSON list of
+username/bcrypt-hash/tier/jurisdiction) — no `User` model, no migration, no DB-backed
+store yet; that's a real future ticket, not built. `core/db.py` (engine + session
+factory) was deliberately NOT built in this ticket despite `core/README.md` promising
+it — no real caller exists yet to tell a session-scope decision right, and building it
+speculatively was rejected as exactly the kind of ahead-of-need infrastructure this
+project's Hard Nos exist to catch. `RoleTier` is an ordered `StrEnum`
+(`STATE`/`REGIONAL`/`DISTRICT`); designations are configurable via `ROLE_DESIGNATIONS`,
+default is Controller of Legal Metrology / Deputy Controller / Legal Metrology
+Inspector, but the pilot state is still not chosen and this will very likely change.
+
+**Cloud provider allocation, still open.** Featherless remains the sole copilot
+generation provider. A proposal exists for OpenAI as a query-rewriting/retrieval-
+expansion step ahead of the existing hybrid retrieval — never a second generation call,
+never in the verdict path — but this was **not yet confirmed** as the actual use case
+before this session ended; don't build against it until Abhiram confirms the scope.
+AWS remains unallocated reserve, no wiring, no product data ever, per the sovereignty
+requirement that already ruled out cloud-primary storage.
+
+**Frontend CI gap, still open.** No CI job anywhere in the repo verifies `fnt/` builds —
+every frontend PR so far has only ever been verified by manual review (including one
+full from-scratch sandbox rebuild). Worth a ticket: a `frontend` job running
+`npm ci && tsc -b && vite build` on every `fnt/**` PR, matching backend's enforcement.
+
+**`tamper/` module has never been started.** Shivasai was the original intended owner
+per the team roster; no ticket was ever created, no work has happened. This is a real,
+unaddressed gap — pipeline composition needs it eventually.
+
+**DAT-001's root cause, diagnosed directly by Aashritha's own AI, and correct.** Every
+annotation round before this point iterated on `manifest.json`/`ingest_images.py`
+tooling while the underlying ground truth was fabricated — plausible-looking MRP, dates,
+and manufacturer text invented rather than read off a real photograph, with 6 of the 10
+"samples" hashing to the SHA-256 of an empty file. Her AI's diagnosis names this
+correctly: "Iterating on Tooling Instead of Ground Truth Data" and "Fabricated
+Ground-Truth Annotations." Four real, genuinely-photographed images now exist
+(`001.jpg`/`002.jpg`/`011.jpg`/`012.jpg`, converted from PNG, corresponding to
+`food_parle_g_biscuits_001/002` and `cosmetics_himalaya_face_wash_100ml_001/002`). Her
+plan going forward is correct and should not be second-guessed: rewrite those four
+annotations to reflect what's actually printed on the real photos (not a plausible
+guess), zip and send the raw images to Abhiram outside git per the established
+no-binaries-in-git rule, and be honest in the ticket that this closes at 4 real samples
+against the original 8-12/3-5 target, with the remainder a genuine, separate collection
+effort. Next chat should confirm she's completed the manual annotation-rewrite step
+specifically — that's the one no AI can do for her — before reviewing whatever PR
+follows.
+
+## Infrastructure lessons — addendum (this session, expensive ones)
+
+- **`--ours`/`--theirs` mean opposite things in `git rebase` versus `git merge`.**
+  Rebase: `--ours` = the branch being rebased *onto* (main), `--theirs` = the commit
+  being replayed (the feature branch). Merge: the reverse. Getting this backwards
+  silently drops the wrong side's changes — it happened at least twice this session,
+  dropping `numpy` once and `boto3` once from a branch's dependencies. State which
+  operation is in play every time before giving either flag.
+- **Never hand-resolve conflict markers left in `uv.lock`.** Delete the file and run
+  `uv lock` fresh once `pyproject.toml` is confirmed correct. A lockfile with leftover
+  `<<<<<<<` markers parses as invalid TOML and can get committed as broken if a failing
+  command isn't checked before the next one runs.
+- **Chain multi-step terminal commands with `&&`, or check exit status explicitly,
+  whenever a later step depends on an earlier one succeeding.** Commands separated only
+  by newlines will silently continue past a failed step — this is exactly how a broken
+  `uv.lock` got committed once, and how a git command ran against the wrong branch
+  after an earlier `checkout` had already failed.
+- **`gh pr checks` reporting "no checks reported" almost always means the branch is
+  stale relative to `main` and needs a rebase before CI can run meaningfully at all** —
+  confirmed on at least three separate PRs this session (VIS-002, EVD-002, CORE-001).
+  Don't assume a CI/tooling problem before checking `pyproject.toml`'s dependency list
+  and whether already-merged files show as "new" in the diff.
+- **`gh pr merge --admin` is the standard merge path for every PR in this repo, for
+  every contributor** — CODEOWNERS gives exactly one owner per path, always the PR's
+  author, so codeowner review can never be satisfied normally. For Abhiram's *own*
+  tickets specifically: skip `gh pr review --approve` entirely, GitHub blocks
+  self-approval outright (`Can not approve your own pull request`) — go straight to
+  `gh pr merge --admin`.
+- **Never let a command contain a literal placeholder like `<number>` for the person
+  to fill in** — always substitute the real value before giving the command.
+- **Any change to `main`, including a one-line doc fix, goes through a branch and a PR,
+  even from an account with admin push rights.** A raw push bypasses the ruleset
+  entirely and leaves an unreviewed commit sitting on `main` next to dozens of properly
+  reviewed ones.
+- **Never run manual git commands in the same folder an agent (Claude Code) session
+  currently has open.** Use a dedicated worktree (`git worktree add ../26034-<purpose>
+  <branch>`) for every manual git task — rebases, doc fixes, teammate branch fixes —
+  while any agent has `~/NewProjects/26034` open. `main`'s own worktree lock also moves
+  around unpredictably after a `--delete-branch` merge switches the folder back to
+  `main` — check `git branch --show-current` before assuming which worktree holds it.
+- **Before any `git reset --hard` or `git checkout --ours/--theirs`, confirm nothing
+  valuable is uncommitted first** — `git status` before, not just after.
