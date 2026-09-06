@@ -33,3 +33,8 @@
 - **Empty List Semantics & Precondition Validation**: Documented that `[]` signifies "no tampering detected". Added `ValueError` check for empty/None image inputs.
 - **File Permissions**: Set `chmod 644` on `detector.py`, `domain.py`, and `test_detector.py`.
 - **Verification**: `ruff check .`, `ruff format --check .`, `lint-imports` (3 kept, 0 broken), and 12 tamper tests pass cleanly.
+
+## Date: September 2026 - TAM-001 Probability Calibration & Heuristics Documentation
+- **Probability Prior Calibration**: Removed `1.0` certainty probability from `PRIOR_CONFLICTING_MRP_PROBABILITY`, setting it to `0.95` as absolute certainty is mathematically invalid for OCR evidence evaluation. Added explicit docstrings identifying all probability outputs as uncalibrated expert priors.
+- **Heuristic Parameter Documentation**: Documented computer vision border mask gradient thresholds (`CV_CANNY_LOW`, `CV_CANNY_HIGH`, `CV_BORDER_SHADOW_GRADIENT`, `CV_BORDER_MARGIN`) as uncalibrated empirical defaults awaiting dataset tuning against SIH research references.
+- **Test Suite Updates**: Updated `test_detect_conflicting_mrps_conflicting_mrps` to assert `0.95` (`PRIOR_CONFLICTING_MRP_PROBABILITY`).

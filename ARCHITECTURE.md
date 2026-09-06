@@ -195,6 +195,22 @@ re-validate against the authoritative rule-set on reconnect.
   in greyscale, colour last of four channels. Full tokens and the two contrast findings are
   in `fnt/DESIGN.md`.
 
+## Session 5 changes
+
+- **`rules.RuleStatus` deleted**; `rules/base.py` re-exports `app.contracts.RuleStatus`.
+  `rules.Verdict` and `rules.Severity` now spell `POTENTIAL_VIOLATION` with an underscore,
+  matching contracts and the database. `rules.Severity` is deliberately **not** merged into
+  `contracts.RuleSeverity` — they answer different questions and `SEVERITY_ROUTING` maps
+  between them. `rule_snapshot.py` no longer converts status; it passes it through.
+- **`governs_declarations` on `RuleDefinition`**, populated from the corpus. `None` means the
+  gazette is genuinely broad, not "unreviewed". Rule 7(2) and 7(3) are broad by corpus audit,
+  so the 65-findings count is not a rule-store problem.
+- **The ground-truth schema refuses incoherent calibration claims.** `ReferenceObject`
+  rejects `present: true` without an identified object of known size, and `present: false`
+  carrying a dimension. `object_type` is required with no default.
+- **`propose_category`** (deterministic, regex + corpus-grounded lexicon) exists in
+  `extraction/` but has no caller yet — PIP-003.
+
 ## Technical debt
 
 - [ ] **No usable labelled corpus — four samples, not the 8–12 planned.** After four review
