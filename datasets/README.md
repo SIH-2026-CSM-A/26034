@@ -39,8 +39,10 @@ Real captures, taken by the team, of packages we physically hold. Each sample:
 
 - shot in ordinary indoor light, not on a white sweep, at 2–3 angles;
 - with a **₹10 coin (27.0 mm, RBI-confirmed)** flat in frame and in focus for at least one
-  angle per SKU — the only coin dimension this project has a source for. `coin_inr_5` at
-  25.0 mm appears in older drafts and is **not** sourced; do not use it;
+  angle per SKU — the only coin dimension this project has a source for. The ₹5 coin at
+  25.0 mm appears in older drafts; that figure is sourced in neither `rules-corpus/` nor
+  `SIH26034_Research_And_References.md`, so the ₹5 coin must not be added to the schema
+  enum or to measurement's `REF_DIMS`;
 - annotated only from what is legible in that image. A value that cannot be read is
   `null`, and `declared: false` means the declaration is absent from the pack, not that
   the photograph failed to show it.

@@ -355,15 +355,12 @@
       "type": "object"
     },
     "ReferenceObjectType": {
-      "description": "Known fiducial or reference object present in frame for calibration.",
+      "description": "Reference object present in frame for calibration.",
       "enum": [
         "none",
-        "coin_inr_10",
-        "credit_card_id1",
-        "ean_13",
-        "aruco_marker",
-        "ruler_scale",
-        "checkerboard"
+        "coin_10",
+        "id_card",
+        "ean_13"
       ],
       "title": "ReferenceObjectType",
       "type": "string"
