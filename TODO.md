@@ -4,207 +4,166 @@ Read at session start. Updated at session end.
 Tickets live in ClickUp, list `26034 Build`. This file is the shape of the work, not the
 assignment record. Board state and per-PR remaining items are in `TICKETS.md`.
 
-Last updated 2026-09-06, end of session 4, by Claude Code.
+Last updated 2026-09-06, end of session 5, by Claude Chat.
 
 ---
 
 ## Now
 
-- [ ] **Land #42 MEA-004** (Yashashvi). One `uv run ruff format .` and a rebase. The red check
-      is `ruff format --check`, not a test failure — `tests/modules/measurement` passes 14/14.
-- [ ] **Land #45 VIS-003** (Akshaya). Both owed items are fixed. One thing left: the session
-      log rewrite deleted her VIS-001 history instead of appending to it.
-- [ ] **Decide the three merge-gate escalations.** #43 adds `pdfplumber` as a new dependency;
-      #46 edits `app/contracts/enums.py` and `core/config.py`; #47 edits
-      `app/contracts/measurement.py`. All three are other people editing Abhiram's directories.
-      Each needs an explicit yes or a split, not a quiet merge.
-- [ ] **Rebase sweep.** All six open PRs branched before today's four merges. Owners rebase
-      their own branches; Yashashvi's three stack in one module and go oldest-first.
-- [ ] **VIS-004 — OCR the detected panel, not the whole frame** (Akshaya). `detect_pdp`
-      returns a bbox that nothing consumes: `extract_panel_text` is handed the full image, so
-      every span's `region_id` of `"panel"` is a claim the chain has not established. The
-      pipeline deliberately does **not** overwrite that field — doing so would stamp the
-      panel's identity onto spans read off the whole photograph, a false provenance in the one
-      field an evidence bundle uses to show an officer which crop a value came from. Fixing it
-      means cropping to the detection before the OCR call *and* translating the returned
-      polygons back into full-image coordinates, so an overlay still lines up. That is why it
-      is vision's ticket and not a two-line change in `pipeline/`.
-- [ ] **Wire `measure_margins` into the orchestrator.** #47 fixes the contract so a zero
-      margin is expressible; `pipeline/` still never calls it, so Rule 8 free-space evaluation
-      stays dark after that PR merges. Second ticket, and say so when #47 lands or it will
-      read as fixed.
-- [ ] **RUL-004 — `governs_declarations` on the rule store** (B.V. Yashwanth). Blocked on
-      nothing now that PIP-002 has merged. This is what narrows 65 findings per scan, and it
-      belongs in the rule store — **never as a filter in `pipeline/`.** RUL-003 is session 3's
-      merged multi-piece ticket; do not reuse the number.
-- [ ] **CTR-004 — reconcile the duplicated `Verdict` and `RuleStatus`** (Abhiram, next after
-      CTR-003). `rules/base.py` still defines its own `Verdict` and `RuleStatus` alongside the
-      `app.contracts` ones, and `Verdict` has **already drifted**: contracts spells it
-      `POTENTIAL_VIOLATION`, the rule store spells it `POTENTIAL VIOLATION` with a space.
-      That is exactly the failure CTR-003 moved `ProductCategory` to prevent, except it has
-      already happened. Not a rider on a contract move: the database enum and every persisted
-      verdict row depend on one of these two spellings, so reconciling them is a migration and
-      a data question, not an import change. Found during CTR-003.
-- [ ] **Swap the remaining local stand-in.** `models.py:21` still carries the RUL-001 stand-in
-      comment, and `pipeline/rule_snapshot.py` exists as a translation layer because of it.
-      `measurement/`'s half is done; CTR-003 did `ProductCategory`, CTR-004 does `Verdict` and
-      `RuleStatus`, and what is left after those is `RuleDefinition` itself.
+- [ ] **DAT-005 — annotate the six real captures.** Fifteen images are staged at
+      `~/26034-dat/datasets/raw/_staging/` (gitignored). Six SKUs, each with a calibrated
+      angle carrying a ₹10 coin, an uncalibrated angle, three with a third angle. The corpus
+      is otherwise **empty** — DAT-002 deleted four fabricated annotations. This is the
+      single highest-value piece of work on the board: nothing about vision, measurement or
+      tamper can be evaluated until it exists, and every PRD accuracy figure depends on it.
+      **Check Rule 26 against the corpus before writing ground truth for the 2 g Maggi
+      sachet** — packages of 10 g or less are exempt, so most Rule 6(1) obligations may be
+      `NOT_APPLICABLE` rather than required, and a ground truth that marks them FAIL trains
+      the eval set to punish correct behaviour.
+- [ ] **Review #46 EVD-005.** Head moved to `e510224` after the session-5 review; re-pull
+      before reading. The false-attestation defect is the blocker.
+- [ ] **Land the `asset_type` column and its migration** (Abhiram). Split out of #46:
+      `alembic/` is single-owner and a migration cannot be edited after merge. #46 rebases
+      onto it. Shiva does not write this.
+- [ ] **#47 MEA-006, then #43 MEA-005** (Yashashvi). Both touch `services.py`, which #42
+      rewrote. #47 first.
+- [ ] **CI-004 — `datasets/` has never been executed by CI**, and `datasets/eval/test_harness.py`
+      cannot even be collected (`ModuleNotFoundError: No module named 'datasets'`). The
+      schema guards added in DAT-002 are equally invisible. Separate job, **no `paths:`
+      filter**, and do not make it required until it has reported once. Also carries a
+      repo-hygiene step: #42 landed a file named from a shell quoting accident, containing a
+      `"`, which cannot be checked out on Windows and passed both CI jobs.
+- [ ] **PIP-003 — wire the category proposal.** `propose_category` merged in #52 with no
+      caller and is not exported from `extraction/__init__.py`. Same shape as
+      `EvidenceEntryRow` shipping with no writer. **A proposal must never write itself into
+      `Scan.product_category`** — that is an officer's act, and letting it through would
+      silently unmask the six tests the sector gate masks.
+- [ ] **DAT-004 — reference-object vocabulary.** `datasets/schema.py` says `coin_inr_10` /
+      `credit_card_id1` / `ean_13`; `measurement/services.py` takes `coin_10` / `id_card` /
+      `ean_13`. Nothing can hand an annotation to measurement. Decision made: measurement's
+      names win, schema adopts them, plus a cross-module test so they cannot drift again.
+- [ ] **DAT-003 — ownership corrections and the manifest.** CODEOWNERS and AGENTS.md still
+      name Aashritha on `datasets/`. `ingest_images.py` requires a Google Drive folder ID and
+      raises without one, which is why `manifest.json` is `{"records": []}` — rebuild it to
+      walk `datasets/raw/`. The demo has to survive the venue network failing.
+- [ ] **Ask Sitanshu where EXT-006 stands.** His session log claimed it built, including a
+      new `evidence.py` defining a second `ExtractionResult`; that claim vanished from #52
+      and the branch `ext-006-bilingual-declarations` is pushed with no PR. **A second
+      `ExtractionResult` must not be created** — `binder.py` owns it.
+- [ ] **Ask Akshaya about TAM-001.** Branch `feat/tam-001-dual-mrp-sticker-detection` is
+      pushed with no PR. `tamper/` was an empty module at last check.
 
 ## Next
 
-- [ ] **EXT-005 then EXT-006** (Sitanshu). Unblocked by #44.
-- [ ] **EVD-006 — accept a real `VerdictRecord` in `export_compliance_report`.** EVD-004's
-      tests use mock record shapes, so the export has never been handed a real record.
-- [ ] **DAT-002 then DAT-003** (Abhiram, from Aashritha). DAT-003 also corrects CODEOWNERS and
-      AGENTS.md, which still name Aashritha on `datasets/` and Sitanshu on `extraction/`.
-- [ ] **TAM-001 — conflicting MRP and sticker overlay** (Akshaya). Classical CV only, so not
-      blocked on the corpus. `tamper/` is still an empty module.
-- [ ] **Frontend `npm audit` gate.** `npm ci` reports 2 moderate vulnerabilities and a
-      deprecated `glob@11.1.0`. Not a build failure, so the current gate misses it.
-- [ ] **`Scan.product_category` could become an enum column, and deliberately did not.**
-      CTR-003 moved `ProductCategory` into `app.contracts`, so the reason the docstring used
-      to give — `core` may not import `app.modules` — no longer holds. What holds now is that
-      the change is a migration against a table already holding these strings, and it buys
-      nothing the request boundary does not already do: `pipeline/schemas.py` refuses an
-      unknown category with a 422 before anything is stored. Worth doing only if a second
-      writer ever reaches that column without going through the schema.
+- [ ] **MEA-007 — ellipse-fit coin homography** (Yashashvi, low). #42 settled the coin path
+      honestly: scale only, `h_matrix = None`, because a circle under perspective has no
+      corner correspondences. The gap it leaves is real — a coin-calibrated measurement on an
+      oblique capture is not perspective-corrected and the 5% prior does not cover it.
+- [ ] **EVD-006** — export takes a real `VerdictRecord`; EVD-004's tests use mock shapes.
+- [ ] **Wire `measure_margins` into the orchestrator.** #47 fixes the contract; `pipeline/`
+      still never calls it, so Rule 8 free-space evaluation stays dark after it merges.
+- [ ] **Frontend `npm audit` gate.** 2 moderate vulnerabilities, deprecated `glob@11.1.0`.
+- [ ] **Seven `UP042` findings in `datasets/schema.py`** (`str, Enum` → `StrEnum`).
+      Pre-existing; converting a schema that serialises to JSON is its own change.
 - [ ] **MinIO and Redis in `docker-compose.yml`.** Only Postgres is in it, so
-      `tests/modules/evidence/test_minio_storage.py` skips on every machine including CI. One
-      service each.
-- [ ] `core/` — a users table to replace the `OFFICERS` env list. `Scan.officer_id` is a plain
-      string until there is one to key against. Not built while officers are still config.
+      `tests/modules/evidence/test_minio_storage.py` skips on every machine including CI.
 - [ ] **A unique constraint on `reviews.supersedes_id`.** Nothing stops two rows sharing one,
-      which forks the correction chain. It would make single-successor structural, the way
-      `(scan_id, sequence)` does for evidence. **Do it before any review data exists.**
+      which forks the correction chain. **Do it before any review data exists.**
 - [ ] Drop `ix_reviews_scan_id` — `ix_reviews_scan_id_created_at` leads with the same column.
-- [ ] `pipeline/` — offline sync and re-validation against the authoritative rule set on
-      reconnect (F51's second half).
-- [ ] `fnt/` — admin surface (Rohan's, never started).
-- [ ] `fnt/` — generated client from the backend OpenAPI schema. The frontend still runs
-      entirely on fixtures.
+- [ ] `core/` — a users table to replace the `OFFICERS` env list.
+- [ ] `fnt/` — admin surface (Rohan's, never started), and a generated client from the
+      OpenAPI schema. The frontend still runs entirely on fixtures.
+- [ ] `pipeline/` — offline sync and re-validation on reconnect (F51's second half).
 
 ## Later
 
 - [ ] Copilot (F39) — hybrid retrieval, rerank, citations bound at generation time.
 - [ ] Admin console — rule-set draft → review → publish with diff view.
-- [ ] Dashboard aggregates (F32). Does not exist; `rule_id` was promoted to a typed column
-      specifically so violation-rate-by-clause is queryable when this is built.
-- [ ] Measurement depth — reference-object calibration (₹10 coin 27.0mm, EAN-13 **37.29mm**,
-      50mm card). Yashashvi is active again, so this is assignable; it is behind her three
-      open PRs.
+- [ ] Dashboard aggregates (F32). `rule_id` was promoted to a typed column specifically so
+      violation-rate-by-clause is queryable when this is built.
 - [ ] Pan masala (G.S.R. 881(E)) not encoded.
 
 ## Bugs
 
 - [ ] **The image path has never run with real model weights. P0, and it is on the demo
-      path.** There are no YOLO or PaddleOCR weights on the dev machine. Every image-path
-      verification to date substituted `detect_pdp` and `extract_panel_text`; everything
-      downstream of them is real and verified live, and the app now refuses to boot without
-      four model paths that do not exist locally. **This is the largest gap between "the tests
-      pass" and "the system works".** Cache the weights and run one real photograph end to
-      end before anything else is called demo-ready. `ultralytics` is already a runtime
-      dependency, so the YOLO stack ships with the backend.
-- [ ] **`measure_margins` raises on a zero margin**, so Rule 8(1)'s proviso is never called
-      from the orchestrator and the chain reports INSUFFICIENT_EVIDENCE instead of measuring.
-      #47 fixes the contract; the orchestrator wiring is still outstanding.
-- [ ] **`tesseract_tessdata_dir` is checked at boot but never called.** The constrained re-read
-      needs a bound MRP crop to run against. A required config path with no reader is a boot
-      failure waiting for a machine that does not have it.
-- [ ] **No `relationship()` anywhere in `core/models.py`.** SQLAlchemy orders dependent inserts
-      from relationships, not from `ForeignKey` columns, so a parent and its children added in
-      one flush can be inserted child-first. `pipeline/repository.add_verdict` flushes the
-      parent explicitly. Adding relationships is *not* the fix: on an async mapper they
-      lazy-load on attribute access and raise `MissingGreenlet` mid-serialisation. If more
-      parent/child writes appear, the explicit flush is the pattern to copy.
-- [ ] **65 findings per scan**, most INSUFFICIENT_EVIDENCE, because Rule 7 and Rule 9 govern
-      every declaration the store requires and each pairing is its own finding. Correct but
-      heavy for an officer to read. Narrowing belongs in the rule store as
-      `governs_declarations` (RUL-004), not as a filter in `pipeline/`.
+      path.** No YOLO or PaddleOCR weights on the dev machine; `main.py` refuses to boot
+      without four paths that do not exist locally. `bck/.env` **does not exist at all**.
+      The four settings are `PDP_WEIGHTS_PATH` (a file), `OCR_DET_MODEL_DIR`,
+      `OCR_REC_MODEL_DIR`, `TESSERACT_TESSDATA_DIR` (directories); blank is treated as unset
+      and each is checked for existence at boot.
+      **Two blockers found in session 5, one now fixed.** `ocr.py` on `main` was written
+      against the PaddleOCR 2.x API while 3.7.0 is installed — it could not construct a
+      `PaddleOCR` at all. #45 fixed that. Still open: **there is no PDP-trained YOLO model.**
+      `detect_pdp` takes `boxes.conf.argmax()` of whatever weights it is given, so stock
+      `yolov8n.pt` returns a COCO box as the principal display panel and its area feeds the
+      Rule 7 band lookup. Its empty-detection branch returns the **whole image** with
+      `confidence 0.0`, which overestimates area and biases toward POTENTIAL VIOLATION.
+      **Do not point `PDP_WEIGHTS_PATH` at stock weights to make boot succeed.** Decide
+      deliberately: train a detector, or use the documented fallback (largest coherent
+      printed-text region) and say so.
+      Also: `tesseract` is not installed on the dev machine at all.
+- [ ] **`measure_margins` raises on a zero margin** — #47 fixes the contract; orchestrator
+      wiring is a second ticket.
+- [ ] **`tesseract_tessdata_dir` is checked at boot but never called.**
+- [ ] **No `relationship()` anywhere in `core/models.py`** — the explicit parent flush in
+      `pipeline/repository.add_verdict` is the pattern to copy. Adding relationships trades
+      it for `MissingGreenlet` on an async mapper.
+- [ ] **65 findings per scan.** RUL-004 narrowed `R9-1-MANNER` to retail sale price and net
+      quantity, but the corpus audit confirmed Rule 7(2) and 7(3) **genuinely govern every
+      declaration** — so the rule store has no honest way to remove those pairings. **The
+      remaining reduction is a presentation problem for the officer surface, not a rule-store
+      problem.** Do not raise another rule-store ticket for it.
 - [ ] `test_append_only_enforcement` (evidence) resolves a relative path against the cwd and
-      passes vacuously if it scans zero files. EVD-004 was meant to fix it — confirm it did.
-- [ ] `gh pr checks --watch` reports phantom pending checks against a single-check rollup.
-      Read `statusCheckRollup` instead. Tooling issue, not ours to fix.
+      passes vacuously if it scans zero files.
+- [ ] `test_annotation_image_sha256_matches_manifest` iterates `manifest.get("records", [])`
+      — with an empty manifest it passes vacuously. DAT-005 owns the fix with the rebuild.
+- [ ] `gh pr checks --watch` reports phantom pending checks. Read `statusCheckRollup`, and
+      note that `gh pr checks` returns a **stale rollup** for ~90s after a push.
 
 ## Blocked / unresolved
 
-- [ ] **No usable labelled corpus — four samples, not the 8–12 planned.** Every accuracy
-      figure in the PRD carries that sample size. Vision, measurement and tamper cannot be
-      evaluated at all. DAT-003 is unmerged. **This is the largest single risk in the
-      project**, and written review has now failed four times on it; the next move is a
-      fifteen-minute call with one annotation open beside the actual photograph.
-- [ ] **Pilot state not chosen.** `ROLE_DESIGNATIONS` defaults to Controller of Legal
-      Metrology / Deputy Controller / Legal Metrology Inspector, and nomenclature varies by
-      state. This will change.
-- [ ] **DoCA FAQ of 11.11.2025 not captured.** Two EXT-001 claims rest on secondary sources
-      and are marked [SOURCED], not [VERIFIED].
-- [ ] **No consolidated LMPC text covering Nov 2021 – Oct 2023.** The DoCA e-book refuses
-      automated access.
+- [ ] **Pilot state not chosen.** `ROLE_DESIGNATIONS` will change.
+- [ ] **DoCA FAQ of 11.11.2025 not captured.** Two EXT-001 claims are [SOURCED], not [VERIFIED].
+- [ ] **No consolidated LMPC text covering Nov 2021 – Oct 2023.**
 - [ ] **OpenAI query-rewriting scope unconfirmed.** Do not build against it.
-- [ ] **The offline path (F51, P0) does not exist.** Neither half — no on-device run, no
-      re-validation on reconnect.
+- [ ] **The offline path (F51, P0) does not exist.** Neither half.
+- [ ] **ClickUp connector rate-limited 2026-09-06 19:30, 600 minutes.** Hand Abhiram
+      pasteable ticket blocks until it clears. **DAT-002 and CTR-004 still need moving to
+      `done` by hand.**
 
-## Done
+## Done — session 5, 2026-09-06
 
-- [x] **DAT-001 (#34)** closed as superseded by DAT-002 + DAT-003 — 2026-09-06. **Its branch
-      `feature/26034-DAT-001-corpus-images` stays at `47fa16d` and DAT-002 branches from it,
-      not from `main`.** Deleting that branch loses the corrected sha256 hashes and the five
-      fabricated-annotation deletions.
-- [x] **PIP-002** HTTP surface, scan orchestration, four scan endpoints, `reviews` table,
-      `Scan.product_category`, migration `c16334c8d865` — #48, 2026-09-06
-- [x] **EXT-004** span classification and spatial role binder — #44, 2026-09-06
-      *(moved Sitanshu → B.V. Yashwanth, never started, delivered same day)*
-- [x] **EVD-004** officer report export, PDF and editable — #41, 2026-09-06
-- [x] **CORE-002** persistence: async engine and session factory, `Scan` / `VerdictRow` /
-      `FieldFindingRow` / `EvidenceEntryRow`, Alembic, Postgres 16 + pgvector in Compose and
-      a `postgres` service in CI — #40, 2026-09-06
-- [x] **CI-003** frontend gate runs on every PR so the required context always reports —
-      #38, 2026-09-06
-- [x] **PIP-001** verdict assembly + rule parameter snapshot adapter — #28, 2026-09-06
-- [x] **CI-002** frontend build gate on `fnt/**` — #30, 2026-09-06
-- [x] **CTR-003** deep-copy rule parameters into the snapshot — #33, 2026-09-06
-- [x] **RUL-002** Rule 8 placement and free space, Rule 9 manner, sector override dispatch,
-      medical device carve-out, Combination and Group packages — #32, 2026-09-06
-- [x] **FNT-002** officer design system, verdict detail, review queue — #35, 2026-09-06
-- [x] **RUL-003** multi-piece package 2(kc) and its food proviso, package-type scoping —
-      #36, 2026-09-06
-- [x] **EVD-003** hash chain verification and append-only enforcement — #31, 2026-09-06
-- [x] `frontend` added as a required status check on `main-protection` — 2026-09-06
-- [x] `contracts/` v1 — CTR-002, 2026-09-05
-- [x] `core/` auth, JWT, RBAC, jurisdiction scoping — CORE-001, 2026-09-05
-- [x] GitHub org, repos, branch protection, Claude App, ClickUp board — 2026-09-05
+- [x] **CTR-004** `RuleStatus` unified with contracts; `Verdict` and `Severity` corrected to
+      `POTENTIAL_VIOLATION`; 17 yaml lines (not 18) — #54
+- [x] **DAT-002** fabricated corpus removed, ground-truth schema hardened — #53
+- [x] **EXT-005** deterministic category proposal — #52
+- [x] **RUL-004** `governs_declarations` on the rule store — #51
+- [x] **VIS-003** PaddleOCR 3.x parser, strict confidence, arbitration — #45
+- [x] **MEA-004** homography before scale, per-method confidence priors — #42
 
 ## Cut
 
-- **Automated Claude review on every PR** — burns quota, trains people to scroll past it.
-- **Two repositories** — doubles branch protection and CI, creates a cross-repo type-sync
-  problem policed by hand.
-- **Custom DSL for rules** — the project's most likely over-engineering failure.
-- **Separate vector database** — pgvector handles a few hundred pages.
-- **Supabase** — free projects auto-pause after 7 days.
-- **Cloud-primary OCR** — makes the offline verdict path a second, weaker implementation.
-- **A multi-piece / Rule 9(3) interaction** — the gazette does not amend rule 9. A test
-  asserts the absence.
-- **G.S.R. 722(E) paragraph 4's Rule 6(11) exemption** — deliberately not encoded.
-- **PyMuPDF** — AGPL-3.0, and its network clause would attach to the whole work.
-  `pdfplumber` instead.
-- **`BoundDeclaration` / `DeclarationRole` / `app/contracts/binding.py`** — EXT-004's
-  `bind_spans` → `ExtractionResult` shape won. The contracts commit was dropped from history,
-  not reverted. Do not recreate them.
+- **Automated Claude review on every PR** · **Two repositories** · **Custom DSL for rules** ·
+  **Separate vector database** · **Supabase** · **Cloud-primary OCR** · **A multi-piece /
+  Rule 9(3) interaction** · **G.S.R. 722(E) para 4's Rule 6(11) exemption** · **PyMuPDF**
+  (AGPL-3.0) · **`BoundDeclaration` / `DeclarationRole` / `contracts/binding.py`**
+- **The `coin_10` bounding-box homography** — #42 removed it. A circle under perspective is
+  an ellipse with no corner correspondences; any matrix from its bounding box maps arbitrary
+  points. Do not rebuild it; MEA-007 is the correct approach.
+- **`coin_inr_1` / `coin_inr_2` / `coin_inr_5` in the dataset schema** — dimensions written
+  from memory. Only the ₹10 at 27.0 mm is sourced.
 
 ## Deferred, and what it costs
 
-- **Flutter native app** — PWA ships instead. Costs true on-device offline capture and camera
-  guidance. Acceptable on a laptop demo; not for a field pilot.
-- **Kubernetes on MeitY GI Cloud / NIC MeghRaj** — Compose ships instead. Costs horizontal
-  scaling and a demonstrable sovereignty story. Mitigated by staying S3- and
-  Postgres-compatible.
-- **Live ONDC integration** — the ingestion interface accepts a structured catalogue record as
-  a first-class type, so this stays an adapter. Costs a talking point, not architecture.
-- **Bhashini output localisation** — costs the multilingual story. **Output localisation only;
-  conflating it with regional-script OCR is a technical error a judge can challenge.**
+- **Flutter native app** — PWA ships. Costs true on-device offline capture.
+- **Kubernetes on MeitY GI Cloud** — Compose ships. Costs horizontal scaling and a
+  sovereignty story; mitigated by staying S3- and Postgres-compatible.
+- **Live ONDC integration** — the ingestion interface accepts a structured catalogue record,
+  so this stays an adapter.
+- **Bhashini output localisation** — costs the multilingual story. **Output localisation
+  only; conflating it with regional-script OCR is a technical error a judge can challenge.**
 - **DigiLocker** — a talking point, no architectural dependency.
-- **Component tests and web performance work** — costs frontend regression safety. Accepted.
-- **Scenario 4 of the demo set (calibrated font measurement)** — costs the strongest
-  measurement story. Carried by scenarios 5 (the refusal) and 8 (artwork mode) instead if
-  reference-object calibration is still unbuilt near the demo. Say it out loud rather than
-  quietly cutting it.
+- **Component tests and web performance work** — costs frontend regression safety.
+- **Scenario 4 of the demo set (calibrated font measurement)** — carried by scenarios 5 (the
+  refusal) and 8 (artwork mode) if reference-object calibration is still unbuilt near the
+  demo. Say it out loud rather than quietly cutting it.

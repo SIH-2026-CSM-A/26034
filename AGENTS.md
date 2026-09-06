@@ -63,7 +63,18 @@ frontend build on every PR.
    branch's own owner. **Never rebase someone else's branch for them.** If you have stacked
    branches in one module, rebase them oldest-first or the later ones replay conflicts you
    already resolved.
-9. **`session-log/<your-name>.md` is appended to, never rewritten.** Two PRs have destroyed
+9. **`session-log/<your-name>.md` is appended to, never rewritten.** Four PRs in one
+   session destroyed an earlier ticket's history. Nothing above your new dated heading
+   changes — not to reword it, not to improve it.
+10. **Run `git status -sb` before every commit.** A commit message containing `(` or `"`
+   will do surprising things in bash: one PR landed a 12 KB file at the repo root named
+   from the tail of its own commit message. A filename containing `"` cannot be checked
+   out on Windows, and it passed both CI jobs.
+11. **Migrations are Abhiram's alone.** If your ticket needs a schema change, stop and say
+   so — it gets split into two tickets. `alembic/` files can never be edited after merge.
+12. **Confidence numbers need a source.** If you cannot cite one, name the value as a
+   module-level constant and document it as an uncalibrated prior. Honest and unsourced
+   beats confident and unsourced. Two PRs have destroyed
    history in one: #44 deleted `session-log/sitanshu.md` outright, #45 replaced an earlier
    ticket's entries with the current one's. Add a dated section; leave what is above it alone.
 

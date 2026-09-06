@@ -42,7 +42,19 @@ evidence-backed findings.
   branch — including a set membership test, which is one edit away from also containing FAIL.
 - **Python is 3.11, not 3.12** — PaddlePaddle and several CV wheels lag.
 - **Model weights are gitignored and must be pre-cached locally.** The demo has to survive
-  the venue network failing.
+  the venue network failing. `bck/.env` does not currently exist; the four required settings
+  are `PDP_WEIGHTS_PATH` (a file), `OCR_DET_MODEL_DIR`, `OCR_REC_MODEL_DIR` and
+  `TESSERACT_TESSDATA_DIR` (directories). Blank is treated as unset.
+- **There is no PDP-trained YOLO model, and pointing `PDP_WEIGHTS_PATH` at stock weights is
+  worse than leaving it unset.** `detect_pdp` takes `boxes.conf.argmax()` of whatever it is
+  given, so `yolov8n.pt` returns a COCO box as the principal display panel and its area
+  feeds the Rule 7 band lookup. Its empty-detection branch returns the **whole image** with
+  `confidence 0.0`, overestimating area and biasing toward POTENTIAL VIOLATION.
+- **paddleocr is 3.7.0.** The 2.x API (`det_model_dir`, `use_gpu`, `show_log`,
+  `ocr(cls=False)`) does not construct. Use `text_detection_model_dir`,
+  `text_recognition_model_dir`, `use_textline_orientation`, `device`, and `ocr.predict()`,
+  which returns `dt_polys` / `rec_texts` / `rec_scores`. `tesseract` is not installed on the
+  dev machine at all.
 - **Cloud OCR is off by default** with a daily page cap of `0` in config. Turning it on is a
   deliberate act, not a fallback that fires on its own.
 - **`main` may be checked out in another worktree.** `git checkout main` will fail with
