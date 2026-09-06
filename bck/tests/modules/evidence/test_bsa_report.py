@@ -77,6 +77,8 @@ def test_valid_report_generation():
         officer_action="CONFIRM",
     )
 
+    # Test with explicit model versions
+    model_vers = {"ocr": "Paddle-v4", "pdp": "YOLO-v8"}
     report = generate_bsa_report(
         source_image_hash=source_hash,
         rule_set_version=rules_ver,
@@ -84,12 +86,31 @@ def test_valid_report_generation():
         declarations=decls,
         confirmation=conf,
         is_human_confirmed=True,
+        model_versions=model_vers,
     )
 
     assert isinstance(report, BSAReport)
     assert report.source_image_hash == source_hash
     assert report.rule_set_version == rules_ver
     assert report.statute_citation == "BSA §63(4) Part A"
+    assert report.model_versions == model_vers
+    assert isinstance(report.model_versions, dict)
+    assert len(report.model_versions) > 0
+
+    # Test with default model versions
+    report_default = generate_bsa_report(
+        source_image_hash=source_hash,
+        rule_set_version=rules_ver,
+        audit_trail=audit,
+        declarations=decls,
+        confirmation=conf,
+        is_human_confirmed=True,
+        model_versions=None,
+    )
+    assert report_default.model_versions is not None
+    assert isinstance(report_default.model_versions, dict)
+    assert len(report_default.model_versions) > 0
+    assert "ocr_engine" in report_default.model_versions
 
     # Verify field comparisons
     assert len(report.declarations) == 2

@@ -64,6 +64,7 @@ class BSAReport(BaseModel):
     # Artifact Details
     source_image_hash: str
     rule_set_version: str
+    model_versions: dict[str, str]
 
     # Evidence Audit Trail
     audit_trail: EvidenceAuditTrail
@@ -82,6 +83,7 @@ def generate_bsa_report(
     declarations: list[FieldDeclaration],
     confirmation: HumanConfirmation | None,
     is_human_confirmed: bool = False,
+    model_versions: dict[str, str] | None = None,
 ) -> BSAReport:
     """
     Assembles the final evidence report based on the collected audit trail
@@ -95,9 +97,18 @@ def generate_bsa_report(
             "Evidence report cannot be generated: Verdict has not been human-confirmed."
         )
 
+    # Default production component versions per ARCHITECTURE.md
+    if not model_versions:
+        model_versions = {
+            "ocr_engine": "PaddleOCR-v4",
+            "pdp_detector": "YOLOv8-PDP",
+            "tamper_detector": "TruFor-v1",
+        }
+
     return BSAReport(
         source_image_hash=source_image_hash,
         rule_set_version=rule_set_version,
+        model_versions=model_versions,
         audit_trail=audit_trail,
         declarations=declarations,
         confirmation=confirmation,
