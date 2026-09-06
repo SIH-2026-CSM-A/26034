@@ -23,6 +23,8 @@ from app.contracts import (
     FieldState,
     MeasurementCalibrated,
     MeasurementExact,
+    MeasurementMarginCalibrated,
+    MeasurementMarginExact,
     MeasurementRefusal,
     MeasurementResult,
     NormalisedField,
@@ -229,6 +231,146 @@ def test_a_refusal_is_the_only_shape_with_no_value() -> None:
     refusal = MEASUREMENT_ADAPTER.validate_python({"mode": "refusal", "reason": "glare"})
     assert isinstance(refusal, MeasurementRefusal)
     assert not hasattr(refusal, "value")
+
+
+# --------------------------------------------------------------------------------------
+# Margins: the one quantity where zero is a reading, carried by sibling types rather than
+# by subclasses that relax what their parent promised.
+# --------------------------------------------------------------------------------------
+
+
+def test_a_margin_of_exactly_zero_is_a_valid_exact_measurement() -> None:
+    """A declaration flush against the panel edge has a margin of exactly 0.0."""
+    flush = MeasurementMarginExact(value=0.0, unit="mm")
+    assert flush.value == 0.0
+
+
+def test_a_margin_of_exactly_zero_is_a_valid_calibrated_measurement() -> None:
+    """The same fact read from a photograph rather than from artwork.
+
+    The interval is non-zero because a margin measured through a reference object may not
+    claim one of exactly 0.0 — see
+    :func:`test_a_margin_may_not_claim_a_zero_width_confidence_interval`.
+    """
+    flush = MeasurementMarginCalibrated(
+        value=0.0,
+        confidence_interval=0.1,
+        unit="mm",
+        reference_object="coin_10",
+    )
+    assert flush.value == 0.0
+
+
+def test_a_non_margin_measurement_of_exactly_zero_is_still_rejected() -> None:
+    """The general invariant was not weakened to make room for margins.
+
+    For every quantity but a margin — a letter height, a panel area, a contrast ratio — a
+    zero is the detector having found nothing, and reporting it as ``0.0`` would state as
+    a measurement what is actually a failure to measure.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementExact(value=0.0, unit="mm")
+    with pytest.raises(ValidationError):
+        MeasurementCalibrated(
+            value=0.0,
+            confidence_interval=0.2,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+
+def test_a_negative_margin_is_rejected_by_both_margin_shapes() -> None:
+    """``ge=0`` admits zero, not the whole negative half-line. Free space cannot run
+    backwards any more than an interval can."""
+    with pytest.raises(ValidationError):
+        MeasurementMarginExact(value=-0.1, unit="mm")
+    with pytest.raises(ValidationError):
+        MeasurementMarginCalibrated(
+            value=-0.1,
+            confidence_interval=0.1,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+
+def test_a_margin_may_not_claim_a_zero_width_confidence_interval() -> None:
+    """Zero value and zero interval are different questions; only the second is barred.
+
+    A margin recovered from a photograph carries pixel quantisation and reference-object
+    localisation error, so an interval of exactly 0.0 asserts perfect certainty about a
+    physical distance. :class:`MeasurementCalibrated` still permits it, because a
+    zero-variance contrast-ratio observation genuinely has no spread.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementMarginCalibrated(
+            value=0.0,
+            confidence_interval=0.0,
+            unit="mm",
+            reference_object="coin_10",
+        )
+    unspread = MeasurementCalibrated(
+        value=2.5,
+        confidence_interval=0.0,
+        unit="ratio",
+        reference_object="color_variance",
+    )
+    assert unspread.confidence_interval == 0.0
+
+
+def test_a_margin_is_not_an_instance_of_the_measurement_it_relaxes() -> None:
+    """The margin shapes are siblings, not subclasses.
+
+    A subclass relaxing ``value`` from ``gt=0`` to ``ge=0`` would leave
+    ``isinstance(margin, MeasurementExact)`` answering yes for an object that no longer
+    holds what :class:`MeasurementExact` promises, and every ``isinstance`` check written
+    against the strict type — several in ``tests/modules/measurement`` — would start
+    passing vacuously. This is the assertion that stops that shape being reintroduced.
+    """
+    margin_exact = MeasurementMarginExact(value=0.0, unit="mm")
+    margin_calibrated = MeasurementMarginCalibrated(
+        value=0.0,
+        confidence_interval=0.1,
+        unit="mm",
+        reference_object="coin_10",
+    )
+    assert not isinstance(margin_exact, MeasurementExact)
+    assert not isinstance(margin_calibrated, MeasurementCalibrated)
+
+    strict_exact = MeasurementExact(value=2.5, unit="mm")
+    strict_calibrated = MeasurementCalibrated(
+        value=2.5,
+        confidence_interval=0.2,
+        unit="mm",
+        reference_object="coin_10",
+    )
+    assert not isinstance(strict_exact, MeasurementMarginExact)
+    assert not isinstance(strict_calibrated, MeasurementMarginCalibrated)
+
+
+def test_each_measurement_shape_round_trips_through_the_union_as_itself() -> None:
+    """Five value shapes, five discriminators, no collapsing on the way back.
+
+    ``type(...) is`` rather than ``isinstance``: a subclass would satisfy ``isinstance``
+    and defeat the point of
+    :func:`test_a_margin_is_not_an_instance_of_the_measurement_it_relaxes`.
+    """
+    originals = (
+        MeasurementExact(value=2.5, unit="mm"),
+        MeasurementMarginExact(value=0.0, unit="mm"),
+        MeasurementCalibrated(
+            value=2.5, confidence_interval=0.2, unit="mm", reference_object="coin_10"
+        ),
+        MeasurementMarginCalibrated(
+            value=0.0, confidence_interval=0.1, unit="mm", reference_object="coin_10"
+        ),
+        MeasurementRefusal(reason="glare"),
+    )
+    for original in originals:
+        restored = MEASUREMENT_ADAPTER.validate_python(original.model_dump())
+        assert type(restored) is type(original), (
+            f"{original.mode} came back as {type(restored).__name__}"
+        )
+        assert restored == original
 
 
 # --------------------------------------------------------------------------------------

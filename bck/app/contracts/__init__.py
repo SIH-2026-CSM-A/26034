@@ -32,6 +32,8 @@ from app.contracts.evidence import (
 from app.contracts.measurement import (
     MeasurementCalibrated,
     MeasurementExact,
+    MeasurementMarginCalibrated,
+    MeasurementMarginExact,
     MeasurementRefusal,
     MeasurementResult,
 )
@@ -54,6 +56,8 @@ __all__ = [
     "FieldState",
     "MeasurementCalibrated",
     "MeasurementExact",
+    "MeasurementMarginCalibrated",
+    "MeasurementMarginExact",
     "MeasurementRefusal",
     "MeasurementResult",
     "NormalisedField",
