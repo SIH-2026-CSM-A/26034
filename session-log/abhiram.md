@@ -1,5 +1,71 @@
 # Session log — Abhiram
 
+### 2026-09-06 — CTR-003 `ProductCategory` into contracts, plus `CategoryProposal` — Claude Code
+
+**Why now**
+EXT-005 gives Sitanshu a `propose_category` in `app/modules/extraction/`. `ProductCategory`
+lived in `app/modules/rules/base.py`, and a module may not import another module — so the
+ticket as written would have been a ticket bug for him rather than a missing type. Moving the
+enum down to `contracts` first turns his ticket into an ordinary one.
+
+**What moved**
+- `ProductCategory` is now defined in `app/contracts/enums.py` and exported from the package
+  surface. `rules/base.py` re-exports it — one definition, not a copy, because
+  `sector_overrides` keys on it and a second copy that drifted would confirm a category which
+  then routes to nothing.
+- Values stay lowercase (`food`, `cosmetics`, `medical_device`) where every other contracts
+  vocabulary is upper. Deliberate: they are the `sector:` keys in `rules.yaml` and the strings
+  already written to `scans.product_category`. Upper-casing them would leave every type check
+  passing while every sector override matched nothing — a medical device silently evaluated
+  against the Rule 7 Table-I that G.S.R. 778(E) disapplies. There is a test for exactly this.
+- `CategoryProposal` added to `app/contracts/evidence.py` — `category`, `confidence` (0–1),
+  `span_refs` (min 1), `reason` (min 1). `ContractModel` already gives frozen + extra-forbid,
+  so a proposal citing no evidence cannot be constructed rather than being discouraged.
+  No `propose_category` here; that is EXT-005 and it is Sitanshu's.
+
+**Three things worth knowing**
+- **The contracts docstring guard caught the paste.** `test_every_enum_member_documents_its_meaning`
+  AST-scans `enums.py` and requires a docstring after every member assignment;
+  `ProductCategory`'s three members had none. So the move was not a cut-paste — each member
+  needed a sourced docstring, taken from the rules the store already holds as VERIFIED:
+  Rule 6(1)(a) Explanation III and the Rule 2(kc) proviso for `FOOD`, the third proviso to
+  Rule 6(1)(d) for `COSMETICS`, G.S.R. 778(E) for `MEDICAL_DEVICE`. A free falsification of
+  that guard, recorded rather than routed around.
+- **The re-export needs the redundant alias.** `from app.contracts import ProductCategory` in
+  a non-`__init__` module trips F401 under the selected `F` ruleset and ruff offers to delete
+  it; `import X as X` does not. Verified both ways. Deleting the line breaks four files in the
+  package — `sector.py`, `conditions.py`, `results.py`, `evaluator.py` — so the line carries a
+  comment saying why it exists, and both claims in that comment were checked before it was
+  written.
+- **Stale bytecode nearly bought a false falsification.** `"medical_device"` and
+  `"MEDICAL_DEVICE"` are the same byte length, so the `.pyc` mtime-and-size check treated an
+  edited `enums.py` as unchanged and one falsification reported green against a defect that
+  was really there. Clear `__pycache__` between falsification steps on this repo; same-length
+  edits are the exact case the check cannot see.
+
+**A test I wrote and then deleted**
+`test_a_category_proposal_is_not_a_confirmed_category` asserted `not isinstance(proposal,
+ProductCategory)` and `proposal.category is not proposal`. Neither can fail — a `StrEnum` with
+members cannot be subclassed, and the second is trivially true. It restated the type system,
+so it went rather than staying as a decorative green tick. The seven guards that remain were
+each made to go red against a real defect and then reverted.
+
+**Deliberately not done**
+- `Scan.product_category` stays `String(64)`. Changing it is a migration against a table that
+  already holds these strings and buys nothing the 422 at the request boundary does not.
+  In TODO.md under Next. The `core/models.py` docstring that justified the string type by
+  "core may not import app.modules" *was* fixed here — after this ticket that sentence is
+  false, and a file claiming a vocabulary lives where it no longer does is a false claim.
+- `rules/base.py` still carries its own `Verdict` and `RuleStatus`, and `Verdict` has already
+  drifted from contracts: `POTENTIAL VIOLATION` with a space against `POTENTIAL_VIOLATION`.
+  Raised as CTR-004 in TODO.md, Abhiram's, sequenced after this. Not folded in — the database
+  enum and every persisted verdict row depend on one of those two spellings.
+
+**Gate**
+644 passed, 33 skipped (postgres, no local DSN). `ruff check` clean, `ruff format --check`
+clean on 137 files, `lint-imports` 3 contracts kept over 108 files and 346 dependencies, exit
+code read directly rather than through a pipe.
+
 ### 2026-09-06 — PIP-002 HTTP surface and scan orchestration — Claude Code
 
 **Why now**

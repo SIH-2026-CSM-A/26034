@@ -98,10 +98,12 @@ class Scan(Base):
     would move a real legal obligation on a guess.
 
     A plain string rather than an enum column because the vocabulary that matters is
-    :class:`app.modules.rules.ProductCategory`, and ``core`` may not import ``app.modules``.
-    The value is constrained where it enters, in ``pipeline/schemas.py``, which is the one
-    layer allowed to name that enum; a category the sector lookup does not know is refused
-    at the request boundary rather than stored and silently failing to route.
+    :class:`app.contracts.ProductCategory`. ``core`` may import ``contracts``, so that is
+    no longer what stops this being an enum column — what stops it is that changing the
+    column type is a migration against a table that already holds these strings, and it
+    buys nothing the request boundary does not already do. The value is constrained where
+    it enters, in ``pipeline/schemas.py``; a category the sector lookup does not know is
+    refused there rather than stored and silently failing to route. Tracked in TODO.md.
     """
 
     image_refs: Mapped[list[dict[str, Any]]] = mapped_column(Json, nullable=False, default=list)

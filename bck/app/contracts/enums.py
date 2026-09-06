@@ -258,3 +258,58 @@ class RuleSeverity(StrEnum):
     ADVISORY = "ADVISORY"
     """Guidance or good practice with no standalone obligation behind it. Never raises a
     verdict above REVIEW on its own."""
+
+
+class ProductCategory(StrEnum):
+    """A *confirmed* product category that a sector override may key on.
+
+    Confirmed is the operative word. A category is an input to routing, never an
+    inference this system makes: routing a package to another Act because a classifier
+    guessed at its category would move a real legal obligation on a guess. A caller with
+    no confirmed category passes ``None`` and the packaged rules apply unchanged.
+
+    A member exists here because a gazette names that sector and routes an obligation
+    away from these Rules for it — not because the sector is commercially interesting.
+    Adding one is adding a routing target, so it comes with the provision that does the
+    routing.
+
+    The values are lowercase where every other vocabulary in this package is upper. That
+    is deliberate and not to be tidied: they are the ``sector`` keys in the rule store's
+    ``rules.yaml`` and the strings already written to ``scans.product_category``. Changing
+    the case would stop the sector dispatch matching any rule while every type check still
+    passed.
+
+    A proposal is not a confirmation. :class:`~app.contracts.evidence.CategoryProposal`
+    carries a category a reader inferred, and it is a distinct type precisely so it cannot
+    be passed where this one is expected.
+    """
+
+    FOOD = "food"
+    """Food articles, routed to the Food Safety and Standards Act, 2006.
+
+    Explanation III to Rule 6(1)(a) disapplies that clause for packages containing food
+    articles outright. The proviso to Rule 2(kc), inserted by G.S.R. 722(E), routes the
+    multi-piece package definition itself the same way. Two separate provisions with two
+    different scopes, which is why the rule store holds them as two rules rather than one
+    fact about food.
+    """
+
+    COSMETICS = "cosmetics"
+    """Cosmetic products, whose date declaration is routed to the Drugs and Cosmetics
+    Rules, 1945.
+
+    The third proviso to Rule 6(1)(d). It moves the month-and-year-of-manufacture
+    obligation and nothing else — a cosmetic package still bears every other Rule 6
+    declaration under these Rules.
+    """
+
+    MEDICAL_DEVICE = "medical_device"
+    """Medical devices, routed to the Medical Devices Rules, 2017 by G.S.R. 778(E), in
+    force from 24 October 2025.
+
+    The provisos it inserts into Rule 2(h), Rule 7(2) and Rule 7(3) move the panel
+    declaration, the character height and the width ratio. The Rule 33(2) it inserts
+    additionally removes the power to relax, so a medical device cannot be both routed to
+    the Medical Devices Rules and granted a relaxation under these ones. A carve-out, not
+    a stricter path: Rule 7 Table-I stops applying rather than applying more severely.
+    """
