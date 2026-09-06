@@ -85,7 +85,7 @@ def a_scan(
     )
 
 
-def a_rule() -> RuleDefinition:
+def a_rule(rule_id: str = "TEST-RULE") -> RuleDefinition:
     """A minimal valid contracts rule. Synthetic: it encodes no provision.
 
     The gazette reference is a real file in ``rules-corpus/`` because
@@ -95,7 +95,7 @@ def a_rule() -> RuleDefinition:
     below mutates them.
     """
     return RuleDefinition(
-        rule_id="TEST-RULE",
+        rule_id=rule_id,
         clause_ref="Test clause",
         gazette_ref=EXISTING_GAZETTE,
         source_text="Synthetic source text used only by a persistence test.",
@@ -123,16 +123,25 @@ def a_verdict(db: Session, scan: Scan) -> VerdictRow:
     return verdict
 
 
-def a_finding(verdict: VerdictRow, state: FieldState) -> FieldFindingRow:
-    """One finding in ``state``, with a snapshot of :func:`a_rule` behind it."""
+def a_finding(
+    verdict: VerdictRow, state: FieldState, rule_id: str = "TEST-RULE"
+) -> FieldFindingRow:
+    """One finding in ``state``, with a snapshot of :func:`a_rule` behind it.
+
+    ``rule_id`` is taken from the snapshot rather than passed separately, because that is
+    the only place it may come from: the column is a queryable copy of one field of the
+    document beside it, and the two agreeing is the whole basis for querying it.
+    """
+    snapshot = RuleParameterSnapshot.from_rule(a_rule(rule_id), RULE_SET_VERSION).model_dump(
+        mode="json"
+    )
     return FieldFindingRow(
         verdict_id=verdict.id,
         field=DeclarationField.NET_QUANTITY,
+        rule_id=snapshot["rule_id"],
         state=state,
         reason=f"fixture finding recorded as {state.value}",
-        rule_snapshot=RuleParameterSnapshot.from_rule(a_rule(), RULE_SET_VERSION).model_dump(
-            mode="json"
-        ),
+        rule_snapshot=snapshot,
         evidence_span_ids=["span-1"],
         evidence_regions=[{"polygon": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]}],
     )
@@ -211,7 +220,9 @@ def test_every_scan_is_reachable_by_someone(scans: Session) -> None:
 def test_every_field_state_survives_a_round_trip_as_itself(db: Session) -> None:
     """Each of the five states is written, read back in a new query, and still itself."""
     verdict = a_verdict(db, a_scan())
-    db.add_all(a_finding(verdict, state) for state in FieldState)
+    # One declaration against five different rules — which is what (verdict_id, field)
+    # being non-unique is for, and what (verdict_id, field, rule_id) still forbids twice.
+    db.add_all(a_finding(verdict, state, f"TEST-RULE-{state.value}") for state in FieldState)
     db.commit()
     db.expunge_all()
 

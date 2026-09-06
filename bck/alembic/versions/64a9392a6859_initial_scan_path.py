@@ -154,6 +154,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("verdict_id", sa.Uuid(), nullable=False),
         sa.Column("field", declaration_field, nullable=False),
+        sa.Column("rule_id", sa.String(length=120), nullable=False),
         sa.Column("state", field_state, nullable=False),
         sa.Column("reason", sa.Text(), nullable=False),
         sa.Column("observed_value", sa.Text(), nullable=True),
@@ -165,14 +166,22 @@ def upgrade() -> None:
             ["verdict_id"], ["verdicts.id"], name=op.f("fk_field_findings_verdict_id_verdicts")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_field_findings")),
+        sa.UniqueConstraint(
+            "verdict_id",
+            "field",
+            "rule_id",
+            name=op.f("uq_field_findings_verdict_id_field_rule_id"),
+        ),
     )
     op.create_index(
         op.f("ix_field_findings_verdict_id"), "field_findings", ["verdict_id"], unique=False
     )
+    op.create_index(op.f("ix_field_findings_rule_id"), "field_findings", ["rule_id"], unique=False)
 
 
 def downgrade() -> None:
     """Drop the scan path, including the enum types autogenerate would have left behind."""
+    op.drop_index(op.f("ix_field_findings_rule_id"), table_name="field_findings")
     op.drop_index(op.f("ix_field_findings_verdict_id"), table_name="field_findings")
     op.drop_table("field_findings")
     op.drop_index(op.f("ix_verdicts_scan_id"), table_name="verdicts")

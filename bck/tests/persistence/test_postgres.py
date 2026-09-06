@@ -32,7 +32,7 @@ from app.core.models import (
     ScanStatus,
     VerdictRow,
 )
-from tests.core.test_persistence import RULE_SET_VERSION, a_rule
+from tests.core.test_persistence import RULE_SET_VERSION, a_finding, a_rule
 
 pytestmark = pytest.mark.postgres
 
@@ -191,6 +191,7 @@ async def test_a_finding_round_trips_through_the_async_session(
             FieldFindingRow(
                 verdict_id=verdict_id,
                 field=DeclarationField.NET_QUANTITY,
+                rule_id=snapshot.rule_id,
                 state=FieldState.INSUFFICIENT_EVIDENCE,
                 reason="the net quantity panel was not legible in this capture",
                 rule_snapshot=snapshot.model_dump(mode="json"),
@@ -211,6 +212,9 @@ async def test_a_finding_round_trips_through_the_async_session(
 
         reloaded = RuleParameterSnapshot.model_validate(finding.rule_snapshot)
         assert reloaded == snapshot
+        # The denormalisation's whole basis: the column is a copy of one field of the
+        # document beside it, and querying by it is only sound while the two agree.
+        assert finding.rule_id == reloaded.rule_id
         assert isinstance(reloaded.tolerance, Decimal)
         assert reloaded.tolerance == Decimal("0.05")
 
@@ -262,6 +266,44 @@ async def test_the_chain_cannot_take_two_entries_at_one_sequence(
         await session.commit()
 
         session.add(an_entry("b" * 64))
+        with pytest.raises(sqlalchemy.exc.IntegrityError):
+            await session.commit()
+        await session.rollback()
+
+
+async def test_a_declaration_cannot_be_recorded_twice_against_one_rule(
+    migrated: Config, engine_disposed: None
+) -> None:
+    """``(verdict_id, field, rule_id)`` is unique; ``(verdict_id, field)`` is not.
+
+    One declaration evaluated against several rules is several findings and must stay
+    that way. The same declaration recorded twice against the *same* rule is a duplicate,
+    and only the third column makes that statable at all — inside the snapshot document
+    ``rule_id`` can carry no constraint.
+    """
+    scan = a_scan_row(uuid4())
+    async with request_session() as session:
+        session.add(scan)
+        await session.flush()
+        verdict = VerdictRow(
+            id=uuid4(),
+            scan_id=scan.id,
+            verdict=Verdict.REVIEW,
+            subject_ref=str(scan.id),
+            rule_set_version=RULE_SET_VERSION,
+            evaluated_at=datetime(2026, 9, 6, 9, 0, tzinfo=UTC),
+            field_providers={},
+        )
+        session.add(verdict)
+        await session.flush()
+
+        # Same declaration, two different rules: permitted, and the point of the column.
+        session.add(a_finding(verdict, FieldState.FAIL, "TEST-RULE-A"))
+        session.add(a_finding(verdict, FieldState.PASS, "TEST-RULE-B"))
+        await session.commit()
+
+        # Same declaration, same rule, a second time: refused by the database.
+        session.add(a_finding(verdict, FieldState.PASS, "TEST-RULE-A"))
         with pytest.raises(sqlalchemy.exc.IntegrityError):
             await session.commit()
         await session.rollback()

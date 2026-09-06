@@ -10,20 +10,14 @@ a module boundary; this holds the shapes that cross a process restart. The two a
 deliberately separate, and the enums that appear in both are imported from ``contracts``
 rather than restated, so a state can never mean one thing in memory and another on disk.
 
-Three things here are load-bearing:
+The one guarantee to read before editing anything here: **``FieldFindingRow.state`` and
+``VerdictRow.verdict`` are NOT NULL with no default of any kind.**
+``INSUFFICIENT_EVIDENCE`` says we could not read the declaration; ``FAIL`` says we read
+it and it falls short. There is no value the database may supply for either, because any
+value it supplied would be one of those two answers invented by storage.
 
-**The jurisdiction is three typed columns named ``state``, ``region`` and ``district``.**
-:func:`app.core.rbac.scope_to_jurisdiction` reaches them with ``getattr(entity, field)``.
-Folding them into a JSON document would make every scoped query raise.
-
-**``FieldFindingRow.state`` and ``VerdictRow.verdict`` are NOT NULL with no default of
-any kind.** ``INSUFFICIENT_EVIDENCE`` says we could not read the declaration; ``FAIL``
-says we read it and it falls short. There is no value the database may supply for
-either, because any value it supplied would be one of those two answers invented by
-storage.
-
-**The evidence chain is stored as the bytes it was hashed from.** ``timestamp`` is text
-and the payload is text, not a timestamp and not JSONB — see :class:`EvidenceEntryRow`.
+The jurisdiction columns and the evidence-chain column types are equally load-bearing and
+are explained on the columns themselves. ``core/README.md`` carries all of it in full.
 """
 
 from datetime import datetime
@@ -57,11 +51,9 @@ NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
-"""Names every constraint and index deterministically.
-
-Without it SQLAlchemy emits unnamed constraints, autogenerate cannot refer to them, and
-a downgrade has nothing to drop. Set once on the metadata rather than per table.
-"""
+"""Names every constraint and index deterministically. Without it SQLAlchemy emits
+unnamed constraints, autogenerate cannot refer to them, and a downgrade has nothing to
+drop."""
 
 Json = JSON().with_variant(JSONB(), "postgresql")
 """``jsonb`` on PostgreSQL, ``JSON`` on anything else. One annotation, both dialects."""
@@ -76,11 +68,10 @@ SHA256_HEX_LENGTH = 64
 def _enum(python_enum: type[StrEnum], name: str) -> Enum:
     """A closed vocabulary the database enforces.
 
-    A native ``TYPE`` on PostgreSQL and a ``VARCHAR`` with a ``CHECK`` elsewhere, so the
-    set of permitted values is constrained wherever the schema is created rather than
-    only in the deployment target. ``values_callable`` stores each member's *value*;
-    SQLAlchemy stores names by default, and for the enums here whose name and value
-    differ that would put the wrong string on disk.
+    A native ``TYPE`` on PostgreSQL and a ``VARCHAR`` with a ``CHECK`` elsewhere.
+    ``values_callable`` stores each member's *value*; SQLAlchemy stores names by default,
+    which for the enums here whose name and value differ would put the wrong string on
+    disk.
     """
     return Enum(
         python_enum,
@@ -221,9 +212,16 @@ class VerdictRow(Base):
 
 
 class FieldFindingRow(Base):
-    """One declaration evaluated against one rule, with the rule as it stood."""
+    """One declaration evaluated against one rule, with the rule as it stood.
+
+    ``(verdict_id, field)`` is deliberately **not** unique: one declaration is evaluated
+    against several rules and each comparison is its own finding. ``(verdict_id, field,
+    rule_id)`` is unique, and saying so requires ``rule_id`` as a column — inside the
+    snapshot document it cannot carry a constraint.
+    """
 
     __tablename__ = "field_findings"
+    __table_args__ = (UniqueConstraint("verdict_id", "field", "rule_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     verdict_id: Mapped[UUID] = mapped_column(ForeignKey("verdicts.id"), nullable=False, index=True)
@@ -232,13 +230,19 @@ class FieldFindingRow(Base):
         _enum(DeclarationField, "declaration_field"), nullable=False
     )
 
-    state: Mapped[FieldState] = mapped_column(_enum(FieldState, "field_state"), nullable=False)
-    """The per-field outcome, always supplied by the caller.
+    rule_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    """Which rule produced this finding, copied out of :attr:`rule_snapshot`.
 
-    Not null, no Python default, no server default. INSUFFICIENT_EVIDENCE is a statement
-    about our reading and FAIL is a statement about the package; a default here would let
-    storage answer a question only evaluation can answer.
+    Written from ``rule_snapshot["rule_id"]`` and never from anywhere else: the snapshot
+    stays the record of what was applied and this is a queryable copy of one field of it.
+    It earns a column because the officer dashboard filters and groups by rule, and
+    because the uniqueness above cannot be stated without it. Not a foreign key — there
+    is no rules table to point at, and there must not be one.
     """
+
+    state: Mapped[FieldState] = mapped_column(_enum(FieldState, "field_state"), nullable=False)
+    """The per-field outcome, always supplied by the caller: not null, no Python default,
+    no server default. The module docstring says why the database may supply none."""
 
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     observed_value: Mapped[str | None] = mapped_column(Text)
@@ -250,8 +254,7 @@ class FieldFindingRow(Base):
     Written with ``model_dump(mode="json")`` and read with ``model_validate``. The mode
     matters: a plain dump leaves ``Decimal`` and enum objects the driver cannot adapt,
     and a tolerance that became a float on the way to disk corrupts the comparison that
-    decides a finding. JSON mode renders ``Decimal`` as a string and pydantic parses it
-    back to ``Decimal`` exactly.
+    decides a finding.
     """
 
     evidence_span_ids: Mapped[list[str]] = mapped_column(Json, nullable=False, default=list)
@@ -259,25 +262,23 @@ class FieldFindingRow(Base):
         Json, nullable=False, default=list
     )
     """Polygons and bounding boxes for the pixels behind this finding. Cited and drawn,
-    never queried, and not axis-aligned — a column per coordinate would be a schema
-    change per capture geometry."""
+    never queried, and not axis-aligned: a column per coordinate would be a schema change
+    per capture geometry."""
 
 
 class EvidenceEntryRow(Base):
     """One link of a scan's hash chain, stored as the bytes it was hashed from.
 
-    The two type choices here are the whole point of the table.
+    The two type choices are the whole point of the table.
     :func:`app.modules.evidence.chain.compute_entry_hash` hashes the timestamp *string*,
-    so ``timestamp`` is text: stored as a ``timestamptz`` it would be re-rendered on
-    every read — ``Z`` against ``+00:00``, microseconds truncated — and verification
-    would report a broken chain nobody had touched. Likewise
-    :func:`~app.modules.evidence.chain.compute_payload_hash` hashes canonical JSON bytes,
-    and ``jsonb`` renormalises numeric literals and discards the original serialisation,
-    so the payload is text too.
+    so ``timestamp`` is text: as a ``timestamptz`` it would be re-rendered on every read
+    — ``Z`` against ``+00:00``, microseconds truncated — and verification would report a
+    broken chain nobody had touched. ``compute_payload_hash`` likewise hashes canonical
+    JSON bytes, and ``jsonb`` renormalises numeric literals and discards the original
+    serialisation, so the payload is text too.
 
     ``UniqueConstraint(scan_id, sequence)`` is the storage-level answer to an inserted or
-    reordered entry: a constraint the database enforces, not a check some caller has to
-    remember to run.
+    reordered entry: enforced by the database, not by a caller remembering to check.
     """
 
     __tablename__ = "evidence_entries"
