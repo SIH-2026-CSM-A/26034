@@ -333,6 +333,30 @@ Encode what the gazette says and cite the gazette.
   new contract by adding a deliberate violation and confirming exit 1 — in both directions.
 - **Check exit codes directly, not through a pipe.** `lint-imports | tail` reports `tail`'s
   status, which is always 0.
+- **A guard on a database constraint is only falsified by editing the migration.** The
+  schema comes from the migration, not from `app/core/models.py`, so removing a
+  `UniqueConstraint` or swapping a native enum for a `String` *in the model* leaves the
+  constraint standing in the database and the test never loses what it tests. What that
+  edit actually exercises is Alembic's drift check, which is a different guard. Two of the
+  nine falsifications claimed in CORE-002 were done this way and were **not** red: one
+  errored on the model/migration disagreement and was misread as a failure, and the other
+  passed outright. Both were redone by editing the migration as well, and only then went
+  red — `DID NOT RAISE IntegrityError`, and an `InvalidTextRepresentation` assertion
+  failing because a missing type raises `UndefinedObject` instead.
+- **`alembic check` does not detect changes to the values of an existing enum type.**
+  Add a member to `contracts.DeclarationField` and `check` reports "No new upgrade
+  operations detected" — verified, not assumed. The failure appears later as
+  `invalid input value for enum declaration_field` at the first insert. Adding an enum
+  member needs a hand-written `ALTER TYPE ... ADD VALUE` revision (which cannot run inside
+  a transaction). `tests/persistence/test_postgres.py` compares `pg_enum` labels against
+  the Python members so the drift is caught at test time instead.
+- **`pytest.raises(DBAPIError)` is almost never a proof.** A schema with no enum type in it
+  fails the same cast as a schema that rejects a bad value. Assert the specific error
+  class, or the test passes against the defect it exists to catch.
+- **A published container port is shadowed by any local server already on it.** The
+  container reports healthy, and the DSN quietly reaches the local cluster instead. See
+  the note at the top of `docker-compose.yml`; `POSTGRES_PORT` (repo-root `.env`) and
+  `DATABASE_URL` (`bck/.env`) live in two files and must be changed together.
 - **Deleting the ClickUp list destroyed all ten tickets and Trash was unavailable.** Be
   precise about "folder" versus "list".
 - **Custom fields are workspace-level and shared with the other team.** Prefix new fields

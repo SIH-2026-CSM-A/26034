@@ -27,7 +27,8 @@ bck/app/contracts/          Cross-module types. Imports nothing. Single source o
                             ExtractedSpan, NormalisedField, MeasurementResult,
                             RuleDefinition, RuleSetVersion, RuleParameterSnapshot,
                             FieldFinding, VerdictRecord, CatalogueRecord.
-bck/app/core/               Auth, RBAC, jurisdiction scoping, config, cost ceilings.
+bck/app/core/               Auth, RBAC, jurisdiction scoping, config, cost ceilings, the
+                            async engine and session dependency, and the scan-path tables.
 bck/app/pipeline/           Verdict assembly, rule-snapshot adapter, and (next) ingestion
                             endpoints and orchestration. The only package permitted to
                             import app.modules.* — this is what "composes modules" means.
@@ -38,7 +39,7 @@ bck/app/modules/rules/          base -> conditions -> models -> results, plus ev
                                 loader, sector dispatch, placement. Rule store in data/.
 bck/app/modules/tamper/         Field-localised forgery detection. Not started.
 bck/app/modules/evidence/       Hash chain, verification, object store, BSA 63(4) Part A.
-bck/alembic/                Migrations. One owner, no exceptions. Not initialised yet.
+bck/alembic/                Migrations. One owner, no exceptions.
 fnt/                        React app. Officer and admin surfaces, separate route trees.
                             DESIGN.md holds the design system and its contrast findings.
 datasets/                   Labelled corpus and the eval harness. Contents gitignored.
@@ -108,7 +109,26 @@ re-validate against the authoritative rule-set on reconnect.
 - **LangGraph confined to the copilot** — an agent loop anywhere in the verdict path destroys
   reproducibility. Rejected agentic rule evaluation outright.
 - **Rules as versioned data, parameters snapshotted per verdict** — rejected foreign-keying
-  verdicts to a live rules table, which would silently re-adjudicate history.
+  verdicts to a live rules table, which would silently re-adjudicate history. `verdicts`
+  carries no rule reference of any kind and `field_findings.rule_snapshot` holds the whole
+  snapshot as `jsonb`, so the persistence layer has nothing to join through.
+- **One session per request, committed by the caller** — a dependency that commits on
+  teardown does so after the response body is built, where a failure can no longer change
+  the status code, and commits work the handler may have abandoned. Rejected an
+  app-scoped session outright: a shared identity map leaks uncommitted state between
+  officers.
+- **The evidence chain is stored as the bytes it was hashed from** — `timestamp` is text
+  and the payload is text, not `timestamptz` and not `jsonb`. Both of those re-render
+  what they store, and re-rendered bytes hash differently, so verification would report a
+  broken chain nobody had touched.
+- **`rule_id` is duplicated out of the snapshot into a typed column** — the snapshot stays
+  the record of what was applied, but `(verdict_id, field, rule_id)` uniqueness and the
+  dashboard's violation-rate-by-clause view both need it queryable, and neither can be
+  expressed about a value inside a JSON document. Not a foreign key; there is nothing to
+  point at and there must not be.
+- **Jurisdiction is three typed columns, not a JSON document** — `scope_to_jurisdiction`
+  reaches `state`/`region`/`district` by `getattr`, so the column names are a contract
+  with `core/rbac.py`, not a style choice.
 - **The rule-snapshot adapter lives in `pipeline/`** — `rules.RuleDefinition` is the permanent
   internal shape of that module, richer than what contracts exposes, because no other module
   needs to introspect a rule's condition *shape*, only that a snapshot exists.
@@ -139,8 +159,13 @@ re-validate against the authoritative rule-set on reconnect.
       accuracy target in the PRD is unbacked. Blocks vision, measurement and tamper from
       being evaluated at all. **This is the largest single risk in the project.**
 - [ ] `tamper/` has no code. TAM-001 written, not started.
-- [ ] `alembic/` not initialised; `core/db.py` deliberately not built until a real caller
-      exists to decide session scope. Officers are config-seeded from `OFFICERS`.
+- [ ] No application entrypoint. There is no `bck/app/main.py` and no `FastAPI()` instance
+      anywhere; `auth_router` is exported and never mounted, so `uvicorn app.main:app` —
+      the dev command in `CLAUDE.md` and `AGENTS.md` — does not run. Belongs to PIP-002.
+- [ ] Officers are still config-seeded from `OFFICERS`; there is no users table, and
+      `Scan.officer_id` is a plain string rather than a foreign key because of it.
+- [ ] `docker-compose.yml` ships only Postgres. MinIO and Redis are not in it, so
+      `tests/modules/evidence/test_minio_storage.py` still skips on every machine.
 - [ ] `rules/` imports nothing from `contracts`; `models.py:21` still carries a stand-in
       comment. That is why `pipeline/rule_snapshot.py` exists as a translation layer.
 - [ ] `test_append_only_enforcement` (evidence) resolves a relative path against the cwd and

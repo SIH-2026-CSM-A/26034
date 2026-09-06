@@ -2,11 +2,11 @@
 
 Import from the package, not from its files::
 
-    from app.core import Principal, RoleTier, get_current_principal, get_settings
+    from app.core import Principal, RoleTier, Scan, get_current_principal, get_session
 
-The split into ``auth.py``, ``config.py`` and ``rbac.py`` is an internal detail. Going
-through this surface means rearranging files inside ``core/`` is not a change to six
-other people's imports.
+The split into ``auth.py``, ``config.py``, ``db.py``, ``models.py`` and ``rbac.py`` is an
+internal detail. Going through this surface means rearranging files inside ``core/`` is
+not a change to six other people's imports.
 
 ``core`` sits above ``contracts`` and below ``modules``: it may import ``app.contracts``
 and nothing else from ``app``. ``lint-imports`` enforces that in CI.
@@ -29,20 +29,43 @@ from app.core.config import (
     Settings,
     get_settings,
 )
+from app.core.db import dispose_engine, get_engine, get_session, get_session_factory
+from app.core.models import (
+    Base,
+    CalibrationMethod,
+    EvidenceEntryRow,
+    FieldFindingRow,
+    Scan,
+    ScanSourceType,
+    ScanStatus,
+    VerdictRow,
+)
 from app.core.rbac import Jurisdiction, Principal, RoleTier, scope_to_jurisdiction
 
 __all__ = [
     "DEFAULT_ROLE_DESIGNATIONS",
+    "Base",
+    "CalibrationMethod",
+    "EvidenceEntryRow",
+    "FieldFindingRow",
     "Jurisdiction",
     "OfficerCredential",
     "Principal",
     "RoleTier",
+    "Scan",
+    "ScanSourceType",
+    "ScanStatus",
     "Settings",
     "Token",
+    "VerdictRow",
     "auth_router",
     "authenticate_officer",
     "create_access_token",
+    "dispose_engine",
     "get_current_principal",
+    "get_engine",
+    "get_session",
+    "get_session_factory",
     "get_settings",
     "hash_password",
     "principal_from_token",
