@@ -1,5 +1,51 @@
 """Declaration binder — classifies and groups OCR spans into NormalisedField records.
 
+Statutory Corpus Citation:
+  Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31):
+  Compilation for Maharashtra State Metrology Department.
+  Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+  Page 9, Rule 9(4):
+    "(4) The particulars of the declarations required to be specified under this
+    rule on a package shall either be in Hindi in Devanagiri script or in English:
+    Provided that nothing contained in this sub-rule shall prevent the use of any
+    other language in addition to Hindi or English language."
+
+Engineering Priors & Calibration Note:
+  1. Spatial Bounding Multipliers:
+     - MAX_VERTICAL_GAP_MULTIPLIER = 3.0
+     - MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0
+     These multipliers define spatial proximity boundaries for pairing Devanagari
+     and Latin declaration spans. They are empirical engineering heuristics (priors)
+     and NOT statutory thresholds specified in LMPC Rule 9(4).
+  2. Confidence Prior:
+     - Paired parse_confidence = min(f1.parse_confidence, f2.parse_confidence)
+     This represents a conservative lower-bound confidence estimate for combined
+     bilingual extraction fields.
+
+
+Statutory Corpus Citation:
+  Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31):
+  Compilation for Maharashtra State Metrology Department.
+  Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+  Page 9, Rule 9(4):
+    "(4) The particulars of the declarations required to be specified under this
+    rule on a package shall either be in Hindi in Devanagiri script or in English:
+    Provided that nothing contained in this sub-rule shall prevent the use of any
+    other language in addition to Hindi or English language."
+
+Engineering Priors & Calibration Note:
+  1. Spatial Bounding Multipliers:
+     - MAX_VERTICAL_GAP_MULTIPLIER = 3.0
+     - MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0
+     These multipliers define spatial proximity boundaries for pairing Devanagari
+     and Latin declaration spans. They are empirical engineering heuristics (priors)
+     and NOT statutory thresholds specified in LMPC Rule 9(4).
+  2. Confidence Prior:
+     - Paired parse_confidence = min(f1.parse_confidence, f2.parse_confidence)
+     This represents a conservative lower-bound confidence estimate for combined
+     bilingual extraction fields.
+
+
 Rule 9(4) of the Legal Metrology (Packaged Commodities) Rules, 2011
 (rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Page 9):
 "The particulars of the declarations required to be specified under this rule on a package
@@ -13,7 +59,7 @@ declaration field are spatially paired into single NormalisedField records with 
 
 import re
 from collections.abc import Sequence
-from enum import Enum
+from enum import StrEnum
 from typing import Final
 
 from pydantic import BaseModel, Field
@@ -56,27 +102,32 @@ _DEVANAGARI_DIGITS: Final[dict[str, str]] = {
     "९": "9",
 }
 
-_DEVANAGARI_WORDS: Final[dict[str, str]] = {
-    "शुद्ध मात्रा": "Net Qty",
-    "निवल मात्रा": "Net Qty",
-    "मात्रा": "Net Qty",
-    "एमआरपी": "MRP",
-    "मूल्य": "MRP",
-    "रुपये": "Rs.",
-    "रु.": "Rs.",
-    "ग्राम": "g",
-    "किग्रा": "kg",
-    "किलोग्राम": "kg",
-    "एमएल": "ml",
-    "मिलीलीटर": "ml",
-    "लीटर": "l",
-    "सेमी": "cm",
-    "मिमी": "mm",
-    "मीटर": "m",
-}
+_DEVANAGARI_TOKEN_MAP: Final[list[tuple[re.Pattern[str], str]]] = [
+    (re.compile(rf"(?<![\u0900-\u097F\w]){k}(?![\u0900-\u097F\w])"), v)
+    for k, v in [
+        ("शुद्ध मात्रा", "Net Qty"),
+        ("निवल मात्रा", "Net Qty"),
+        ("अधिकतम राशी", "MRP"),
+        ("एमआरपी", "MRP"),
+        ("मूल्य", "MRP"),
+        ("रुपये", "Rs."),
+        ("रु.", "Rs."),
+        ("किलोग्राम", "kg"),
+        ("मिलीग्राम", "mg"),
+        ("मिलीलीटर", "ml"),
+        ("किग्रा", "kg"),
+        ("मिग्रा", "mg"),
+        ("एमएल", "ml"),
+        ("लीटर", "l"),
+        ("ग्राम", "g"),
+        ("सेमी", "cm"),
+        ("मिमी", "mm"),
+        ("मीटर", "m"),
+    ]
+]
 
 
-class ScriptType(str, Enum):  # noqa: UP042
+class ScriptType(StrEnum):
     """Primary script classification of an OCR text span."""
 
     DEVANAGARI = "DEVANAGARI"
@@ -101,11 +152,14 @@ def detect_script(text: str) -> ScriptType:
 
 def _preprocess_devanagari_text(text: str) -> str:
     """Normalize Devanagari numerals and equivalent unit tokens for structured numeric parsing."""
+    if not _DEVANAGARI_RE.search(text):
+        return text
+
     cleaned = text
     for dev_digit, ascii_digit in _DEVANAGARI_DIGITS.items():
         cleaned = cleaned.replace(dev_digit, ascii_digit)
-    for dev_word, ascii_word in _DEVANAGARI_WORDS.items():
-        cleaned = cleaned.replace(dev_word, ascii_word)
+    for pattern, repl in _DEVANAGARI_TOKEN_MAP:
+        cleaned = pattern.sub(repl, cleaned)
     return cleaned
 
 
@@ -396,7 +450,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=f"₹ {mrp_res.value.amount}",
             numeric_value=mrp_res.value.amount,
             unit="INR",
-            parse_confidence=mrp_res.confidence,
+            parse_confidence=min(span.confidence, mrp_res.confidence),
         )
 
     usp_res = normalise_unit_sale_price(processed_raw)
@@ -407,7 +461,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=f"₹ {usp_res.value.unit_price} / {usp_res.value.unit_basis}",
             numeric_value=usp_res.value.unit_price,
             unit="INR",
-            parse_confidence=usp_res.confidence,
+            parse_confidence=min(span.confidence, usp_res.confidence),
         )
 
     usp_match = _USP_REGEX.search(processed_raw)
@@ -433,7 +487,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=f"{nq_res.value.value} {nq_res.value.unit}",
             numeric_value=nq_res.value.value,
             unit=nq_res.value.unit,
-            parse_confidence=nq_res.confidence,
+            parse_confidence=min(span.confidence, nq_res.confidence),
         )
 
     date_res = normalise_date(processed_raw)
@@ -448,7 +502,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=date_res.value.iso_date or raw,
             numeric_value=None,
             unit=None,
-            parse_confidence=date_res.confidence,
+            parse_confidence=min(span.confidence, date_res.confidence),
         )
 
     origin_res = normalise_country_of_origin(processed_raw)
@@ -459,7 +513,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=origin_res.value.country_name,
             numeric_value=None,
             unit=None,
-            parse_confidence=origin_res.confidence,
+            parse_confidence=min(span.confidence, origin_res.confidence),
         )
 
     care_res = normalise_consumer_care(processed_raw)
@@ -475,7 +529,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=", ".join(parts) if parts else raw,
             numeric_value=None,
             unit=None,
-            parse_confidence=care_res.confidence,
+            parse_confidence=min(span.confidence, care_res.confidence),
         )
 
     dim_res = normalise_dimensions(processed_raw)
@@ -489,7 +543,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
             normalised_value=dim_res.value.raw_expression or raw,
             numeric_value=num_val,
             unit=dim_res.value.unit,
-            parse_confidence=dim_res.confidence,
+            parse_confidence=min(span.confidence, dim_res.confidence),
         )
 
     # 8) COMMON_OR_GENERIC_NAME
@@ -503,7 +557,6 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
         or bool(_LABEL_COPY_RE.search(raw))
         or bool(_LABEL_COPY_RE.search(processed_raw))
         or len(processed_raw.split()) > 6
-        or any(t in raw for t in ["विशेष", "ऑफर", "विज्ञापन"])
     )
 
     if is_explicit_comm or not is_non_commodity:
@@ -515,7 +568,7 @@ def _dispatch_single_span(span: ExtractedSpan) -> NormalisedField | None:
                 normalised_value=comm_res.value.primary_name,
                 numeric_value=None,
                 unit=None,
-                parse_confidence=comm_res.confidence,
+                parse_confidence=min(span.confidence, comm_res.confidence),
             )
     return None
 
@@ -537,7 +590,7 @@ def _are_spans_spatially_adjacent(s1: ExtractedSpan, s2: ExtractedSpan) -> bool:
     if v_gap > MAX_VERTICAL_GAP_MULTIPLIER * max_h:
         return False
 
-    h_offset = max(0.0, max(b1_min_x, b2_min_x) - min(b1_max_x, b2_max_x))
+    h_offset = abs(b1_min_x - b2_min_x)
     return h_offset <= MAX_HORIZONTAL_OFFSET_MULTIPLIER * max_w
 
 
@@ -569,9 +622,11 @@ def _pair_bilingual_fields(
             if s1.region_id != s2.region_id:
                 continue
 
-            if script1 == script2 and script1 in (ScriptType.LATIN, ScriptType.DEVANAGARI):
-                continue
-            if script1 == ScriptType.NEITHER or script2 == ScriptType.NEITHER:
+            is_valid_bilingual_pair = (
+                script1 == ScriptType.LATIN and script2 == ScriptType.DEVANAGARI
+            ) or (script1 == ScriptType.DEVANAGARI and script2 == ScriptType.LATIN)
+
+            if not is_valid_bilingual_pair:
                 continue
 
             if f1.field_type != f2.field_type:
@@ -588,7 +643,7 @@ def _pair_bilingual_fields(
                 if script1 == ScriptType.LATIN
                 else (s2.span_id, s1.span_id)
             )
-            pair_conf = max(f1.parse_confidence, f2.parse_confidence)
+            pair_conf = min(f1.parse_confidence, f2.parse_confidence)
 
             paired_field = NormalisedField(
                 field_type=f1.field_type,

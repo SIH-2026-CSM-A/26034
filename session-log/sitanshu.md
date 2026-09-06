@@ -125,3 +125,17 @@
 - 694 passed, 32 skipped across full backend suite.
 - `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
 - Committed (`1fb89c42bbd6aeb37496aefd136f564b90289182`), pushed to `origin/ext-006-bilingual-declarations`, 0 PRs created.
+
+
+### 2026-09-07 — EXT-006 Final Lexicon Audit (Sitanshu)
+
+**Done**
+- Inspected statutory rules corpus (`rules-corpus/GSR-722E__2023-10-06__amendment-rules-2023.pdf`, `LMPC-2011`) for Devanagari price terms:
+  - Verified that "मूल्य" is a generic term for price/value (used in "यूजिट जबक्री मूल्य" and "अजधकतम खुिरा मूल्य"), not an explicit statutory synonym for MRP.
+  - Verified that "अधिकतम राशी" is unsupported by statutory text or project evidence.
+- Lexicon Hardening in `bck/app/modules/extraction/binder.py`:
+  - Removed generic "मूल्य" -> MRP and "अधिकतम राशी" -> MRP mappings from `_DEVANAGARI_TOKEN_MAP`.
+  - Retained explicit Devanagari tokens ("शुद्ध मात्रा", "Net Qty"), ("निवल मात्रा", "Net Qty"), ("एमआरपी", "MRP"), ("रुपये", "Rs."), and ("रु.", "Rs.") along with standard unit conversions.
+- Regression Testing & Quality Gates:
+  - Added regression test `test_bare_mulya_does_not_cause_false_mrp` in `bck/tests/modules/extraction/test_bilingual_declarations.py` proving bare "मूल्य" is not classified as `RETAIL_SALE_PRICE`.
+  - Verified `pytest tests/modules/extraction/test_bilingual_declarations.py`, `ruff check`, `ruff format --check`, `lint-imports`, and `git diff --check`.
