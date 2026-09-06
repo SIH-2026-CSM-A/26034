@@ -23,6 +23,12 @@ assignment record.
       done.
 - [ ] **CI-003** — remove the `paths:` filter from `frontend.yml` so the required `frontend`
       context always reports. In flight.
+- [x] **CORE-002 — persistence** (Claude Code, this session). `core/db.py` (async engine,
+      session factory, one request-scoped `get_session`; the caller commits), `core/models.py`
+      (`Scan`, `VerdictRow`, `FieldFindingRow`, `EvidenceEntryRow`), Alembic initialised with
+      one hand-reviewed revision, `docker-compose.yml` with Postgres 16 + pgvector, and a
+      `postgres` service added to `ci.yml`. Jurisdiction scoping proved against the real
+      `Scan` table; every guard was made to fail before it was claimed.
 
 ## Next
 
@@ -36,9 +42,17 @@ assignment record.
       evidence into a `VerdictRecord`. Blocked on EXT-004.
 - [ ] **Frontend `npm audit` gate.** `npm ci` reports 2 moderate vulnerabilities and a
       deprecated `glob@11.1.0`. Not a build failure, so the current gate misses it.
-- [ ] `core/` — SQLAlchemy engine and session factory, and a users table to replace the
-      `OFFICERS` env list. Needs Alembic initialised first. Deliberately not built until a
-      real caller exists.
+- [ ] **`app/main.py` — the application entrypoint.** There is no `FastAPI()` instance in
+      the repo; `auth_router` is exported and never mounted, so `uvicorn app.main:app` —
+      the dev command in `CLAUDE.md` and `AGENTS.md` — does not run today. Belongs to
+      PIP-002, alongside the first endpoints and the `Depends(get_session)` that will be
+      `core/db.py`'s first real caller.
+- [ ] `core/` — a users table to replace the `OFFICERS` env list. `Scan.officer_id` is a
+      plain string until there is one to key against. Not built while officers are still
+      configuration.
+- [ ] **MinIO and Redis in `docker-compose.yml`.** Only Postgres is in it, so
+      `tests/modules/evidence/test_minio_storage.py` skips on every machine including CI.
+      One service each; not folded into CORE-002 because it is not that ticket.
 - [ ] `pipeline/` — offline sync and re-validation against the authoritative rule set on
       reconnect (F51's second half).
 - [ ] `fnt/` — admin surface (Rohan's, never started).

@@ -47,6 +47,10 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Tests needing a real database. Skipped when DATABASE_URL is unset or unreachable, so a
+# laptop with nothing running still gets a clean run. CI provides Postgres, which is what
+# stops this set from being a permanently-skipped green tick.
+markers = ["postgres: needs a live PostgreSQL at DATABASE_URL"]
 
 # Architecture boundaries. Both contracts are enforced by `lint-imports` in CI.
 #

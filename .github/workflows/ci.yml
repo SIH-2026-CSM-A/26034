@@ -9,6 +9,22 @@ jobs:
     defaults:
       run:
         working-directory: bck
+    services:
+      # The same image docker-compose.yml runs locally. A CI database on a different
+      # image is how a green build stops meaning anything.
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pccs
+          POSTGRES_PASSWORD: pccs
+          POSTGRES_DB: pccs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pccs -d pccs"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,4 +53,9 @@ jobs:
         run: uv run lint-imports
 
       - name: Tests
+        # DATABASE_URL is what un-skips the postgres-marked set; JWT_SECRET is required
+        # by Settings and is a throwaway for this job only.
+        env:
+          DATABASE_URL: postgresql+psycopg://pccs:pccs@localhost:5432/pccs
+          JWT_SECRET: ci-signing-key-not-used-anywhere-real-0123456789
         run: uv run pytest

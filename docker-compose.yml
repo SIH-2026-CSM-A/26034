@@ -1,0 +1,55 @@
+# Local stack for PCCS. `docker compose up -d db` then `cd bck && uv run alembic upgrade head`.
+#
+# Only the database is here. The backend runs on the host (`uv run uvicorn`) so that a
+# rebuild is not the price of every code change, and because the image would otherwise
+# have to carry PaddlePaddle and the CV wheels before a single endpoint exists.
+#
+# The image is pgvector/pgvector:pg16 rather than postgres:16 so the copilot's embedding
+# work later needs no image swap, and so CI runs the identical image — a CI database that
+# differs from the local one is how a green build stops meaning anything. The `vector`
+# extension is not enabled by any migration yet; nothing in the schema stores an embedding.
+#
+# Credentials here are local development defaults and are deliberately weak. Anything
+# reachable from outside a laptop takes them from the environment.
+#
+# PORT SHADOWING — read this if the database behaves oddly on your machine.
+# If a PostgreSQL cluster is already listening on 127.0.0.1:5432 (a distro package, a
+# Homebrew install, another project's container), it wins over the port published here.
+# The container still starts and still reports healthy, but DATABASE_URL then reaches
+# that local cluster instead of this one, and every migration and test runs against the
+# wrong server. Check with `psql "$DATABASE_URL" -tAc "select version()"`: it must say
+# 16.x, and it must not say anything else.
+#
+# The fix is to move the published port AND the DSN together:
+#     echo POSTGRES_PORT=5433 >> .env                        # repo root
+#     DATABASE_URL=postgresql+psycopg://pccs:pccs@localhost:5433/pccs   # bck/.env
+#
+# Both are needed, and they live in two different files with nothing linking them.
+# Compose reads POSTGRES_PORT from the .env beside this file (the repo root); the
+# application and Alembic read DATABASE_URL from bck/.env, because pydantic-settings
+# resolves `env_file=".env"` against the working directory and the documented commands
+# run from bck/. Setting one without the other is a silent mismatch: compose publishes
+# on the new port while the DSN still points at the old one.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pccs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pccs}
+      POSTGRES_DB: ${POSTGRES_DB:-pccs}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pccs-db-data:/var/lib/postgresql/data
+    healthcheck:
+      # `docker compose up` reports healthy only once the server accepts connections,
+      # so `alembic upgrade head` straight afterwards does not race the first boot.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pccs} -d ${POSTGRES_DB:-pccs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  pccs-db-data:
