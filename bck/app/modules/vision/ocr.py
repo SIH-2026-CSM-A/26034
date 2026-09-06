@@ -27,9 +27,13 @@ class ArbitrationResult:
 
 
 def _extract_numeric_value(text: str) -> str:
-    """Strips currency symbols, whitespace, and formatting to compare underlying numbers."""
-    cleaned = re.sub(r"[^\d.]", "", text)
-    return cleaned
+    """Extracts the first valid numeric amount string, ignoring punctuation like 'Rs.'."""
+    # Find numeric sequences potentially containing commas or decimals
+    matches = re.findall(r"\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?", text)
+    if not matches:
+        return ""
+    # Normalize by removing commas for precise numeric comparison
+    return matches[0].replace(",", "")
 
 
 def arbitrate_mrp(
@@ -93,7 +97,6 @@ def extract_panel_text(
     if not results:
         return spans
 
-    # PaddleOCR 3.x result format normalization (handles list or dict returns)
     lines = results[0] if isinstance(results, list) and len(results) > 0 else results
     if not lines:
         return spans
