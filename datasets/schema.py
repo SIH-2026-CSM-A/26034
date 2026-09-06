@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Category(str, Enum):
@@ -45,11 +45,13 @@ class ReferenceObjectType(str, Enum):
     """Known fiducial or reference object present in frame for calibration."""
 
     NONE = "none"
-    COIN_INR_1 = "coin_inr_1"  # 21.93 mm
-    COIN_INR_2 = "coin_inr_2"  # 25.00 mm
-    COIN_INR_5 = "coin_inr_5"  # 25.00 mm nickel-brass / 23.0 mm stainless
-    COIN_INR_10 = "coin_inr_10"  # 27.00 mm bimetallic
+    # Rs10 is the ONLY coin with a sourced dimension on this project (27.0 mm,
+    # RBI-confirmed, SIH26034_TI.md s15). The Rs1/Rs2/Rs5 members were removed:
+    # their dimensions were written from memory, and coin_inr_5 at 25.0 mm is on
+    # the Hard Nos list. Do not re-add a coin without a corpus or RBI source.
+    COIN_INR_10 = "coin_inr_10"  # 27.0 mm bimetallic
     CREDIT_CARD_ID1 = "credit_card_id1"  # ISO/IEC 7810 ID-1: 85.60 mm x 53.98 mm
+    EAN_13 = "ean_13"  # 37.29 mm nominal total width at 100% magnification
     ARUCO_MARKER = "aruco_marker"
     RULER_SCALE = "ruler_scale"
     CHECKERBOARD = "checkerboard"
@@ -68,15 +70,9 @@ class Rule7TableBand(str, Enum):
     """Rule 7(2) Table-I bands based on Principal Display Panel area (cm²)."""
 
     A_LE_50 = "A_le_50"  # Area <= 50 cm²: min 1.0 mm (1.5 mm blown/moulded)
-    A_50_TO_100 = (
-        "50_lt_A_le_100"  # 50 < Area <= 100 cm²: min 1.5 mm (3.0 mm blown/moulded)
-    )
-    A_100_TO_500 = (
-        "100_lt_A_le_500"  # 100 < Area <= 500 cm²: min 2.5 mm (4.0 mm blown/moulded)
-    )
-    A_500_TO_2500 = (
-        "500_lt_A_le_2500"  # 500 < Area <= 2500 cm²: min 4.0 mm (6.0 mm blown/moulded)
-    )
+    A_50_TO_100 = "50_lt_A_le_100"  # 50 < Area <= 100 cm²: min 1.5 mm (3.0 mm blown/moulded)
+    A_100_TO_500 = "100_lt_A_le_500"  # 100 < Area <= 500 cm²: min 2.5 mm (4.0 mm blown/moulded)
+    A_500_TO_2500 = "500_lt_A_le_2500"  # 500 < Area <= 2500 cm²: min 4.0 mm (6.0 mm blown/moulded)
     A_GT_2500 = "2500_lt_A"  # Area > 2500 cm²: min 6.0 mm (6.0 mm blown/moulded)
 
 
@@ -105,8 +101,12 @@ class ReferenceObject(BaseModel):
 
     present: bool = Field(description="True if a known reference object is in frame.")
     object_type: ReferenceObjectType = Field(
-        default=ReferenceObjectType.NONE,
-        description="Type of calibration object.",
+        description=(
+            "Type of calibration object. Required, with no default: a sample "
+            "claiming present=True while object_type defaulted to 'none' is the "
+            "shape of a fabricated calibration claim, and a default lets it pass "
+            "review silently."
+        ),
     )
     known_dimension_mm: float | None = Field(
         default=None,
@@ -121,6 +121,32 @@ class ReferenceObject(BaseModel):
         description="Normalized bounding box [xmin, ymin, xmax, ymax] in [0, 1].",
     )
 
+    @model_validator(mode="after")
+    def _presence_and_identity_agree(self) -> ReferenceObject:
+        """Refuse a reference object that is claimed but not identified.
+
+        A calibrated measurement is only defensible if the frame really holds an
+        object of known size. present=True with no object_type, or no
+        known_dimension_mm, is a claim nothing backs -- and it is what would let a
+        millimetre figure out of an uncalibrated photograph. The converse is
+        equally wrong: present=False must not carry a dimension or a bbox.
+        """
+        if self.present:
+            if self.object_type is ReferenceObjectType.NONE:
+                raise ValueError("reference_object.present is True but object_type is 'none'")
+            if self.known_dimension_mm is None:
+                raise ValueError("reference_object.present is True but known_dimension_mm is null")
+        else:
+            if self.object_type is not ReferenceObjectType.NONE:
+                raise ValueError(
+                    "reference_object.present is False but object_type names an object"
+                )
+            if self.known_dimension_mm is not None or self.bbox is not None:
+                raise ValueError(
+                    "reference_object.present is False but carries a dimension or bbox"
+                )
+        return self
+
 
 class PDPInfo(BaseModel):
     """Principal Display Panel dimensional attributes and Rule 7 banding."""
@@ -129,9 +155,7 @@ class PDPInfo(BaseModel):
 
     shape: PDPShape = Field(description="Geometric shape classification.")
     height_cm: float | None = Field(default=None, description="Height in cm.")
-    width_cm: float | None = Field(
-        default=None, description="Width in cm (rectangular)."
-    )
+    width_cm: float | None = Field(default=None, description="Width in cm (rectangular).")
     circumference_cm: float | None = Field(
         default=None,
         description="Circumference in cm (cylindrical).",
@@ -180,9 +204,7 @@ class DeclarationField(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    declared: bool = Field(
-        description="True if declaration is present on package label."
-    )
+    declared: bool = Field(description="True if declaration is present on package label.")
     raw_text: str | None = Field(
         default=None,
         description="Verbatim text as printed on package.",
@@ -250,7 +272,8 @@ class Rule6Declarations(BaseModel):
     consumer_care_details: DeclarationField = Field(
         description="Rule 6(1)(n) Consumer care contact cell: name, address, telephone, email."
     )
-    # Rule 6(1)(aa) & GSR 128(E): Country of origin
+    # Rule 6(1)(aa): country of origin ON THE PACKAGE. Not Rule 6(10A)
+    # (GSR 128(E)), which is an e-commerce listing filter obligation.
     country_of_origin: DeclarationField = Field(
         description="Rule 6(1)(aa) Country of origin declaration."
     )
@@ -261,9 +284,7 @@ class LabelledSample(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    sample_id: str = Field(
-        description="Unique sample identifier (e.g. food_parle_g_001)."
-    )
+    sample_id: str = Field(description="Unique sample identifier (e.g. food_parle_g_001).")
     sku_id: str = Field(description="SKU identifier (e.g. food_parle_g_biscuits).")
     image_filename: str = Field(description="Filename of corresponding raw image.")
     image_sha256: str | None = Field(
@@ -282,9 +303,7 @@ class LabelledSample(BaseModel):
     reference_object: ReferenceObject = Field(
         description="Calibration reference target details.",
     )
-    pdp: PDPInfo = Field(
-        description="Principal Display Panel parameters and Rule 7 band."
-    )
+    pdp: PDPInfo = Field(description="Principal Display Panel parameters and Rule 7 band.")
     declarations: Rule6Declarations = Field(
         description="Ground-truth Rule 6(1) and 6(11) declarations.",
     )

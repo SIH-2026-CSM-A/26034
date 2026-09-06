@@ -302,8 +302,7 @@
         },
         "object_type": {
           "$ref": "#/$defs/ReferenceObjectType",
-          "default": "none",
-          "description": "Type of calibration object."
+          "description": "Type of calibration object. Required, with no default: a sample claiming present=True while object_type defaulted to 'none' is the shape of a fabricated calibration claim, and a default lets it pass review silently."
         },
         "known_dimension_mm": {
           "anyOf": [
@@ -349,7 +348,8 @@
         }
       },
       "required": [
-        "present"
+        "present",
+        "object_type"
       ],
       "title": "ReferenceObject",
       "type": "object"
@@ -358,11 +358,9 @@
       "description": "Known fiducial or reference object present in frame for calibration.",
       "enum": [
         "none",
-        "coin_inr_1",
-        "coin_inr_2",
-        "coin_inr_5",
         "coin_inr_10",
         "credit_card_id1",
+        "ean_13",
         "aruco_marker",
         "ruler_scale",
         "checkerboard"
@@ -404,7 +402,7 @@
         },
         "country_of_origin": {
           "$ref": "#/$defs/DeclarationField",
-          "description": "Rule 6(1)(g) / GSR 128(E) Country of origin declaration."
+          "description": "Rule 6(1)(aa) Country of origin declaration."
         }
       },
       "required": [
