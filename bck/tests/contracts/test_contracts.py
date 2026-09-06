@@ -15,6 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.contracts import (
     CatalogueRecord,
+    CategoryProposal,
     DeclarationField,
     EvidenceProvider,
     ExtractedSpan,
@@ -25,6 +26,7 @@ from app.contracts import (
     MeasurementRefusal,
     MeasurementResult,
     NormalisedField,
+    ProductCategory,
     RuleDefinition,
     RuleParameterSnapshot,
     RuleSetVersion,
@@ -513,6 +515,90 @@ def test_a_normalised_field_must_cite_at_least_one_span() -> None:
             normalised_value="45",
             parse_confidence=0.9,
         )
+
+
+def test_product_category_has_exactly_three_members() -> None:
+    assert len(ProductCategory) == 3, (
+        "A member of ProductCategory is a routing target, not a label. Adding one "
+        "without the gazette provision that routes an obligation away from these Rules "
+        "gives the sector dispatch a category it will match no rule for."
+    )
+    assert set(ProductCategory) == {
+        ProductCategory.FOOD,
+        ProductCategory.COSMETICS,
+        ProductCategory.MEDICAL_DEVICE,
+    }
+
+
+def test_product_category_values_match_the_rule_store_sector_keys() -> None:
+    """The one property the move could have broken silently.
+
+    ``sector_overrides`` matches these values against the ``sector:`` keys in the rule
+    store. Upper-casing them to match every other vocabulary in this package would leave
+    every type check passing and every sector override matching nothing — a medical
+    device evaluated against Rule 7 Table-I, which G.S.R. 778(E) disapplies.
+    """
+    assert {category.value for category in ProductCategory} == {
+        "food",
+        "cosmetics",
+        "medical_device",
+    }
+
+
+def test_the_rules_module_and_contracts_share_one_product_category() -> None:
+    """Re-export, not a copy.
+
+    ``rules/base.py`` names this type so its four internal importers keep working, but a
+    second class with the same members would let the two drift: a category confirmed
+    against one would route to nothing through the other. Identity, not equality —
+    equality is what a copy would also satisfy.
+    """
+    from app.modules.rules import ProductCategory as RulesProductCategory
+
+    assert RulesProductCategory is ProductCategory
+
+
+def test_a_category_proposal_must_cite_at_least_one_span() -> None:
+    """An evidence-free proposal is unconstructible, not discouraged."""
+    with pytest.raises(ValidationError):
+        CategoryProposal(
+            category=ProductCategory.FOOD,
+            confidence=0.91,
+            span_refs=(),
+            reason="the panel declares a nutritional information table",
+        )
+
+
+def test_a_category_proposal_must_say_why() -> None:
+    with pytest.raises(ValidationError):
+        CategoryProposal(
+            category=ProductCategory.FOOD,
+            confidence=0.91,
+            span_refs=("span-1",),
+            reason="",
+        )
+
+
+def test_a_category_proposal_confidence_stays_within_zero_and_one() -> None:
+    for confidence in (-0.1, 1.1):
+        with pytest.raises(ValidationError):
+            CategoryProposal(
+                category=ProductCategory.MEDICAL_DEVICE,
+                confidence=confidence,
+                span_refs=("span-1",),
+                reason="the package bears a CDSCO import licence number",
+            )
+
+
+def test_a_category_proposal_carries_its_evidence() -> None:
+    proposal = CategoryProposal(
+        category=ProductCategory.COSMETICS,
+        confidence=0.74,
+        span_refs=("span-2", "span-5"),
+        reason="the panel bears a shelf-life declaration in the cosmetics form",
+    )
+    assert proposal.span_refs == ("span-2", "span-5")
+    assert proposal.category is ProductCategory.COSMETICS
 
 
 def test_declaration_fields_cover_the_rule_6_obligations() -> None:
