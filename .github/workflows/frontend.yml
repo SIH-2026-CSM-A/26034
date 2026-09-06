@@ -1,10 +1,15 @@
 name: Frontend
 
+# Runs on every pull request, deliberately — do not re-add a paths: filter, and do not
+# guard the job with an if:. `frontend` is a required status check on the
+# main-protection ruleset, and a workflow skipped by path posts no status at all rather
+# than a passing one. A required check that never arrives blocks the merge forever: every
+# backend-only PR from #30 onward needed --admin to merge because of exactly that. A job
+# skipped by an if: condition is the same deadlock in a different costume.
+#
+# The cost is ~22s on a backend PR. That is the price of a gate that actually holds.
 on:
   pull_request:
-    paths:
-      - 'fnt/**'
-      - '.github/workflows/frontend.yml'
 
 jobs:
   frontend:
