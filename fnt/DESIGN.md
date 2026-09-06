@@ -77,6 +77,22 @@ is not a signal, it is a rounding error. Trading the visibility of the focus sta
 2 percentage points of text contrast makes the screen worse for everyone in order to
 make one number pass. The chip ground fixes both.
 
+### The hatch-under-text finding
+
+The same measurement, run against the INSUFFICIENT EVIDENCE ground, found a second
+defect. Slate Void over Field Paper is 5.66:1, but **over a hatch line it is 3.4:1** —
+below AA wherever a stroke crosses a letter. A hatched ground is a legitimate channel; a
+hatched ground running under 13px text is not.
+
+**The fix keeps the channel and moves the text off it: the chip's label and glyph sit on
+an inset Field Paper plate, and the hatch frames them.** The hatch is still visible, still
+geometric, still survives desaturation, and the label holds 5.66:1. The same hatch marks
+the unresolved search region on the capture register, where there is no text over it and
+it needs no plate.
+
+Nothing else in the system sets text over the hatch. If a future component wants to, it
+carries a plate too, or it picks a different ground.
+
 ---
 
 ## Type
