@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.modules.rules import (
+    ProductCategory,
     Rule7Route,
     Verdict,
     WidthRatioResult,
@@ -18,6 +19,8 @@ from app.modules.rules import (
     rule7_requirements_apply,
     validate_width_to_height,
 )
+
+EVALUATION_DATE = date(2026, 9, 6)
 
 
 @pytest.mark.parametrize(
@@ -41,12 +44,18 @@ def test_table_i_boundaries_for_both_columns(
     """Each inclusive upper boundary must remain in its lower Table-I band."""
     panel_area = Decimal(area)
 
-    assert minimum_character_height(panel_area, is_blown_formed_or_moulded=False) == Decimal(
-        normal_height
-    )
-    assert minimum_character_height(panel_area, is_blown_formed_or_moulded=True) == Decimal(
-        moulded_height
-    )
+    assert minimum_character_height(
+        panel_area,
+        is_blown_formed_or_moulded=False,
+        product_category=None,
+        evaluation_date=EVALUATION_DATE,
+    ) == Decimal(normal_height)
+    assert minimum_character_height(
+        panel_area,
+        is_blown_formed_or_moulded=True,
+        product_category=None,
+        evaluation_date=EVALUATION_DATE,
+    ) == Decimal(moulded_height)
 
 
 @pytest.mark.parametrize(
@@ -132,11 +141,11 @@ def test_medical_device_height_routes_to_review_without_table_lookup() -> None:
         panel_area=Decimal("-1"),
         measured_height=Decimal("-1"),
         is_blown_formed_or_moulded=False,
-        is_medical_device=True,
+        product_category=ProductCategory.MEDICAL_DEVICE,
         evaluation_date=date(2025, 10, 24),
     )
 
-    assert result.route is Rule7Route.MEDICAL_DEVICES_RULES_2017
+    assert result.route is Rule7Route.SECTOR_FRAMEWORK
     assert result.verdict is Verdict.REVIEW
 
 
@@ -146,7 +155,7 @@ def test_ordinary_package_height_uses_table_i() -> None:
         panel_area=Decimal("50"),
         measured_height=Decimal("0.9"),
         is_blown_formed_or_moulded=False,
-        is_medical_device=False,
+        product_category=None,
         evaluation_date=date(2025, 10, 24),
     )
 
@@ -160,11 +169,11 @@ def test_medical_device_width_routes_to_review_without_ratio_validation() -> Non
         character="A",
         width=Decimal("-1"),
         height=Decimal("-1"),
-        is_medical_device=True,
+        product_category=ProductCategory.MEDICAL_DEVICE,
         evaluation_date=date(2025, 10, 24),
     )
 
-    assert result.route is Rule7Route.MEDICAL_DEVICES_RULES_2017
+    assert result.route is Rule7Route.SECTOR_FRAMEWORK
     assert result.verdict is Verdict.REVIEW
     assert result.ratio_result is None
 
@@ -175,7 +184,7 @@ def test_medical_override_does_not_apply_before_gazette_publication() -> None:
         panel_area=Decimal("50"),
         measured_height=Decimal("1"),
         is_blown_formed_or_moulded=False,
-        is_medical_device=True,
+        product_category=ProductCategory.MEDICAL_DEVICE,
         evaluation_date=date(2025, 10, 23),
     )
 

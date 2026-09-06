@@ -146,6 +146,14 @@ EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
     "R7-4-PDP-AREA": "GSR-629E__2017-06-23__amendment-rules-2017.pdf",
     "R7-5-OTHER-LAW": "GSR-629E__2017-06-23__amendment-rules-2017.pdf",
     "R7-MEDICAL-DEVICE-OVERRIDE": "GSR-778E__2025-10-23__medical-devices-mdr-2017.pdf",
+    "R6-1-A-EXPL-III-FOOD": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R6-1-D-COSMETICS": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R8-1-PDP-PLACEMENT": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R8-1-FREE-SPACE": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R9-1-MANNER": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R9-3-OUTER-CONTAINER": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+    "R2-KA-COMBINATION-PACKAGE": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
+    "R2-KB-GROUP-PACKAGE": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
     "R6-10A-GSR-128E": "GSR-128E__2026-02-13__country-of-origin-ecommerce-filter.pdf",
     "R6-10A-GSR-312E": "GSR-312E__2026-04-27__country-of-origin-second-amendment.pdf",
 }
@@ -156,3 +164,24 @@ def test_explicit_rule_id_gazette_provenance_mapping() -> None:
     rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
     actual_mapping = {rule.rule_id: rule.gazette_ref for rule in rules}
     assert actual_mapping == EXPECTED_RULE_GAZETTE_MAPPING
+
+
+def test_a_rule_citing_an_absent_corpus_file_fails_to_load(tmp_path: Path) -> None:
+    """A well-formed gazette_ref naming a file nobody has is still a failed load.
+
+    The filename passes schema validation — it is a bare PDF name — so nothing but the
+    corpus check stands between a plausible-looking citation and a rule that cannot be
+    traced to a document. The failure names the rule so the citation can be fixed rather
+    than the check removed.
+    """
+    payload = _valid_rule_payload()
+    payload["gazette_ref"] = "GSR-999E__2099-01-01__a-gazette-nobody-downloaded.pdf"
+
+    with pytest.raises(RuleLoadError, match="TEST-RULE gazette_ref does not exist"):
+        load_rules(_write_rule_store(tmp_path, payload), corpus_dir=CORPUS_DIRECTORY)
+
+
+def test_the_shipped_store_resolves_every_citation_against_the_real_corpus() -> None:
+    """The same gate, exercised against the committed store rather than a fixture."""
+    for rule in load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY):
+        assert (CORPUS_DIRECTORY / rule.gazette_ref).is_file()

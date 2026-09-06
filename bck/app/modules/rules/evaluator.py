@@ -3,35 +3,30 @@
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-from .loader import load_default_rules
-from .models import (
+from .base import (
+    OverrideTarget,
+    ProductCategory,
+    Rule7Route,
+    RuleStatus,
+    Verdict,
+    WidthRatioResult,
+)
+from .conditions import (
     NumericConstraint,
     OtherLawCarveOutCondition,
     PdpAreaCondition,
-    Rule7HeightEvaluation,
-    Rule7Route,
-    Rule7WidthEvaluation,
-    RuleDefinition,
-    RuleStatus,
     TableHeightCondition,
-    Verdict,
     WidthRatioCondition,
-    WidthRatioResult,
 )
+from .loader import rule_by_id
+from .models import RuleDefinition
+from .results import Rule7HeightEvaluation, Rule7WidthEvaluation
+from .sector import SectorRoutedError, controlling_framework
 
 TABLE_I_RULE_ID = "R7-2-TABLE-I"
 WIDTH_RATIO_RULE_ID = "R7-3-WIDTH-RATIO"
 PDP_AREA_RULE_ID = "R7-4-PDP-AREA"
 OTHER_LAW_CARVE_OUT_RULE_ID = "R7-5-OTHER-LAW"
-MEDICAL_OVERRIDE_RULE_ID = "R7-MEDICAL-DEVICE-OVERRIDE"
-
-
-def _rule_by_id(rule_id: str) -> RuleDefinition:
-    """Return one packaged rule by stable identifier."""
-    matches = [rule for rule in load_default_rules() if rule.rule_id == rule_id]
-    if len(matches) != 1:
-        raise ValueError(f"expected one rule for {rule_id}, found {len(matches)}")
-    return matches[0]
 
 
 def _positive(value: Decimal, field_name: str) -> Decimal:
@@ -39,21 +34,6 @@ def _positive(value: Decimal, field_name: str) -> Decimal:
     if not value.is_finite() or value <= 0:
         raise ValueError(f"{field_name} must be finite and greater than zero")
     return value
-
-
-def _is_active(rule: RuleDefinition, evaluation_date: date) -> bool:
-    """Return whether a rule is effective on the supplied date."""
-    return rule.effective_from <= evaluation_date and (
-        rule.effective_to is None or evaluation_date <= rule.effective_to
-    )
-
-
-def _medical_override_applies(is_medical_device: bool, evaluation_date: date) -> bool:
-    """Apply the medical-device route only from its gazette publication date."""
-    return is_medical_device and _is_active(
-        _rule_by_id(MEDICAL_OVERRIDE_RULE_ID),
-        evaluation_date,
-    )
 
 
 def evaluate_rule(rule: RuleDefinition, proposed_verdict: Verdict) -> Verdict:
@@ -84,10 +64,36 @@ def minimum_character_height(
     panel_area: Decimal,
     *,
     is_blown_formed_or_moulded: bool,
+    product_category: ProductCategory | None,
+    evaluation_date: date,
 ) -> Decimal:
-    """Return the Rule 7 Table-I height for a supplied positive PDP area."""
+    """Return the Rule 7 Table-I height for a supplied positive PDP area.
+
+    **Table-I is not universal.** G.S.R. 778(E) routes the height of any numeral and
+    letter on a medical device package to the Medical Devices Rules, 2017, so a Table-I
+    figure is not merely the wrong number for such a package — it is a requirement from a
+    provision that does not apply to it. The guard sits in this lookup rather than in the
+    two evaluators that call it because this function is exported: a sector-blind caller
+    reaching it directly is exactly how a Table-I band reaches a medical device, and one
+    guard here covers every caller instead of one guard per callsite.
+
+    Raises :class:`~app.modules.rules.sector.SectorRoutedError` when a sector override
+    controls character height, and :class:`ValueError` for a non-positive area.
+    """
+    routed = controlling_framework(
+        OverrideTarget.TABLE_HEIGHT,
+        product_category,
+        evaluation_date,
+    )
+    if routed is not None:
+        raise SectorRoutedError(
+            f"character height for {routed.sector} packages is governed by "
+            f"{routed.controlling_framework} per rule {routed.rule_id}; Rule 7 Table-I "
+            f"does not apply"
+        )
+
     area = _positive(panel_area, "panel_area")
-    condition = _rule_by_id(TABLE_I_RULE_ID).conditions
+    condition = rule_by_id(TABLE_I_RULE_ID).conditions
     if not isinstance(condition, TableHeightCondition):
         raise TypeError(f"{TABLE_I_RULE_ID} does not contain a table-height condition")
 
@@ -112,7 +118,7 @@ def validate_width_to_height(
     height: Decimal,
 ) -> WidthRatioResult:
     """Evaluate Rule 7(3) while preserving each named character exception."""
-    condition = _rule_by_id(WIDTH_RATIO_RULE_ID).conditions
+    condition = rule_by_id(WIDTH_RATIO_RULE_ID).conditions
     if not isinstance(condition, WidthRatioCondition):
         raise TypeError(f"{WIDTH_RATIO_RULE_ID} does not contain a width-ratio condition")
     if character in condition.exempt_characters:
@@ -138,7 +144,7 @@ def calculate_cylindrical_pdp_area(
 ) -> Decimal:
     """Calculate cylindrical or nearly cylindrical PDP area using Rule 7(4)."""
     del nearly_cylindrical
-    condition = _rule_by_id(PDP_AREA_RULE_ID).conditions
+    condition = rule_by_id(PDP_AREA_RULE_ID).conditions
     if not isinstance(condition, PdpAreaCondition):
         raise TypeError(f"{PDP_AREA_RULE_ID} does not contain a PDP-area condition")
     return (
@@ -155,7 +161,7 @@ def calculate_other_shape_pdp_area(
     legally_applicable_pdp_area: Decimal | None = None,
 ) -> Decimal:
     """Calculate another shape by exactly one Rule 7(4) alternative."""
-    condition = _rule_by_id(PDP_AREA_RULE_ID).conditions
+    condition = rule_by_id(PDP_AREA_RULE_ID).conditions
     if not isinstance(condition, PdpAreaCondition):
         raise TypeError(f"{PDP_AREA_RULE_ID} does not contain a PDP-area condition")
     if (total_surface_area is None) == (legally_applicable_pdp_area is None):
@@ -181,7 +187,7 @@ def rule7_requirements_apply(
     """Apply the Rule 7(5) carve-out while retaining preserved sizing groups."""
     if not required_under_other_law:
         return True
-    condition = _rule_by_id(OTHER_LAW_CARVE_OUT_RULE_ID).conditions
+    condition = rule_by_id(OTHER_LAW_CARVE_OUT_RULE_ID).conditions
     if not isinstance(condition, OtherLawCarveOutCondition):
         raise TypeError(f"{OTHER_LAW_CARVE_OUT_RULE_ID} has the wrong condition type")
     return declaration in condition.preserved_declarations
@@ -192,24 +198,37 @@ def evaluate_rule7_height(
     panel_area: Decimal,
     measured_height: Decimal,
     is_blown_formed_or_moulded: bool,
-    is_medical_device: bool,
+    product_category: ProductCategory | None,
     evaluation_date: date,
 ) -> Rule7HeightEvaluation:
-    """Route medical devices to REVIEW and ordinary packages through Table-I."""
-    if _medical_override_applies(is_medical_device, evaluation_date):
+    """Route a carved-out sector to its own framework, others through Table-I.
+
+    A routed package returns ``REVIEW`` with no ``required_height_mm``: this module has
+    no Medical Devices Rules, 2017 thresholds encoded and will not invent one, so the
+    honest output is that the packaged rules do not decide it.
+    """
+    routed = controlling_framework(
+        OverrideTarget.TABLE_HEIGHT,
+        product_category,
+        evaluation_date,
+    )
+    if routed is not None:
         return Rule7HeightEvaluation(
-            route=Rule7Route.MEDICAL_DEVICES_RULES_2017,
+            route=Rule7Route.SECTOR_FRAMEWORK,
             verdict=Verdict.REVIEW,
             required_height_mm=None,
+            override=routed,
         )
 
     required_height = minimum_character_height(
         panel_area,
         is_blown_formed_or_moulded=is_blown_formed_or_moulded,
+        product_category=product_category,
+        evaluation_date=evaluation_date,
     )
     observed_height = _positive(measured_height, "measured_height")
     proposed = Verdict.PASS if observed_height >= required_height else Verdict.POTENTIAL_VIOLATION
-    verdict = evaluate_rule(_rule_by_id(TABLE_I_RULE_ID), proposed)
+    verdict = evaluate_rule(rule_by_id(TABLE_I_RULE_ID), proposed)
     return Rule7HeightEvaluation(
         route=Rule7Route.LMPC_TABLE_I,
         verdict=verdict,
@@ -222,15 +241,21 @@ def evaluate_rule7_width(
     character: str,
     width: Decimal,
     height: Decimal,
-    is_medical_device: bool,
+    product_category: ProductCategory | None,
     evaluation_date: date,
 ) -> Rule7WidthEvaluation:
-    """Route medical devices to REVIEW and ordinary packages through Rule 7(3)."""
-    if _medical_override_applies(is_medical_device, evaluation_date):
+    """Route a carved-out sector to its own framework, others through Rule 7(3)."""
+    routed = controlling_framework(
+        OverrideTarget.WIDTH_RATIO,
+        product_category,
+        evaluation_date,
+    )
+    if routed is not None:
         return Rule7WidthEvaluation(
-            route=Rule7Route.MEDICAL_DEVICES_RULES_2017,
+            route=Rule7Route.SECTOR_FRAMEWORK,
             verdict=Verdict.REVIEW,
             ratio_result=None,
+            override=routed,
         )
 
     ratio_result = validate_width_to_height(character, width, height)
@@ -239,7 +264,7 @@ def evaluate_rule7_width(
         if ratio_result is WidthRatioResult.DOES_NOT_MEET
         else Verdict.PASS
     )
-    verdict = evaluate_rule(_rule_by_id(WIDTH_RATIO_RULE_ID), proposed)
+    verdict = evaluate_rule(rule_by_id(WIDTH_RATIO_RULE_ID), proposed)
     return Rule7WidthEvaluation(
         route=Rule7Route.LMPC_TABLE_I,
         verdict=verdict,

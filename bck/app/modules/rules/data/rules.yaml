@@ -291,19 +291,32 @@ rules:
     evidence_requirement: declaration_type_and_other_law_applicability
     severity: REVIEW
 
+  # G.S.R. 778(E) is a CARVE-OUT, not a stricter path: it moves height, width and the
+  # panel declaration to the Medical Devices Rules, 2017 and removes the Rule 33
+  # relaxation. Nothing here raises a threshold — Rule 7 Table-I simply stops applying.
+  #
+  # The gazette states "rule 33 shall be numbered as sub-rule (1)" and inserts a new
+  # sub-rule (2). The Maharashtra compilation already shows a 33(1) and a 33(2), so the
+  # two texts disagree on the pre-amendment numbering. The compilation is semi-official
+  # and the gazette is primary, so the gazette's numbering is what is encoded and cited.
   - rule_id: R7-MEDICAL-DEVICE-OVERRIDE
-    clause_ref: Rule 2(h), Rule 7(2)-(3), Rule 33(2)
+    clause_ref: Rule 2(h) proviso, Rule 7(2) proviso, Rule 7(3) proviso, Rule 33(2)
     gazette_ref: GSR-778E__2025-10-23__medical-devices-mdr-2017.pdf
     source_text: >-
-      Provided that for packages containing medical devices, the provisions of the Medical
-      Devices Rules, 2017, shall apply to make declarations. Provided that for packages
+      In rule 2, to clause (h), the following proviso shall be inserted, namely:- "Provided
+      that for packages containing medical devices, the provisions of the Medical Devices
+      Rules, 2017, shall apply to make declarations;". In rule 7, in sub-rule (2), the
+      following proviso shall be inserted at the end, namely:- "Provided that for packages
       containing medical devices, the provisions of the Medical Devices Rules, 2017, shall
-      apply for the height of any numeral and letter to make declarations. Provided that for
-      packages containing medical devices, the provisions of the Medical Devices Rules, 2017,
-      shall apply for the width of any numeral and letter to make declarations. In case where
-      the Medical Devices Rules, 2017 are applicable, the relaxation given under this rule
-      shall not apply.
+      apply for the height of any numeral and letter to make declarations."; to sub-rule (3),
+      the following proviso shall be inserted at the end, namely:- "Provided that for packages
+      containing medical devices, the provisions of the Medical Devices Rules, 2017, shall
+      apply for the width of any numeral and letter to make declarations.". Rule 33 shall be
+      numbered as sub-rule (1) and the following sub-rule shall be inserted, namely:- "(2) In
+      case where the Medical Devices Rules, 2017 are applicable, the relaxation given under
+      this rule shall not apply.".
     status: VERIFIED
+    # In force on the date of publication in the official gazette, which is 24.10.2025.
     effective_from: 2025-10-24
     effective_to: null
     applies_to: [medical_device_packages]
@@ -311,8 +324,197 @@ rules:
       kind: sector_override
       sector: medical_device
       controlling_framework: Medical Devices Rules, 2017
-      overrides: [table_height, width_ratio]
+      overrides: [table_height, width_ratio, pdp_declaration]
+      disapplies_rule_33_relaxation: true
     evidence_requirement: medical_device_classification_and_mdr_specific_evidence
+    severity: REVIEW
+
+  # Explanation III disapplies Rule 6(1)(a) for food articles outright and routes the
+  # manufacturer declaration to the Food Safety and Standards Act, 2006.
+  #
+  # effective_from is INHERITED from R6-1-A, the clause this explanation sits inside. The
+  # Maharashtra compilation states no separate commencement for the explanation, and
+  # inheriting a date the store already commits to is preferable to inventing one.
+  - rule_id: R6-1-A-EXPL-III-FOOD
+    clause_ref: Rule 6(1)(a) Explanation III
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Explanation III. - In respect of packages containing food articles, the provisions of
+      this clause shall not apply, but the provisions of, and the requirements specified in
+      the Food Safety and Standards Act, 2006 (34 of 2006) and the rules made there under
+      shall apply;
+    status: VERIFIED
+    effective_from: 2018-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: sector_override
+      sector: food
+      controlling_framework: Food Safety and Standards Act, 2006
+      overrides: [manufacturer_declaration]
+    evidence_requirement: food_article_classification_and_fssa_declaration_evidence
+    severity: REVIEW
+
+  # The third proviso to Rule 6(1)(d) routes the date declaration for cosmetics to the
+  # Drugs and Cosmetics Rules, 1945.
+  #
+  # effective_from is INHERITED from R6-1-D, the clause this proviso sits inside. The
+  # compilation states no separate commencement for the proviso.
+  - rule_id: R6-1-D-COSMETICS
+    clause_ref: Rule 6(1)(d) third proviso
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Provided also that for packages containing cosmetics products, the provisions of the
+      Drugs and Cosmetics Rules, 1945 shall apply.
+    status: VERIFIED
+    effective_from: 2022-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: sector_override
+      sector: cosmetics
+      controlling_framework: Drugs and Cosmetics Rules, 1945
+      overrides: [date_declaration]
+    evidence_requirement: cosmetic_product_classification_and_dc_rules_date_evidence
+    severity: REVIEW
+
+  # Rule 8 governs WHERE a declaration appears. Rule 9 below governs HOW it appears.
+  # Two rules, two conditions, two evidence requirements — never one merged check.
+  - rule_id: R8-1-PDP-PLACEMENT
+    clause_ref: Rule 8(1)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Every declaration required to be made under these rules shall appear on the principal
+      display panel.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: placement
+      required_location: principal_display_panel
+    evidence_requirement: declaration_location_on_detected_principal_display_panel
+    severity: POTENTIAL VIOLATION
+
+  # The Rule 8(1) proviso is geometrically measurable, so its evidence requirement is a
+  # calibrated MEASUREMENT, not a text span. The multiples are 1 and 2 because the
+  # proviso states them; they are read from here and never written into the evaluator.
+  - rule_id: R8-1-FREE-SPACE
+    clause_ref: Rule 8(1) proviso
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Provided that the area surrounding the quantity declaration shall be free from printed
+      information. (a) above and below by a space equal to at least the height of the numeral
+      in the declaration, and (b) to the left and right by a space at least twice the height
+      of numeral in the declaration.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: free_space
+      above_below_multiple_of_numeral_height: 1
+      left_right_multiple_of_numeral_height: 2
+    evidence_requirement: calibrated_free_space_measurement_around_quantity_declaration
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R9-1-MANNER
+    clause_ref: Rule 9(1)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Every declaration which is required to be made on a package under these rules shall be
+      - (a) legible and prominent; (b) numerals of the retail sale price and net quantity
+      declaration shall be printed, painted or inscribed on the package in a colour that
+      contrasts conspicuously with the background of the label; Provided that,- (a) where any
+      label information is blown, formed or molded on a glass or plastic surface such
+      information need not be required to be presented in a contrasting colour; (b) where any
+      declaration on a package is printed either in the form of hand-writing or hand script,
+      such declaration shall be clear, unambiguous and legible.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: declaration_manner
+      legible_and_prominent: true
+      contrasting_colour_declarations: [retail_sale_price, net_quantity]
+      contrast_exempt_surfaces: [blown_formed_or_moulded_glass, blown_formed_or_moulded_plastic]
+      handwritten_must_be_clear_unambiguous_and_legible: true
+    evidence_requirement: declaration_legibility_and_colour_contrast_observation
+    severity: POTENTIAL VIOLATION
+
+  - rule_id: R9-3-OUTER-CONTAINER
+    clause_ref: Rule 9(3)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      Where a package is provided with an outside container or wrapper such container or
+      wrapper shall also contain all the declarations which are required to appear on the
+      package except where such container or wrapper itself is transparent and the
+      declarations on the package itself are easily readable through such outside wrapper.
+      Provided that no such declarations on the inner package is required, if the outer
+      package contains all declarations required under these rules.
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: outer_container
+      outer_must_carry_all_declarations: true
+      transparent_outer_exempt_when_inner_readable: true
+      inner_declarations_not_required_when_outer_complete: true
+    evidence_requirement: outer_wrapper_transparency_and_declaration_completeness
+    severity: POTENTIAL VIOLATION
+
+  # G.S.R. 722(E) inserted clauses (ka) and (kb) after rule 2 clause (k). In force on
+  # 01.01.2024 per its own paragraph 1(2). A definition classifies a package; it does not
+  # itself propose a violation, so severity is REVIEW.
+  - rule_id: R2-KA-COMBINATION-PACKAGE
+    clause_ref: Rule 2(ka)
+    gazette_ref: GSR-722E__2023-10-06__amendment-rules-2023.pdf
+    source_text: >-
+      "combination package" means a package intended for retail sale, containing two or more
+      individual packages, or individual pieces, of dissimilar commodities; Illustration: A
+      package containing dissimilar commodities such as, spoons, knives, forks, cups, napkins,
+      or the like is a combination package;
+    status: VERIFIED
+    effective_from: 2024-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: package_definition
+      package_type: combination_package
+      intended_for_retail_sale: true
+      minimum_constituent_count: 2
+      constituent_similarity: dissimilar
+      illustrations:
+        - A package containing dissimilar commodities such as spoons, knives, forks, cups, napkins, or the like.
+    evidence_requirement: constituent_package_or_piece_inventory_and_commodity_dissimilarity
+    severity: REVIEW
+
+  - rule_id: R2-KB-GROUP-PACKAGE
+    clause_ref: Rule 2(kb)
+    gazette_ref: GSR-722E__2023-10-06__amendment-rules-2023.pdf
+    source_text: >-
+      "group package" means a package intended for retail sale, containing two or more
+      individual packages, or individual pieces, of similar, but not identical (whether in
+      quantity or size) commodities. Explanation: Commodities which are generally the same but
+      differ in weight, measure or volume, appearance or quality are similar, but not identical
+      commodities.
+    status: VERIFIED
+    effective_from: 2024-01-01
+    effective_to: null
+    applies_to: [retail_packages]
+    conditions:
+      kind: package_definition
+      package_type: group_package
+      intended_for_retail_sale: true
+      minimum_constituent_count: 2
+      constituent_similarity: similar_but_not_identical
+      illustrations:
+        - A package containing two sponges 100 mm x 75 mm x 20 mm, one sponge 100 mm x 100 mm x 30 mm and four sponges 100 mm x 50 mm x 15 mm.
+        - A package containing assorted biscuits.
+        - A package containing similar commodities of different brands.
+    evidence_requirement: constituent_package_or_piece_inventory_and_commodity_similarity
     severity: REVIEW
 
   - rule_id: R6-10A-GSR-128E
