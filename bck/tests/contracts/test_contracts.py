@@ -355,7 +355,15 @@ def test_rule_parameter_values_are_present_directly_on_the_record() -> None:
 
 
 def test_amending_the_rule_afterwards_does_not_re_adjudicate_the_record() -> None:
-    """The failure this modelling decision exists to prevent."""
+    """Pins the property: an amended rule does not reach a snapshot already taken.
+
+    What this does *not* prove is which line provides that. ``RuleParameterSnapshot``
+    annotates ``parameters`` as ``dict[str, JsonValue]``, and validating that annotation
+    rebuilds the mapping, so this test passes even with the copy in ``from_rule`` removed
+    entirely. It goes red only if the isolation is lost in a way the type no longer
+    covers — see :func:`test_nested_rule_parameters_are_snapshotted_by_value` for the
+    mutation that demonstrates it failing.
+    """
     rule = _rule(
         tolerance=Decimal("2"),
         tolerance_basis=ToleranceBasis.PERCENTAGE,
@@ -377,6 +385,41 @@ def test_amending_the_rule_afterwards_does_not_re_adjudicate_the_record() -> Non
     assert snapshot.tolerance == Decimal("2")
     assert snapshot.source_text == "the retail sale price of the package;"
     assert snapshot.parameters == {"required_wording": "inclusive of all taxes"}
+
+
+def test_nested_rule_parameters_are_snapshotted_by_value() -> None:
+    """The same guarantee one level down: a band table amended in place stays out.
+
+    Rule parameters are not flat. A quantity band table is a list of dicts and a format
+    rule is a dict of lists, and an amendment edits those in place as readily as it
+    replaces the mapping. A snapshot that shared them would re-adjudicate a months-old
+    verdict the moment the rule was amended.
+
+    **What this test does not prove.** It cannot fail against the annotation as it stands.
+    ``parameters`` is ``dict[str, JsonValue]``, and validating that walks the mapping and
+    rebuilds every container in it, so the snapshot is isolated with or without the
+    ``deepcopy`` in :meth:`RuleParameterSnapshot.from_rule` — it passes with the copy
+    removed altogether. It was confirmed to go red by widening the field to
+    ``dict[str, Any]``, where pydantic passes nested containers through by identity and
+    the copy becomes the only guard. That is what this test pins: the day someone widens
+    that annotation, the ``deepcopy`` has to still be there or this goes red.
+    """
+    rule = _rule(
+        parameters={
+            "quantity_bands": [{"upto_g": 50, "height_mm": 1}],
+            "permitted_formats": {"date_of_manufacture": ["MM/YYYY"]},
+        }
+    )
+    record = _verdict_record_from(rule)
+
+    rule.parameters["quantity_bands"].append({"upto_g": 200, "height_mm": 2})
+    rule.parameters["quantity_bands"][0]["height_mm"] = 99
+    rule.parameters["permitted_formats"]["date_of_manufacture"].append("DD/MM/YYYY")
+
+    assert record.findings[0].rule_snapshot.parameters == {
+        "quantity_bands": [{"upto_g": 50, "height_mm": 1}],
+        "permitted_formats": {"date_of_manufacture": ["MM/YYYY"]},
+    }
 
 
 def test_a_verdict_record_names_the_provider_behind_each_field() -> None:
