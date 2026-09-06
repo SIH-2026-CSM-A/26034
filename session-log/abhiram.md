@@ -1106,3 +1106,64 @@ the common ancestor is the repo root, which has no ini file, so pytest loads no 
 all. No result moves (nothing under `datasets/` is async, 25 passed either way) and
 `working-directory: bck` is still needed to reach the synced environment that has `app`
 installed, but the comment was wrong in both environments and now says what actually happens.
+
+## Session 8 — 2026-09-07, CTR-005 (Claude Code, Opus 5)
+
+**Margin measurement types as siblings, not subclasses.** PR #47 (MEA-006, still open)
+proposed `MeasurementMarginExact(MeasurementExact)` and
+`MeasurementMarginCalibrated(MeasurementCalibrated)`, children relaxing the parent's
+`value` from `gt=0` to `ge=0`. `contracts/` is single-owner so the type half lands here
+and #47 rebases down to `services.py` plus its tests.
+
+Extracted `_MeasurementExactBase` and `_MeasurementCalibratedBase` — shared fields, no
+`value` declared — and made all four public types siblings of them, each with its own
+constraint and its own `mode` literal. The two bases are deliberately *not* chained even
+though both carry `unit`: `rule_limb` documents Rule 7(4) on the artwork side and Rule
+7(2) on the calibrated side, and sharing the field would force one docstring over both.
+
+**The ticket's premise about `confidence_interval` was wrong, and it mattered.** It
+assumed `gt=0`, so that `measure_margins`' `confidence = max(0, dist_px) * conf_interval`
+would raise on a zero margin. It is `ge=0`, deliberately, with a field docstring and two
+tests pinning both directions — a zero-variance contrast-ratio crop genuinely has no
+spread. So nothing was blocking a "0.0 mm ± 0.0" reading from a photograph. Decision
+after raising it: tighten on `MeasurementMarginCalibrated` alone to `gt=0`, leaving the
+base and `MeasurementCalibrated` at `ge=0`. Zero *value* is a physical fact (flush
+against the edge); zero *interval* is a false precision claim about a distance carrying
+pixel quantisation and reference-object localisation error. Tightening in a child is the
+safe direction — it guarantees strictly more than its base — and is the exact inverse of
+the relaxation this ticket removes.
+
+**Consequence left for MEA-006:** `measure_margins` will now raise on a zero margin
+through the calibrated path. That is Yashashvi's floor to add in `services.py`, not a
+regression, and not a contracts relaxation.
+
+**Field reordering checked against the evidence chain rather than assumed.** Moving
+`unit`/`rule_limb` into a base reorders serialisation for `MeasurementExact` and
+`MeasurementCalibrated` too. It cannot move a hash, for three independent reasons: no
+measurement model reaches the hashed payload at all (`contracts/records.py` has zero
+`Measurement` references; `FieldFinding` carries `observed_value`/`expected_value` as
+strings, and measurements are rendered to those in `pipeline/rule_findings.py` before a
+finding exists); `compute_payload_hash` and `pipeline/repository.py:268` both serialise
+with `json.dumps(..., sort_keys=True)`, which is recursive; and no pinned-hash fixture
+exists — grep for 32+ hex-char literals across `bck/tests/` returns nothing. The one
+serialisation-equality assertion, `test_orchestrator.py:184`, compares two runs of the
+same code.
+
+**Six falsifications, all red, all reverted.** `MeasurementExact.value` → `ge=0` (test 3);
+`MeasurementMarginExact(MeasurementExact)` (test 4); both margin `value` → `gt=0`
+(tests 1–2); `MeasurementMarginExact` dropped from the union (test 5);
+`MeasurementMarginCalibrated.confidence_interval` → `ge=0` (test 6); both margin `value`
+constraints removed (negative case).
+
+**One process failure worth recording.** The first falsification pass reverted with
+`git checkout -- <file>` before the work was committed, so HEAD was still `origin/main`
+and the revert silently discarded the whole refactor — the next falsification then
+"failed" for the wrong reason. Redone against a committed baseline. This is precisely the
+hazard the `ge=0` diff audit exists for: after every revert, grep the branch diff for
+`ge=0` and confirm each occurrence is intended. Final audit shows exactly six constraint
+sites — `ge=0` on the two margin `value` fields and on the untouched base
+`confidence_interval`, `gt=0` on both strict `value` fields and on the margin
+`confidence_interval`. Nothing relaxed by accident.
+
+`693 passed, 32 skipped`; ruff clean, `ruff format --check` clean, `lint-imports` 3
+contracts kept over 109 files analysed. Exit codes read directly, not through a pipe.
