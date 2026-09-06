@@ -27,13 +27,19 @@ class ArbitrationResult:
 
 
 def _extract_numeric_value(text: str) -> str:
-    """Extracts the first valid numeric amount string, ignoring punctuation like 'Rs.'."""
-    # Find numeric sequences potentially containing commas or decimals
-    matches = re.findall(r"\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?", text)
-    if not matches:
+    """
+    Robustly extracts the numeric value by stripping all non-digit and non-decimal characters.
+    Handles currency symbols (₹, Rs) and abbreviations safely.
+    """
+    if not text:
         return ""
-    # Normalize by removing commas for precise numeric comparison
-    return matches[0].replace(",", "")
+    # Keep only digits and decimal points
+    cleaned = re.sub(r"[^\d.]", "", text)
+    # If multiple dots exist (e.g. malformed), keep standard float formatting or first token
+    parts = cleaned.split(".")
+    if len(parts) > 2:
+        cleaned = parts[0] + "." + "".join(parts[1:])
+    return cleaned.strip(".")
 
 
 def arbitrate_mrp(
@@ -103,10 +109,8 @@ def extract_panel_text(
 
     for line in lines:
         if isinstance(line, dict):
-            polygon = [
-                (int(pt[0]), int(pt[1]))
-                for pt in line.get("box", line.get("text_box_position", []))
-            ]
+            box = line.get("box", line.get("text_box_position", []))
+            polygon = [(int(pt[0]), int(pt[1])) for pt in box]
             text = line.get("text", line.get("transcription", ""))
             confidence = float(line.get("confidence", line.get("score", 1.0)))
         else:
