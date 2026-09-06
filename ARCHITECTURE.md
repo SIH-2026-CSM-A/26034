@@ -121,6 +121,11 @@ re-validate against the authoritative rule-set on reconnect.
   and the payload is text, not `timestamptz` and not `jsonb`. Both of those re-render
   what they store, and re-rendered bytes hash differently, so verification would report a
   broken chain nobody had touched.
+- **`rule_id` is duplicated out of the snapshot into a typed column** — the snapshot stays
+  the record of what was applied, but `(verdict_id, field, rule_id)` uniqueness and the
+  dashboard's violation-rate-by-clause view both need it queryable, and neither can be
+  expressed about a value inside a JSON document. Not a foreign key; there is nothing to
+  point at and there must not be.
 - **Jurisdiction is three typed columns, not a JSON document** — `scope_to_jurisdiction`
   reaches `state`/`region`/`district` by `getattr`, so the column names are a contract
   with `core/rbac.py`, not a style choice.

@@ -557,6 +557,34 @@ run, and were redone properly on pg16:
 The lesson worth carrying: **a guard on a database constraint is only falsified by editing
 the migration.** Editing the model tests Alembic's drift check, which is a different guard.
 
+**Two changes during review of PR #40** (same session)
+
+- **`field_findings.rule_id`** as `String(120)`, NOT NULL, indexed, plus
+  `UniqueConstraint(verdict_id, field, rule_id)`. `(verdict_id, field)` is correctly not
+  unique — one declaration against several rules is several findings — but the triple is,
+  and that cannot be stated while `rule_id` lives only inside the snapshot JSONB. F32
+  (violation rate by rule clause, P0) filters on it, which puts it on the typed side of
+  the line this schema already draws. Written from `rule_snapshot["rule_id"]` and nowhere
+  else; the round-trip test asserts the column and the document agree, since that
+  agreement is the whole basis for querying by it. Revision `64a9392a6859` amended in
+  place rather than stacked — nothing was merged, so there was no history to preserve.
+  Falsified by removing the constraint **from the migration**: `DID NOT RAISE
+  IntegrityError`. `models.py` went to 318 lines doing this and was trimmed back to 299
+  by moving duplicated rationale into `core/README.md`, which the module docstring
+  already names as its home.
+- **Enum value drift guard.** `alembic check` compares tables and columns and is blind to
+  the labels inside an enum type that already exists. Confirmed directly: adding
+  `BARCODE` to `contracts.DeclarationField` leaves `check` reporting "No new upgrade
+  operations detected", and the failure would surface later as `invalid input value for
+  enum declaration_field` at the first insert. PIP-002 touches every declaration field, so
+  this was live rather than hypothetical. New postgres-marked test reads labels out of
+  `pg_enum` and asserts they equal the Python members for all six types. Falsified twice —
+  once via `contracts.DeclarationField` (the real scenario) and once via a `models.py`-local
+  enum to isolate it from the other tests that a contracts change also turns red.
+  Adding an enum member from here on needs a hand-written `ALTER TYPE ... ADD VALUE`
+  revision, which cannot run inside a transaction; noted in `alembic/README.md` and
+  `HANDOFF.md`.
+
 **Incomplete / for the next session**
 - No `app/main.py` still. Added to TODO under PIP-002 — see the note there.
 - MinIO and Redis are not in compose, so `test_minio_storage.py` still skips everywhere.

@@ -21,6 +21,16 @@ upgrade → downgrade → upgrade to prove it.
 
 `alembic check` runs in CI and fails on a model edited without a migration.
 
+**`alembic check` does not see enum *values*.** It compares tables and columns; the
+labels inside an enum type that already exists are invisible to it. Add a member to
+`contracts.DeclarationField` and `check` reports "No new upgrade operations detected",
+and the failure surfaces much later as `invalid input value for enum declaration_field`
+at the first insert that uses it. Adding a member therefore needs a migration written by
+hand — `ALTER TYPE ... ADD VALUE`, which cannot run inside a transaction, so the revision
+needs `op.execute` on an autocommit connection. `tests/persistence/` reads the labels back
+out of `pg_enum` and asserts they match the Python enums, which is what turns that silent
+drift into a red test.
+
 **Check which server you are migrating before you trust the result.** If a PostgreSQL
 cluster already holds `127.0.0.1:5432` on your machine, it shadows the port
 `docker-compose.yml` publishes. The container starts and reports healthy either way, but

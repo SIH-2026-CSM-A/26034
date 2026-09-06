@@ -27,6 +27,14 @@ No module owns persistence; modules may not import one another, so a schema shar
 between them cannot live in any of them; and Alembic needs one stable `MetaData` to point
 at. `core` is the only place that satisfies all three.
 
+`field_findings.rule_id` is the one deliberate denormalisation: a copy of a single field
+of the `rule_snapshot` document beside it. The snapshot remains the record of what was
+applied — this is a queryable copy, written from `rule_snapshot["rule_id"]` and from
+nowhere else. It earns a column because `(verdict_id, field)` is correctly *not* unique
+(one declaration is evaluated against several rules) while `(verdict_id, field, rule_id)`
+is, and that constraint cannot be stated about a value living inside a JSON document. It
+is not a foreign key and there is no rules table for it to point at.
+
 The line that still holds is the one that matters: these are *tables*, not rules. Nothing
 in `models.py` decides an outcome, and nothing in it may. `contracts` holds the shapes
 that cross a module boundary and `models.py` the shapes that cross a process restart; the
