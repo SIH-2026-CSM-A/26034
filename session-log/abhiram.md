@@ -58,6 +58,174 @@ including RUL-002's `test_a_sector_override_moves_only_the_obligations_it_names`
 - RUL-002 has no entry in this log — it merged as PR #32 before the docs PR was written.
   Worth backfilling alongside `TODO.md`, which is still not updated for either ticket.
 
+### 2026-09-06 — FNT-002 officer design system, verdict detail, review queue — Claude Code
+
+**Why now**
+FNT-001 left a Vite scaffold and nothing an officer could look at. The verdict surface is
+the part of this system a judge actually sees, and a generic component-library look would
+undercut the claim that the tool was designed for Legal Metrology work rather than
+assembled from defaults.
+
+**Done**
+- `fnt/DESIGN.md` — the palette, the state colours and every contrast measurement, written
+  down rather than implied by the CSS.
+- Officer surface: verdict detail and review queue, on the three-verdict vocabulary.
+
+**Decisions**
+- **Fixture citations follow `rules.yaml` on `main`, not the ticket text.** The encoded
+  rule set is authoritative; a ticket description is a brief. Concretely, Rule 8's
+  free-space limb cites **Rule 8(1) proviso**, not Rule 8(1) — RUL-002 split placement and
+  free space into two rules with two evidence requirements, and a fixture citing 8(1) for
+  a clearance measurement would be wrong on screen and wrong in a screenshot.
+
+**Rejected**
+- **Lightening the focus tint** to fix Query Ochre at 3.97:1. A focus signal measured at
+  1.04:1 against Field Paper is not a signal. Fixed instead by grounding unfilled chips on
+  an explicit Field Paper background so they stop inheriting the row tint.
+- Leaving the hatch under chip labels. Text over a hatch line measures **3.4:1**; a hatched
+  ground is a legitimate channel but not underneath a letterform. Fixed with an inset
+  plate rather than by removing the hatch, which carries meaning of its own.
+
+Both findings and both numbers are recorded in `DESIGN.md` so the next person changing a
+colour has the measurements rather than the conclusion.
+
+---
+
+### 2026-09-06 — RUL-002 Rule 8, Rule 9, sector overrides, medical devices — Claude Code
+
+**Why now**
+`ARCHITECTURE.md` carried two technical-debt bullets that were both real bugs: Rule 7
+Table-I encoded as a universal lookup, and Combination and Group packages absent from the
+schema entirely. The first one produces a wrong finding, not just a missing feature.
+
+**Done**
+- Rule 8 and Rule 9 as four separate rules with four condition kinds —
+  `R8-1-PDP-PLACEMENT`, `R8-1-FREE-SPACE`, `R9-1-MANNER`, `R9-3-OUTER-CONTAINER`. Rule 8
+  is *where* a declaration appears, Rule 9 is *how*; different evidence, different
+  consequences, never one check.
+- `evaluate_rule8_free_space()` reads the 1x and 2x multiples from the store, not from
+  Python, and names which sides fell short. `FreeSpaceMeasurement` fields are
+  `PositiveDecimal`, so an absent clearance arriving as zero fails to construct rather
+  than passing.
+- `sector.py` — sector overrides as a table built by reading the rule store. Medical
+  devices from G.S.R. 778(E); food to the FSSA 2006 via Rule 6(1)(a) Explanation III;
+  cosmetics to the Drugs and Cosmetics Rules 1945 via the third proviso to Rule 6(1)(d).
+- Combination (2(ka)) and Group (2(kb)) packages from G.S.R. 722(E).
+- Schema split three ways — `base.py`, `conditions.py`, `models.py` — because `models.py`
+  was heading past the 300-line limit and `conditions` importing `models` while `models`
+  needs `RuleCondition` is a cycle.
+- The one authorised cross-directory edit: `pipeline/rule_snapshot.py`'s deep import of
+  `app.modules.rules.models` folded into the package import, now that `Severity` and
+  `DeclarationRequiredCondition` are on the public surface.
+
+**Decisions**
+- **`Rule7Route` generalised** from `LMPC_TABLE_I` / `MEDICAL_DEVICES_RULES_2017` to
+  `LMPC_TABLE_I` / `SECTOR_FRAMEWORK`. A route enum carrying one sector's answer is an
+  if/else chain in disguise — the next sector would mean editing the enum and every
+  comparison against it. Which framework took over now travels by value on
+  `SectorOverride`, with the rule id that says so.
+- **The medical-device guard lives in `minimum_character_height()`**, not at the two
+  evaluator callsites. That function is exported and was sector-blind, which is the
+  *actual* bug: a caller reaching it directly gets a Rule 7 band applied to a package the
+  rule does not reach. One guard there covers every caller.
+- Medical devices are a **carve-out, not a stricter path**. A device measured below a
+  Table-I band is `REVIEW`, not `POTENTIAL VIOLATION` — no MDR 2017 thresholds are encoded
+  and none were invented.
+
+**Rejected**
+- **Leaving the guard at the two evaluator callsites.** That fixes two symptoms and leaves
+  every other caller of the public lookup broken.
+- **Adding any new `declaration_required` rule.** `tests/pipeline/test_rule_snapshot.py`
+  asserts `set(DECLARATION_FIELDS) == encoded` exactly, so a new declaration string would
+  have forced an edit to pipeline's map — outside this ticket. Every new rule got its own
+  condition kind instead, which is the better modelling anyway: Rule 8(1)'s evidence is a
+  measurement, not a text span.
+- **Rule 6(11).** Format rule, no tolerance, no rounding increment. Untouched.
+
+---
+
+### 2026-09-06 — CTR-003 deep-copy rule parameters into the snapshot — Claude Code
+
+**Why now**
+PIP-001 shipped `snapshot_from_rule` with a `deepcopy` whose justification was weaker than
+its docstring implied. Either it was load-bearing and needed a test, or it was not and the
+docstring needed correcting. It was the second.
+
+**Done**
+- `parameters` deep-copied into `RuleParameterSnapshot`, and the isolation claim in the
+  docstring corrected to state what actually holds.
+
+**Decisions**
+- **The deepcopy is not what provides isolation today.** `parameters` is typed
+  `dict[str, JsonValue]`, and re-validation on construction rebuilds every container, so
+  the property would hold without it. It ships as **annotation-independence**: if the
+  annotation is ever widened to `dict[str, Any]`, re-validation stops rebuilding and the
+  deepcopy becomes the only thing standing between a snapshot and the rule it came from.
+- **The test pins the property, and cannot fail under the current annotation.** That is
+  stated in the test's own docstring rather than left for a reader to discover by deleting
+  the deepcopy and watching nothing break. A test that cannot currently fail is worth
+  keeping only if it says so.
+
+**Rejected**
+- Deleting the deepcopy as dead weight. The cost is one copy per snapshot; the failure it
+  guards against is a verdict record silently re-adjudicating itself after an amendment,
+  which is the exact thing snapshotting exists to prevent.
+
+---
+
+### 2026-09-06 — CI-002 frontend build gate — Claude Code
+
+**Why now**
+`fnt/` had no CI at all. Backend changes were gated and frontend changes were not, so a
+frontend PR could merge without ever having been built.
+
+**Done**
+- Build gate on `fnt/**` pull requests, pathed so backend-only PRs do not run it and do
+  not wait on it.
+
+**Rejected**
+- Running the frontend job on every PR regardless of path. It would add a required check
+  to backend PRs that tells nobody anything, and eleven people opening PRs continuously
+  makes wasted CI minutes real rather than theoretical.
+
+---
+
+### 2026-09-06 — PIP-001 verdict assembly and rule parameter snapshot — Claude Code
+
+**Why now**
+`contracts` v1 shipped `VerdictRecord` and `RuleParameterSnapshot` with nothing building
+either. The rules module models a rule richly and contracts models it flatly, and the
+translation between the two had to live in exactly one place before anything downstream
+depended on it.
+
+**Done**
+- `pipeline/rule_snapshot.py` — the rules `RuleDefinition` to `contracts`
+  `RuleParameterSnapshot` adapter, and the only place that translation happens.
+- `pipeline/verdict.py` — `derive_verdict` and `assemble_verdict`.
+
+**Decisions**
+- **`derive_verdict` and `assemble_verdict` are two functions, not one**, because
+  `VerdictRecord.findings` is `min_length=1`. The spec said "zero findings returns
+  `REVIEW`", and a record with zero findings cannot be constructed — so that sentence
+  cannot describe a `VerdictRecord`-returning function. `derive_verdict` takes a sequence
+  and returns a `Verdict`, so the empty case has somewhere to live; `assemble_verdict`
+  builds the record and requires at least one finding. **The contract won and the spec
+  bent**, which is the right way round: a record with no findings behind it has no
+  evidence chain.
+- An unmapped declaration string raises `UnmappedDeclarationError` rather than being
+  skipped. A dropped declaration is a finding that silently never gets made, which reads
+  downstream as a package with nothing wrong with it.
+- A tolerance with no basis raises `UnbasedToleranceError`. `Decimal("0.05")` alone is
+  five paise or five percent.
+
+**Rejected**
+- Collapsing the two verdict functions and returning `None` for the empty case. It pushes
+  a null check onto every caller to preserve a sentence in a ticket.
+- Copying a bare tolerance figure into the snapshot. It would rebuild the ambiguity one
+  layer down, where nothing checks it.
+
+---
+
 ### 2026-09-06 — CORE-001 auth, RBAC, jurisdiction scoping — Claude Code
 
 **Why now**

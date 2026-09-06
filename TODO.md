@@ -8,44 +8,33 @@ assignment record.
 
 ## Now
 
-- [ ] **VP-CI-001 — repo scaffold** (Abhiram). Built, uncommitted. Reconcile against the
-      six template files, commit, push, merge.
-- [ ] **Add the CI check as a required status check** on the `main-protection` ruleset.
-      Could not be added earlier because the check did not exist.
-- [ ] **Rule corpus** (Abhiram). Download and commit to `rules-corpus/`: the consolidated
-      LMPC e-book, G.S.R. 629(E) 2017, the 6 Oct 2023 amendment, the Oct 2025
-      medical-devices amendment, G.S.R. 128(E) and G.S.R. 312(E) 2026. Immutable source
-      PDFs. Every encoded rule cites one of these.
-- [x] **`contracts/` v1** (Abhiram, CTR-002) — 2026-09-05. Per-field state enum,
-      verdict enum, rule schema, ExtractedSpan, NormalisedField, MeasurementResult,
-      VerdictRecord, CatalogueRecord.
-- [ ] **Swap the local stand-ins for the real imports.** Two are outstanding:
-      RUL-001 (Jashwanth) drops his local `RuleDefinition`; MEA-002 (Yashashvi, PR #13,
-      changes requested) drops the local union in
-      `bck/app/modules/measurement/schemas.py`. The contracts variants match hers field
-      for field, so it is a delete-and-import. One behaviour change to know about:
-      `confidence_interval` is now `gt=0`, so a degenerate zero-width interval raises
-      instead of being emitted as a measurement.
-- [ ] **Corpus collection starts** (Aashritha). Real Indian packaging photographs across
-      categories, plus the labelling schema and the eval harness. No accuracy claim in
-      the PRD is currently backed by anything.
-- [ ] **Collect the six missing GitHub usernames** — Jashwanth, Yashashvi, Vineeth,
-      Rohan, Aashritha, Likhitha. Each needs an org invite and a CODEOWNERS line.
+- [ ] **EXT-004** (Sitanshu). Not started.
+- [ ] **VIS-003** (Akshaya). In rework.
+- [ ] **DAT-001 — corpus** (Aashritha). In rework. Root cause diagnosed: fabricated
+      annotations and empty-file placeholders. Plan is to rewrite the four real
+      annotations from actual photo content, send images to Abhiram outside git, and close
+      honestly at four real samples. No accuracy claim in the PRD is backed until this
+      lands.
+- [ ] **TAM-001** (Akshaya). Queued behind VIS-003.
+- [ ] **`rules/` still carries its own `RuleDefinition` stand-in.** `app/modules/rules/`
+      imports nothing from `app.contracts`; `models.py` says so in its own docstring. This
+      is why `pipeline/rule_snapshot.py` has to exist as a translation layer. The swap is
+      a rules-module ticket and was deliberately out of scope for RUL-002 and RUL-003.
+      MEA-002's half of this item is done.
 
 ## Next
 
-- [x] `core/` — auth, JWT, RBAC on Controller → Deputy → Inspector, jurisdiction
-      scoping, cost-ceiling config. CORE-001. Designations are config, not literals;
-      scoping is a SQLAlchemy filter proved against a real query.
-- [ ] `core/` — SQLAlchemy engine and session factory, and a users table to replace
-      the `OFFICERS` env list. Needs Alembic initialised first.
-- [ ] `pipeline/` — ingestion endpoints for both image and structured catalogue record
-- [ ] `vision/` — preprocessing chain, PDP detection, PaddleOCR provider
-- [ ] `extraction/` — field classification, spatial binding, normalisation
-- [ ] `rules/` — YAML store, evaluator, Rule 6 and Rule 7 encoded from the corpus
+- [ ] **EVD-004 — report export**, PDF and editable format. Unblocked: `VerdictRecord`
+      exists as of PIP-001. Also carries the `test_append_only_enforcement` fix below.
+- [ ] **PIP-002 — ingestion and orchestration**, for both image and structured catalogue
+      record. Blocked on EXT-004.
+- [ ] **Frontend `npm audit` gate.** `npm ci` currently reports two moderate
+      vulnerabilities and a deprecated `glob@11.1.0`. CI-002 builds the frontend but does
+      not audit it.
+- [ ] `core/` — SQLAlchemy engine and session factory, and a users table to replace the
+      `OFFICERS` env list. Needs Alembic initialised first.
 - [ ] `measurement/` — calibration, homography, ink extent, three-mode policy
-- [ ] `evidence/` — hash chain, object store, BSA 63(4) Part A generation
-- [ ] `fnt/` — Vite scaffold and `DESIGN.md` before any component exists
+- [ ] `fnt/` admin surface (Rohan) — rule-set draft, review and publish
 
 ## Later
 
@@ -58,6 +47,22 @@ assignment record.
 
 - [ ] `claude.yml` re-triggers on Claude's own reply comments. Fix is an
       `github.actor != 'claude'` guard in the `if:` condition. Included in VP-CI-001.
+- [ ] **`frontend` is a required status check but never reports on backend-only PRs.**
+      `main-protection` requires contexts `backend` and `frontend`, while
+      `.github/workflows/frontend.yml` is filtered to `paths: fnt/**`. A skipped-by-path
+      workflow posts no status at all, so every backend-only PR sits at
+      `mergeStateStatus: BLOCKED` on a check that can never arrive. Verified on #33, #32
+      and #36 — all three show only `backend` in their rollup and all three were merged by
+      hand. The protection is currently costing an override per PR and buying nothing. Two
+      fixes: drop `frontend` from the required contexts, or remove the `paths:` filter and
+      let the job skip internally so it still reports. Prefer the second — it keeps the
+      gate real.
+- [ ] **`test_append_only_enforcement` (EVD-003) passes vacuously.** It resolves
+      `Path("app/modules/evidence")` relative to the working directory, so `rglob` yields
+      nothing and `assert not found_violations` succeeds against an empty scan whenever
+      pytest runs from anywhere but `bck/`. Fix belongs in **EVD-004**: resolve the path
+      relative to the test file, and assert at least one file was actually scanned. A test
+      that cannot fail is worse than no test, because it reads as coverage.
 
 ## Blocked / unresolved
 
@@ -69,15 +74,11 @@ unit basis, with no tolerance and no rounding increment. The ±₹0.01 and ±₹
 were assumptions in earlier project documents, not law, and must not be encoded. See
 `rules-corpus/README.md`.)*
 
-- [ ] **Medical devices carve-out** — Amendment Rules 2025 route numeral and letter
-      height to the Medical Devices Rules 2017 and disapply the Rule 33 relaxation and
-      PDP declaration. Rule 7 Table-I is not universal. Not yet in the sector-override
-      set, and `SIH26034_TI.md` §5 uses "Medical Device" as its routing example without
-      knowing this.
-- [ ] **Combination Package and Group Package** — defined by the Amendment Rules 2023,
-      absent from every project document and from the rule schema.
 - [ ] **MVP category priority** — packaged food is the volume answer and carries the
       heaviest FSSAI override risk.
+- [ ] **`SIH26034_TI.md` §5 is stale on medical devices.** It uses "Medical Device" as a
+      routing example without knowing about G.S.R. 778(E). Not a source for rule facts;
+      `rules-corpus/` is. Left here so nobody re-derives the old behaviour from it.
 
 ## Cut
 
@@ -121,3 +122,25 @@ were assumptions in earlier project documents, not law, and must not be encoded.
 - [x] Branch protection on `main`: ruleset + push restriction + squash-only — 2026-09-05
 - [x] Claude GitHub App installed on the org, `@claude` on-mention workflow — 2026-09-05
 - [x] ClickUp list `26034 Build` with statuses and Module / Files / Branch fields — 2026-09-05
+- [x] **VP-CI-001 repo scaffold** — 2026-09-05. Includes the `claude.yml` actor guard.
+- [x] **Rule corpus** committed to `rules-corpus/` — 2026-09-05. Eight documents. Two
+      known gaps recorded in its README: the consolidated e-book, and the 11.11.2025 DoCA
+      FAQ (two clauses sourced from secondary reports, marked [SOURCED] not [VERIFIED]).
+- [x] **CTR-002 contracts v1** — 2026-09-05.
+- [x] **CORE-001** auth, JWT, RBAC, jurisdiction scoping — 2026-09-06 (#25).
+- [x] **PIP-001** verdict assembly and rule parameter snapshot adapter — 2026-09-06 (#28).
+- [x] **CI-002** frontend build gate on `fnt/**` — 2026-09-06 (#30).
+- [x] **CTR-003** deep-copy rule parameters into the snapshot — 2026-09-06 (#33).
+- [x] **RUL-002** Rule 8 placement and free space, Rule 9 manner, sector override
+      dispatch, medical device carve-out, Combination and Group packages — 2026-09-06
+      (#32). Closes the two rule bullets formerly in this file and in `ARCHITECTURE.md`.
+- [x] **FNT-002** officer design system, verdict detail, review queue — 2026-09-06 (#35).
+- [x] **RUL-003** multi-piece package 2(kc) and its food proviso, package-type scoping on
+      the sector dispatch — 2026-09-06 (#36).
+- [x] **EVD-003** hash chain verification and append-only enforcement — 2026-09-06 (#31).
+      See Bugs: its append-only test currently passes vacuously.
+- [x] **MEA-002's local measurement union dropped** for the real `app.contracts` imports
+      — 2026-09-06.
+- [x] **CI added as required status checks** on the `main-protection` ruleset —
+      2026-09-06. Contexts: `backend`, `frontend`. See Bugs: `frontend` is required but
+      path-filtered.
