@@ -6,11 +6,15 @@ trip through real ``jsonb``, real native enum types and the async session the ap
 uses.
 """
 
+import os
+import subprocess
+import sys
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -24,7 +28,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from alembic import command
 from app.contracts import DeclarationField, FieldState, RuleParameterSnapshot, Verdict
 from app.core.db import get_session
+from app.core.enums import ReviewAction
+
+# Imported from ``models`` and not from ``schema``, for exactly the reason
+# ``test_the_metadata_is_not_empty`` states: ``schema`` defines the base, ``models``
+# is what puts tables on it.
 from app.core.models import (
+    Base,
     CalibrationMethod,
     EvidenceEntryRow,
     FieldFindingRow,
@@ -35,6 +45,12 @@ from app.core.models import (
 )
 from tests.core.test_persistence import RULE_SET_VERSION, a_finding, a_rule
 
+BCK = Path(__file__).resolve().parents[2]
+"""The backend package root, resolved from this file and never from the working
+directory — the subprocess below has to start somewhere real."""
+
+JWT_SECRET = "test-signing-key-not-used-anywhere-real"
+
 pytestmark = pytest.mark.postgres
 
 ENUM_TYPES: dict[str, type[StrEnum]] = {
@@ -43,13 +59,21 @@ ENUM_TYPES: dict[str, type[StrEnum]] = {
     "field_state": FieldState,
     "scan_source_type": ScanSourceType,
     "scan_status": ScanStatus,
+    "review_action": ReviewAction,
     "verdict": Verdict,
 }
 """Every PostgreSQL enum type this schema creates, against the Python enum behind it."""
 
 ENUM_TYPE_NAMES = set(ENUM_TYPES)
 
-TABLE_NAMES = {"scans", "verdicts", "field_findings", "evidence_entries"}
+TABLE_NAMES = set(Base.metadata.tables)
+"""Every table the schema declares, read from the metadata rather than listed.
+
+Listing them by hand is how a table added to ``models.py`` goes unmigrated and untested at
+the same time: the list keeps passing because it never mentioned the new table.
+:func:`test_the_metadata_is_not_empty` guards the other direction, because a metadata that
+registered nothing would make every assertion about this set vacuously true.
+"""
 
 ENUM_TYPES_QUERY = text("select typname from pg_type where typtype = 'e'")
 
@@ -105,6 +129,66 @@ def test_the_migration_downgrades_and_reapplies(alembic_config: Config, database
     assert tables >= TABLE_NAMES
 
     command.downgrade(alembic_config, "base")
+
+
+def test_the_metadata_registers_every_table() -> None:
+    """``Base.metadata`` holds the tables, so the assertions below are not vacuous.
+
+    This proves that importing ``app.core.models`` registers the schema — nothing more.
+
+    It was written to prove something stronger and does not: that ``alembic/env.py`` must
+    import ``Base`` from ``models`` rather than from ``schema``. That turns out not to be
+    a failure mode at all. Importing ``app.core.schema`` executes ``app/core/__init__.py``
+    first, which imports ``models``, so the metadata is populated by either path and no
+    test can be made to fail on the difference. The claim is corrected here rather than
+    the code changed to suit it.
+    """
+    assert len(Base.metadata.tables) >= 5, (
+        f"Base.metadata holds only {sorted(Base.metadata.tables)}. Every assertion about "
+        f"the schema below is vacuous when this is empty."
+    )
+    assert "reviews" in Base.metadata.tables
+
+
+def test_alembic_sees_the_schema_in_a_fresh_interpreter(
+    migrated: Config, database_url: str
+) -> None:
+    """Run ``alembic check`` in a subprocess, the way a deployment actually runs it.
+
+    :func:`test_the_models_and_the_migration_do_not_disagree` calls ``command.check`` in
+    this process, where every model module has already been imported by the test suite. A
+    deployment runs the command with a fresh interpreter that imports only what
+    ``alembic/env.py`` names, so this runs it that way: a model whose module never gets
+    imported by ``env.py`` is invisible to autogenerate there and visible here, and the
+    in-process check would stay green while migrations quietly stopped covering it.
+
+    Fails on ordinary drift too — a column added to a model with no migration written for
+    it — which is what it was falsified against.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-m", "alembic", "check"],
+        cwd=BCK,
+        env={**os.environ, "DATABASE_URL": database_url, "JWT_SECRET": JWT_SECRET},
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, (
+        "`alembic check` failed in a fresh interpreter, which is how a deployment runs "
+        f"it:\n{completed.stdout}\n{completed.stderr}"
+    )
+
+
+def test_every_declared_table_reaches_the_database(migrated: Config, database_url: str) -> None:
+    """After ``upgrade head``, every table the metadata declares exists for real.
+
+    ``alembic check`` compares the database against the metadata it was handed, so it
+    cannot notice that it was handed the wrong metadata. This compares the metadata
+    against the database instead, which is the direction that catches a table declared in
+    ``models.py`` and never migrated.
+    """
+    _types, tables = enum_types_and_tables(database_url)
+    missing = TABLE_NAMES - tables
+    assert not missing, f"declared but absent from the database after upgrade head: {missing}"
 
 
 def test_the_models_and_the_migration_do_not_disagree(migrated: Config) -> None:
