@@ -957,3 +957,27 @@ def test_exhaustive_498_iso_codes():
         assert res_a3.value.iso_alpha2 == record["alpha_2"]
         assert res_a3.value.iso_alpha3 == record["alpha_3"]
         assert res_a3.confidence == CONFIDENCE_EXPLICIT_ISO_VARIANT
+
+
+def test_ext_003_normalise_exports():
+    """Verify EXT-003 normalisation exports and facade dispatches."""
+    from app.modules.extraction.normalise import (
+        CommodityNameValue,
+        DimensionsValue,
+        UnitSalePriceValue,
+        normalise_commodity_name,
+        normalise_dimensions,
+        normalise_unit_sale_price,
+    )
+
+    c_res = normalise_commodity_name("Toothpaste")
+    assert c_res.success is True
+    assert isinstance(c_res.value, CommodityNameValue)
+
+    d_res = normalise_dimensions("10 cm x 20 cm")
+    assert d_res.success is True
+    assert isinstance(d_res.value, DimensionsValue)
+
+    u_res = normalise_unit_sale_price("Rs 10 / g")
+    assert u_res.success is True
+    assert isinstance(u_res.value, UnitSalePriceValue)

@@ -16,6 +16,7 @@ class ReasonCode(StrEnum):
     UNRECOGNIZED_UNIT = "UNRECOGNIZED_UNIT"
     AMBIGUOUS_VALUE = "AMBIGUOUS_VALUE"
     INVALID_VALUE = "INVALID_VALUE"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 T = TypeVar("T")
@@ -107,3 +108,40 @@ class CountryOfOriginValue(BaseModel):
     iso_alpha2: str
     iso_alpha3: str
     raw_declaration: str
+
+
+class CommodityItem(BaseModel):
+    """An individual commodity item in a single or combination/multi-product package."""
+
+    name: str
+    quantity_or_count: str | None = None
+
+
+class CommodityNameValue(BaseModel):
+    """Normalized Commodity Name declaration under Rule 6(1)(b)."""
+
+    primary_name: str
+    items: list[CommodityItem] = Field(default_factory=list)
+    is_multi_product: bool = False
+
+
+class DimensionsValue(BaseModel):
+    """Normalized Dimensions declaration under Rule 6(1)(f)."""
+
+    is_applicable: bool = True
+    length: Decimal | None = None
+    width: Decimal | None = None
+    height: Decimal | None = None
+    diameter: Decimal | None = None
+    unit: str | None = None
+    piece_count: int | None = None
+    raw_expression: str = ""
+
+
+class UnitSalePriceValue(BaseModel):
+    """Normalized Unit Sale Price declaration under Rule 6(11)."""
+
+    unit_price: Decimal
+    unit_basis: str
+    currency: str = "INR"
+    raw_declaration: str = ""
