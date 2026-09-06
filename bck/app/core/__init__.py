@@ -4,9 +4,9 @@ Import from the package, not from its files::
 
     from app.core import Principal, RoleTier, Scan, get_current_principal, get_session
 
-The split into ``auth.py``, ``config.py``, ``db.py``, ``models.py`` and ``rbac.py`` is an
-internal detail. Going through this surface means rearranging files inside ``core/`` is
-not a change to six other people's imports.
+The split into ``auth.py``, ``config.py``, ``db.py``, ``enums.py``, ``models.py``,
+``rbac.py`` and ``schema.py`` is an internal detail. Going through this surface means
+rearranging files inside ``core/`` is not a change to six other people's imports.
 
 ``core`` sits above ``contracts`` and below ``modules``: it may import ``app.contracts``
 and nothing else from ``app``. ``lint-imports`` enforces that in CI.
@@ -30,17 +30,16 @@ from app.core.config import (
     get_settings,
 )
 from app.core.db import dispose_engine, get_engine, get_session, get_session_factory
+from app.core.enums import CalibrationMethod, ReviewAction, ScanSourceType, ScanStatus
 from app.core.models import (
-    Base,
-    CalibrationMethod,
     EvidenceEntryRow,
     FieldFindingRow,
+    ReviewRow,
     Scan,
-    ScanSourceType,
-    ScanStatus,
     VerdictRow,
 )
 from app.core.rbac import Jurisdiction, Principal, RoleTier, scope_to_jurisdiction
+from app.core.schema import Base
 
 __all__ = [
     "DEFAULT_ROLE_DESIGNATIONS",
@@ -51,6 +50,8 @@ __all__ = [
     "Jurisdiction",
     "OfficerCredential",
     "Principal",
+    "ReviewAction",
+    "ReviewRow",
     "RoleTier",
     "Scan",
     "ScanSourceType",

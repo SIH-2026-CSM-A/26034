@@ -90,6 +90,22 @@ class Settings(BaseSettings):
     rules_corpus_dir: Path | None = None
     """Directory holding the rules corpus. See ``rules-corpus/README.md``."""
 
+    pdp_weights_path: Path | None = None
+    """YOLO weights for principal-display-panel detection.
+
+    Required to serve a scan. ``None`` by default and validated at application startup
+    rather than defaulted to a path that might happen to exist: weights are gitignored and
+    pre-cached, so the failure this guards is a fresh clone, and the honest place to find
+    out is boot rather than the first request an officer makes.
+    """
+
+    ocr_det_model_dir: Path | None = None
+    """PaddleOCR text-detection model directory. Explicit and local, so nothing downloads
+    a model mid-scan — the demo has to survive the venue network failing."""
+
+    ocr_rec_model_dir: Path | None = None
+    """PaddleOCR text-recognition model directory. Same reasoning as the detector."""
+
     jwt_secret: str = Field(min_length=32)
     """Signing key for access tokens. Required — there is deliberately no default, and a
     key shorter than the SHA-256 block that signs with it is refused."""
@@ -111,7 +127,14 @@ class Settings(BaseSettings):
     """Officers who may log in. Empty by default: a deployment that configures none has
     no accounts, rather than a default account somebody forgets to remove."""
 
-    @field_validator("datasets_dir", "rules_corpus_dir", mode="before")
+    @field_validator(
+        "datasets_dir",
+        "rules_corpus_dir",
+        "pdp_weights_path",
+        "ocr_det_model_dir",
+        "ocr_rec_model_dir",
+        mode="before",
+    )
     @classmethod
     def _blank_path_is_unset(cls, value: Any) -> Any:
         """Treat ``DATASETS_DIR=`` as unset rather than as the current directory."""
@@ -145,6 +168,24 @@ class Settings(BaseSettings):
         designation out.
         """
         return self.role_designations[tier]
+
+    def missing_model_paths(self) -> tuple[str, ...]:
+        """Settings whose model file or directory is unset or absent on disk.
+
+        Read once at startup, never per request. A vision stage that cannot run must stop
+        the application starting: surfacing it as a 500 on the first scan turns a missing
+        file into a failure in front of whoever is watching, and a fallback would turn it
+        into a verdict produced by a path nobody chose.
+
+        Returns the *setting names*, not the paths, because the message a deployment needs
+        is which environment variable to set.
+        """
+        missing: list[str] = []
+        for name in ("pdp_weights_path", "ocr_det_model_dir", "ocr_rec_model_dir"):
+            path = getattr(self, name)
+            if path is None or not path.exists():
+                missing.append(name)
+        return tuple(missing)
 
     def cost_ceiling(self, provider: str) -> Decimal:
         """The spending ceiling for ``provider``.

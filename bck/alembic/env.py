@@ -13,8 +13,15 @@ mode from the constructor rather than from the URL, so ``postgresql+psycopg://``
 both and neither side has to rewrite the other's scheme.
 
 ``Base`` is imported from ``app.core.models`` rather than from the ``app.core`` package
-surface on purpose: a migration has no business dragging in FastAPI, PyJWT and bcrypt
-just to learn the shape of four tables.
+surface on purpose: a migration has no business naming FastAPI, PyJWT and bcrypt just to
+learn the shape of the tables. ``models`` is also the module that puts the tables on the
+metadata, so importing it is what makes them visible to autogenerate.
+
+Worth knowing rather than relying on: importing ``app.core.schema`` instead would work
+too, because Python executes ``app/core/__init__.py`` first and that imports ``models``.
+So this is the clearer import, not a load-bearing one — and the package ``__init__`` runs
+either way, which means the "no FastAPI in a migration" reasoning above is about what this
+file *names*, not about what ends up imported.
 """
 
 from logging.config import fileConfig
