@@ -17,7 +17,12 @@ from app.contracts import (
     ProductCategory,
 )
 from app.modules.extraction.binder import ExtractionResult
-from app.modules.extraction.category import propose_category
+from app.modules.extraction.category import (
+    CONFIDENCE_LEXICAL_SIGNAL,
+    CONFIDENCE_MUTUALLY_REINFORCING,
+    CONFIDENCE_STATUTORY_SIGNAL,
+    propose_category,
+)
 
 
 def _make_span(span_id: str, text: str) -> ExtractedSpan:
@@ -68,7 +73,7 @@ def test_clear_food_proposal_from_fssai_licence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_food_1",)
     assert "food" in proposal.reason
     assert "span_food_1" in proposal.reason
@@ -86,7 +91,7 @@ def test_clear_cosmetics_proposal_from_d_and_c_rules() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_cosm_1",)
     assert "cosmetics" in proposal.reason
 
@@ -103,7 +108,7 @@ def test_clear_medical_device_proposal_from_mdr_2017() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.MEDICAL_DEVICE
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_md_1",)
     assert "medical_device" in proposal.reason
 
@@ -120,7 +125,7 @@ def test_lexical_commodity_name_signal() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == 0.80
+    assert proposal.confidence == CONFIDENCE_LEXICAL_SIGNAL
     assert proposal.span_refs == ("span_lex_1",)
 
 
@@ -141,7 +146,7 @@ def test_reinforcing_statutory_and_lexical_evidence_boosts_confidence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == 0.98
+    assert proposal.confidence == CONFIDENCE_MUTUALLY_REINFORCING
     assert proposal.span_refs == ("span_shampoo", "span_lic")
 
 
@@ -239,3 +244,74 @@ def test_confidence_bounds() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert 0.0 <= proposal.confidence <= 1.0
+
+
+# --- Review Regression Tests -----------------------------------------------------------
+
+
+def test_bare_md_batch_code_does_not_trigger_medical_device() -> None:
+    """Regression Test 13: Bare 'MD-2024' batch code does not trigger medical device proposal."""
+    field = _make_field(
+        field_type=DeclarationField.OTHER_PRESCRIBED_MATTER,
+        normalised_value="Batch No: MD-2024 Exp: 2027",
+        span_refs=("span_batch",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None
+
+
+def test_legitimate_mfg_md_license_triggers_medical_device() -> None:
+    """Regression Test 14: Anchored MFG/MD licence triggers medical device proposal."""
+    field = _make_field(
+        field_type=DeclarationField.NAME_AND_ADDRESS,
+        normalised_value="Licence No: MFG/MD/2021/001",
+        span_refs=("span_mfg_md",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    proposal = propose_category(result)
+    assert proposal is not None
+    assert proposal.category is ProductCategory.MEDICAL_DEVICE
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+
+
+def test_arbitrary_14_digit_number_does_not_trigger_food() -> None:
+    """Regression Test 15: Arbitrary 14-digit GTIN/number does not trigger food proposal."""
+    field = _make_field(
+        field_type=DeclarationField.OTHER_PRESCRIBED_MATTER,
+        normalised_value="GTIN-14: 12345678901234",
+        span_refs=("span_gtin",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None
+
+
+def test_anchored_fssai_14_digit_licence_triggers_food() -> None:
+    """Regression Test 16: FSSAI-anchored 14-digit licence triggers food proposal."""
+    field = _make_field(
+        field_type=DeclarationField.NAME_AND_ADDRESS,
+        normalised_value="FSSAI Lic. No. 10012022000123",
+        span_refs=("span_fssai",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    proposal = propose_category(result)
+    assert proposal is not None
+    assert proposal.category is ProductCategory.FOOD
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+
+
+def test_competing_food_and_cosmetics_lexical_signals_safely_abstain() -> None:
+    """Regression Test 17: Competing food (Butter) & cosmetics (Cream) Category A
+    lexical signals safely abstain by returning None.
+    """
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Butter Body Cream",
+        span_refs=("span_butter_cream",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None

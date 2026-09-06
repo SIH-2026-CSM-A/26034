@@ -3,6 +3,9 @@
 Infers product categories (FOOD, COSMETICS, MEDICAL_DEVICE) from label declarations
 grounded strictly in Legal Metrology corpus sources (FSS Act 2006, Drugs & Cosmetics
 Rules 1945, Medical Devices Rules 2017 / G.S.R. 778(E)).
+
+Confidence values in this module represent uncalibrated priors. They MUST be
+recalibrated once an evaluation dataset exists.
 """
 
 from __future__ import annotations
@@ -17,47 +20,75 @@ from app.contracts import (
 )
 from app.modules.extraction.binder import ExtractionResult
 
+# --- Uncalibrated Priors for Evidence Strength -----------------------------------------
+# Uncalibrated priors representing relative evidence-strength scores.
+# MUST be recalibrated once an evaluation dataset exists.
+CONFIDENCE_STATUTORY_SIGNAL: Final[float] = 0.95
+CONFIDENCE_LEXICAL_SIGNAL: Final[float] = 0.80
+CONFIDENCE_MUTUALLY_REINFORCING: Final[float] = 0.98
+
 # --- Statutory Regulatory Patterns Grounded in Legal Corpus ----------------------------
 
-# Food: FSSAI Licence (14-digit) or Food Safety and Standards Act 2006
-# Sourced: LMPC 2011 Rule 2(r), Rule 6(1)(a) Explanation III (FSS Act 2006)
+# Food: Requires explicit FSSAI or Lic token preceding/near the 14-digit licence number
+# or Food Safety and Standards Act references.
+# Sourced: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+# - Page 3: Rule 2(r) ("Food Safety and Standards Act, 2006")
+# - Page 4: Rule 6(1)(a) Explanation III ("Food Safety and Standards Act, 2006 (34 of 2006)")
 _FOOD_STATUTORY_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:FSSAI|LIC(?:\.|\s*NO)?\s*:\s*[12]\d{13}|[12]\d{13}|FOOD\s+SAFETY\s+(?:AND|&)\s+STANDARDS)\b",
+    r"\b(?:FSSAI(?:\s*(?:LIC(?:ENSE|ENCE)?|NO)\.?)*\s*:?\s*[12]\d{13}|LIC(?:ENSE|ENCE)?(?:\.|\s*NO\.?)?\s*:\s*FSSAI|FOOD\s+SAFETY\s+(?:AND|&)\s+STANDARDS)\b",
     re.IGNORECASE,
 )
 
-# Food Lexical Commodities: Explicitly grounded in LMPC 2011 Second Schedule & G.S.R. 881(E)
-# Sourced: LMPC 2011 Second Schedule (biscuits, milk, tea, coffee,
-# edible oil, vanaspati, ghee, butter)
-# & G.S.R. 881(E) (pan masala)
+# Food Lexical Commodities: Grounded strictly in Category A statutory schedules/amendments:
+# - LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf Page 23
+#   (Fourth Schedule Item 11: "Edible oil Vanaspati ghee and butter")
+# - GSR-881E__2025-12-02__pan-masala.pdf Page 2
+#   (Clause 2(1) proviso to Rule 6: "pan masala")
+# Note: "BISCUITS" (Rule 6 group package illustration in GSR 722(E)) and "MILK"
+# (Rule 6(1)(a) Explanation II scope exception) were removed as they represent
+# Category B/C scope rules/illustrations rather than Category A statutory category definitions.
 _FOOD_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:BISCUITS?|MILK|TEA|COFFEE|EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER|PAN\s+MASALA)\b",
+    r"\b(?:EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER|PAN\s+MASALA)\b",
     re.IGNORECASE,
 )
 
 # Cosmetics: Drugs & Cosmetics Rules 1945 or M.L. / Mfg Lic references
-# Sourced: LMPC 2011 Rule 6(1)(d) third proviso (Drugs and Cosmetics Rules, 1945)
+# Sourced: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+# - Page 5: Rule 6(1)(d) third proviso ("Drugs and Cosmetics Rules, 1945")
 _COSMETICS_STATUTORY_RE: Final[re.Pattern[str]] = re.compile(
     r"\b(?:DRUGS?\s*(?:AND|&)\s*COSMETICS|D\s*&\s*C\s*RULES|M\.L\.|MFG(?:\.|\s*)LIC(?:\.|\s*NO)?\s*:\s*C(?:OS)?[-/])\b",
     re.IGNORECASE,
 )
 
-# Cosmetics Lexical Commodities: Explicitly grounded in LMPC 2011 Rule 6(8) & Second/Third Schedule
-# Sourced: Rule 6(8) (soap, shampoo, tooth paste, toothpaste, toiletries) & Third Schedule (creams)
+# Cosmetics Lexical Commodities: Grounded strictly in rules-corpus PDFs:
+# - LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf Page 7
+#   (Rule 6(8): "soap, shampoo, tooth pastes and other cosmetics and toiletries")
+# - LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf Page 22
+#   (Third Schedule Items 1-3: "Soaps", "Lotions", "Cream")
+# - LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf Page 23
+#   (Fourth Schedule Item 26: "Cosmetics including creams, shampoo, lotions and perfumes")
+# - GSR-722E__2023-10-06__amendment-rules-2023.pdf Page 4
+#   (Rule 6 illustration: "toilet soap cakes")
+# Note: "cream" can create ambiguity with food ("cream biscuits"),
+# which intentionally leads to abstention if competing signals exist.
 _COSMETICS_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:SOAP|SHAMPOO|TOOTH\s*PASTE|TOOTHPASTE|CREAM|CREAMS|TOILETRIES)\b",
+    r"\b(?:SOAPS?|SHAMPOO|TOOTH\s*PASTE|TOOTHPASTE|CREAMS?|LOTIONS?|PERFUMES?|TOILETRIES)\b",
     re.IGNORECASE,
 )
 
-# Medical Device: Medical Devices Rules 2017 / G.S.R. 778(E) / CDSCO / MFG/MD license
-# Sourced: G.S.R. 778(E) (Medical Devices Rules, 2017) & Rule 26(d)
-# proviso (medical devices declared as drugs)
+# Medical Device: Anchored strictly to real licence/context formats
+# (MFG/MD/, CDSCO, Medical Devices Rules, MDR 2017)
+# Prevents bare "MD-2024" batch codes from causing false positives.
+# Sourced: rules-corpus/GSR-778E__2025-10-23__medical-devices-mdr-2017.pdf
+# - Page 2: G.S.R. 778(E) ("Medical Devices Rules, 2017")
+# Sourced: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+# - Page 18: Rule 26(d) proviso ("medical devices declared as drugs")
 _MEDICAL_DEVICE_STATUTORY_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:MEDICAL\s*DEVICES?\s*RULES|MDR\s*2017|CDSCO|MFG/MD/\d+|MD-\d+)\b",
+    r"\b(?:MEDICAL\s*DEVICES?\s*RULES|MDR\s*2017|CDSCO|MFG/MD/\d+)\b",
     re.IGNORECASE,
 )
 
-# Medical Device Lexical Term: Explicitly grounded in G.S.R. 778(E) and Rule 26(d)
+# Medical Device Lexical Term: Grounded in G.S.R. 778(E) and Rule 26(d)
 _MEDICAL_DEVICE_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
     r"\b(?:MEDICAL\s+DEVICES?)\b",
     re.IGNORECASE,
@@ -71,12 +102,14 @@ def propose_category(result: ExtractionResult) -> CategoryProposal | None:
     corpus-grounded commodity signals. Returns ``None`` if evidence is missing, sparse,
     ambiguous, or conflicting across categories.
 
-    Deterministic scores:
-    - 0.95: Explicit statutory regulatory reference match
-    - 0.80: Corpus-grounded commodity name match
-    - 0.98: Statutory reference and commodity name mutually reinforcing
+    Deterministic evidence-strength scores:
+    - CONFIDENCE_STATUTORY_SIGNAL (0.95): Explicit statutory regulatory reference match
+    - CONFIDENCE_LEXICAL_SIGNAL (0.80): Corpus-grounded commodity name match
+    - CONFIDENCE_MUTUALLY_REINFORCING (0.98): Statutory reference and
+      commodity name mutually reinforcing
 
-    Note: Scores are deterministic evidence-strength values, not statistical probabilities.
+    Note: Scores represent uncalibrated priors, not statistical probabilities, and are
+    subject to recalibration when an evaluation dataset exists.
 
     Args:
         result: The ExtractionResult emitted by the extraction binder.
@@ -166,11 +199,11 @@ def propose_category(result: ExtractionResult) -> CategoryProposal | None:
         has_lex = category_has_lexical[cat]
 
         if has_stat and has_lex:
-            category_scores[cat] = 0.98
+            category_scores[cat] = CONFIDENCE_MUTUALLY_REINFORCING
         elif has_stat:
-            category_scores[cat] = 0.95
+            category_scores[cat] = CONFIDENCE_STATUTORY_SIGNAL
         elif has_lex:
-            category_scores[cat] = 0.80
+            category_scores[cat] = CONFIDENCE_LEXICAL_SIGNAL
         else:
             category_scores[cat] = 0.0
 
