@@ -256,3 +256,9 @@ def test_extract_mrp_quantity_corrects_confusions(mock_ocr_model_dir: str, mock_
             if "tesseract" in str(exc).lower() or "data file" in str(exc).lower():
                 pytest.skip("Tesseract binary not available")
             raise
+
+
+def test_extract_numeric_value_malformed():
+    from app.modules.vision.ocr import _extract_numeric_value
+
+    assert _extract_numeric_value("150.00.5") == ""

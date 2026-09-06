@@ -39,7 +39,7 @@ def _extract_numeric_value(text: str) -> str:
     # If multiple dots exist (e.g. malformed), keep standard float formatting or first token
     parts = cleaned.split(".")
     if len(parts) > 2:
-        cleaned = parts[0] + "." + "".join(parts[1:])
+        return ""
     return cleaned.strip(".")
 
 
@@ -215,7 +215,10 @@ def extract_mrp_quantity(crop: np.ndarray, tessdata_dir: str) -> str:
 def arbitrate_field_declaration(
     image: np.ndarray, primary_span: ExtractedSpan, tessdata_dir: str
 ) -> ArbitrationResult:
-    """Wires the pipeline: crops the bounding box, runs Tesseract, and returns arbitration."""
+    """Wires the pipeline: crops the bounding box, runs Tesseract, and returns arbitration.
+
+    Note: For MRP and net-quantity spans only.
+    """
     if not primary_span.polygon or len(primary_span.polygon) < 3:
         return arbitrate_mrp(
             primary_text=primary_span.text,
