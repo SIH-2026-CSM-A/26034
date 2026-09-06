@@ -153,46 +153,78 @@ def test_evaluation_helper_filters_by_governs_declarations() -> None:
     assert rule_governs_declaration(rule, DeclarationField.NAME_AND_ADDRESS) is False
 
 
-def test_widening_evaluation_scope_fails_falsification_check() -> None:
-    """Widening evaluation scope to un-governed fields fails the boundary assertion.
+def test_evaluation_path_falsification_narrowed_vs_widened_rule() -> None:
+    """Reject out-of-scope fields on a narrowed rule while allowing them on a widened rule.
 
-    Falsification check: introduces the defect where an evaluation consumer bypasses
-    governs_declarations filtering and evaluates candidate declarations indiscriminately.
-    Verifies that the assertion guarding scope integrity goes red when widened.
+    Falsification test on the evaluation execution path:
+    1. Narrowed rule: governs only NET_QUANTITY. Evaluating against NET_QUANTITY succeeds.
+       Evaluating against an un-governed field (RETAIL_SALE_PRICE) raises ValueError on the
+       execution path.
+    2. Widened rule: explicitly includes RETAIL_SALE_PRICE. Evaluating against RETAIL_SALE_PRICE
+       now succeeds because the rule was widened.
+    3. Falsification check: passing an un-governed target field directly into evaluate_rule cannot
+       silently emit a verdict — it raises ValueError, preventing scope leakage.
     """
-    rule = _definition(RuleStatus.VERIFIED).model_copy(
+    narrowed_rule = _definition(RuleStatus.VERIFIED).model_copy(
         update={"governs_declarations": (DeclarationField.NET_QUANTITY,)}
     )
-    candidate_fields = (
-        DeclarationField.NET_QUANTITY,
-        DeclarationField.RETAIL_SALE_PRICE,
-        DeclarationField.NAME_AND_ADDRESS,
+    widened_rule = _definition(RuleStatus.VERIFIED).model_copy(
+        update={
+            "governs_declarations": (
+                DeclarationField.NET_QUANTITY,
+                DeclarationField.RETAIL_SALE_PRICE,
+            )
+        }
     )
 
-    # Compliant consumer filters by governs_declarations
-    governed_evaluation = declarations_governed_by_rule(rule, candidate_fields)
-    assert all(
-        rule.governs_declarations is not None and field in rule.governs_declarations
-        for field in governed_evaluation
+    # 1. Narrowed rule execution path
+    assert (
+        evaluate_rule(
+            narrowed_rule,
+            Verdict.PASS,
+            target_field=DeclarationField.NET_QUANTITY,
+        )
+        is Verdict.PASS
     )
-
-    # Defective consumer evaluates widened scope (all candidates regardless of governs_declarations)
-    widened_scope = candidate_fields
-
-    # Falsification check: invariant must fail for the widened scope
-    is_strictly_governed = all(
-        rule.governs_declarations is not None and field in rule.governs_declarations
-        for field in widened_scope
+    expected_msg_narrowed = (
+        f"rule {narrowed_rule.rule_id} does not govern declaration "
+        f"{DeclarationField.RETAIL_SALE_PRICE.value}"
     )
-    assert not is_strictly_governed, (
-        "Widening scope beyond governs_declarations must fail the invariant check"
-    )
+    with pytest.raises(ValueError, match=expected_msg_narrowed):
+        evaluate_rule(
+            narrowed_rule,
+            Verdict.PASS,
+            target_field=DeclarationField.RETAIL_SALE_PRICE,
+        )
 
-    unauthorized_fields = [f for f in widened_scope if not rule.governs(f)]
-    assert unauthorized_fields == [
-        DeclarationField.RETAIL_SALE_PRICE,
-        DeclarationField.NAME_AND_ADDRESS,
-    ]
+    # 2. Widened rule execution path: RETAIL_SALE_PRICE now succeeds
+    assert (
+        evaluate_rule(
+            widened_rule,
+            Verdict.PASS,
+            target_field=DeclarationField.NET_QUANTITY,
+        )
+        is Verdict.PASS
+    )
+    assert (
+        evaluate_rule(
+            widened_rule,
+            Verdict.PASS,
+            target_field=DeclarationField.RETAIL_SALE_PRICE,
+        )
+        is Verdict.PASS
+    )
+    # Fields still outside the widened scope are still rejected
+    expected_msg_widened = (
+        f"rule {widened_rule.rule_id} does not govern declaration "
+        f"{DeclarationField.NAME_AND_ADDRESS.value}"
+    )
+    with pytest.raises(ValueError, match=expected_msg_widened):
+        evaluate_rule(
+            widened_rule,
+            Verdict.PASS,
+            target_field=DeclarationField.NAME_AND_ADDRESS,
+        )
 
 
 def test_unpopulated_governs_declarations_falls_back_to_broad_evaluation() -> None:

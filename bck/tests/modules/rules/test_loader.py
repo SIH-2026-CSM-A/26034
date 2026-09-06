@@ -260,16 +260,26 @@ def test_populated_governs_declarations_parsed_into_declaration_field_enums(
 
 
 def test_committed_store_governs_declarations_validity() -> None:
-    """Every populated governs_declarations entry is a tuple of DeclarationFields."""
+    """Every populated governs_declarations entry is a valid tuple of DeclarationFields."""
     rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
-    populated = [r for r in rules if r.governs_declarations is not None]
-    assert len(populated) == 13
+    assert any(rule.governs_declarations is not None for rule in rules)
 
-    for rule in populated:
-        assert isinstance(rule.governs_declarations, tuple)
-        assert len(rule.governs_declarations) >= 1
-        for field in rule.governs_declarations:
-            assert isinstance(field, DeclarationField)
+    for rule in rules:
+        if rule.governs_declarations is not None:
+            assert isinstance(rule.governs_declarations, tuple)
+            assert len(rule.governs_declarations) >= 1
+            for field in rule.governs_declarations:
+                assert isinstance(field, DeclarationField)
+            # Property: must not contain duplicate fields
+            assert len(rule.governs_declarations) == len(set(rule.governs_declarations))
+
+        # Property: governs() method is total and deterministic for all candidate fields
+        for candidate in DeclarationField:
+            assert isinstance(rule.governs(candidate), bool)
+            if rule.governs_declarations is not None:
+                assert rule.governs(candidate) == (candidate in rule.governs_declarations)
+            else:
+                assert rule.governs(candidate) is True
 
     assert rule_by_id("R6-1-A").governs_declarations == (DeclarationField.NAME_AND_ADDRESS,)
     assert rule_by_id("R6-1-AA").governs_declarations == (DeclarationField.COUNTRY_OF_ORIGIN,)

@@ -38,8 +38,39 @@ def _positive(value: Decimal, field_name: str) -> Decimal:
     return value
 
 
-def evaluate_rule(rule: RuleDefinition, proposed_verdict: Verdict) -> Verdict:
-    """Apply the central source-status gate to every proposed rule verdict."""
+def rule_governs_declaration(rule: RuleDefinition, field: DeclarationField) -> bool:
+    """Return whether a rule governs the given declaration field.
+
+    When ``rule.governs_declarations`` is ``None``, the rule falls back to broad
+    evaluation across all declarations (returns ``True``). Otherwise returns ``True``
+    only if ``field`` is in ``rule.governs_declarations``.
+    """
+    return rule.governs(field)
+
+
+def declarations_governed_by_rule(
+    rule: RuleDefinition,
+    candidate_fields: tuple[DeclarationField, ...],
+) -> tuple[DeclarationField, ...]:
+    """Return candidate declaration fields governed by the supplied rule.
+
+    If ``rule.governs_declarations`` is ``None``, candidate fields are returned
+    unfiltered (broad evaluation fallback). Otherwise, only fields present in
+    ``rule.governs_declarations`` are returned.
+    """
+    if rule.governs_declarations is None:
+        return candidate_fields
+    return tuple(field for field in candidate_fields if field in rule.governs_declarations)
+
+
+def evaluate_rule(
+    rule: RuleDefinition,
+    proposed_verdict: Verdict,
+    target_field: DeclarationField | None = None,
+) -> Verdict:
+    """Apply central source-status and declaration governance gates to proposed verdicts."""
+    if target_field is not None and not rule_governs_declaration(rule, target_field):
+        raise ValueError(f"rule {rule.rule_id} does not govern declaration {target_field.value}")
     if rule.status is RuleStatus.UNVERIFIED:
         return Verdict.REVIEW
     return proposed_verdict
@@ -290,28 +321,3 @@ def select_effective_rule(
     if not active:
         return None
     return max(active, key=lambda rule: (rule.effective_from, rule.rule_id))
-
-
-def rule_governs_declaration(rule: RuleDefinition, field: DeclarationField) -> bool:
-    """Return whether a rule governs the given declaration field.
-
-    When ``rule.governs_declarations`` is ``None``, the rule falls back to broad
-    evaluation across all declarations (returns ``True``). Otherwise returns ``True``
-    only if ``field`` is in ``rule.governs_declarations``.
-    """
-    return rule.governs(field)
-
-
-def declarations_governed_by_rule(
-    rule: RuleDefinition,
-    candidate_fields: tuple[DeclarationField, ...],
-) -> tuple[DeclarationField, ...]:
-    """Return candidate declaration fields governed by the supplied rule.
-
-    If ``rule.governs_declarations`` is ``None``, candidate fields are returned
-    unfiltered (broad evaluation fallback). Otherwise, only fields present in
-    ``rule.governs_declarations`` are returned.
-    """
-    if rule.governs_declarations is None:
-        return candidate_fields
-    return tuple(field for field in candidate_fields if field in rule.governs_declarations)

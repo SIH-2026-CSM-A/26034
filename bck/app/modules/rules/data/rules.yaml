@@ -243,7 +243,10 @@ rules:
           moulded_minimum_height_mm: 6.0
     evidence_requirement: calibrated_or_artwork_character_height_and_pdp_area
     severity: POTENTIAL VIOLATION
-    # Numeral and letter height across declarations; unpopulated (None) pending corpus review.
+    # Rule 7(2) prescribes that 'The height of any numeral and letter in the declaration
+    # required under these rules shall be as per Table-I.' The minimum font height mandate
+    # applies universally across letters and numerals in all mandatory declarations.
+    # Therefore, this clause genuinely governs all declarations (null).
     governs_declarations: null
 
   - rule_id: R7-3-WIDTH-RATIO
@@ -262,7 +265,10 @@ rules:
       exempt_characters: ["1", i, I, l]
     evidence_requirement: calibrated_or_artwork_character_width_and_height
     severity: POTENTIAL VIOLATION
-    # Width-to-height ratio across declarations; unpopulated (None) pending corpus review.
+    # Rule 7(3) mandates that 'The width of the letter or numeral shall not be less than
+    # one third of its height', subject to specific character exemptions ('1', i, I, l).
+    # Like Rule 7(2), this proportion requirement governs letters and numerals across all
+    # mandatory declarations. Therefore, this clause genuinely governs all declarations (null).
     governs_declarations: null
 
   - rule_id: R7-4-PDP-AREA
@@ -289,7 +295,9 @@ rules:
       excluded_regions: [top, bottom, can_top_flange, can_bottom_flange, bottle_or_jar_shoulders, bottle_or_jar_neck]
     evidence_requirement: supplied_calibrated_dimensions_or_legally_identified_pdp_area
     severity: REVIEW
-    # PDP area calculation across package surfaces; unpopulated (None) pending corpus review.
+    # Rule 7(4) defines mathematical computation methods for principal display panel area
+    # across various packaging geometries. As computation metadata rather than a declaration-
+    # specific obligation, it governs no single declaration (null).
     governs_declarations: null
 
   - rule_id: R7-5-OTHER-LAW
@@ -310,7 +318,9 @@ rules:
       preserved_declarations: [net_weight, retail_sale_price, expiry_best_before_use_by, consumer_care_details]
     evidence_requirement: declaration_type_and_other_law_applicability
     severity: REVIEW
-    # Other-law carve-out preserving certain sizing groups; unpopulated (None) pending corpus review.
+    # Rule 7(5) is a statutory carve-out for declarations required under other laws,
+    # preserving size rules for net weight, retail sale price, expiry/best before date,
+    # and consumer care. As routing metadata, it governs no single declaration (null).
     governs_declarations: null
 
   # G.S.R. 778(E) is a CARVE-OUT, not a stricter path: it moves height, width and the
@@ -350,7 +360,9 @@ rules:
       disapplies_rule_33_relaxation: true
     evidence_requirement: medical_device_classification_and_mdr_specific_evidence
     severity: REVIEW
-    # Medical device sector carve-out; unpopulated (None) pending corpus review.
+    # G.S.R. 778(E) routes numeral and letter dimensions for medical devices to the
+    # Medical Devices Rules, 2017. As sector routing metadata, it governs no single
+    # declaration (null).
     governs_declarations: null
 
   # Explanation III disapplies Rule 6(1)(a) for food articles outright and routes the
@@ -421,7 +433,10 @@ rules:
       required_location: principal_display_panel
     evidence_requirement: declaration_location_on_detected_principal_display_panel
     severity: POTENTIAL VIOLATION
-    # Placement across declarations broadly; unpopulated (None) pending corpus review.
+    # Rule 8(1) mandates that 'Every declaration required to be made under these rules shall
+    # appear on the principal display panel.' By statutory design, this placement obligation
+    # is universal across all mandatory declarations. Therefore, it genuinely governs all
+    # declarations (null).
     governs_declarations: null
 
   # The Rule 8(1) proviso is geometrically measurable, so its evidence requirement is a
@@ -471,8 +486,9 @@ rules:
       handwritten_must_be_clear_unambiguous_and_legible: true
     evidence_requirement: declaration_legibility_and_colour_contrast_observation
     severity: POTENTIAL VIOLATION
-    # Governs legibility, prominence, and contrast across declarations; unpopulated (None) pending corpus review.
-    governs_declarations: null
+    # Rule 9(1)(b) specifically mandates contrasting colour for retail sale price and net quantity
+    # numerals, which forms the actionable constraint evaluated under conditions.contrasting_colour_declarations.
+    governs_declarations: [RETAIL_SALE_PRICE, NET_QUANTITY]
 
   - rule_id: R9-3-OUTER-CONTAINER
     clause_ref: Rule 9(3)
@@ -495,7 +511,10 @@ rules:
       inner_declarations_not_required_when_outer_complete: true
     evidence_requirement: outer_wrapper_transparency_and_declaration_completeness
     severity: POTENTIAL VIOLATION
-    # Governs declarations on outer containers across declarations; unpopulated (None) pending corpus review.
+    # Rule 9(3) explicitly governs 'all the declarations which are required to appear on the
+    # package' when an outside container or wrapper is provided. By its express statutory
+    # terms, this packaging wrapper requirement applies across every mandatory declaration
+    # required under these rules. Therefore, it genuinely governs all declarations (null).
     governs_declarations: null
 
   # G.S.R. 722(E) inserted clauses (ka) and (kb) after rule 2 clause (k). In force on
