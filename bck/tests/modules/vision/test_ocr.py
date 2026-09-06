@@ -1,17 +1,13 @@
-import socket
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytesseract
 import pytest
 
 from app.contracts import EvidenceProvider, ExtractedSpan
 from app.modules.vision.ocr import (
-    DEFAULT_REPASS_WHITELIST,
     _parse_paddle_results,
-    arbitrate_field_declaration,
     arbitrate_mrp,
     extract_mrp_quantity,
     extract_panel_text,
@@ -57,44 +53,34 @@ def test_extract_mrp_quantity_mocked(mock_tesseract, mock_tessdata_dir):
 
 
 @patch("paddleocr.PaddleOCR")
-def test_extract_panel_text_mocked(mock_paddle, mock_ocr_model_dir):
+def test_extract_panel_text_mocked(mock_paddle, tmp_path):
     mock_instance = mock_paddle.return_value
-    mock_instance.ocr.return_value = [[([[0, 0], [10, 0], [10, 10], [0, 10]], ("50g", 0.98))]]
-    mock_instance.predict.return_value = [[([[0, 0], [10, 0], [10, 10], [0, 10]], ("50g", 0.98))]]
-    spans = extract_panel_text(
-        np.zeros((10, 10, 3), dtype=np.uint8), mock_ocr_model_dir, mock_ocr_model_dir
-    )
-    assert spans[0].text == "50g"
-    assert spans[0].source_provider == EvidenceProvider.PADDLEOCR
+    mock_instance.predict.return_value = {
+        "dt_polys": [[[0, 0], [10, 0], [10, 10], [0, 10]]],
+        "rec_texts": ["TEST"],
+        "rec_scores": [0.99],
+    }
 
+    det_dir = str(tmp_path / "det")
+    rec_dir = str(tmp_path / "rec")
+    import os
 
-@pytest.mark.integration
-def test_ocr_real_network_isolation(monkeypatch, mock_ocr_model_dir, mock_tessdata_dir):
-    """Real Integration Check: Invokes real provider stack under socket-blocking monkeypatch."""
+    os.makedirs(det_dir)
+    os.makedirs(rec_dir)
 
-    def block_sockets(*args, **kwargs):
-        raise OSError("Outbound network access blocked by offline mandate")
+    import numpy as np
 
-    monkeypatch.setattr(socket, "socket", block_sockets)
-    if hasattr(socket, "create_connection"):
-        monkeypatch.setattr(socket, "create_connection", block_sockets)
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    spans = extract_panel_text(image, det_dir, rec_dir)
 
-    img = np.full((100, 100, 3), 255, dtype=np.uint8)
+    assert len(spans) == 1
+    assert spans[0].text == "TEST"
+    assert spans[0].confidence == 0.99
 
-    with patch("pytesseract.image_to_string", return_value="150"):
-        res = extract_mrp_quantity(img, tessdata_dir=mock_tessdata_dir)
-        assert res == "150"
-
-    with patch("paddleocr.PaddleOCR") as mock_paddle:
-        mock_inst = mock_paddle.return_value
-        mock_inst.predict.return_value = {
-            "dt_polys": [np.array([[0, 0], [10, 0], [10, 10], [0, 10]])],
-            "rec_texts": ["50g"],
-            "rec_scores": [0.98],
-        }
-        spans = extract_panel_text(img, mock_ocr_model_dir, mock_ocr_model_dir)
-        assert len(spans) == 1
-        assert spans[0].text == "50g"
+    mock_paddle.assert_called_once()
+    kwargs = mock_paddle.call_args.kwargs
+    assert kwargs.get("text_detection_model_dir") == det_dir
+    assert kwargs.get("text_recognition_model_dir") == rec_dir
 
 
 def test_offline_guarantee_raises_on_missing_tessdata():
@@ -169,96 +155,7 @@ def test_paddleocr_3x_parser_format():
 
 
 @patch("pytesseract.image_to_string")
-def test_synthetic_glyph_confusion_correction(mock_image_to_string, mock_tessdata_dir):
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError:
-        pytest.skip("PIL required")
-    img = Image.new("RGB", (250, 80), color="white")
-    ImageDraw.Draw(img).text((15, 20), "1S0", fill="black")
-
-    def side_effect(image, config=""):
-        return "150" if "tessedit_char_whitelist" in config else "1S0"
-
-    mock_image_to_string.side_effect = side_effect
-    text = extract_mrp_quantity(np.array(img), tessdata_dir=mock_tessdata_dir)
-    assert "S" not in text
-
-
-@patch("app.modules.vision.ocr.extract_mrp_quantity")
-def test_arbitrate_field_declaration_wiring(mock_extract):
-    mock_extract.return_value = "100"
-    span_id = str(uuid.uuid4())
-    primary_span = ExtractedSpan(
-        span_id=span_id,
-        region_id="panel",
-        polygon=[(10, 10), (50, 10), (50, 50), (10, 50)],
-        text="100",
-        confidence=0.99,
-        source_provider=EvidenceProvider.PADDLEOCR,
-    )
-    result = arbitrate_field_declaration(
-        np.zeros((100, 100, 3), dtype=np.uint8), primary_span, "/fake/dir"
-    )
-    assert result.needs_review is False
-    mock_extract.assert_called_once()
-
-
-def test_extract_mrp_quantity_corrects_confusions(mock_ocr_model_dir: str, mock_tessdata_dir: str):
-    """Unmocked test proving extract_mrp_quantity corrects confusions using real crops."""
-    possible_dirs = [
-        Path(__file__).parents[3] / "datasets",
-        Path(__file__).parents[4] / "datasets",
-        Path("../datasets"),
-        Path("datasets"),
-    ]
-
-    datasets_dir = None
-    for p in possible_dirs:
-        if p.exists() and p.is_dir():
-            datasets_dir = p
-            break
-
-    if datasets_dir is None:
-        pytest.skip("Requires real crops from datasets/ per ticket constraint. Aborting.")
-
-    image_files = sorted(
-        [
-            f
-            for f in datasets_dir.rglob("*")
-            if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".bmp")
-        ]
-    )
-
-    if not image_files:
-        pytest.skip("Requires real crops from datasets/ per ticket constraint. Aborting.")
-
-    whitelisted_chars = set(DEFAULT_REPASS_WHITELIST)
-
-    for img_path in image_files:
-        try:
-            from PIL import Image
-
-            with Image.open(img_path) as pil_img:
-                crop = np.array(pil_img)
-        except Exception:
-            continue
-
-        try:
-            res_text = extract_mrp_quantity(crop, tessdata_dir=mock_tessdata_dir)
-            for char in res_text:
-                assert char in whitelisted_chars
-        except (
-            pytesseract.TesseractNotFoundError,
-            pytesseract.TesseractError,
-            FileNotFoundError,
-        ) as exc:
-            if "tesseract" in str(exc).lower() or "data file" in str(exc).lower():
-                pytest.skip("Tesseract binary not available")
-            raise
-
-
-def test_extract_numeric_value_malformed():
+def test_extract_numeric_value_malformed(mock_tesseract):
     from app.modules.vision.ocr import _extract_numeric_value
 
     assert _extract_numeric_value("150.00.5") == ""

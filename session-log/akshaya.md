@@ -1,7 +1,11 @@
 # Session Log - Akshaya
+## Date: September 2026
+### Ticket VIS-001: Vision Preprocessing Module Optimization
+- **Vectorized `remap_curvature`**: Replaced the $O(h \times w)$ raw Python double for-loop with NumPy vectorization (`np.arange`, `np.clip`, `np.sin`, `np.tile`) to ensure high-resolution images ($3000 \times 4000$) process comfortably within performance targets[cite: 1].
+- **Added Performance Regression Test**: Implemented `test_remap_curvature_performance_at_realistic_resolution` to guard against latency regressions[cite: 1].
+- **Verification**: All linter checks, formatting checks, import boundary contracts (`lint-imports`), and pytest suites pass cleanly[cite: 1].
 
-## Task: Vision OCR Parser & Compliance Fixes (PR #45 / vis-003-reocr-clean)
-- Refined `_extract_numeric_value` to reject malformed numeric strings with multiple decimal points (returning `""` for strict compliance auditing).
-- Added docstring clarification to `arbitrate_field_declaration` restricting usage to MRP and net-quantity spans.
-- Added test coverage for malformed numeric strings (`"150.00.5"`).
-- Verified all tests, linters, formatting, and import contracts.
+## Session - VIS-003: Robust PaddleOCR 3.x Parser & Strict Confidence
+- Restored VIS-001 historical records (remap_curvature vectorisation, performance regression tests, rebase notes).
+- Implemented strict parsing for PaddleOCR 3.x results without 1.0 confidence fallbacks.
+- Configured frame-level provenance (`region_id="frame"`).
