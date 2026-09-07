@@ -454,6 +454,12 @@ def test_detect_script_ext_008_additional_scripts():
     assert detect_script("নীট পরিমাণ 500g") == ScriptType.MIXED
     # Tamil + Bengali multi-script span returns MIXED
     assert detect_script("நிகர அளவு নীট পরিমাণ") == ScriptType.MIXED
+    # Script-bearing unsupported text returns UNSUPPORTED (Telugu, Kannada)
+    assert detect_script("నికర పరిమాణం") == ScriptType.UNSUPPORTED
+    assert detect_script("ಅನುಪಾತ") == ScriptType.UNSUPPORTED
+    assert detect_script("నికర పరిమాణం 500g") == ScriptType.MIXED
+    # Script-bearing unsupported text is NOT in the same bucket as punctuation/noise
+    assert detect_script("నికర పరిమాణం") != detect_script("12345 !!!")
     # Noise/punctuation remains NEITHER
     assert detect_script("!!! --- ...") == ScriptType.NEITHER
     assert detect_script("12345 !!!") == ScriptType.NEITHER

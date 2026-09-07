@@ -4,7 +4,7 @@ Statutory Corpus Citation:
   Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31):
   Compilation for Maharashtra State Metrology Department.
   Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
-  Page 9, Rule 9(4):
+  Rule 9(4):
     "(4) The particulars of the declarations required to be specified under this
     rule on a package shall either be in Hindi in Devanagiri script or in English:
     Provided that nothing contained in this sub-rule shall prevent the use of any
@@ -27,6 +27,7 @@ declaration field are spatially paired into single NormalisedField records with 
 """
 
 import re
+import unicodedata
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Final
@@ -93,6 +94,9 @@ _DEVANAGARI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0900-\u097F\uA8E0-\uA8F
 _LATIN_RE: Final[re.Pattern[str]] = re.compile(r"[a-zA-Z]")
 _TAMIL_RE: Final[re.Pattern[str]] = re.compile(r"[\u0B80-\u0BFF]")
 _BENGALI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0980-\u09FF]")
+_HANDLED_SCRIPT_CHARS_RE: Final[re.Pattern[str]] = re.compile(
+    r"[\u0900-\u097F\uA8E0-\uA8FF\u1CD0-\u1CFFa-zA-Z\u0B80-\u0BFF\u0980-\u09FF]"
+)
 
 _DEVANAGARI_DIGITS: Final[dict[str, str]] = {
     "०": "0",
@@ -137,34 +141,41 @@ class ScriptType(StrEnum):
     LATIN = "LATIN"
     TAMIL = "TAMIL"
     BENGALI = "BENGALI"
+    UNSUPPORTED = "UNSUPPORTED"
     MIXED = "MIXED"
     NEITHER = "NEITHER"
 
 
 def detect_script(text: str) -> ScriptType:
-    """Detect whether text is Devanagari, Latin, Tamil, Bengali, Mixed, or Neither script.
+    """Detect whether text is Devanagari, Latin, Tamil, Bengali, Unsupported, Mixed,
+    or Neither script.
 
     Statutory Corpus Citation:
-      Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31),
-      Page 9, Rule 9(4): Rule 9(4) permits the use of other languages in addition to
-      Hindi or English. EXT-008 distinguishes recognized additional scripts such as Tamil
-      and Bengali from unidentified/noise spans.
+      Legal Metrology (Packaged Commodities) Rules, 2011, Rule 9(4).
+      Rule 9(4) permits the use of other languages in addition to Hindi or English.
+      EXT-008 distinguishes recognized additional scripts from unidentified/noise spans.
     """
     has_dev = bool(_DEVANAGARI_RE.search(text))
     has_lat = bool(_LATIN_RE.search(text))
     has_tam = bool(_TAMIL_RE.search(text))
     has_ben = bool(_BENGALI_RE.search(text))
 
-    matching_scripts = [
-        s
-        for s, matched in [
-            (ScriptType.DEVANAGARI, has_dev),
-            (ScriptType.LATIN, has_lat),
-            (ScriptType.TAMIL, has_tam),
-            (ScriptType.BENGALI, has_ben),
-        ]
-        if matched
-    ]
+    matching_scripts: list[ScriptType] = []
+    if has_dev:
+        matching_scripts.append(ScriptType.DEVANAGARI)
+    if has_lat:
+        matching_scripts.append(ScriptType.LATIN)
+    if has_tam:
+        matching_scripts.append(ScriptType.TAMIL)
+    if has_ben:
+        matching_scripts.append(ScriptType.BENGALI)
+
+    has_unsupported = any(
+        unicodedata.category(c).startswith("L") and not _HANDLED_SCRIPT_CHARS_RE.match(c)
+        for c in text
+    )
+    if has_unsupported:
+        matching_scripts.append(ScriptType.UNSUPPORTED)
 
     if len(matching_scripts) > 1:
         return ScriptType.MIXED
