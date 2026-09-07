@@ -93,10 +93,13 @@ class Settings(BaseSettings):
     pdp_weights_path: Path | None = None
     """YOLO weights for principal-display-panel detection.
 
-    Required to serve a scan. ``None`` by default and validated at application startup
-    rather than defaulted to a path that might happen to exist: weights are gitignored and
-    pre-cached, so the failure this guards is a fresh clone, and the honest place to find
-    out is boot rather than the first request an officer makes.
+    Optional. ``None`` by default and deliberately NOT part of the startup check: there is
+    no PDP-trained detector, and pointing this at stock COCO weights is worse than leaving
+    it unset, because ``detect_pdp`` returns a box from whatever the detector hands back and
+    that area feeds the Rule 7 Table-I band lookup. Unset, detection falls back to a
+    heuristic region that is a distinct type, so a heuristic panel can never be mistaken for
+    a model detection. The three OCR paths remain required at boot: they are pre-cached, and
+    the honest place to find a fresh clone missing them is boot, not an officer's first scan.
     """
 
     ocr_det_model_dir: Path | None = None
@@ -194,7 +197,6 @@ class Settings(BaseSettings):
         """
         missing: list[str] = []
         for name in (
-            "pdp_weights_path",
             "ocr_det_model_dir",
             "ocr_rec_model_dir",
             "tesseract_tessdata_dir",

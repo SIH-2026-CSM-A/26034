@@ -33,12 +33,27 @@ def test_quality_gate_blur_exceeded():
 
 
 def test_quality_gate_glare_exceeded():
-    img = np.full((100, 100, 3), 250, dtype=np.uint8)
-    cv2.line(img, (0, 0), (99, 99), (0, 0, 0), 3)
-    cv2.line(img, (0, 99), (99, 0), (0, 0, 0), 3)
+    """Glare is measured over the package surface, not the whole frame.
+
+    VIS-010: a near-white backdrop is not glare. The fixture is a dark package filling the
+    frame with a saturated reflection on it, so the subject mask is large and the glare
+    ratio reflects the reflection rather than the background.
+    """
+    img = np.full((100, 100, 3), 60, dtype=np.uint8)
+    cv2.rectangle(img, (30, 30), (69, 69), (255, 255, 255), -1)
     res = quality_gate(img, blur_threshold=1.0, glare_threshold=0.10)
     assert res.is_acceptable is False
     assert res.reason_code == "GLARE_EXCEEDED"
+
+
+def test_a_white_backdrop_is_not_glare():
+    """VIS-010 regression: the defect this fixes. A dark package on a white studio
+    backdrop measured 0.19-0.83 glare on the old whole-frame ratio and was refused.
+    All four real captures failed that way and no image could reach a verdict."""
+    img = np.full((100, 100, 3), 255, dtype=np.uint8)
+    cv2.rectangle(img, (20, 20), (79, 79), (60, 60, 60), -1)
+    res = quality_gate(img, blur_threshold=1.0, glare_threshold=0.15)
+    assert res.glare_ratio < 0.15
 
 
 def test_quality_gate_empty_image():

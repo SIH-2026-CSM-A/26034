@@ -18,7 +18,6 @@ import pytest
 from app.core.config import Settings, get_settings
 
 WEIGHT_SETTINGS = (
-    "pdp_weights_path",
     "ocr_det_model_dir",
     "ocr_rec_model_dir",
     "tesseract_tessdata_dir",
@@ -26,7 +25,12 @@ WEIGHT_SETTINGS = (
 """Every model path a scan needs, in the order :meth:`Settings.missing_model_paths`
 reports them.
 
-``tesseract_tessdata_dir`` is the fourth because VIS-003 made ``extract_mrp_quantity``
+``pdp_weights_path`` is deliberately NOT here. CORE-005 removed it: there is no
+PDP-trained detector, and pointing it at stock COCO weights is worse than leaving it unset,
+because ``detect_pdp`` returns a box from whatever the detector hands back and that area
+feeds the Rule 7 Table-I band lookup. Unset, VIS-008's heuristic supplies a region of a
+distinct type, so a heuristic panel can never be mistaken for a model detection.
+``tesseract_tessdata_dir`` is last because VIS-003 made ``extract_mrp_quantity``
 raise ``FileNotFoundError`` without it. The chain does not call that function yet — the
 constrained re-read needs a bound MRP crop and binding is EXT-004 — but it is checked at
 startup all the same: the whole point of the gate is that the failure lands at boot rather
@@ -55,12 +59,28 @@ def test_a_path_that_does_not_exist_counts_as_missing(tmp_path: Path) -> None:
     settings = Settings(
         _env_file=None,
         jwt_secret="k" * 40,
-        pdp_weights_path=tmp_path / "gone.pt",
+        ocr_det_model_dir=tmp_path / "gone",
+        ocr_rec_model_dir=tmp_path,
+        tesseract_tessdata_dir=tmp_path,
+    )
+    assert settings.missing_model_paths() == ("ocr_det_model_dir",)
+
+
+def test_an_absent_pdp_weights_path_does_not_block_startup(tmp_path: Path) -> None:
+    """CORE-005. This is the behaviour change, pinned.
+
+    The backend never booted on this project because pdp_weights_path was required and no
+    PDP-trained detector exists. It is now optional; a missing one is not a missing model
+    path, and detection degrades to VIS-008's heuristic rather than refusing to start."""
+    settings = Settings(
+        _env_file=None,
+        jwt_secret="k" * 40,
+        pdp_weights_path=tmp_path / "does-not-exist.pt",
         ocr_det_model_dir=tmp_path,
         ocr_rec_model_dir=tmp_path,
         tesseract_tessdata_dir=tmp_path,
     )
-    assert settings.missing_model_paths() == ("pdp_weights_path",)
+    assert settings.missing_model_paths() == ()
 
 
 async def test_the_application_refuses_to_start_without_its_weights(
