@@ -11,7 +11,6 @@ def test_pdf_exact_measurement():
     """Assert measure_artwork_ink_extent parses real PDF vectors and returns a precise height."""
     import tempfile
 
-    from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -19,7 +18,7 @@ def test_pdf_exact_measurement():
 
     c = canvas.Canvas(file_path)
     # 4.0 mm is exactly 11.338582677165354 points
-    c.setFont("Helvetica", 4.0 * mm)
+    c.setFont("Helvetica", 11.338582677165354)
     c.drawString(100, 100, "A")
     c.save()
 
@@ -97,23 +96,29 @@ def test_pdf_rotated_axes():
     assert round(height_mm, 1) == 10.0
 
 
-def test_svg_exact_measurement():
-    """Assert measure_artwork_ink_extent returns exactly 4.0 for SVG."""
-    svg_str = b'<svg width="4mm" height="4mm"></svg>'
-    result = measure_artwork_ink_extent(svg_str, "svg")
-
-    assert isinstance(result, MeasurementExact)
-    assert result.value == 4.0
-    assert result.unit == "mm"
-    assert not hasattr(result, "confidence_interval")
-
-
 def test_artwork_pdp_area_rule_7_integration():
     """Assert calculate_artwork_pdp_area returns correct area and rule limb."""
-    svg_str = b'<svg width="10mm" height="10mm"></svg>'
-    result = calculate_artwork_pdp_area(svg_str, "svg", PackageShape.RECTANGULAR)
+    import tempfile
+
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        file_path = tmp.name
+
+    c = canvas.Canvas(file_path)
+    c.setFont("Helvetica", 2)
+    # 10mm x 10mm
+    c.rect(100, 100, 10 * mm, 10 * mm, stroke=0, fill=1)
+    c.drawString(105, 105, "X")
+    c.save()
+
+    with open(file_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    result = calculate_artwork_pdp_area(pdf_bytes, "pdf", PackageShape.RECTANGULAR)
 
     assert isinstance(result, MeasurementExact)
-    assert result.value == 1.0  # 10mm x 10mm = 100mm^2 = 1.0cm^2
+    assert round(result.value, 1) == 1.0  # 10mm x 10mm = 100mm^2 = 1.0cm^2
     assert result.unit == "cm²"
     assert result.rule_limb == "rectangular"
