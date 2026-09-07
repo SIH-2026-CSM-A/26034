@@ -5,7 +5,7 @@ from paddleocr import PaddleOCR
 
 print("Triggering native PaddleOCR download...")
 # Calling without custom paths forces PaddleX to download the default models
-PaddleOCR(lang="en", use_angle_cls=False, device="cpu")
+PaddleOCR(lang="en", device="cpu")
 
 paddlex_dir = Path.home() / ".paddlex" / "official_models"
 det_src, rec_src = None, None

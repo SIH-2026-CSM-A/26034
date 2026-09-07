@@ -36,10 +36,8 @@ def _extract_numeric_value(text: str) -> str:
         return ""
     # Keep only digits and decimal points
     cleaned = re.sub(r"[^\d.]", "", text)
-    # If multiple dots exist (e.g. malformed), keep standard float formatting or first token
-    parts = cleaned.split(".")
-    if len(parts) > 2:
-        cleaned = parts[0] + "." + "".join(parts[1:])
+    if cleaned.count(".") > 1:
+        return ""
     return cleaned.strip(".")
 
 
@@ -100,80 +98,75 @@ def _parse_paddle_results(results: Any) -> list[ExtractedSpan]:
         polys = item["dt_polys"]
         texts = item["rec_texts"]
         scores = item["rec_scores"]
-        if True:  # Restores outer indentation level for the loop and subsequent logic
-            for poly, text, score in zip(polys, texts, scores, strict=True):
-                pts = [(int(pt[0]), int(pt[1])) for pt in poly]
-                spans.append(
-                    ExtractedSpan(
-                        span_id=str(uuid.uuid4()),
-                        region_id="panel",
-                        polygon=pts,
-                        text=str(text),
-                        confidence=float(score) if score is not None else 1.0,
-                        source_provider=EvidenceProvider.PADDLEOCR,
-                    )
+        for poly, text, score in zip(polys, texts, scores, strict=True):
+            pts = [(int(pt[0]), int(pt[1])) for pt in poly]
+            spans.append(
+                ExtractedSpan(
+                    span_id=str(uuid.uuid4()),
+                    region_id="panel",
+                    polygon=pts,
+                    text=str(text),
+                    confidence=float(score) if score is not None else 0.0,
+                    source_provider=EvidenceProvider.PADDLEOCR,
                 )
-            continue
+            )
 
-        # PaddleOCR 3.x object format with dt_polys, rec_texts, rec_scores attributes
-        if hasattr(item, "dt_polys") and hasattr(item, "rec_texts"):
-            polys = getattr(item, "dt_polys", [])
-            texts = getattr(item, "rec_texts", [])
-            scores = getattr(item, "rec_scores", [])
-            for poly, text, score in zip(polys, texts, scores, strict=False):
-                pts = [(int(pt[0]), int(pt[1])) for pt in poly]
-                spans.append(
-                    ExtractedSpan(
-                        span_id=str(uuid.uuid4()),
-                        region_id="panel",
-                        polygon=pts,
-                        text=str(text),
-                        confidence=float(score) if score is not None else 1.0,
-                        source_provider=EvidenceProvider.PADDLEOCR,
-                    )
+    # PaddleOCR 3.x object format with dt_polys, rec_texts, rec_scores attributes
+    if hasattr(item, "dt_polys") and hasattr(item, "rec_texts"):
+        polys = getattr(item, "dt_polys", [])
+        texts = getattr(item, "rec_texts", [])
+        scores = getattr(item, "rec_scores", [])
+        for poly, text, score in zip(polys, texts, scores, strict=False):
+            pts = [(int(pt[0]), int(pt[1])) for pt in poly]
+            spans.append(
+                ExtractedSpan(
+                    span_id=str(uuid.uuid4()),
+                    region_id="panel",
+                    polygon=pts,
+                    text=str(text),
+                    confidence=float(score) if score is not None else 0.0,
+                    source_provider=EvidenceProvider.PADDLEOCR,
                 )
-            continue
+            )
 
-        # List of items or PaddleOCR 2.x lines
-        if isinstance(item, list):
-            for line in item:
-                if line is None:
-                    continue
-                if isinstance(line, dict):
-                    box = line.get("box", line.get("dt_polys", line.get("text_box_position", [])))
-                    polygon = (
-                        [(int(pt[0]), int(pt[1])) for pt in box]
-                        if len(box) > 0 and isinstance(box[0], (list, np.ndarray))
-                        else []
-                    )
-                    text = str(
-                        line.get("text", line.get("transcription", line.get("rec_texts", "")))
-                    )
-                    confidence = float(
-                        line.get("confidence", line.get("score", line.get("rec_scores", 1.0)))
-                    )
-                elif hasattr(line, "box") or hasattr(line, "dt_polys"):
-                    box = getattr(line, "box", getattr(line, "dt_polys", []))
-                    polygon = [(int(pt[0]), int(pt[1])) for pt in box]
-                    text = str(getattr(line, "text", getattr(line, "rec_texts", "")))
-                    confidence = float(getattr(line, "confidence", getattr(line, "score", 1.0)))
-                elif isinstance(line, (list, tuple)) and len(line) >= 2:
-                    polygon = [(int(pt[0]), int(pt[1])) for pt in line[0]]
-                    text = str(line[1][0])
-                    confidence = float(line[1][1])
-                else:
-                    continue
-
-                spans.append(
-                    ExtractedSpan(
-                        span_id=str(uuid.uuid4()),
-                        region_id="panel",
-                        polygon=polygon,
-                        text=text,
-                        confidence=confidence,
-                        source_provider=EvidenceProvider.PADDLEOCR,
-                    )
+    # List of items or PaddleOCR 2.x lines
+    if isinstance(item, list):
+        for line in item:
+            if line is None:
+                continue
+            if isinstance(line, dict):
+                box = line.get("box", line.get("dt_polys", line.get("text_box_position", [])))
+                polygon = (
+                    [(int(pt[0]), int(pt[1])) for pt in box]
+                    if len(box) > 0 and isinstance(box[0], (list, np.ndarray))
+                    else []
                 )
+                text = str(line.get("text", line.get("transcription", line.get("rec_texts", ""))))
+                confidence = float(
+                    line.get("confidence", line.get("score", line.get("rec_scores", 1.0)))
+                )
+            elif hasattr(line, "box") or hasattr(line, "dt_polys"):
+                box = getattr(line, "box", getattr(line, "dt_polys", []))
+                polygon = [(int(pt[0]), int(pt[1])) for pt in box]
+                text = str(getattr(line, "text", getattr(line, "rec_texts", "")))
+                confidence = float(getattr(line, "confidence", getattr(line, "score", 1.0)))
+            elif isinstance(line, (list, tuple)) and len(line) >= 2:
+                polygon = [(int(pt[0]), int(pt[1])) for pt in line[0]]
+                text = str(line[1][0])
+                confidence = float(line[1][1])
+            else:
+                continue
+
+            spans.append(
+                ExtractedSpan(
+                    span_id=str(uuid.uuid4()),
+                    region_id="panel",
+                    polygon=polygon,
+                    text=text,
+                    confidence=confidence,
+                    source_provider=EvidenceProvider.PADDLEOCR,
+                )
+            )
 
     return spans
 
