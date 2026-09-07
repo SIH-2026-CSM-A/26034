@@ -1,4 +1,4 @@
-# TODO.md — end of Session 15, 2026-09-07
+# TODO.md — end of Session 18, 2026-09-07
 
 ---
 
@@ -15,14 +15,27 @@
    two-record behaviour and is the test EXT-007 changes.
 2. **DAT-005** — annotate the fifteen staged captures. The single highest-value item on the
    board; every accuracy figure in the PRD depends on it and none is currently defensible.
-3. **MEA-009 Part B** (Yashashvi) — replace the overlap refusal in `measure_margins` with
+3. **MEA-011 / MEA-009 Part B** (Yashashvi) — replace the overlap refusal in `measure_margins` with
    `MeasurementMarginOverlapExact` / `MeasurementMarginOverlapCalibrated`. Part A landed the
    contract. Two things to know: the `dist_mm < 0` branch sits **above** the `is_artwork`
    split, so both shapes must be constructed there; and margins are still not wired into
    `pipeline/orchestrator.py` at all (it omits `measure_margins` pending EXT-004's declaration
    bounding box), so this changes what the function returns without changing any scan yet.
+   **RUL-007 (Session 18) landed the consuming shape:** `SideOverlap` on
+   `FreeSpaceMeasurement`, so an overlap now has somewhere to go the moment this returns one.
+   No adapter exists between them yet — see item 4a.
 4. **Send the three review drafts** — MEA-006 to Yashashvi (unblocked by #58), EXT-006 to
    Sitanshu, EVD-005 to Shiva.
+
+4a. **Wire Rule 8(1)'s proviso into the pipeline — a new ticket, blocked twice.** RUL-007
+   left `evaluate_rule8_free_space` correct and unreached. It needs (i) EXT-004's declaration
+   bounding box, so `orchestrator.py` can call `measure_margins` at all, and (ii) MEA-011, so
+   an overlap arrives as an overlap rather than a refusal. Two further things the writer needs
+   to know. `context.measurements` is keyed one result per condition kind and `measure_margins`
+   returns four, so `free_space` needs a shape that is not one `MeasurementResult`. And
+   `measurement_findings.py`'s non-Table-I branch formats `f"{result.value} {result.unit}"` —
+   an overlap type has no `.value`, deliberately, per the MEA-009 docstring. Unreachable today;
+   an `AttributeError` on the first real overlap the day it is wired.
 
 ## Next
 
