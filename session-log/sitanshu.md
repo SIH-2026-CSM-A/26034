@@ -90,3 +90,76 @@
 - 661/661 full test suite passed.
 - `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
 - 0 files committed, 0 files pushed, 0 files staged.
+
+### 2026-09-07 — EXT-006 Bilingual Declarations — Antigravity
+
+**Done**
+- Corpus verification of Rule 9(4) from `rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf` (Page 9):
+  - Verified exact statutory text permitting declarations in Hindi in Devanagari script or in English.
+- Implemented script classification in `bck/app/modules/extraction/binder.py`:
+  - Created `ScriptType` enum (`DEVANAGARI`, `LATIN`, `MIXED`, `NEITHER`) and `detect_script(text: str) -> ScriptType` using Unicode regex range `\u0900-\u097F`.
+- Implemented Devanagari numeral and unit token preprocessing:
+  - Created `_preprocess_devanagari_text` converting Devanagari digits (`०-९` -> `0-9`) and Devanagari unit / keyword tokens (`ग्राम` -> `g`, `किग्रा` -> `kg`, `मात्रा` -> `Net Qty`, `एमआरपी` -> `MRP`, `रु.` -> `Rs.`).
+- Implemented spatial bilingual pairing:
+  - Added `_are_spans_spatially_adjacent` evaluating bounding-box gap vs heights and widths (`MAX_VERTICAL_GAP_MULTIPLIER = 3.0`, `MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0`).
+  - Added `_pair_bilingual_fields` pairing Devanagari and Latin spans in the same region with matching field type, numeric value, and unit into single `NormalisedField` records with `span_refs = (latin_span_id, devanagari_span_id)`.
+- Enforced span conservation in `bind_spans`:
+  - Guaranteed every input OCR span is accounted for either in `NormalisedField.span_refs` or returned in `unclassified_spans`.
+- Created comprehensive test suite `bck/tests/modules/extraction/test_bilingual_declarations.py`:
+  - Added 10 test cases covering monolingual regression, bilingual Net Qty pairing, Devanagari-only binding, unclassified span conservation, mixed script spans, script detection unit tests, spatial adjacency, distant span non-pairing, wrong declaration non-merging, and span conservation set equality assertion.
+- Verified quality gates and mutation falsification:
+  - 11/11 bilingual tests passed cleanly.
+  - 694 passed, 32 skipped across full backend suite.
+  - `ruff check .` -> **0 errors (PASS)**.
+  - `ruff format --check .` -> **139 files formatted (PASS)**.
+  - `lint-imports` -> **3 kept, 0 broken (PASS)**.
+  - `git diff --check` -> **PASS**.
+  - Executed 3 mutation tests (script detection, spatial multiplier, bilingual pairing) asserting RED on defect and GREEN on restore.
+
+**Decided**
+- Bilingual declarations in Devanagari and Latin script representing the same declaration field are spatially paired into single `NormalisedField` records with plural `span_refs`.
+- Prohibited creating `bck/app/modules/extraction/evidence.py` or modifying contracts, normalisers, or pipeline files.
+
+**Verification**
+- 11/11 `test_bilingual_declarations.py` tests passed.
+- 694 passed, 32 skipped across full backend suite.
+- `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` clean.
+- Committed (`1fb89c42bbd6aeb37496aefd136f564b90289182`), pushed to `origin/ext-006-bilingual-declarations`, 0 PRs created.
+
+
+### 2026-09-07 — EXT-006 Final Lexicon Audit (Sitanshu)
+
+**Done**
+- Inspected statutory rules corpus (`rules-corpus/GSR-722E__2023-10-06__amendment-rules-2023.pdf`, `LMPC-2011`) for Devanagari price terms:
+  - Verified that "मूल्य" is a generic term for price/value (used in "यूजिट जबक्री मूल्य" and "अजधकतम खुिरा मूल्य"), not an explicit statutory synonym for MRP.
+  - Verified that "अधिकतम राशी" is unsupported by statutory text or project evidence.
+- Lexicon Hardening in `bck/app/modules/extraction/binder.py`:
+  - Removed generic "मूल्य" -> MRP and "अधिकतम राशी" -> MRP mappings from `_DEVANAGARI_TOKEN_MAP`.
+  - Retained explicit Devanagari tokens ("शुद्ध मात्रा", "Net Qty"), ("निवल मात्रा", "Net Qty"), ("एमआरपी", "MRP"), ("रुपये", "Rs."), and ("रु.", "Rs.") along with standard unit conversions.
+- Regression Testing & Quality Gates:
+  - Added regression test `test_bare_mulya_does_not_cause_false_mrp` in `bck/tests/modules/extraction/test_bilingual_declarations.py` proving bare "मूल्य" is not classified as `RETAIL_SALE_PRICE`.
+  - Verified `pytest tests/modules/extraction/test_bilingual_declarations.py`, `ruff check`, `ruff format --check`, `lint-imports`, and `git diff --check`.
+
+
+### 2026-09-07 — EXT-006 Reviewer Blocker Hardening (Sitanshu)
+
+**Done**
+- Codebase & Lexicon Hardening in `bck/app/modules/extraction/binder.py`:
+  - Empirically verified and removed unsupported lexicon mappings `("मूल्य", "MRP")` and `("अधिकतम राशी", "MRP")` from `_DEVANAGARI_TOKEN_MAP`.
+  - Retained corpus-supported Devanagari mappings: `("शुद्ध मात्रा", "Net Qty")`, `("निवल मात्रा", "Net Qty")`, `("एमआरपी", "MRP")`, `("रुपये", "Rs.")`, `("रु.", "Rs.")`, and unit abbreviations.
+  - Deduplicated header comments in `binder.py` to preserve exactly one Statutory Corpus Citation block and one Engineering Priors & Calibration Note block.
+  - Documented `detect_script` limitation regarding `NEITHER` classification (non-Devanagari/Latin scripts, pure digits, punctuation-only spans).
+- Test Hardening in `bck/tests/modules/extraction/test_bilingual_declarations.py`:
+  - Added regression test `test_bare_mulya_does_not_cause_false_mrp` executing `bind_spans` on `"मूल्य ५० N"` and asserting no `RETAIL_SALE_PRICE` field is created.
+  - Retained `test_bare_matra_does_not_cause_false_net_quantity` proving bare `"मात्रा"` is not mapped to `NET_QUANTITY`.
+  - Verified 18 targeted test functions passing in `test_bilingual_declarations.py`.
+
+**Verification**
+- `grep -n 'मूल्य'` in `binder.py` -> 0 token map matches.
+- `grep -n 'अधिकतम राशी'` in `binder.py` -> 0 token map matches.
+- `grep -n 'test_bare_mulya'` in `test_bilingual_declarations.py` -> line 38.
+- Cleared `__pycache__` via `/usr/bin/find`.
+- Executed controlled mutation test (proves RED on defect with 5 failures, GREEN on restore with 18 passed).
+- All 18 tests in `test_bilingual_declarations.py` PASSED (`0.17s`).
+- Full suite executed via `/snap/bin/uv run pytest`: 704 passed, 32 skipped in 33.89s.
+- `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` all clean (PASS).
