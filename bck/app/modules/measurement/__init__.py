@@ -5,6 +5,7 @@ from app.contracts import (
     MeasurementResult,
 )
 
+from .artwork import calculate_artwork_pdp_area, measure_artwork_ink_extent
 from .schemas import PackageShape
 from .services import (
     calculate_pdp_area,
@@ -20,6 +21,8 @@ __all__ = [
     "MeasurementCalibrated",
     "MeasurementRefusal",
     "PackageShape",
+    "calculate_artwork_pdp_area",
+    "measure_artwork_ink_extent",
     "measure_ink_extent",
     "calculate_pdp_area",
     "measure_contrast_ratio",
