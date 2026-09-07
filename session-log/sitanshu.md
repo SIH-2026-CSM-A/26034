@@ -198,25 +198,49 @@
 ### 2026-09-07 — EXT-007 Reviewer Blocker Fix: Same-Field-Type Agreeing & Disagreeing Pairs (Sitanshu)
 
 **Done**
-- Resolved Reviewer Blocker Defect: Fixed ordering and filtering in ind_spans() in ck/app/modules/extraction/binder.py where ields.extend(bilingual_fields) was executing before computing contested_field_types.
+- Resolved Reviewer Blocker Defect: Fixed ordering and filtering in `bind_spans()` in `bck/app/modules/extraction/binder.py` where `fields.extend(bilingual_fields)` was executing before computing `contested_field_types`.
 - Fix Implementation:
-  - Computed contested_field_types = {d.field_type for d in bilingual_disagreements} from ilingual_disagreements.
-  - Filtered ilingual_fields to construct uncontested_bilingual_fields excluding any field whose ield_type is in contested_field_types.
-  - Extended only uncontested_bilingual_fields into ields.
-  - Guaranteed invariant: If a ield_type appears in disagreements, that ield_type MUST NOT appear in ields, preventing Pydantic ExtractionResult disjointness validation failures when multiple bilingual pairs of the same obligation exist on a package.
-- Regression Tests Added (ck/tests/modules/extraction/test_bilingual_declarations.py):
-  - 	est_same_field_type_agreeing_and_disagreeing_pairs: Verifies 4 spans forming 2 bilingual NET_QUANTITY pairs (Pair A disagreeing 500g vs 250g, Pair B agreeing 500g vs 500g). Asserts ind_spans() constructs without ValueError, NET_QUANTITY appears in disagreements, NET_QUANTITY does NOT appear in ields, len(disagreements) == 1, and both competing readings are preserved.
-  - 	est_contested_type_unpaired_third_span_lands_in_unclassified: Verifies an unpaired single span of a contested ield_type lands in unclassified_spans.
+  - Computed `contested_field_types = {d.field_type for d in bilingual_disagreements}` from `bilingual_disagreements`.
+  - Filtered `bilingual_fields` to construct `uncontested_bilingual_fields` excluding any field whose `field_type` is in `contested_field_types`.
+  - Extended only `uncontested_bilingual_fields` into `fields`.
+  - Guaranteed invariant: If a `field_type` appears in disagreements, that `field_type` MUST NOT appear in `fields`, preventing Pydantic ExtractionResult disjointness validation failures when multiple bilingual pairs of the same obligation exist on a package.
+- Regression Tests Added (`bck/tests/modules/extraction/test_bilingual_declarations.py`):
+  - `test_same_field_type_agreeing_and_disagreeing_pairs`: Verifies 4 spans forming 2 bilingual NET_QUANTITY pairs (Pair A disagreeing 500g vs 250g, Pair B agreeing 500g vs 500g). Asserts `bind_spans()` constructs without ValueError, NET_QUANTITY appears in disagreements, NET_QUANTITY does NOT appear in `fields`, len(disagreements) == 1, and both competing readings are preserved.
+  - `test_contested_type_unpaired_third_span_lands_in_unclassified`: Verifies an unpaired single span of a contested `field_type` lands in unclassified_spans.
 - Falsification:
-  - Temporarily bypassed uncontested_bilingual_fields filtering (restored unconditional ields.extend(bilingual_fields)).
+  - Temporarily bypassed `uncontested_bilingual_fields` filtering (restored unconditional `fields.extend(bilingual_fields)`).
   - Executed pytest -> Failed RED with expected Pydantic ValidationError: field_types ['NET_QUANTITY'] appear in both fields and disagreements.
-  - Restored uncontested_bilingual_fields filter -> Passed GREEN.
+  - Restored `uncontested_bilingual_fields` filter -> Passed GREEN.
 - Quality Gates:
   - pytest tests/modules/extraction/test_bilingual_declarations.py -> 28 passed in 0.86s.
   - Full pytest -> 782 passed, 32 skipped in 16.18s.
-  -
-uff format --check . -> clean (148 files formatted).
-  -
-uff check . -> clean (All checks passed!).
-  - lint-imports -> clean (3 contracts kept, 0 broken).
-  - __pycache__ count: 0 (excluding .venv).
+  - `ruff format --check .` -> clean (148 files formatted).
+  - `ruff check .` -> clean (All checks passed!).
+  - `lint-imports` -> clean (3 contracts kept, 0 broken).
+  - `__pycache__` count: 0 (excluding .venv).
+
+### 2026-09-07 — EXT-008 Additional Script Detection (Sitanshu)
+
+**Done**
+- Corpus Grounding (LMPC 2011 Rule 9(4)):
+  - Verified Rule 9(4) from Maharashtra compilation (Page 9): Declarations shall be in Hindi (Devanagari) or English (Latin). Recognised additional scripts (Tamil, Bengali) are permitted under proviso and distinguished from unidentified non-text noise.
+- Extended Script Classification in `bck/app/modules/extraction/binder.py`:
+  - Added `TAMIL = "TAMIL"` and `BENGALI = "BENGALI"` to `ScriptType` enum.
+  - Added deterministic Unicode script regex patterns: `_TAMIL_RE = r"[஀-௿]"` and `_BENGALI_RE = r"[ঀ-৿]"`.
+  - Updated `detect_script(text)` to count matching script families: multi-script spans return `ScriptType.MIXED`, single-script spans return `DEVANAGARI`, `LATIN`, `TAMIL`, or `BENGALI`, and noise/punctuation/digits-only spans return `ScriptType.NEITHER`.
+- Preserved Lexicon & Normalisation Boundaries:
+  - Kept Devanagari lexicon intact. Did NOT add Tamil or Bengali lexicons, numeral normalisers, or unit normalisers (preserving Rule 9(4) statutory boundary).
+- Span Conservation:
+  - Ensured Tamil and Bengali spans return `ScriptType.TAMIL` / `ScriptType.BENGALI` and are conserved in `ExtractionResult.unclassified_spans`.
+- Unit & Regression Testing in `bck/tests/modules/extraction/test_bilingual_declarations.py`:
+  - Added `test_detect_script_ext_008_additional_scripts` proving Tamil and Bengali spans classify into `ScriptType.TAMIL` and `ScriptType.BENGALI`.
+  - Added `test_additional_script_unclassified_span_conservation` proving unnormalised Tamil and Bengali spans are conserved in `unclassified_spans`.
+  - Verified all existing 18 bilingual/script regression tests remain GREEN.
+
+**Verification**
+- 20/20 tests in `test_bilingual_declarations.py` passed (`0.17s`).
+- 48/48 targeted extraction tests passed (`0.16s`).
+- 733 passed, 32 skipped across full backend suite (`11.75s`).
+- Quality gates: `ruff check .` (PASS), `ruff format --check .` (PASS), `lint-imports` (3 kept, 0 broken PASS).
+- Executed mutation falsification check (disabled Tamil detection -> RED failure `AssertionError: assert NEITHER == TAMIL`, restored -> GREEN).
+

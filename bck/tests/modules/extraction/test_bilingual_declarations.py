@@ -437,3 +437,48 @@ def test_contested_type_unpaired_third_span_lands_in_unclassified():
     assert all(field.field_type != DeclarationField.NET_QUANTITY for field in res.fields)
     unclassified_ids = {span.span_id for span in res.unclassified_spans}
     assert "lat3" in unclassified_ids
+
+
+# -----------------------------------------------------------------------------
+# EXT-008: Additional Script Detection (Tamil & Bengali) Tests
+# -----------------------------------------------------------------------------
+
+
+def test_detect_script_ext_008_additional_scripts():
+    """EXT-008: Verify Tamil and Bengali script classification."""
+    # Tamil script span vs NEITHER punctuation/digits
+    assert detect_script("நிகர அளவு") == ScriptType.TAMIL
+    assert detect_script("நிகர அளவு 500g") == ScriptType.MIXED
+    # Bengali script span vs NEITHER punctuation/digits
+    assert detect_script("নীট পরিমাণ") == ScriptType.BENGALI
+    assert detect_script("নীট পরিমাণ 500g") == ScriptType.MIXED
+    # Noise/punctuation remains NEITHER
+    assert detect_script("!!! --- ...") == ScriptType.NEITHER
+    assert detect_script("12345 !!!") == ScriptType.NEITHER
+    # Regressions
+    assert detect_script("Net Qty 500g") == ScriptType.LATIN
+    assert detect_script("निवल मात्रा ५०० ग्राम") == ScriptType.DEVANAGARI
+    assert detect_script("Net Qty निवल मात्रा") == ScriptType.MIXED
+
+
+def test_additional_script_unclassified_span_conservation():
+    """Verify Tamil and Bengali spans are conserved in unclassified_spans."""
+    s_tam = _make_span(
+        "tam1",
+        "குளிர்ந்த மற்றும் உலர்ந்த இடத்தில் நேரடியாக சூரிய ஒளி படாதவாறு வைக்கவும்",
+        y0=100.0,
+        y1=130.0,
+    )
+    s_ben = _make_span(
+        "ben1",
+        "সূর্যের আলো থেকে দূরে একটি ঠান্ডা ও শুষ্ক স্থানে সংরক্ষণ করুন",
+        y0=140.0,
+        y1=170.0,
+    )
+    res = bind_spans([s_tam, s_ben])
+
+    assert len(res.fields) == 0
+    assert len(res.unclassified_spans) == 2
+    unclassified_ids = {s.span_id for s in res.unclassified_spans}
+    assert unclassified_ids == {"tam1", "ben1"}
+
