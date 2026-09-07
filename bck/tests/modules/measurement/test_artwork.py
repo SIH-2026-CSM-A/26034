@@ -123,14 +123,63 @@ def test_artwork_pdp_area_rule_7_integration():
     assert result.rule_limb == "rectangular"
 
 
-def test_svg_type_is_unsupported():
-    """Assert the SVG path is gone: an svg file_type reaches the unsupported-type refusal.
+def _load_svg_fixture(filename: str) -> bytes:
+    from pathlib import Path
 
-    SVG ingest is out of MEA-005's scope and tracked as MEA-010. It means parsing
-    untrusted XML uploaded by an outside manufacturer, and needs ``defusedxml`` plus its
-    own review before it returns. This guards against the dispatch branch coming back.
-    """
-    result = measure_artwork_ink_extent(b'<svg width="10mm" height="4mm"/>', "svg")
+    file_path = Path(__file__).parent / "fixtures" / "svg" / filename
+    with open(file_path, "rb") as f:
+        return f.read()
+
+
+def test_svg_exact_mm_dimensions():
+    """Assert the extracted area matches the expected cm2 using MeasurementExact."""
+    svg_bytes = _load_svg_fixture("standard.svg")
+    result = calculate_artwork_pdp_area(svg_bytes, "svg", PackageShape.RECTANGULAR)
+
+    assert isinstance(result, MeasurementExact)
+    assert result.unit == "cm²"
+    # 210mm x 297mm = 623.7 cm^2
+    assert round(result.value, 1) == 623.7
+
+
+def test_svg_swapped_dimensions():
+    """Assert swapped width/height (4mm x 10mm) returns correct dimensions."""
+    svg_bytes = _load_svg_fixture("swapped.svg")
+    # Using calculate_artwork_pdp_area: 4 * 10 = 40 mm^2 = 0.4 cm^2
+    result = calculate_artwork_pdp_area(svg_bytes, "svg", PackageShape.RECTANGULAR)
+
+    assert isinstance(result, MeasurementExact)
+    assert result.unit == "cm²"
+    assert round(result.value, 2) == 0.40
+
+
+def test_svg_unit_conversion():
+    """Assert 'in' and 'pt' are correctly converted to millimeters and evaluated."""
+    svg_bytes = _load_svg_fixture("converted_units.svg")
+    result = calculate_artwork_pdp_area(svg_bytes, "svg", PackageShape.RECTANGULAR)
+
+    assert isinstance(result, MeasurementExact)
+    assert result.unit == "cm²"
+    # width = 2in = 50.8mm
+    # height = 144pt = 2in = 50.8mm
+    # area = 50.8 * 50.8 = 2580.64 mm^2 = 25.8 cm^2
+    assert round(result.value, 1) == 25.8
+
+
+def test_svg_viewbox_refusal():
+    """Assert MeasurementRefusal is returned for viewbox_only.svg."""
+    svg_bytes = _load_svg_fixture("viewbox_only.svg")
+    result = measure_artwork_ink_extent(svg_bytes, "svg")
 
     assert isinstance(result, MeasurementRefusal)
-    assert result.reason == "Unsupported artwork file type: svg"
+    assert "missing" in result.reason.lower() or "physical unit" in result.reason.lower()
+
+
+def test_svg_billion_laughs_protection():
+    """Assert the parser safely refuses the file without hanging."""
+    svg_bytes = _load_svg_fixture("billion_laughs.svg")
+    result = measure_artwork_ink_extent(svg_bytes, "svg")
+
+    assert isinstance(result, MeasurementRefusal)
+    reason_lower = result.reason.lower()
+    assert "entitiesforbidden" in reason_lower

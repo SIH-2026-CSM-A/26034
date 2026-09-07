@@ -1,5 +1,6 @@
 import io
 
+import defusedxml.ElementTree as ET  # noqa: N817
 import pdfplumber
 
 from app.contracts import MeasurementExact, MeasurementRefusal, MeasurementResult
@@ -62,10 +63,49 @@ def parse_pdf_geometry(file_bytes: bytes) -> tuple[float, float] | MeasurementRe
         return MeasurementRefusal(reason=f"Failed to parse PDF: {str(e)}")
 
 
+def parse_svg_geometry(file_bytes: bytes) -> tuple[float, float] | MeasurementRefusal:
+    try:
+        root = ET.fromstring(file_bytes)
+    except Exception as e:
+        return MeasurementRefusal(reason=f"Failed to parse SVG: {str(e)}")
+
+    width_attr = root.get("width")
+    height_attr = root.get("height")
+
+    if not width_attr or not height_attr:
+        return MeasurementRefusal(reason="SVG missing physical unit (width/height).")
+
+    def _parse_dim(dim_str: str) -> float | None:
+        dim_str = dim_str.strip().lower()
+        if dim_str.endswith("mm"):
+            return float(dim_str[:-2])
+        elif dim_str.endswith("cm"):
+            return float(dim_str[:-2]) * 10.0
+        elif dim_str.endswith("in"):
+            return float(dim_str[:-2]) * 25.4
+        elif dim_str.endswith("pt"):
+            return float(dim_str[:-2]) * PT_TO_MM
+        else:
+            return None
+
+    try:
+        width_mm = _parse_dim(width_attr)
+        height_mm = _parse_dim(height_attr)
+    except ValueError:
+        return MeasurementRefusal(reason="Invalid numeric dimension in SVG.")
+
+    if width_mm is None or height_mm is None:
+        return MeasurementRefusal(reason="SVG lacks a valid physical unit (mm, cm, in, pt).")
+
+    return width_mm, height_mm
+
+
 def measure_artwork_ink_extent(file_bytes: bytes, file_type: str) -> MeasurementResult:
     """Measure the exact physical ink extent (height) of an artwork file."""
     if file_type.lower() == "pdf":
         geom = parse_pdf_geometry(file_bytes)
+    elif file_type.lower() == "svg":
+        geom = parse_svg_geometry(file_bytes)
     else:
         return MeasurementRefusal(reason=f"Unsupported artwork file type: {file_type}")
 
@@ -82,6 +122,8 @@ def calculate_artwork_pdp_area(
     """Calculate the exact PDP area of an artwork file according to Rule 7(4)."""
     if file_type.lower() == "pdf":
         geom = parse_pdf_geometry(file_bytes)
+    elif file_type.lower() == "svg":
+        geom = parse_svg_geometry(file_bytes)
     else:
         return MeasurementRefusal(reason=f"Unsupported artwork file type: {file_type}")
 
