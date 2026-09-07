@@ -220,3 +220,35 @@ uff format --check . -> clean (148 files formatted).
 uff check . -> clean (All checks passed!).
   - lint-imports -> clean (3 contracts kept, 0 broken).
   - __pycache__ count: 0 (excluding .venv).
+
+### 2026-09-07 — EXT-008 Additional Script Detection Reviewer Hardening & Append-Only Reconstruction (Sitanshu)
+
+**Done**
+- Session Log Append-Only Reconstruction:
+  - Reconstructed `session-log/sitanshu.md` from `origin/main` to restore historical entries and enforce strict append-only log history per AGENTS.md rule 9.
+- Statutory Corpus Citation Cleanup (LMPC 2011 Rule 9(4)):
+  - Removed "Page 9" pdftotext artifact from citation in `binder.py` and session log.
+  - Grounded in stable gazette citation `Legal Metrology (Packaged Commodities) Rules, 2011, Rule 9(4)`: Rule 9(4) permits the use of other languages in addition to Hindi or English. EXT-008 distinguishes recognized additional scripts from unidentified non-text noise.
+- Scalable Script-Bearing vs Noise Separation (`ScriptType.UNSUPPORTED`):
+  - Extended `ScriptType` enum with `UNSUPPORTED = "UNSUPPORTED"`.
+  - Implemented zero-dependency script-bearing letter detection via stdlib `unicodedata.category(c).startswith("L")`.
+  - Non-handled script letters (e.g. Telugu, Kannada, Malayalam, Gujarati, Chinese, Arabic) classify as `ScriptType.UNSUPPORTED`, separating them cleanly from script-free noise/digits/punctuation (`ScriptType.NEITHER`).
+- Non-ASCII Latin Script Diacritic Identification:
+  - Implemented zero-dependency Latin identification via stdlib `unicodedata.name(char, "").startswith("LATIN ")`.
+  - Accented Latin letters (`"é"`, `"Café"`, `"Nestlé"`, `"München"`) and decomposed combining marks (`"é"`) classify as `ScriptType.LATIN`.
+- MIXED Script Classification & Bilingual Pairing Semantics:
+  - `ScriptType.MIXED` represents any span containing two or more recognized/handled script categories.
+  - Multi-script spans (e.g. Tamil + Latin, Bengali + Latin, Telugu + English) evaluate to `ScriptType.MIXED`.
+  - In `_pair_bilingual_fields()`, `ScriptType.MIXED` spans fail `is_valid_bilingual_pair` (which strictly requires Latin <-> Devanagari). Mixed-script spans are excluded from bilingual pairing and land safely in `ExtractionResult.unclassified_spans`.
+- Test Suite Refactoring & Independent Claim Parametrization:
+  - Refactored `test_detect_script_ext_008_additional_scripts` into 7 independent claim tests / parametrized cases covering: (1) Noise (`NEITHER`), (2) Accented Latin (`LATIN`), (3) Devanagari (`DEVANAGARI`), (4) Tamil (`TAMIL`), (5) Bengali (`BENGALI`), (6) Unsupported script text (`UNSUPPORTED` vs `NEITHER`), and (7) Multi-script combinations (`MIXED`).
+- Triple Mutation Falsification:
+  - Falsification 1 (`UNSUPPORTED` Guard): Disabled `has_unsupported` letter check -> RED failure (`AssertionError: assert NEITHER == UNSUPPORTED`). Restored -> GREEN.
+  - Falsification 2 (Latin Diacritic Guard): Bypassed `name.startswith("LATIN ")` -> RED failure (`AssertionError: assert UNSUPPORTED == LATIN`). Restored -> GREEN.
+  - Falsification 3 (`MIXED` Guard): Bypassed `matching_scripts > 1` -> RED failure (`AssertionError: assert TAMIL == MIXED`). Restored -> GREEN.
+
+**Verification**
+- 30/30 tests in `test_bilingual_declarations.py` passed (`1.52s`).
+- 797 passed, 32 skipped across full backend suite (`16.00s`).
+- Quality gates: `ruff check` (PASS), `ruff format --check` (PASS), `lint-imports` (PASS), `git diff --check` (PASS).
+- `session-log/sitanshu.md` numstat against `origin/main`: 0 deletions, additions > 0.

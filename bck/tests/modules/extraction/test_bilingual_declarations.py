@@ -437,3 +437,126 @@ def test_contested_type_unpaired_third_span_lands_in_unclassified():
     assert all(field.field_type != DeclarationField.NET_QUANTITY for field in res.fields)
     unclassified_ids = {span.span_id for span in res.unclassified_spans}
     assert "lat3" in unclassified_ids
+
+
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# EXT-008: Additional Script Detection Tests (Refactored into 7 Independent Claim Tests)
+# -----------------------------------------------------------------------------
+
+
+def test_detect_script_ext_008_claim_1_noise():
+    """Claim 1: Punctuation, digits, and noise spans classify as NEITHER."""
+    assert detect_script("12345 !!!") == ScriptType.NEITHER
+    assert detect_script("!!! --- ...") == ScriptType.NEITHER
+
+
+def test_detect_script_ext_008_claim_2_latin_accents():
+    """Claim 2: Plain/accented Latin letters (including NFD combining marks) classify as LATIN."""
+    assert detect_script("Net Qty 500g") == ScriptType.LATIN
+    assert detect_script("é") == ScriptType.LATIN
+    assert detect_script("Café") == ScriptType.LATIN
+    assert detect_script("Nestlé") == ScriptType.LATIN
+    assert detect_script("München") == ScriptType.LATIN
+    assert detect_script("é") == ScriptType.LATIN
+
+
+def test_detect_script_ext_008_claim_3_devanagari():
+    """Claim 3: Devanagari text classifies as DEVANAGARI."""
+    assert detect_script("निवल मात्रा ५०० ग्राम") == ScriptType.DEVANAGARI
+
+
+def test_detect_script_ext_008_claim_4_tamil():
+    """Claim 4: Tamil text classifies as TAMIL."""
+    assert detect_script("தமிழ்") == ScriptType.TAMIL
+
+
+def test_detect_script_ext_008_claim_5_bengali():
+    """Claim 5: Bengali text classifies as BENGALI."""
+    assert detect_script("বাংলা") == ScriptType.BENGALI
+
+
+def test_detect_script_ext_008_claim_6_unsupported():
+    """Claim 6: Non-handled script letters classify as UNSUPPORTED and differ from NEITHER noise."""
+    assert detect_script("నికర పరిమాణం") == ScriptType.UNSUPPORTED
+    assert detect_script("ಅನುಪಾತ") == ScriptType.UNSUPPORTED
+    assert detect_script("中文") == ScriptType.UNSUPPORTED
+    assert detect_script("العربية") == ScriptType.UNSUPPORTED
+    assert detect_script("నికర పరిమాణం") != detect_script("12345 !!!")
+
+
+def test_detect_script_ext_008_claim_7_mixed():
+    """Claim 7: Spans with letters from multiple recognized script categories evaluate to MIXED."""
+    assert detect_script("நிகர அளவு 500g") == ScriptType.MIXED
+    assert detect_script("বাংলা 500g") == ScriptType.MIXED
+    assert detect_script("தமிழ் বাংলা") == ScriptType.MIXED
+    assert detect_script("నికర పరిమాణం 500g") == ScriptType.MIXED
+    assert detect_script("Net Qty निवल मात्रा") == ScriptType.MIXED
+
+
+def test_additional_script_unclassified_span_conservation():
+    """Verify Tamil, Bengali, and unsupported script spans are conserved in unclassified_spans."""
+    s_tam = _make_span(
+        "tam1",
+        "குளிர்ந்த மற்றும் உலர்ந்த இடத்தில் நேரடியாக சூரிய ஒளி படாதவாறு வைக்கவும்",
+        y0=100.0,
+        y1=130.0,
+    )
+    s_ben = _make_span(
+        "ben1",
+        "সূর্যের আলো থেকে দূরে একটি ঠান্ডা ও শুষ্ক স্থানে সংরক্ষণ করুন",
+        y0=140.0,
+        y1=170.0,
+    )
+    res = bind_spans([s_tam, s_ben])
+
+    assert len(res.fields) == 0
+    assert len(res.unclassified_spans) == 2
+    unclassified_ids = {s.span_id for s in res.unclassified_spans}
+    assert unclassified_ids == {"tam1", "ben1"}
+
+
+def test_recognized_additional_script_unnormalized_routes_to_review():
+    """Verify unnormalised additional script routes to INSUFFICIENT_EVIDENCE and REVIEW."""
+    from app.modules.rules import default_rule_set_version, load_rules
+    from app.pipeline.orchestrator import UNBOUND_DECLARATION_REASON
+    from app.pipeline.verdict import derive_verdict
+
+    s_tam = _make_span(
+        "tam1",
+        "குளிர்ந்த மற்றும் உலர்ந்த இடத்தில் நேரடியாக சூரிய ஒளி படாதவாறு வைக்கவும்",
+        y0=100.0,
+        y1=130.0,
+    )
+    res = bind_spans([s_tam])
+
+    assert len(res.fields) == 0
+    assert len(res.unclassified_spans) == 1
+    assert res.unclassified_spans[0].span_id == "tam1"
+
+    context = EvidenceContext(
+        rule_set_version=default_rule_set_version(),
+        evaluation_date=date(2026, 9, 6),
+        declared=by_obligation(res.fields),
+        contested=by_obligation(res.disagreements),
+        measurements={},
+        product_category=None,
+        source_is_listing=False,
+        unreadable_reason=UNBOUND_DECLARATION_REASON,
+    )
+
+    findings = build_findings(load_rules(), context)
+    assert len(findings) > 0
+    assert any(f.state == FieldState.INSUFFICIENT_EVIDENCE for f in findings)
+    assert all(
+        f.state in (FieldState.INSUFFICIENT_EVIDENCE, FieldState.NOT_APPLICABLE) for f in findings
+    )
+    assert not any(f.state == FieldState.FAIL for f in findings)
+    assert not any(f.state == FieldState.PASS for f in findings)
+
+    verdict = derive_verdict(findings)
+    assert verdict == Verdict.REVIEW
+    assert verdict != Verdict.POTENTIAL_VIOLATION
+    assert verdict != Verdict.PASS

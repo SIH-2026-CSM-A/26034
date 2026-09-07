@@ -4,7 +4,7 @@ Statutory Corpus Citation:
   Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31):
   Compilation for Maharashtra State Metrology Department.
   Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
-  Page 9, Rule 9(4):
+  Rule 9(4):
     "(4) The particulars of the declarations required to be specified under this
     rule on a package shall either be in Hindi in Devanagiri script or in English:
     Provided that nothing contained in this sub-rule shall prevent the use of any
@@ -27,6 +27,7 @@ declaration field are spatially paired into single NormalisedField records with 
 """
 
 import re
+import unicodedata
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Final
@@ -91,6 +92,8 @@ MAX_HORIZONTAL_OFFSET_MULTIPLIER: Final[float] = 3.0
 
 _DEVANAGARI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0900-\u097F\uA8E0-\uA8FF\u1CD0-\u1CFF]")
 _LATIN_RE: Final[re.Pattern[str]] = re.compile(r"[a-zA-Z]")
+_TAMIL_RE: Final[re.Pattern[str]] = re.compile(r"[\u0B80-\u0BFF]")
+_BENGALI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0980-\u09FF]")
 
 _DEVANAGARI_DIGITS: Final[dict[str, str]] = {
     "०": "0",
@@ -133,26 +136,61 @@ class ScriptType(StrEnum):
 
     DEVANAGARI = "DEVANAGARI"
     LATIN = "LATIN"
+    TAMIL = "TAMIL"
+    BENGALI = "BENGALI"
+    UNSUPPORTED = "UNSUPPORTED"
     MIXED = "MIXED"
     NEITHER = "NEITHER"
 
 
 def detect_script(text: str) -> ScriptType:
-    """Detect whether text is Devanagari, Latin, Mixed, or Neither script.
+    """Detect whether text is Devanagari, Latin, Tamil, Bengali, Unsupported, Mixed,
+    or Neither script.
 
-    Note: NEITHER indicates the span contains neither Devanagari nor Latin characters.
-    Non-Devanagari scripts (e.g. Tamil, Bengali), pure numbers, and punctuation-only
-    spans will be classified as NEITHER. This is a known limitation.
+    Statutory Corpus Citation:
+      Legal Metrology (Packaged Commodities) Rules, 2011, Rule 9(4).
+      Rule 9(4) permits the use of other languages in addition to Hindi or English.
+      EXT-008 distinguishes recognized additional scripts from unidentified/noise spans.
     """
-    has_dev = bool(_DEVANAGARI_RE.search(text))
-    has_lat = bool(_LATIN_RE.search(text))
+    has_dev = False
+    has_lat = False
+    has_tam = False
+    has_ben = False
+    has_unsupported = False
 
-    if has_dev and has_lat:
-        return ScriptType.MIXED
+    for char in text:
+        cat = unicodedata.category(char)
+        if not (cat.startswith("L") or cat.startswith("M")):
+            continue
+
+        name = unicodedata.name(char, "")
+        if _DEVANAGARI_RE.search(char) or "DEVANAGARI" in name:
+            has_dev = True
+        elif _TAMIL_RE.search(char) or "TAMIL" in name:
+            has_tam = True
+        elif _BENGALI_RE.search(char) or "BENGALI" in name:
+            has_ben = True
+        elif _LATIN_RE.search(char) or name.startswith("LATIN "):
+            has_lat = True
+        elif cat.startswith("L"):
+            has_unsupported = True
+
+    matching_scripts: list[ScriptType] = []
     if has_dev:
-        return ScriptType.DEVANAGARI
+        matching_scripts.append(ScriptType.DEVANAGARI)
     if has_lat:
-        return ScriptType.LATIN
+        matching_scripts.append(ScriptType.LATIN)
+    if has_tam:
+        matching_scripts.append(ScriptType.TAMIL)
+    if has_ben:
+        matching_scripts.append(ScriptType.BENGALI)
+    if has_unsupported:
+        matching_scripts.append(ScriptType.UNSUPPORTED)
+
+    if len(matching_scripts) > 1:
+        return ScriptType.MIXED
+    if len(matching_scripts) == 1:
+        return matching_scripts[0]
     return ScriptType.NEITHER
 
 
