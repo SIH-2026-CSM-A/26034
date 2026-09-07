@@ -15,6 +15,12 @@ class QualityReason(StrEnum):
 
 # Intensity threshold (0-255) above which grayscale pixels are identified as glare.
 GLARE_INTENSITY_THRESHOLD = 245
+# Intensity at or above which a pixel is treated as background rather than package surface.
+# Uncalibrated prior: chosen so a white studio backdrop is excluded from the glare ratio.
+# Glare is a reflection ON the package; a bright background is not glare. Measured on four
+# real captures before this constant existed, the whole-frame ratio rejected 4/4, including
+# one at 0.19 against a 0.15 threshold.
+BACKGROUND_INTENSITY_THRESHOLD = 250
 # Minimum contour area (in pixels) to consider a detected document/box candidate valid.
 MIN_CONTOUR_AREA = 5000
 
@@ -35,12 +41,19 @@ class QualityResult:
 def evaluate_quality(
     image: np.ndarray,
     blur_threshold: float = 100.0,
-    glare_threshold: float = 0.15,
+    glare_threshold: float = 0.30,
     completeness_threshold: float = 0.30,
 ) -> QualityResult:
     """
     Evaluates image quality for downstream OCR and compliance processing.
     Returns a QualityResult with machine-readable QualityReason enum members.
+
+    ``glare_threshold`` is an UNCALIBRATED PRIOR. It was 0.15 against a whole-frame ratio
+    that measured the studio backdrop rather than the package, and it refused 4/4 real
+    captures. Measured over the package surface (VIS-010), four real captures span
+    0.012-0.267 on glossy substrates, so 0.30 admits them. n=4. No accuracy or
+    false-positive figure follows from this, and none may be quoted until a real corpus
+    exists (DAT-007).
     """
     if image is None or image.size == 0:
         return QualityResult(
@@ -58,9 +71,29 @@ def evaluate_quality(
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     is_blurry = blur_score < blur_threshold
 
-    # 2. Glare evaluation
-    glare_mask = gray >= GLARE_INTENSITY_THRESHOLD
-    glare_ratio = float(np.sum(glare_mask)) / float(h * w)
+    # 2. Glare evaluation, measured over the package surface rather than the whole frame.
+    # A white backdrop is near-saturated everywhere, so a whole-frame ratio measures the
+    # background, not the reflection.
+    # The subject is the largest non-background contour: the package. A brightness cut
+    # cannot serve here, because a specular highlight is itself near-white and would be
+    # excluded from the very mask meant to catch it.
+    _, subject_thresh = cv2.threshold(
+        gray, BACKGROUND_INTENSITY_THRESHOLD, 255, cv2.THRESH_BINARY_INV
+    )
+    subject_contours, _ = cv2.findContours(
+        subject_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    subject_region = np.zeros_like(gray)
+    if subject_contours:
+        largest = max(subject_contours, key=cv2.contourArea)
+        cv2.drawContours(subject_region, [largest], -1, 255, thickness=cv2.FILLED)
+    subject_px = float(np.count_nonzero(subject_region))
+    if subject_px > 0:
+        glare_mask = (subject_region > 0) & (gray >= GLARE_INTENSITY_THRESHOLD)
+        glare_ratio = float(np.sum(glare_mask)) / subject_px
+    else:
+        # No package surface at all. Not a glare finding; the coverage check owns it.
+        glare_ratio = 0.0
     has_excessive_glare = glare_ratio > glare_threshold
 
     # 3. Completeness / Coverage evaluation
@@ -102,7 +135,7 @@ def evaluate_quality(
 def quality_gate(
     image: np.ndarray,
     blur_threshold: float = 100.0,
-    glare_threshold: float = 0.15,
+    glare_threshold: float = 0.30,
     completeness_threshold: float = 0.30,
 ) -> QualityResult:
     """
