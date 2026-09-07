@@ -1,0 +1,166 @@
+{
+  "sample_id": "food_aarambh_oats_1_5kg_002",
+  "sku_id": "food_aarambh_oats_1_5kg",
+  "image_filename": "food_aarambh_oats_1_5kg_002.jpg",
+  "image_sha256": "16833a212d99b128cbbfa962ee5df50d931478436549a3a90c2affc677d23eb1",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "flexible_pouch",
+    "crowded"
+  ],
+  "known_issues": [
+    "missing_unit_sale_price"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MANUFACTURED BY:\nAussee Oats Milling Pvt. Ltd.,\n28, BOI EPZ, Mirigama,\nSri Lanka 11200.",
+      "normalised_value": {
+        "role": "MANUFACTURED BY",
+        "name": "Aussee Oats Milling Pvt. Ltd.",
+        "address": "28, BOI EPZ, Mirigama, Sri Lanka 11200.",
+        "also_on_face": {
+          "MARKETED BY": "Future Consumer Limited, Knowledge House, Shyam Nagar, Off Jogeshwari Vikhroli Link Road, Jogeshwari (East), Mumbai - 400 060.",
+          "IMPORTED AND PACKED BY": "Aussee Oats India Ltd., 162 C Mittal Tower, Nariman Point, Mumbai - 400 021, Maharashtra, India."
+        },
+        "fssai_licence": "10014022003152"
+      },
+      "bbox": [
+        0.543,
+        0.63,
+        0.767,
+        0.687
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "OATS\n100% Natural Wholegrain",
+      "normalised_value": {
+        "generic_name": "Oats",
+        "brand": "Aarambh",
+        "qualifier": "100% Natural Wholegrain"
+      },
+      "bbox": [
+        0.178,
+        0.186,
+        0.39,
+        0.238
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_aarambh_oats_1_5kg_001. declared is scoped to the photographed face; no value is carried across."
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_aarambh_oats_1_5kg_001. declared is scoped to the photographed face; no value is carried across. This face prints only 'BEST BEFORE 12 MONTHS FROM DATE OF PACKAGING.', which states a shelf life and no date."
+    },
+    "retail_sale_price_mrp": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_aarambh_oats_1_5kg_001. declared is scoped to the photographed face; no value is carried across."
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(11) prescribes only the form of a unit sale price declaration -- 'The unit sale price shall be declared as' -- and the Rule 6(1) enumerated list (a), (aa), (b), (c), (d), (da), (e), (f), (g) carries no unit-sale-price item. The corpus therefore holds no obligation limb a deterministic rule could find in breach, so a missing declaration routes to human review rather than FAIL. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(11)."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "For feedback/complaints, write to our\nCustomer Care Manager at the marketed by address,\nemail: sharewithus@futureconsumer.in\nHelpline No.: 1800 210 0060",
+      "normalised_value": {
+        "name": "Customer Care Manager, Future Consumer Limited",
+        "address": "Knowledge House, Shyam Nagar, Off Jogeshwari Vikhroli Link Road, Jogeshwari (East), Mumbai - 400 060.",
+        "telephone": "1800 210 0060",
+        "email": "sharewithus@futureconsumer.in"
+      },
+      "bbox": [
+        0.543,
+        0.576,
+        0.878,
+        0.622
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "COUNTRY OF ORIGIN: SRI LANKA",
+      "normalised_value": {
+        "country": "Sri Lanka",
+        "imported": true
+      },
+      "bbox": [
+        0.543,
+        0.708,
+        0.786,
+        0.724
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Reverse face of the same pouch. It repeats the marketer, consumer care, manufacturer and country-of-origin blocks but carries no net quantity, no retail sale price and no packing date -- the sharpest asymmetry in this set, and the reason those three fields are INSUFFICIENT_EVIDENCE here while being PASS or REVIEW_REQUIRED on food_aarambh_oats_1_5kg_001. Nothing is carried across. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}

@@ -1,0 +1,169 @@
+{
+  "sample_id": "food_dhara_sunflower_oil_1l_001",
+  "sku_id": "food_dhara_sunflower_oil_1l",
+  "image_filename": "food_dhara_sunflower_oil_1l_001.jpg",
+  "image_sha256": "78610d91a9adba37a5d7b10d99bfefa9fd94481d6746be92576f04e7ce4053de",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "curved",
+    "glare",
+    "partially_occluded"
+  ],
+  "known_issues": [
+    "non_compliant_usp_unit"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "cylindrical",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_dhara_sunflower_oil_1l_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Refined\nSunflower Oil",
+      "normalised_value": {
+        "generic_name": "Refined Sunflower Oil",
+        "brand": "Dhara"
+      },
+      "bbox": [
+        0.382,
+        0.563,
+        0.64,
+        0.611
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Quantity:\n1 L  (910 g)",
+      "normalised_value": {
+        "value": 1.0,
+        "unit": "L",
+        "basis": "volume",
+        "secondary": {
+          "value": 910.0,
+          "unit": "g",
+          "basis": "weight"
+        }
+      },
+      "bbox": [
+        0.363,
+        0.727,
+        0.458,
+        0.78
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_dhara_sunflower_oil_1l_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ₹  195.00\n(incl. of all taxes)",
+      "normalised_value": {
+        "amount": 195.0,
+        "currency": "INR",
+        "inclusive_of_taxes": true
+      },
+      "bbox": [
+        0.56,
+        0.732,
+        0.647,
+        0.771
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "USP ₹ 0.20 per g",
+      "normalised_value": {
+        "amount": 0.2,
+        "currency": "INR",
+        "declared_basis": "per g",
+        "required_basis": "per litre",
+        "rule_id": "R6-11",
+        "limb": "(vii)"
+      },
+      "bbox": [
+        0.561,
+        0.765,
+        0.653,
+        0.785
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "FAIL",
+      "non_compliance_reason": "Rule 6(11) limb (vii): '\"Rs._ per litre\" for pre-packaged commodities with net volume of the commodity more or equal to one litre.' The declared net quantity is 1 L, so the required basis is per litre; the pack declares a per-gram basis. The parenthesised (910 g) does not change the basis, which Rule 6(11) keys to the declared net volume. Rule 6(11) is a format rule and states no tolerance. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(11)(vii)."
+    },
+    "consumer_care_details": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_dhara_sunflower_oil_1l_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "No address and no origin statement is legible on this face, so the image cannot establish whether the pack is an imported product and therefore cannot establish whether Rule 6(1)(aa) is engaged."
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Front label of a PET bottle standing on a granite counter against tile, in ordinary indoor light. The label curves away on both sides; a column of small print down its right edge is illegible at full resolution, hence curved and partially_occluded. This face carries the unit sale price on the wrong statutory basis -- the first non_compliant_usp_unit instance in this corpus, one of the seven defect cases datasets/README.md names as worth capturing deliberately. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}

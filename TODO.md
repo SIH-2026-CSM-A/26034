@@ -1,4 +1,4 @@
-# TODO.md — end of Session 18, 2026-09-07
+# TODO.md — end of Session 19, 2026-09-07
 
 ---
 
@@ -13,8 +13,14 @@
    declarations elsewhere on the panel", and EXT-007 would record disagreements that are not
    disagreements. `tests/modules/extraction/test_bilingual_declarations.py:185` pins today's
    two-record behaviour and is the test EXT-007 changes.
-2. **DAT-005** — annotate the fifteen staged captures. The single highest-value item on the
-   board; every accuracy figure in the PRD depends on it and none is currently defensible.
+2. ~~**DAT-005** — annotate the captures.~~ **Done, Session 19.** Not the fifteen staged
+   files: those all carry a ₹10 coin, which is why the ticket was parked. Twelve new real
+   captures landed — six SKUs, front and back, no reference object in any frame — and are
+   annotated at `datasets/annotations/{food,cosmetics}/` with a twelve-record
+   `datasets/manifest.json`. All twelve are `uncalibrated`, `reference_object.present` false,
+   `pdp.is_measurable` false, every height field null, verdict `REVIEW`. `_staging/` untouched
+   and still unannotated — its provenance is unconfirmed and that is a separate decision.
+   **TAM-002 is unblocked.**
 3. **MEA-011 / MEA-009 Part B** (Yashashvi) — replace the overlap refusal in `measure_margins` with
    `MeasurementMarginOverlapExact` / `MeasurementMarginOverlapCalibrated`. Part A landed the
    contract. Two things to know: the `dist_mm < 0` branch sits **above** the `is_artwork`
@@ -104,6 +110,34 @@
   count.
 - **`rtk` refuses `gh run view --job … --log`.** Use `gh api repos/<r>/actions/jobs/<id>/logs`.
 - **`datasets/` is not ruff-clean** under `bck`'s config: seven UP042 plus one format diff.
+- **`test_manifest_integrity.py` is unfalsifiable, and it guards the corpus.** Raised in
+  Session 19, three defects that compound. `bck/tests/contracts/test_manifest_integrity.py:16`
+  and `:41` both iterate `manifest.get("records", [])`, but a manifest produced by
+  `datasets/ingest_images.py:47-52` has a **`samples`** key — so both tests loop over an empty
+  list and pass green against any manifest at all. The seventh unfalsifiable test on this
+  project and the first guarding the corpus. DAT-005's manifest uses `records`, so the two
+  tests now assert something for the first time; the key mismatch in `ingest_images.py` is
+  unfixed and will silently re-vacuum them the moment anyone regenerates the manifest with it.
+  Needs a ticket: fix `ingest_images.py` to emit `records`, or fix the tests to fail on an
+  empty manifest, or both.
+- **`ingest_images.py` cannot do what its README says.** `sync_manifest` raises without a
+  Google Drive folder ID (`:18-19`), while `datasets/README.md:72` says the manifest is built
+  by walking `datasets/raw/` and is deliberately not synced from Drive — "the demo has to
+  survive the venue network failing". Same ticket as above.
+- **`ingest_images.py` globs `*.jpg` only** — `RAW_DIR.glob("**/*.[jJ][pP][gG]")` (`:24`) — so
+  any PNG in the tree is invisible to it. Twelve of the fifteen `_staging/` files are PNG.
+  Same ticket.
+- **`datasets/README.md` is stale as of Session 19.** Its status section still says the corpus
+  is empty and "Nothing in this directory may be treated as ground truth until real captures
+  land." Twelve annotations now exist. Its `declared: false` definition at `:66-68` also
+  contradicts what the schema can express — see the next item. Docs PR.
+- **`declared` conflates a pack fact with an image fact.** Raised in Session 19 and decided
+  with Abhiram: `declared` is scoped to the photographed face, so `declared: false` now means
+  either "absent from the pack" or "present but not in frame". `expected_field_state`
+  distinguishes them (`INSUFFICIENT_EVIDENCE` versus the rest); the bool alone does not, and
+  `datasets/README.md:66-68` states the opposite intent. Needs a `NOT_IN_FRAME` third state or
+  a `visible_in_image` bool — a `datasets/schema.py` change, so its own ticket. The affected
+  entries are listed in `session-log/abhiram.md`, Session 19.
 
 ## Blocked
 
@@ -114,8 +148,12 @@
   `_are_spans_spatially_adjacent` at 607, so as ordered the branch cannot tell two scripts
   disagreeing about one declaration from two unrelated declarations elsewhere on the panel.
   Move the adjacency check above the value check first.
-- **TAM-002** on DAT-005.
-- **#43 MEA-005** on a decision about the `pdfplumber` dependency.
+- ~~**TAM-002** on DAT-005.~~ **Unblocked, Session 19** — twelve annotated captures exist.
+  Read the note under item 2: all twelve are uncalibrated, so a false-positive rate measured
+  against them is a real number, but nothing in the set can support a Rule 7 finding.
+- ~~**#43 MEA-005** on a decision about the `pdfplumber` dependency.~~ Merged as `2f915f4`.
+  It adds `pdfplumber` and `pdfminer-six`; **run `uv sync` before measuring any baseline**,
+  or you are measuring against a stale venv.
 - **PIP-002** on EXT-004.
 
 ## Done — Session 6, 2026-09-07
