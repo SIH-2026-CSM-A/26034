@@ -13,6 +13,54 @@ evidence-backed findings.
 
 ## Gotchas
 
+### CI
+
+Three checks report on every PR: `CI/backend`, `CI/datasets`, `Frontend/frontend`. A PR
+showing two has a base predating #60 — that is a stale base wearing a green tick, not a CI
+problem. Rebase before reading anything into it.
+
+`ci.yml` has no `paths:` filter and must never gain one. `paths:` is a workflow-level trigger
+filter; a job cannot carry its own, so adding one silences every job at once. A workflow
+skipped by path posts no status and a required context waits on it forever — the deadlock
+that blocked #32, #33, #36 and #37. An `if:` on a job is the same deadlock in a different
+costume.
+
+The `datasets` job deliberately has no ruff step: `datasets/` carries seven pre-existing
+UP042 findings and one format diff under `bck`'s config, so adding one turns the job red on
+arrival.
+
+Backend reports 737 passed / 2 skipped on the runner and 707 passed / 32 skipped locally. The
+difference is the 30 postgres-marked tests, which CI un-skips because it provides a Postgres
+service. Both numbers are correct.
+
+Session-log numbering in `session-log/abhiram.md`: 7 = CI-004, 8 = CTR-005, 9 = DAT-004. Next
+is Session 10. Resolve conflicts in that file by reconstruction — take main's version verbatim
+and append your block — never by editing conflict markers. Prove it with
+`git diff --numstat origin/main -- session-log/abhiram.md` showing zero deletions.
+
+
+### The `__pycache__` purge — use the absolute path
+
+```
+/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +
+```
+
+Bare `find` is a shell function rerouting to `bfs`. A **single-line** command containing
+`find ... -exec` is refused with `rtk: rtk find does not support compound predicates or
+actions` and **exits 1**. The same line inside a multi-line command runs normally.
+
+So `find ... && pytest` fails loudly and is safe. `find ... ; pytest` on one line silently
+skips the purge and runs pytest against stale bytecode. Most falsifications on this project
+are same-byte-length constraint edits (`gt=0` -> `ge=0`), which is exactly the shape a stale
+`.pyc` hides.
+
+Always use the absolute path, and assert the directory count is zero rather than trusting an
+exit code.
+
+`rtk` also intercepts `gh run view --job ... --log`, returning `rtk: Run ID required`. Use
+`gh api repos/<owner>/<repo>/actions/jobs/<id>/logs` instead.
+
+
 - **`bck` installs as a real package** (hatchling, `packages = ["app"]`). `lint-imports` is a
   console script, so `sys.path[0]` is the venv's `bin/`, not the working directory. Without
   the installed package it cannot import `app`, and the contracts silently analyse nothing
