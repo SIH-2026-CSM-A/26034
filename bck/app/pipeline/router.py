@@ -158,7 +158,15 @@ async def submit_image_scan(
         outcome.spans,
         [span.span_id for span in outcome.unclassified_spans],
     )
-    return scan_detail(scan, outcome.verdict, finalised=False)
+    # The proposal rides the response and touches nothing else. `new_scan` above already
+    # wrote `product_category` from the submitted form field, which is the officer's own
+    # answer; this is the evidence for the question, not a second way of answering it.
+    return scan_detail(
+        scan,
+        outcome.verdict,
+        finalised=False,
+        category_proposal=outcome.category_proposal,
+    )
 
 
 @scan_router.get("")

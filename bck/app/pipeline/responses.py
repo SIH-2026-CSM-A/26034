@@ -13,7 +13,12 @@ it silently, long after the officer acted on the result.
 
 from collections.abc import Sequence
 
-from app.contracts import FieldFinding, RuleParameterSnapshot, VerdictRecord
+from app.contracts import (
+    CategoryProposal,
+    FieldFinding,
+    RuleParameterSnapshot,
+    VerdictRecord,
+)
 from app.core import FieldFindingRow, Scan, VerdictRow
 from app.pipeline.capture import QualityRejection
 from app.pipeline.schemas import ScanDetail, ScanSummary
@@ -38,8 +43,14 @@ def scan_detail(
     *,
     finalised: bool,
     quality: QualityRejection | None = None,
+    category_proposal: CategoryProposal | None = None,
 ) -> ScanDetail:
-    """The response for a freshly submitted scan, verdict or capture instruction."""
+    """The response for a freshly submitted scan, verdict or capture instruction.
+
+    ``category_proposal`` is passed through untouched and is not consulted for anything
+    else on the way — in particular it never becomes ``product_category``, which is read
+    off the stored scan row and is the officer's own answer.
+    """
     return ScanDetail(
         id=scan.id,
         source_type=scan.source_type,
@@ -54,6 +65,7 @@ def scan_detail(
         evaluated_at=None if record is None else record.evaluated_at,
         findings=() if record is None else record.findings,
         quality=quality,
+        category_proposal=category_proposal,
     )
 
 

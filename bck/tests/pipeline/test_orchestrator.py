@@ -41,6 +41,7 @@ from app.pipeline.orchestrator import (
     run_catalogue_scan,
     run_image_scan,
 )
+from app.pipeline.rule_findings import UNCONFIRMED_CATEGORY_REASON
 
 from .sector_gate import findings_for_rule
 
@@ -440,3 +441,65 @@ def test_a_marker_the_binder_did_not_place_still_reaches_the_scope_decision() ->
     )
     assert {f.state for f in result.verdict.findings} == {FieldState.REVIEW_REQUIRED}
     assert all("Rule 3(c)" in f.reason for f in result.verdict.findings)
+
+
+FSSAI_SPAN = a_span("FSSAI Lic No. 10012345678901", "s-fssai", 330)
+"""A statutory food signal, on a line the binder places against no Rule 6 obligation.
+
+``propose_category`` reads it off ``unclassified_spans``, which is why it can propose a
+category for a package whose declarations are otherwise unremarkable. The rest of
+``PANEL_SPANS`` carries no category signal at all and proposes ``None`` — measured, not
+assumed — so this one span is the whole difference between the two states below.
+"""
+
+
+def test_a_proposed_category_is_offered_to_the_officer_and_routes_nothing() -> None:
+    """The load-bearing test: the machine reads "food", and the sector gate does not move.
+
+    Both halves are needed and neither means anything alone. The first shows a live,
+    confident proposal is genuinely in hand — without it the second would pass over a
+    pipeline that had quietly stopped proposing anything. The second shows that having it
+    changed no finding: with the category still unconfirmed, every obligation a sector
+    override could move is settled by the gate exactly as it was before this call existed.
+
+    The counts are pinned as literals measured on ``origin/main`` @ ``2817c6b`` before the
+    proposal was wired in, not read back out of the code under test. Confirming ``food``
+    instead of proposing it takes ``gated`` from 30 to 0 and ``insufficient`` from 53 to
+    52, which is what makes this a demonstration rather than an assertion.
+    """
+    result = scan_panel(spans=PANEL_SPANS + (FSSAI_SPAN,), product_category=None)
+
+    assert isinstance(result, ImageScanResult)
+
+    proposal = result.category_proposal
+    assert proposal is not None
+    assert proposal.category is ProductCategory.FOOD
+    assert proposal.confidence == 0.95
+    assert proposal.span_refs == ("s-fssai",)
+
+    findings = result.verdict.findings
+    insufficient = [f for f in findings if f.state is FieldState.INSUFFICIENT_EVIDENCE]
+    gated = [f for f in insufficient if f.reason == UNCONFIRMED_CATEGORY_REASON]
+
+    assert len(findings) == 65
+    assert len(gated) == 30, (
+        "the sector gate settled a different number of obligations than it did before a "
+        "proposal existed. If this fell to 0, something is routing on the proposal: the "
+        "confirmed category is an officer's act and a reading must never stand in for it"
+    )
+    assert len(insufficient) == 53
+    assert result.verdict.verdict is Verdict.REVIEW
+
+
+def test_a_panel_with_no_category_signal_proposes_nothing() -> None:
+    """Abstention is a reading, and it is the one the rest of this module runs under.
+
+    ``propose_category`` returns ``None`` on missing, sparse, ambiguous or conflicting
+    evidence. Asserting it here is what lets every other test in this file keep its
+    meaning: they all scan ``PANEL_SPANS``, and if that panel started proposing a category
+    the proposal would be present throughout without anybody having said so.
+    """
+    result = scan_panel()
+
+    assert isinstance(result, ImageScanResult)
+    assert result.category_proposal is None

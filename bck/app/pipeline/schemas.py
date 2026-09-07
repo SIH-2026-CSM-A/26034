@@ -22,7 +22,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.contracts import CatalogueRecord, FieldFinding, Verdict
+from app.contracts import CatalogueRecord, CategoryProposal, FieldFinding, Verdict
 from app.core import CalibrationMethod, ReviewAction, ScanSourceType, ScanStatus
 from app.modules.rules import ProductCategory
 from app.pipeline.capture import QualityRejection
@@ -93,6 +93,23 @@ class ScanDetail(ScanSummary):
     """Present only where the quality gate refused the capture. A scan carrying this has
     no verdict and no findings, and that is the whole of what it says: we could not read
     the photograph, which is not a statement about the package."""
+
+    category_proposal: CategoryProposal | None = None
+    """A category read off the label for an officer to confirm, reject, or ignore.
+
+    Beside ``product_category``, never inside it. That field is the officer's confirmed
+    answer and is what the sector dispatch routes on; this is the evidence put in front of
+    them so the question can be asked at all. The contract type is carried whole rather
+    than flattened into a category, a confidence and a list of span ids, because
+    :class:`~app.contracts.CategoryProposal` constrains itself at construction —
+    ``span_refs`` has ``min_length=1``, so a proposal citing no evidence cannot be built.
+    Three loose fields here would re-express it and drop that.
+
+    **Present on the submission response and absent on a re-read.** Nothing persists a
+    proposal: the ``scans`` row has no column for it, so a scan fetched from storage
+    reports ``None`` whatever was proposed when it was submitted. A column and its
+    migration are their own ticket, not a silent addition to this one.
+    """
 
 
 class ReviewRequest(ScanDTO):
