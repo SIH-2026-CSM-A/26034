@@ -107,6 +107,42 @@ re-validate against the authoritative rule-set on reconnect.
 
 ## Decisions
 
+### Measurement result types (CTR-005, #58)
+
+Four public types, none deriving from another. Each shares fields through a private base that
+declares no `value`, so `isinstance` separates them.
+
+| Type | `mode` | `value` | `confidence_interval` |
+|---|---|---|---|
+| `MeasurementExact` | `exact` | `gt=0` | — |
+| `MeasurementMarginExact` | `margin_exact` | `ge=0` | — |
+| `MeasurementCalibrated` | `calibrated` | `gt=0` | `ge=0` |
+| `MeasurementMarginCalibrated` | `margin_calibrated` | `ge=0` | `gt=0` |
+
+Zero **value** is a physical fact — a declaration flush against the panel edge. Zero
+**interval** is a false-precision claim about a distance carrying pixel quantisation and
+reference-object localisation error. `MeasurementCalibrated` keeps `ge=0` because a
+zero-variance contrast-ratio crop genuinely has no spread.
+
+Do not re-propose margin types as subclasses. Rejected: subclassing violates Liskov and makes
+existing `isinstance` assertions pass vacuously; a flat layout duplicates two long field
+docstrings that then drift; chaining the bases forces one `rule_limb` docstring to cover both
+Rule 7(4) and Rule 7(2).
+
+### Reference object vocabulary (DAT-004, #59)
+
+`coin_10` / `id_card` / `ean_13` — measurement's names, adopted by `datasets/schema.py`.
+`app.pipeline.orchestrator.Calibration.reference_type` already declared measurement
+authoritative. A `ReferenceObjectType` member exists only alongside its `REF_DIMS` entry and
+its detector branch; `TestMeasurementCanConsumeEveryOfferedObject` enforces this and carries
+no exemption list. `aruco_marker`, `ruler_scale` and `checkerboard` were deleted for exactly
+that reason.
+
+The only sourced coin dimension on this project is the Rs 10 coin at 27.0 mm (RBI-confirmed,
+`SIH26034_TI.md` s15). The Rs 5 coin at 25.0 mm is unsourced and is on the Hard Nos list —
+under any spelling, and do not invent `coin_5` either.
+
+
 - **Self-hosted OCR primary; cloud as opt-in escalation** — cloud-primary would make the
   offline verdict path a second, weaker implementation of extraction, and would put
   consumer-product images outside the sovereign boundary. The accuracy cost of self-hosted
@@ -213,7 +249,23 @@ re-validate against the authoritative rule-set on reconnect.
 
 ## Technical debt
 
-- [ ] **No usable labelled corpus — four samples, not the 8–12 planned.** After four review
+- [ ] **Corpus stands at **zero** annotated samples. All four earlier annotations were
+fabricated and were deleted in DAT-002 (#53, merged). Exactly one commit ever added a file
+under `datasets/annotations/` — `da8278f` (#8, DAT-001), eight files, one author, one batch —
+so the four proven fabricated and the four never reviewed share that provenance and nothing
+real was lost. Fifteen real captures are staged at `datasets/raw/_staging/`, gitignored and
+unannotated. DAT-005 annotates them.
+
+Four modules have merged with no caller: `EvidenceEntryRow`, `propose_category`,
+`measure_margins`, and `tamper/`. An uncalled function is invisible to CI and to review.
+
+There is no PDP-trained detector. Pointing `PDP_WEIGHTS_PATH` at stock `yolov8n.pt` is worse
+than leaving it unset: stock COCO weights return a confident wrong box that feeds the Rule 7
+Table-I band lookup, and `detect_pdp` returns the whole image at confidence 0.0 on empty
+detection, overestimating PDP area and biasing toward POTENTIAL VIOLATION. Training one or
+adopting the documented largest-coherent-text-region fallback is a decision, not a download.
+
+Old note, superseded: No usable labelled corpus — four samples, not the 8–12 planned.** After four review
       rounds, a handful of genuinely-annotated Indian retail samples, mostly packaged food;
       cosmetics has effectively nothing. Every accuracy figure in the PRD carries that sample
       size. Blocks vision, measurement and tamper from being evaluated at all. DAT-001 was
