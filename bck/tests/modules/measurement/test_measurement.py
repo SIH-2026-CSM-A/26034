@@ -417,3 +417,52 @@ def test_margin_overlap_is_negative():
 
     assert isinstance(results["above"], MeasurementRefusal)
     assert "overlap" in results["above"].reason.lower()
+
+
+def test_coin_oblique_synthetic_geometry():
+    """Prove MEA-007 correctly recovers the original scale of an oblique coin."""
+    import cv2
+    import numpy as np
+
+    from app.contracts import MeasurementRefusal
+    from app.modules.measurement.services import detect_reference_object
+
+    img = np.zeros((1000, 1000), dtype=np.uint8)
+    cv2.circle(img, (500, 500), 100, 255, -1)
+
+    f_true = float(np.hypot(1000, 1000))
+    k_mat = np.array([[f_true, 0.0, 500.0], [0.0, f_true, 500.0], [0.0, 0.0, 1.0]])
+    theta_true = np.deg2rad(30)
+    r_true = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, np.cos(theta_true), -np.sin(theta_true)],
+            [0.0, np.sin(theta_true), np.cos(theta_true)],
+        ]
+    )
+
+    y_shift = f_true * np.tan(theta_true)
+    t_mat = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, y_shift], [0.0, 0.0, 1.0]])
+    warp_m = t_mat @ k_mat @ r_true @ np.linalg.inv(k_mat)
+
+    warped = cv2.warpPerspective(img, warp_m, (1000, 1000))
+    warped_bgr = cv2.cvtColor(warped, cv2.COLOR_GRAY2BGR)
+
+    res = detect_reference_object(warped_bgr, "coin_10")
+    assert not isinstance(res, MeasurementRefusal), "Refusal: " + (
+        res.reason if hasattr(res, "reason") else ""
+    )
+
+    scale, conf, h_matrix = res
+    assert h_matrix is not None
+
+    # Project coordinate points directly to avoid canvas clipping during unwarp
+    rect_pts = np.float32([[200, 400], [300, 400], [300, 600], [200, 600]])
+    warped_pts = cv2.perspectiveTransform(np.array([rect_pts]), warp_m)[0]
+    recov_pts = cv2.perspectiveTransform(np.array([warped_pts]), h_matrix)[0]
+
+    recovered_height = np.linalg.norm(recov_pts[0] - recov_pts[3])
+
+    expected_height = 200.0
+    error = abs(recovered_height - expected_height) / expected_height
+    assert error <= 0.05, f"Height {recovered_height:.2f} deviates from {expected_height} by >5%"

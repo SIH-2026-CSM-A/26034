@@ -47,3 +47,8 @@
 - Updated margin slicing to extend to the bounding box center, allowing detection of active ink overlaps.
 - Intercepted negative margin distances in the loop, emitting MeasurementRefusal for overlaps.
 - Added confidence interval floor at mm_per_pixel.
+
+## 2026-09-07 — MEA-007 (Coin Perspective Fix)
+- Resolved E501 formatting lint errors by structuring MeasurementRefusal strings.
+- Fixed synthetic test focal length to correctly match application's image-diagonal assumption.
+- Corrected homography math in services.py to properly compute the optical center shift (dx, dy) and apply an inverse translation matrix, achieving true perspective scale recovery.
