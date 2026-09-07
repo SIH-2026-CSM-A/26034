@@ -265,6 +265,22 @@ def measure_ink_extent(
     )
 
 
+def _compute_rule_7_area(
+    height_mm: float, width_mm: float, shape: PackageShape
+) -> tuple[float, str]:
+    if shape == PackageShape.RECTANGULAR:
+        area_mm2 = height_mm * width_mm
+        rule_limb = "rectangular"
+    elif shape == PackageShape.CYLINDRICAL:
+        area_mm2 = 0.40 * (height_mm * (np.pi * width_mm))
+        rule_limb = "cylindrical 40%"
+    else:
+        area_mm2 = height_mm * width_mm
+        rule_limb = "other-panel-measured"
+
+    return area_mm2 / 100.0, rule_limb
+
+
 def calculate_pdp_area(
     image: np.ndarray,
     ref_image: np.ndarray | None = None,
@@ -296,25 +312,14 @@ def calculate_pdp_area(
                 image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
             )
 
+    if shape == PackageShape.OTHER and planarity_score < MIN_PLANARITY_THRESHOLD:
+        return MeasurementRefusal(reason="Panel is not adequately planar for homography.")
+
     height_px, width_px = image.shape[:2]
     height_mm = height_px * mm_per_pixel
     width_mm = width_px * mm_per_pixel
 
-    # Calculate area in mm² based on shape
-    if shape == PackageShape.RECTANGULAR:
-        area_mm2 = height_mm * width_mm
-        rule_limb = "rectangular"
-    elif shape == PackageShape.CYLINDRICAL:
-        area_mm2 = 0.40 * (height_mm * (np.pi * width_mm))
-        rule_limb = "cylindrical 40%"
-    else:  # OTHER
-        if planarity_score < MIN_PLANARITY_THRESHOLD:
-            return MeasurementRefusal(reason="Panel is not adequately planar for homography.")
-        area_mm2 = height_mm * width_mm
-        rule_limb = "other-panel-measured"
-
-    # Convert to cm²
-    area_cm2 = area_mm2 / 100.0
+    area_cm2, rule_limb = _compute_rule_7_area(height_mm, width_mm, shape)
 
     if is_artwork:
         return MeasurementExact(value=area_cm2, unit="cm²", rule_limb=rule_limb)
