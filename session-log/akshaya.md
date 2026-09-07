@@ -55,3 +55,9 @@
 - 2026-09-07: Restored test_ocr.py bodies, deleted placeholder, and rewrote assertions to test PaddleOCR 3.7.0 API expectations per review comments. (Antigravity)
 - 2026-09-07: Fixed 4 failing unit tests in test_ocr.py by aligning test assertions with ocr.py implementation (dict parsing, numeric cleaning, and validation errors). (Antigravity)
 - 2026-09-08: Resolved VIS-005: removed dead 2.x parser block, removed use_angle_cls, fixed OCR confidence to 0.0, stopped MRP mangling, and replaced vis_004_proof.py with a real test.
+
+## TAM-002: Tamper Module Public Entry Point (Blocked on DAT-007)
+
+- **Public Entry Point**: Implemented and exposed `detect_tampering(image: np.ndarray, spans: list[ExtractedSpan]) -> list[TamperDetectionResult]` in `app.modules.tamper` (`__init__.py`). Designed for orchestrator composition without modifying `pipeline/orchestrator.py`.
+- **False-Positive Evaluation (Blocked)**: Evaluation is blocked on **DAT-007** (all 12 manifest records point to non-existent images, and the 4 images on disk have no annotations). No tamper metrics or false-positive figures are quoted.
+- **Priors Status**: `PRIOR_CONFLICTING_MRP_PROBABILITY` (0.95) and `PRIOR_STICKER_OVERLAY_PROBABILITY` (0.85) remain as uncalibrated expert priors.
