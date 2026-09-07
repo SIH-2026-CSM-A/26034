@@ -163,3 +163,20 @@
 - Prepared plain text diffs for `bck/pyproject.toml` (adding `app.modules.vendor` to import-linter independence contract) and `.github/CODEOWNERS` (assigning `/bck/app/modules/vendor/`, `/bck/tests/modules/vendor/`, and `/session-log/yashwanth.md` to `@ybaddam8-png`) for ticket review by Abhiram.
 - Left `bck/pyproject.toml` and `.github/CODEOWNERS` unstaged and uncommitted per `AGENTS.md` module ownership boundaries (Abhiram owns `.github/` and core repo config).
 - Investigated `test_coin_oblique_synthetic_geometry` in `tests/modules/measurement/test_measurement.py`: confirmed it is a pre-existing failure on `origin/main` (under Yashashvi's `measurement/` module) and was completely untouched by this branch. Left untouched as instructed.
+
+---
+
+### 2026-09-07 — VND-001 PR opened, CI verified
+
+**PR:** #101, `vnd-001-vendor-self-scan` -> `main`
+
+**CI result:** 1 failing (`test_independence_contract_covers_every_module_on_disk`,
+expected — blocked on Abhiram's pyproject.toml/CODEOWNERS diffs, already posted on the
+ticket). 981 passed, 2 skipped. Lint, format, import-boundaries all green.
+
+**Note:** `test_coin_oblique_synthetic_geometry` (measurement/, Yashashvi's) failed
+locally on this machine every run but passed clean in CI — likely environment/precision
+flake, not a real regression. Flagged, not touched.
+
+**Status:** waiting on Abhiram to apply the two config diffs and approve. Nothing else
+outstanding on VND-001.
