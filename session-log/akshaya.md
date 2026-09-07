@@ -14,7 +14,6 @@
 - Implemented strict parsing for PaddleOCR 3.x results without 1.0 confidence fallbacks.
 - Configured frame-level provenance (`region_id="frame"`).
 
-<<<<<<< HEAD
 ### Ticket TAM-001: Tamper Detection (Dual-MRP & Sticker Overlay)
 - **Tamper Domain Model**: Implemented `TamperDetectionResult` in `bck/app/modules/tamper/domain.py` with probability bounded by `ge=0.0, le=1.0` and verified `0.0` boundary validation.
 - **Conflicting MRP Detection**: Implemented `detect_conflicting_mrps` in `bck/app/modules/tamper/detector.py` to identify conflicting MRP values across spans.
@@ -44,15 +43,12 @@
 - **Directional Step-Discontinuity Analysis**: Refactored `detect_sticker_overlay` to compare mean pixel intensity just inside vs just outside the perimeter borders across the four crop sides. Added `test_detect_sticker_neighboring_text_clean` verifying clean return `[]` when neighboring text ("Net Wt 250g") is rendered ~12px below MRP line. Demonstrated falsification proof (RED failure on old detector, GREEN on directional analysis).
 - **Mandatory Anchor MRP Extraction**: Removed quantifier star (`*`) from regex prefix anchor group in `_extract_mrp_value` so that the MRP/currency anchor is mandatory before price digits. Added `test_extract_mrp_value_reversed_order` verifying `"Net Wt 250g MRP Rs. 100"` extracts `100.00` instead of `250.00`. Demonstrated falsification proof (RED failure on old regex `AssertionError: '250.00' == '100.00'`, GREEN on mandatory anchor).
 - **Verification**: `ruff check .`, `ruff format --check .`, `lint-imports` (3 kept, 0 broken), and 14 tamper tests pass cleanly.
-=======
+
 ## Session - VIS-004: PaddleOCR 3.7.0 & Offline Setup Protocol
 - **PaddleOCR 3.7.0 API Migration**: Standardized PaddleOCR initialization in `bck/app/modules/vision/ocr.py` to use `text_detection_model_dir`, `text_recognition_model_dir`, `use_textline_orientation=False`, `device="cpu"`, and `ocr.predict(image)`, completely eliminating legacy PaddleOCR 2.x parameters (`cls=False`).
-- **PDP Signature & Graceful Argument Handling**: Refactored `detect_pdp()` in `bck/app/modules/vision/pdp.py` to accept `weights_path: str | None = None` (defaulting to `os.getenv("PDP_WEIGHTS_PATH")`), supporting both `np.ndarray` and image file path strings (`str | os.PathLike`). Omitted or missing weights paths gracefully return full-image bounds `(0, 0, w, h)` with `confidence=0.0` without throwing `TypeError`.
-- **Environment Configuration**: Updated `bck/.env.example` with all four required offline environment variables (`PDP_WEIGHTS_PATH`, `OCR_DET_MODEL_DIR`, `OCR_REC_MODEL_DIR`, `TESSERACT_TESSDATA_DIR`) using real path examples and explicit documentation that blank values are treated as unset.
-- **Offline Model Setup Documentation**: Expanded `bck/app/modules/vision/README.md` with complete CLI setup protocols, model storage footprint summary (~25.8 MB total), Tesseract apt installation, tessdata path export, and PaddleOCR v4 tarball extraction steps.
-<<<<<<< HEAD
-- **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 686 passed, 32 skipped).
->>>>>>> 24d3e2a (feat(vision): bootstrap local weights and 3.7.0 PaddleOCR API (VIS-004))
-=======
-- **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 687 passed, 32 skipped).
->>>>>>> d433fc6 (docs(session-log): append VIS-004 session entry)
+- **PDP Signature & Scope Alignment**: Reverted `detect_pdp` return contract in `bck/app/modules/vision/pdp.py` to `DetectionResult(bbox=(x,y,w,h), area=w*h, confidence=conf)`. Removed `PDPResult`, `area_cm2`, `cropped_image`, and `px_to_cm_ratio`. Added explicit `RuntimeError` if `weights_path` / `PDP_WEIGHTS_PATH` is unset or non-existent.
+- **Scope Creep Reverted (`ocr.py`)**: Reverted `_extract_numeric_value` to standard float formatting/token splitting. Reverted custom `TypeError`, `ValueError`, and `strict=True` bounds checking from `_parse_paddle_results`, focusing strictly on calling `ocr.predict()` and unpacking 3.7.0 return fields (`dt_polys`, `rec_texts`, `rec_scores`).
+- **Tesseract Offline Configuration**: Configured `extract_mrp_quantity` and `arbitrate_field_declaration` in `bck/app/modules/vision/ocr.py` to accept optional `tessdata_dir` defaulting to environment variable `TESSERACT_TESSDATA_DIR` and exported `TESSDATA_PREFIX`.
+- **Proof Script Output**: Executed `scripts/vis_004_proof.py` against `datasets/raw/_staging/sample_capture.jpg` and captured exact terminal output showing model paths, `dt_polys` count (5), and top 5 `rec_texts` with `rec_scores`.
+- **Environment & Documentation**: Updated `bck/.env.example` with all four required offline model environment variables and documented CLI caching setup in `bck/app/modules/vision/README.md`.
+- **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 724 passed, 32 skipped cleanly).
