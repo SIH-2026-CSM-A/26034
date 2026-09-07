@@ -19,9 +19,12 @@ try {
 
 if (!schema) {
   console.log('Backend server not running; generating OpenAPI schema directly from bck/app/main.py...');
-  const pyCode = 'import json; from app.main import app; print(json.dumps(app.openapi()))';
-  const raw = execSync(`uv run --project ../bck python -c "${pyCode}"`, {
-    env: { ...process.env, JWT_SECRET: process.env.JWT_SECRET || '0123456789abcdef0123456789abcdef' },
+  const pyCode = 'import os, json; os.environ.setdefault("JWT_SECRET", "0123456789abcdef0123456789abcdef"); from app.main import app; print(json.dumps(app.openapi()))';
+  const userLocalBin = process.env.HOME ? `${process.env.HOME}/.local/bin` : '';
+  const currentPath = process.env.PATH || '';
+  const extendedPath = userLocalBin ? `${userLocalBin}:${currentPath}` : currentPath;
+  const raw = execSync(`uv run --project ../bck python -c '${pyCode}'`, {
+    env: { ...process.env, PATH: extendedPath, JWT_SECRET: process.env.JWT_SECRET || '0123456789abcdef0123456789abcdef', WSLENV: `${process.env.WSLENV || ''}:JWT_SECRET` },
     maxBuffer: 50 * 1024 * 1024,
   }).toString();
   schema = JSON.parse(raw);
