@@ -3021,3 +3021,179 @@ directly, not through a pipe.
 `Settings.missing_model_paths()` (`bck/app/core/config.py:186-207`), so `main.py:47-61`
 still refuses to boot. `bck/app/core/config.py` was not touched — another session had it
 open, and that change is Abhiram's.
+
+---
+
+## Session 23 — 2026-09-07, PIP-006 (Claude Code, Opus 5)
+
+Wired `classify_display_category` — the eighth function to ship on this project with no
+production caller — into the image scan path as a proposal that stops on the response.
+Branch `pip-006-wire-display-taxonomy`, rebased twice during the session and finally based
+on `origin/main` @ `397ff51`.
+
+### Scope A was dropped, and a claim I made about it was wrong
+
+The ticket said `tests/test_import_boundaries.py` was red on `main` for `app.modules.vendor`
+and asked for `vendor` and `analytics` to be added to the independence contract in
+`bck/pyproject.toml`. At session start that was measurably not the case:
+
+- Modules on disk at `cdf4dc1`: `analytics, evidence, extraction, measurement, rules,
+  tamper, vision`. The contract listed those same seven; `analytics` was already there from
+  ANL-001 (#96). `uv run pytest tests/test_import_boundaries.py` → **4 passed**.
+- `app/modules/vendor/` existed only on PR #101's unmerged branch.
+
+Adding `app.modules.vendor` on top of that would have broken **three** things, not two, and
+this was measured rather than assumed:
+`test_independence_contract_covers_every_module_on_disk`,
+`test_independence_contract_lists_the_seven_modules`, and `lint-imports`, which exits 1 with
+`Module 'app.modules.vendor' does not exist.` So A was dropped and `bck/pyproject.toml` is
+untouched by this ticket. That part stands.
+
+**The defect I predicted did not exist.** I read `gh pr view 101 --json files`, saw no
+`bck/pyproject.toml` in the Files list, and concluded #101 would land a module directory
+without its contract entry. #101 and #104 both merged mid-session and both carried their own
+`pyproject.toml` change — vendor and complaints went in together with their entries, and
+`test_independence_contract_lists_the_seven_modules` was correctly renamed to
+`..._the_eight_modules` by #101. The boundary tests are green on `main`. The Files list I
+read was stale; I should have re-read it before writing the claim down, and nothing was sent
+to Yashwanth on the strength of it.
+
+One small thing did survive, raised not fixed: #104 added `app.modules.complaints` to that
+pinned list, making it nine entries, but the function is still named
+`test_independence_contract_lists_the_eight_modules`
+(`bck/tests/test_import_boundaries.py:67`). A name that miscounts what it pins is a rename,
+not a code change, and it is not this ticket's.
+
+### Decision on B — `DisplayCategoryTaxonomy` does not go in `contracts/`
+
+`app.pipeline` is its only consumer, which is exactly the `ExtractionResult` precedent
+recorded at `ARCHITECTURE.md:215`. The decisive reason is narrower than the precedent: I may
+not edit `extraction/category.py` (Sitanshu's), so a contracts type would not replace the
+dataclass — it would sit beside it and pipeline would convert between two definitions of one
+type. That is a second public name for one type.
+
+No contracts type is needed for the HTTP surface either. Verified in-session that pydantic v2
+carries the frozen stdlib dataclass as a field, serialises it, and emits an OpenAPI `$defs`
+entry for both `DisplayCategoryTaxonomy` and `DisplayCategory`. `bck/app/contracts/` is
+untouched.
+
+### What changed — six files, all in `pipeline/` and its tests
+
+1. `app/pipeline/orchestrator.py` — imports `classify_display_category` and
+   `DisplayCategoryTaxonomy` from `app.modules.extraction.category`. Submodule import
+   because the function is not exported from `extraction/__init__.py` and that file is not
+   mine; this is not a new deviation, `orchestrator.py` already imports
+   `app.modules.vision.ocr` and `app.modules.vision.pdp` the same way. New
+   `display_category` field on `ImageScanResult`, called once per scan beside
+   `propose_category`, deliberately not passed to `EvidenceContext`.
+2. `app/pipeline/schemas.py` — `display_category` on `ScanDetail`. Not on `ScanSummary`.
+3. `app/pipeline/responses.py` — keyword on `scan_detail()`, passed through untouched.
+   `stored_detail()` unchanged.
+4. `app/pipeline/router.py` — `display_category=outcome.display_category`.
+5. `tests/pipeline/test_category_proposal_is_not_a_confirmation.py` — widened
+   `PROPOSAL_NAMES` to both axes rather than adding a second guard file. Same defect class,
+   same single `Scan(...)` construction site.
+6. `tests/pipeline/test_orchestrator.py` — two behavioural tests.
+
+The behavioural test uses a `Detergent Powder` span rather than a food one, on purpose:
+`household` sits under `non_food_packaged_goods` and has **no** `ProductCategory` member at
+all, so the scan classifies a display category while proposing no legal one. A food span
+would set both at once and prove nothing about which drove which. It also exercises the
+nested branch — `parent_category` and a three-segment `path`.
+
+### Verification
+
+Baseline measured on `origin/main` @ `397ff51` in this session, clean tree, bytecode purged
+with the absolute path: **952 passed, 51 skipped**. After the change: **954 passed, 51
+skipped** — +2, the two tests added. No count carried from any document; the local skip count
+is 51, not the 32 `CLAUDE.md` still records.
+
+**I got the CI delta wrong, and the way I got it wrong is the one `CLAUDE.md` warns about.**
+I predicted 984 / 21 by reusing the `+30 / -30` figure from `CLAUDE.md` — I treated "thirty
+are postgres-marked" as a derivation when it was a carried number. CI actually reported
+**1003 passed, 2 skipped**: +49 / -49.
+
+Derived properly afterwards, and this is the method rather than another number to carry:
+`uv run pytest -q -rs | grep '^SKIPPED'` and count by reason. Of the 51 local skips, **49**
+are `DATABASE_URL is not set` and **2** are `Live MinIO container not running`. The runner
+provides a Postgres service and no MinIO, so exactly the 49 un-skip: 954 + 49 = 1003, and
+51 − 49 = 2. The `+30` in `CLAUDE.md` predates the analytics and postgres-market suites and
+should not be quoted by the next session either — count the reasons.
+
+`ruff check` exit 0, `ruff format --check` exit 0 on 185 files, `lint-imports` exit 0 with 3
+contracts kept — each exit code read directly, never through a pipe.
+
+Measuring the baseline in a `git worktree` under the scratchpad failed on
+`No space left on device` unpacking paddlepaddle, exactly as `CLAUDE.md` warns about the
+3.9 GB `/tmp` tmpfs. Measured with `git checkout origin/main -- bck/` in place against the
+existing venv instead, then `git checkout HEAD -- bck/` to restore.
+
+### Falsification
+
+**The guard this ticket adds.** Added
+`from app.modules.extraction.category import DisplayCategoryTaxonomy` to
+`pipeline/repository.py`, purged bytecode, ran the whole suite without `-x`: **1 failed, 911
+passed**. The failure is
+`test_the_module_that_writes_the_confirmed_category_cannot_see_a_proposal`, and the message
+names `DisplayCategoryTaxonomy` — not `CategoryProposal`, which is first in the tuple and
+would otherwise have won the assertion. Nothing unrelated moved. Reverted, `git diff
+--exit-code` clean.
+
+**The boundary guard**, both directions, on the file I did not change:
+declared-but-not-on-disk (`app.modules.vendor` added) → both boundary tests red plus
+`lint-imports` exit 1; on-disk-but-undeclared (`app.modules.tamper` removed) → both red, the
+covers test reporting `Extra items in the right set: 'tamper'`. Reverted, `git diff
+--exit-code` clean. This is what let me say with evidence that dropping scope A was right.
+
+### A flaky test in `measurement/`, found by accident — raised, not fixed
+
+`tests/modules/measurement/test_measurement.py::test_coin_oblique_synthetic_geometry` fails
+intermittently on CI. Evidence, all from this session:
+
+- CI run 1 on this branch: **1003 passed, 2 skipped**, green.
+- I then amended the commit changing **only `session-log/abhiram.md`**, a markdown file. CI
+  run 2 on that tree: `AssertionError: Height 259.93 deviates from 200.0 by >5%`,
+  `assert np.float32(0.29966766) <= 0.05` — **1 failed, 1002 passed**.
+- `gh run rerun --failed` on that same commit, nothing changed: green again.
+- Locally it passes 5 runs out of 5.
+
+So it is not an interaction with this PR — my diff is `pipeline/` plus two `pipeline` test
+files plus markdown, and it reproduces across a tree that differs only in a `.md`.
+
+I did not diagnose it beyond ruling out the obvious cause, and I am not asserting a root
+cause. There is **no** RANSAC and no RNG in `app/modules/measurement/services.py` — the path
+is `Canny` → `findContours` → `max(..., key=cv2.contourArea)` → `fitEllipse`. Two things in
+that chain are worth someone's attention: `max` over contours picks an arbitrary winner among
+equal areas, and recovering a circle's pose from its elliptical projection has a well-known
+two-fold ambiguity whose wrong branch produces a gross error rather than a marginal one — and
+30% is gross, not a rounding wobble. That is a hypothesis for whoever owns it, not a finding.
+
+`measurement/` is Yashashvi's. Not touched, not fixed, raised on the PR.
+
+### Still open after this — named so it does not get lost
+
+**The generated frontend client is stale against this PR.** FNT-008 (#107) landed mid-session
+and moved the officer dashboard off fixtures onto `apiClient`;
+`fnt/src/services/generated/schema.d.ts:496` knows `category_proposal` and does not know
+`display_category`. `npm run generate:api` has to be re-run after this merges. That directory
+is regenerated, never hand-edited, and I did not touch it.
+
+**The dashboard category filter is not what this unblocks, and the ticket was wrong about
+that too.** It is not empty today — `fnt/src/officer/dashboard/index.tsx:172` builds it from
+`s.product_category`, the officer's confirmed legal category, off `ScanSummary`.
+`display_category` cannot feed it: it is on `ScanDetail` only, present on the submission
+response and `None` on every re-read, because the `scans` row has no column.
+
+Three fields now sit in that same position for the same reason —
+`category_proposal` (PIP-003, #74), `display_category` (this ticket), and the RUL-005 officer
+confirmation flag. Persisting any of them is a column plus a migration, which AGENTS.md rule
+11 makes my own separate ticket. Putting `display_category` on `ScanSummary` now was
+considered and refused: a field that is `None` on every stored row reads as working and is
+worse than an absent one.
+
+**Suggestion for Sitanshu, not a defect:** `classify_display_category` and
+`DisplayCategoryTaxonomy` are absent from `extraction/__init__.py`. Unlike `CategoryProposal`
+— deliberately unexported because it is a *contracts* type and a second import path for one
+is what the third import-linter contract forbids — `DisplayCategoryTaxonomy` is extraction's
+own, so exporting the pair would be consistent with `bind_spans` / `propose_category`. His
+file, his call.

@@ -30,6 +30,7 @@ from app.contracts import (
     Verdict,
 )
 from app.core import CalibrationMethod
+from app.modules.extraction.category import DisplayCategory
 from app.modules.rules import ProductCategory
 from app.modules.vision.preprocess import QualityReason
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
@@ -503,3 +504,77 @@ def test_a_panel_with_no_category_signal_proposes_nothing() -> None:
 
     assert isinstance(result, ImageScanResult)
     assert result.category_proposal is None
+
+
+DETERGENT_SPAN = a_span("Detergent Powder", "s-detergent", 330)
+"""A display signal with no legal counterpart, on a line the binder places nowhere.
+
+Chosen over a food line deliberately. ``household`` sits under
+``non_food_packaged_goods`` in the display tree and has **no** ``ProductCategory`` member
+at all, so a scan carrying it proposes no legal category while classifying a display one.
+That is the pair of states that shows the two axes are independent rather than one derived
+from the other — a food span would set both at once and prove nothing about which drove
+which.
+"""
+
+
+def test_a_display_category_is_carried_on_the_response_and_routes_nothing() -> None:
+    """The machine files the package on a shelf, and the sector gate does not move.
+
+    Both halves are needed. The first shows a live classification is genuinely in hand,
+    including the nested branch — ``parent_category`` and a three-segment ``path`` — so
+    this cannot pass over a pipeline that had quietly stopped classifying. The second
+    shows that having it changed no finding.
+
+    The counts are the same literals
+    :func:`test_a_proposed_category_is_offered_to_the_officer_and_routes_nothing` pins,
+    measured before either category call was wired in, not read back out of the code under
+    test. They hold here for a reason worth stating: a display classification is present
+    *and* ``category_proposal`` is ``None`` on this panel, so the thirty sector-gated
+    obligations are settled by the officer's unconfirmed category exactly as they are on a
+    panel that reads nothing at all. If ``gated`` fell to 0, something would be routing on
+    the display taxonomy — which would mean the word "detergent" had just decided which Act
+    governs this package.
+    """
+    result = scan_panel(spans=PANEL_SPANS + (DETERGENT_SPAN,), product_category=None)
+
+    assert isinstance(result, ImageScanResult)
+
+    display = result.display_category
+    assert display is not None
+    assert display.category is DisplayCategory.HOUSEHOLD
+    assert display.parent_category is DisplayCategory.NON_FOOD_PACKAGED_GOODS
+    assert display.path == ("packaged_goods", "non_food_packaged_goods", "household")
+    assert display.span_refs == ("s-detergent",)
+
+    assert result.category_proposal is None, (
+        "the legal axis must abstain here. If it started proposing a category off this "
+        "span the two assertions below would no longer be about the display taxonomy"
+    )
+
+    findings = result.verdict.findings
+    insufficient = [f for f in findings if f.state is FieldState.INSUFFICIENT_EVIDENCE]
+    gated = [f for f in insufficient if f.reason == UNCONFIRMED_CATEGORY_REASON]
+
+    assert len(findings) == 65
+    assert len(gated) == 30, (
+        "the sector gate settled a different number of obligations than it does without a "
+        "display classification. A shelf label is not a legal category and must move "
+        "nothing: packaged_food is not food, and household is not a ProductCategory at all"
+    )
+    assert len(insufficient) == 53
+    assert result.verdict.verdict is Verdict.REVIEW
+
+
+def test_a_panel_with_no_display_signal_classifies_nothing() -> None:
+    """Abstention is a reading, and it is the one the rest of this module runs under.
+
+    ``classify_display_category`` returns ``None`` where no branch scored, or where two
+    scored equally. Asserting it here is what lets every other test in this file keep its
+    meaning: they all scan ``PANEL_SPANS``, and if that panel started classifying the
+    field would be populated throughout without anybody having said so.
+    """
+    result = scan_panel()
+
+    assert isinstance(result, ImageScanResult)
+    assert result.display_category is None

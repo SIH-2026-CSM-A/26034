@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.contracts import CatalogueRecord, CategoryProposal, FieldFinding, Verdict
 from app.core import CalibrationMethod, ReviewAction, ScanSourceType, ScanStatus
+from app.modules.extraction.category import DisplayCategoryTaxonomy
 from app.modules.rules import ProductCategory
 from app.pipeline.capture import QualityRejection
 
@@ -109,6 +110,27 @@ class ScanDetail(ScanSummary):
     proposal: the ``scans`` row has no column for it, so a scan fetched from storage
     reports ``None`` whatever was proposed when it was submitted. A column and its
     migration are their own ticket, not a silent addition to this one.
+    """
+
+    display_category: DisplayCategoryTaxonomy | None = None
+    """Where a browsing interface would file this package. A presentation axis only.
+
+    Beside ``product_category`` and ``category_proposal``, and answering a different
+    question from both. Those two concern which Act governs the package — the officer's
+    confirmed answer and the evidence for it. This one concerns which shelf it sits on, and
+    nothing in the verdict path reads it. ``packaged_food`` is not ``food``, and a client
+    that treated them as the same value would be routing a legal determination off a filter
+    bar's vocabulary.
+
+    Carried whole rather than flattened to a label, because the path, confidence and span
+    references are what let a client show *why* something was filed where it was. A bare
+    string would be a claim with no evidence behind it.
+
+    **Present on the submission response and absent on a re-read**, for the same reason as
+    ``category_proposal`` above: the ``scans`` row has no column for it. A scan fetched from
+    storage reports ``None`` whatever was classified when it was submitted, so a list or
+    dashboard filter cannot be built on this field until a column and its migration land as
+    their own ticket.
     """
 
 

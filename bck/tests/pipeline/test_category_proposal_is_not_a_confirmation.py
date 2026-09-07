@@ -1,10 +1,17 @@
-"""A proposal never reaches the officer's confirmed category, proved about the source.
+"""No read-off-the-label category reaches the officer's confirmed one, proved about the source.
 
 ``Scan.product_category`` is the officer's answer to "which Act governs this package", and
 the sector dispatch routes obligations on it. ``CategoryProposal`` is a reading the
 pipeline offers so that question can be asked. ``ARCHITECTURE.md`` states the separation as
 a decision: a confirmed product category is a precondition of rule evaluation, not a filter
 after it.
+
+``DisplayCategoryTaxonomy`` (PIP-006) is guarded here too, and it is the more dangerous of
+the two rather than the lesser. It is a *presentation* axis — which shelf a browsing
+interface would file the package on — and its vocabulary shadows the legal one closely
+enough to be mistaken for it: ``packaged_food`` beside ``food``, ``cosmetics`` beside
+``cosmetics``. A display label that reached this row would apply the FSS Act to a package
+on the strength of a taxonomy built for a filter bar. One row, one guard, both names.
 
 ``test_orchestrator.py`` shows behaviourally that the pipeline does not *act* on a
 proposal — a live ``food`` proposal leaves all thirty sector-gated findings exactly where
@@ -24,7 +31,18 @@ APP = Path(__file__).resolve().parents[2] / "app"
 ROW = "Scan"
 EXPECTED_SITE = "pipeline/repository.py"
 EXPECTED_FUNCTION = "new_scan"
-PROPOSAL_NAMES = ("CategoryProposal", "propose_category")
+PROPOSAL_NAMES = (
+    "CategoryProposal",
+    "propose_category",
+    "DisplayCategoryTaxonomy",
+    "classify_display_category",
+)
+"""Every name that carries a category this pipeline read for itself.
+
+Both axes, because the row must not learn either. Asserted one name at a time rather than
+as a joined blob so a failure names which import appeared — the first entry would otherwise
+win every assertion and a later one could be added without its own coverage ever running.
+"""
 
 
 def _python_files() -> list[Path]:
@@ -87,17 +105,19 @@ def test_a_scan_row_is_constructed_in_exactly_one_place() -> None:
 
 
 def test_the_module_that_writes_the_confirmed_category_cannot_see_a_proposal() -> None:
-    """The repository does not mention proposals, so it has none to write.
+    """The repository does not mention a read category, so it has none to write.
 
     The one function that sets ``Scan.product_category`` reads it from an argument the
-    request boundary supplies. Importing a proposal into this module is the single edit
-    that would let a reading be stored as a confirmation, and it is the edit this refuses.
+    request boundary supplies. Importing a proposal or a display classification into this
+    module is the single edit that would let a reading be stored as a confirmation, and it
+    is the edit this refuses — for both axes, since a display label reaching this row would
+    do the same damage by a shorter route.
     """
     source = (APP / "pipeline" / "repository.py").read_text(encoding="utf-8")
     for name in PROPOSAL_NAMES:
         assert name not in source, (
             f"pipeline/repository.py references {name}. It is the only place "
-            f"Scan.product_category is written, and a proposal is not a confirmation: an "
-            f"officer decides which Act governs a package, and a regex over OCR text does "
-            f"not get to decide it for them."
+            f"Scan.product_category is written, and a category this pipeline read is not a "
+            f"confirmation: an officer decides which Act governs a package, and neither a "
+            f"regex over OCR text nor a shelf label gets to decide it for them."
         )
