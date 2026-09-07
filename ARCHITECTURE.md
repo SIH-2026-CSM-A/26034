@@ -247,9 +247,46 @@ under any spelling, and do not invent `coin_5` either.
 - **`propose_category`** (deterministic, regex + corpus-grounded lexicon) exists in
   `extraction/` but has no caller yet — PIP-003.
 
+### Rule 3 Chapter II scope (RUL-005, #68)
+
+`chapter_ii_scope` is asked once per scan in `build_findings`, before the sector check.
+Order: **scope -> sector -> contested -> `if values:`**. A package outside Chapter II owes
+nothing in the store, so scope precedes every narrower question; answering the sector
+question first would route an excluded package to the Medical Devices Rules, 2017.
+
+`ScopeStatus` is GOVERNED / EXCLUDED / UNCERTAIN. A `not for retail sale` marker yields
+**UNCERTAIN, never EXCLUDED** — it routes to an officer and never decides. Absence infers
+nothing: all 739 pre-existing tests pass unchanged with the gate in place, which is that
+property demonstrated rather than asserted. Only limb 3(a) (more than 25 kg / 25 L) is
+deterministic; 3(b) is subsumed by 3(a) and has no officer input, guarded by a
+subsumption test that goes red if a future amendment raises 3(a)'s threshold.
+
+`derive_verdict` gained an all-NOT_APPLICABLE -> REVIEW pass. It previously fell through
+to PASS, unreachable while sector overrides were the only source of NOT_APPLICABLE.
+Rule 3 reaches it, and PASS on a package the system did not evaluate is the same error
+the empty-findings case already guards against.
+
+### Competing readings (CTR-006 #65, PIP-004 #67)
+
+`CompetingReadings` holds two or more readings of one declaration that disagree. It
+arbitrates nothing — no primary reading, no confidence ordering. `ExtractionResult`
+carries `disagreements` with a validator refusing any `field_type` in both collections:
+structural, because a test asserting disjointness over real `bind_spans` output would be
+vacuously true until EXT-007 populates it. `_one_declaration` routes a contested field to
+REVIEW_REQUIRED as a **literal**, above the `if values:` test — not through
+`FIELD_STATE_FROM_VERDICT`, which would hand the branch the FAIL branch's exact
+expression shape, one token from rerouting.
+
 ## Technical debt
 
-- [ ] **Corpus stands at **zero** annotated samples. All four earlier annotations were
+- [ ] **Corpus stands at zero annotated samples, and the uncalibrated half of the staged
+set does not exist.** All six `*_uncalibrated` captures carry a Rs 10 coin in frame, so
+nothing exercises the refusal path — the strongest claim the system makes. Cropping the
+coin out destroys the declaration block; inpainting leaves visible radial artefacts.
+Generated or AI-synthesised label images are a hard no. The fix is six photographs.
+**No accuracy figure is quoted anywhere in the project.**
+
+- [ ] **Older note, still accurate on provenance:** All four earlier annotations were
 fabricated and were deleted in DAT-002 (#53, merged). Exactly one commit ever added a file
 under `datasets/annotations/` — `da8278f` (#8, DAT-001), eight files, one author, one batch —
 so the four proven fabricated and the four never reviewed share that provenance and nothing

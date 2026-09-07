@@ -160,6 +160,14 @@ If you are carrying a local stand-in for one of these, delete it and import the 
 
 ## Testing
 
+- **A test must not fetch its own expectation.** A test that reads a value out of
+  `rules.yaml` and compares it back against the store compares the store with itself;
+  a same-length edit leaves it green. Pin corpus literals, written in the test.
+- **Check that the defect you inject is the defect the test claims to catch.** Moving a
+  check but leaving it winning the return turns unrelated tests red while the test you
+  are falsifying stays green — a false confirmation.
+- **Never delete a test to make a ticket pass.** If it cannot survive an API change,
+  rename it to state what it actually proves and say so in the PR body.
 - **Every guard needs a test that can fail.** Before you claim a test proves something,
   introduce the defect it guards against and confirm the test goes red, then revert. A test
   that passes against a broken implementation is worse than no test — it is a false

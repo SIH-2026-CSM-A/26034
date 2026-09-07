@@ -23,6 +23,14 @@ hand and are updated by hand when an amendment lands. **Do not build a fetcher.*
 
 ## Known gaps
 
+**There is no enforced member-consumer guard anywhere in the repo.** ARCHITECTURE.md and
+HANDOFF.md both stated that `ARUCO_MARKER`, `RULER_SCALE` and `CHECKERBOARD` were deleted
+from `ReferenceObjectType` for lacking `REF_DIMS` entries. They are still present at
+`datasets/schema.py:55-57` and still lack them. The rule — a member ships only alongside
+something that consumes it — is right and has been applied fresh on every ticket since,
+but nothing enforces it. Unresolved.
+
+
 **Consolidated e-book (amended to 24.12.2024) — not captured.** `doca.gov.in/lm-ebook/`
 returns "Access denied" for both the page and the direct PDF. Consequence: no consolidated
 text covering November 2021 to date. The individual gazettes cover 2017 and 2023–2026,
