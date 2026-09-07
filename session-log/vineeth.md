@@ -25,3 +25,16 @@
 
 **Incomplete**
 - None
+
+### 2026-09-07 — officer confirmation interface — Antigravity
+
+**Done**
+- Regenerated API client for disposition schemas
+- Implemented ReviewRequest submission (Confirm, Override, Reject)
+
+**Decided**
+- Framed all automated findings strictly as recommendations
+- Prevented INSUFFICIENT_EVIDENCE from folding into a pass state
+
+**Incomplete**
+- None
