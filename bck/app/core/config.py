@@ -219,16 +219,6 @@ class Settings(BaseSettings):
                 f"add it to COST_CEILINGS before calling it"
             ) from None
 
-    # --- Evidence Retention ---
-    evidence_image_retention_days: int = Field(default=365, gt=0)
-    """Default retention for product images and verdict records."""
-
-    evidence_pii_retention_days: int = Field(default=90, gt=0)
-    """Shorter retention for PII and geolocation (DPDP Act compliance)."""
-
-    evidence_destructive_purge_enabled: bool = False
-    """Safety flag. If False, purge operations are no-ops (simulated)."""
-
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
