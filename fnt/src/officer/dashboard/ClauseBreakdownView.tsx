@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ClauseDrilldown, RecordDetail } from '../../fixtures/dashboard';
+import type { ClauseDrilldown, RecordDetail } from './types';
 import { StatusPill } from './StatusPill';
 
 interface Props {
@@ -19,7 +19,7 @@ export const ClauseBreakdownView: React.FC<Props> = ({ clauses, activeCategory }
     <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
       <header className="mb-3">
         <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase">
-          Violation Rate by Rule Clause
+          Potential Violation Rate by Rule Clause
         </h2>
         <p className="text-xs text-slate-600">Select any clause to inspect underlying shop records</p>
       </header>
@@ -69,10 +69,11 @@ export const ClauseBreakdownView: React.FC<Props> = ({ clauses, activeCategory }
               </div>
               <button
                 type="button"
+                aria-label="Close dialog"
                 onClick={() => setActiveClause(null)}
                 className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-lg font-bold leading-none"
               >
-                ?
+                ✕
               </button>
             </header>
 
