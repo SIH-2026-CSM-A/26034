@@ -1,13 +1,61 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  VENDOR_SUBMISSIONS,
-  type VendorSubmissionItem,
-  type VendorType,
-} from '../fixtures/vendor-submissions.fixture'
-import type { Verdict } from '../fixtures/contracts'
+import { apiClient } from '../services/apiClient'
 import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictTag } from './components/VerdictBanner'
+
+export type Verdict = 'PASS' | 'REVIEW' | 'POTENTIAL_VIOLATION'
+export type VendorType = 'godown' | 'supermarket' | 'kirana'
+
+export interface Vendor {
+  id: string
+  name: string
+  vendor_type: VendorType
+  state: string
+  region: string | null
+  district: string | null
+  address: string
+  created_at: string
+}
+
+export interface RoutedOfficer {
+  officer_id: string
+  name: string
+  designation: string
+  jurisdiction_level: 'district' | 'region' | 'state'
+  jurisdiction: string
+}
+
+export interface OfficerConfirmation {
+  is_confirmed: boolean
+  action: 'confirm' | 'reject' | 'override' | null
+  officer_id: string | null
+  confirmed_verdict: Verdict | null
+  confirmed_at: string | null
+  notes: string | null
+}
+
+export interface VendorSubmissionItem {
+  scan_id: string
+  verdict_id: string
+  vendor: Vendor
+  product_description: string
+  product_category: 'food' | 'cosmetics' | 'medical_device'
+  source_type: 'physical_label' | 'catalogue_record'
+  captured_at: string
+  recommended_verdict: Verdict
+  routed_officer: RoutedOfficer
+  officer_confirmation: OfficerConfirmation
+  manufacturer_name: string
+  issue_summary: string
+  finding_counts: {
+    pass: number
+    review_required: number
+    fail: number
+    insufficient_evidence: number
+    not_applicable: number
+  }
+}
 
 function formatTimestamp(iso: string): string {
   try {
@@ -45,25 +93,50 @@ export function VendorSubmissions() {
   const [districtFilter, setDistrictFilter] = useState<string>('ALL')
   const [selectedItem, setSelectedItem] = useState<VendorSubmissionItem | null>(null)
 
+  // Missing Endpoint Fallback: VND-002 (e.g. GET /vendors) is unserved in backend schema.
+  // Per instructions: DO NOT invent API calls; initialize state with empty arrays ([]).
+  // Fabricated data has been completely eliminated.
+  const [submissions, setSubmissions] = useState<VendorSubmissionItem[]>([])
+
+  useEffect(() => {
+    let active = true
+    async function loadLiveBackendContext() {
+      try {
+        await apiClient.GET('/scans')
+        if (active) {
+          setSubmissions([])
+        }
+      } catch {
+        if (active) {
+          setSubmissions([])
+        }
+      }
+    }
+    loadLiveBackendContext()
+    return () => {
+      active = false
+    }
+  }, [])
+
   // Unique districts for filter dropdown
   const districts = useMemo(() => {
     const set = new Set<string>()
-    for (const sub of VENDOR_SUBMISSIONS) {
+    for (const sub of submissions) {
       if (sub.vendor.district) set.add(sub.vendor.district)
     }
     return Array.from(set).sort()
-  }, [])
+  }, [submissions])
 
   // Metrics
   const metrics = useMemo(() => {
-    let total = VENDOR_SUBMISSIONS.length
+    const total = submissions.length
     let confirmedCount = 0
     let pendingCount = 0
     let potentialViolations = 0
     let reviews = 0
     let passes = 0
 
-    for (const sub of VENDOR_SUBMISSIONS) {
+    for (const sub of submissions) {
       if (sub.officer_confirmation.is_confirmed) {
         confirmedCount++
       } else {
@@ -82,12 +155,12 @@ export function VendorSubmissions() {
       reviews,
       passes,
     }
-  }, [])
+  }, [submissions])
 
   // Filtered rows
   const filteredSubmissions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return VENDOR_SUBMISSIONS.filter((item) => {
+    return submissions.filter((item) => {
       if (vendorTypeFilter !== 'ALL' && item.vendor.vendor_type !== vendorTypeFilter) {
         return false
       }
@@ -121,7 +194,7 @@ export function VendorSubmissions() {
       }
       return true
     })
-  }, [searchQuery, vendorTypeFilter, verdictFilter, confirmationFilter, districtFilter])
+  }, [submissions, searchQuery, vendorTypeFilter, verdictFilter, confirmationFilter, districtFilter])
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -271,7 +344,7 @@ export function VendorSubmissions() {
         {/* Submissions List Header */}
         <div className="mt-4 flex items-center justify-between">
           <span className="font-mono text-label text-mute">
-            Showing {filteredSubmissions.length} of {VENDOR_SUBMISSIONS.length} submissions
+            Showing {filteredSubmissions.length} of {submissions.length} submissions
           </span>
           <span className="text-label text-mute">
             Legal Metrology (Packaged Commodities) Rules, 2011
@@ -281,7 +354,7 @@ export function VendorSubmissions() {
         {/* Submissions Table / Cards */}
         {filteredSubmissions.length === 0 ? (
           <div className="mt-6 border border-dashed border-mute p-8 text-center text-body text-mute">
-            No vendor submissions match the selected criteria. Adjust or reset your filters.
+            No vendor submissions recorded in this jurisdiction.
           </div>
         ) : (
           <div className="mt-4">

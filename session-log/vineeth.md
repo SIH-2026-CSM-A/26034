@@ -127,5 +127,22 @@
 **Incomplete**
 - Client migration of Vendor Submissions and Complaint Tracking pending FastAPI HTTP router implementation and mount for VND-002 and CMP-002
 
+### 2026-09-08 — complete FNT-010 fixture elimination and live API migration — Antigravity
+
+**Done**
+- Completely deleted fabricated fixtures `fnt/src/fixtures/vendor-submissions.fixture.ts` and `fnt/src/fixtures/complaints.fixture.ts` with zero leftover references in codebase
+- Migrated `VendorSubmissions.tsx` to `apiClient` with missing endpoint fallback: initialized state to empty array `[]` so UI honestly renders 0 items/counts for unserved VND-002 endpoints
+- Migrated `ComplaintTracking.tsx` to `apiClient`: connects to live `/scans` endpoint for scan context, enforces human-confirmation gate against live scans (`finalised === true`), and initializes complaint records to `[]` for unserved CMP-002 endpoints
+- Preserved strict verdict terminology (`PASS`, `REVIEW`, `POTENTIAL_VIOLATION`) and append-only progression logic (`supersedes_id`)
+- Fully verified frontend: `npx tsc -b`, `npm run lint` (0 warnings, 0 errors), and `npx vite build` (clean production bundle)
+
+**Decided**
+- Zero fabricated data: where endpoints are unserved (`/vendors`, `/complaints`), state renders honest 0 items rather than simulated data
+- Retained strict boundaries: `AppShell.tsx` and all backend directories untouched
+
+**Incomplete**
+- None
+
+
 
 

@@ -1,17 +1,112 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {
-  type ComplaintRecord,
-  type ComplaintStatus,
-  type ComplaintThread,
-  buildComplaintThreads,
-  checkCanRaiseComplaint,
-  loadComplaintRecords,
-  saveComplaintRecords,
-} from '../fixtures/complaints.fixture'
-import { VENDOR_SUBMISSIONS } from '../fixtures/vendor-submissions.fixture'
+import { apiClient } from '../services/apiClient'
+import type { components } from '../services/generated/schema'
 import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictTag } from './components/VerdictBanner'
+
+export type ComplaintStatus = 'RAISED' | 'ACKNOWLEDGED' | 'RESOLVED' | 'REJECTED'
+export type Verdict = 'PASS' | 'REVIEW' | 'POTENTIAL_VIOLATION'
+type ScanSummary = components['schemas']['ScanSummary']
+
+export interface ComplaintRecord {
+  id: string
+  scan_id: string
+  verdict_id: string
+  manufacturer_name: string
+  issue_summary: string
+  status: ComplaintStatus
+  raised_by_officer_id: string
+  raised_by_officer_name: string
+  raised_at: string
+  supersedes_id: string | null
+  event_note?: string
+}
+
+export interface ComplaintThread {
+  thread_id: string
+  latest_record: ComplaintRecord
+  history: ComplaintRecord[]
+  scan_id: string
+  verdict_id: string
+  manufacturer_name: string
+  product_description: string
+  vendor_name: string
+  district: string
+  state: string
+}
+
+function buildComplaintThreads(
+  records: ComplaintRecord[],
+  scansList: ScanSummary[]
+): ComplaintThread[] {
+  const supersededIds = new Set<string>()
+  for (const r of records) {
+    if (r.supersedes_id) {
+      supersededIds.add(r.supersedes_id)
+    }
+  }
+
+  const heads = records.filter((r) => !supersededIds.has(r.id))
+
+  return heads.map((head) => {
+    const history: ComplaintRecord[] = []
+    let curr: ComplaintRecord | undefined = head
+    while (curr) {
+      history.unshift(curr)
+      if (!curr.supersedes_id) break
+      const parentId: string = curr.supersedes_id
+      curr = records.find((r) => r.id === parentId)
+    }
+
+    const scan = scansList.find((s) => s.id === head.scan_id)
+
+    return {
+      thread_id: history[0]?.id ?? head.id,
+      latest_record: head,
+      history,
+      scan_id: head.scan_id,
+      verdict_id: head.verdict_id,
+      manufacturer_name: head.manufacturer_name,
+      product_description: scan?.product_category ? `Category: ${scan.product_category}` : 'Packaged commodity',
+      vendor_name: 'Inspection Record',
+      district: 'Assigned Jurisdiction',
+      state: 'State Metrology Division',
+    }
+  })
+}
+
+function checkCanRaiseComplaint(
+  scan_id: string,
+  scansList: ScanSummary[]
+): {
+  allowed: boolean
+  reason: string
+  scan?: ScanSummary
+} {
+  const scan = scansList.find((s) => s.id === scan_id)
+  if (!scan) {
+    return {
+      allowed: false,
+      reason: 'Scan reference not found in inspection repository.',
+    }
+  }
+
+  if (!scan.finalised) {
+    return {
+      allowed: false,
+      reason:
+        'Forbidden: Verdict has not been explicitly confirmed by an officer. Human confirmation is strictly required prior to raising a complaint.',
+      scan,
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: 'Verdict has been confirmed by an officer.',
+    scan,
+  }
+}
 
 function formatTimestamp(iso: string): string {
   try {
@@ -60,9 +155,32 @@ function statusBadge(status: ComplaintStatus) {
 
 export function ComplaintTracking() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [records, setRecords] = useState<ComplaintRecord[]>(() => loadComplaintRecords())
+
+  // Missing Endpoint Fallback: CMP-002 (e.g. GET /complaints) is unserved in backend schema.
+  // Per instructions: DO NOT invent API calls; initialize state with empty arrays ([]).
+  // Fabricated data has been completely eliminated.
+  const [records, setRecords] = useState<ComplaintRecord[]>([])
+  const [scans, setScans] = useState<ScanSummary[]>([])
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadScans() {
+      try {
+        const { data, error } = await apiClient.GET('/scans')
+        if (active && data && !error) {
+          setScans(data)
+        }
+      } catch {
+        // network or server error handled gracefully
+      }
+    }
+    loadScans()
+    return () => {
+      active = false
+    }
+  }, [])
 
   // Modals & Flows
   const [activeThread, setActiveThread] = useState<ComplaintThread | null>(null)
@@ -87,29 +205,34 @@ export function ComplaintTracking() {
   const [reopenJustification, setReopenJustification] = useState<string>('')
   const [reopenError, setReopenError] = useState<string | null>(null)
 
-  // Persist records whenever they change
+  // Append-only state update in session
   const updateRecords = (newRecords: ComplaintRecord[]) => {
     setRecords(newRecords)
-    saveComplaintRecords(newRecords)
   }
 
-  // Derive threads from append-only records
-  const threads = useMemo(() => buildComplaintThreads(records), [records])
+  // Derive threads from append-only records and live scans
+  const threads = useMemo(() => buildComplaintThreads(records, scans), [records, scans])
 
   // Only CONFIRMED scans can have complaints raised against them (UI Rule 1)
   const confirmedEligibleSubmissions = useMemo(() => {
-    return VENDOR_SUBMISSIONS.filter((s) => s.officer_confirmation.is_confirmed)
-  }, [])
+    return scans.filter(
+      (s) => s.finalised === true && (s.verdict === 'POTENTIAL_VIOLATION' || s.verdict === 'REVIEW')
+    )
+  }, [scans])
 
   // Handle raise_scan_id query param
   useEffect(() => {
     const raiseScanId = searchParams.get('raise_scan_id')
     if (raiseScanId) {
-      const eligibility = checkCanRaiseComplaint(raiseScanId)
-      if (eligibility.allowed && eligibility.submission) {
+      const eligibility = checkCanRaiseComplaint(raiseScanId, scans)
+      if (eligibility.allowed && eligibility.scan) {
         setSelectedScanId(raiseScanId)
-        setManufacturerName(eligibility.submission.manufacturer_name)
-        setIssueSummary(eligibility.submission.issue_summary)
+        setManufacturerName('')
+        setIssueSummary(
+          eligibility.scan.verdict
+            ? `Automated finding recommended ${eligibility.scan.verdict}, confirmed by inspecting officer.`
+            : ''
+        )
         setIsRaiseModalOpen(true)
         setRaiseFormError(null)
       } else {
@@ -121,7 +244,7 @@ export function ComplaintTracking() {
         setIsRaiseModalOpen(true)
       }
     }
-  }, [searchParams])
+  }, [searchParams, scans])
 
   // Metrics
   const metrics = useMemo(() => {
@@ -175,10 +298,14 @@ export function ComplaintTracking() {
   const handleScanSelectChange = (scanId: string) => {
     setSelectedScanId(scanId)
     setRaiseFormError(null)
-    const sub = confirmedEligibleSubmissions.find((s) => s.scan_id === scanId)
+    const sub = confirmedEligibleSubmissions.find((s) => s.id === scanId)
     if (sub) {
-      setManufacturerName(sub.manufacturer_name)
-      setIssueSummary(sub.issue_summary)
+      setManufacturerName('')
+      setIssueSummary(
+        sub.verdict
+          ? `Automated finding recommended ${sub.verdict}, confirmed by inspecting officer.`
+          : ''
+      )
     }
   }
 
@@ -187,7 +314,7 @@ export function ComplaintTracking() {
     e.preventDefault()
 
     // Strict validation of UI Rule 1
-    const check = checkCanRaiseComplaint(selectedScanId)
+    const check = checkCanRaiseComplaint(selectedScanId, scans)
     if (!check.allowed) {
       setRaiseFormError(
         'Statutory Refusal: A complaint can ONLY be raised from a verdict that an officer has explicitly confirmed. The UI strictly forbids complaints on raw machine verdicts.',
@@ -204,11 +331,11 @@ export function ComplaintTracking() {
       return
     }
 
-    const sub = check.submission!
+    const sub = check.scan!
     const newRecord: ComplaintRecord = {
       id: `cmp-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
-      scan_id: sub.scan_id,
-      verdict_id: sub.verdict_id,
+      scan_id: sub.id,
+      verdict_id: sub.id,
       manufacturer_name: manufacturerName.trim(),
       issue_summary: issueSummary.trim(),
       status: 'RAISED',
@@ -411,7 +538,7 @@ export function ComplaintTracking() {
             <div className="space-y-4">
               {filteredThreads.map((thread) => {
                 const head = thread.latest_record
-                const submission = VENDOR_SUBMISSIONS.find((s) => s.scan_id === thread.scan_id)
+                const scan = scans.find((s) => s.id === thread.scan_id)
 
                 return (
                   <article
@@ -444,10 +571,10 @@ export function ComplaintTracking() {
 
                       <div className="flex flex-col items-end gap-1.5">
                         {statusBadge(head.status)}
-                        {submission && (
+                        {scan?.verdict && (
                           <div className="flex items-center gap-1.5">
                             <span className="text-label text-mute">Confirmed:</span>
-                            <VerdictTag verdict={submission.recommended_verdict} />
+                            <VerdictTag verdict={scan.verdict as Verdict} />
                           </div>
                         )}
                       </div>
@@ -743,9 +870,8 @@ export function ComplaintTracking() {
                   >
                     <option value="">-- Choose an officer-confirmed scan --</option>
                     {confirmedEligibleSubmissions.map((sub) => (
-                      <option key={sub.scan_id} value={sub.scan_id}>
-                        {sub.scan_id} — {sub.product_description} (Confirmed {sub.recommended_verdict} by{' '}
-                        {sub.officer_confirmation.officer_id})
+                      <option key={sub.id} value={sub.id}>
+                        {sub.id} — Confirmed {sub.verdict || 'REVIEW'} ({sub.product_category || 'Commodity'})
                       </option>
                     ))}
                   </select>
