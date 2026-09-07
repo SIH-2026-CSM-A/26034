@@ -411,10 +411,7 @@ def test_same_field_type_agreeing_and_disagreeing_pairs():
     assert dis.field_type == DeclarationField.NET_QUANTITY
     assert dis.reason == DisagreementReason.BILINGUAL_VALUE_MISMATCH
     assert len(dis.readings) == 2
-    assert all(
-        field.field_type != DeclarationField.NET_QUANTITY
-        for field in res.fields
-    )
+    assert all(field.field_type != DeclarationField.NET_QUANTITY for field in res.fields)
 
     # Both competing readings preserved
     span_refs_in_readings = set()
