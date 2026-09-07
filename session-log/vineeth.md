@@ -58,3 +58,23 @@
 **Incomplete**
 - None
 
+### 2026-09-07 — built officer confirmation interface into scan detail view — Antigravity
+
+**Done**
+- Implemented `ReviewRequest` submission to `POST /scans/{scan_id}/review` in `VerdictDetail.tsx`
+- Enforced UI Rule 1: Zero pre-selection on disposition choices (Confirm, Override, Reject). Explicit click required
+- Enforced UI Rule 2: Strictly framed verdicts (`PASS`, `REVIEW`, `POTENTIAL_VIOLATION`) as automated recommendations, with officer action as determination. Avoided all forbidden terms ("violation", "non-compliant", "fails")
+- Enforced UI Rule 3: High-visibility warning for `INSUFFICIENT_EVIDENCE` both in the inspection body and sticky footer; added explicit confirmation caveat preventing unread evidence from folding into a pass state
+- Enforced UI Rule 4: Built category confirmation control displaying reader's `category_proposal` as a suggestion with visible evidence span badges and direct actions to confirm or correct/override
+- Enforced Overrides & Validation: Substituted `overridden_verdict` required when action is `override`; text note required for non-`confirm` actions with explicit validation hints matching backend validator
+- Enforced Offline Handling: Caught `POST` network failure cleanly with explicit "Failed to submit review" banner and retry affordance; zero mock responses
+- Verified `npm run build` (`tsc -b && vite build`) and `npm run lint` (`oxlint`) passing cleanly with 0 errors/warnings
+
+**Decided**
+- Rejected mocking or stubbing offline review responses, presenting honest network failure with retry affordance
+- Rejected automatic pre-selection of Confirm to ensure active human agency on every disposition
+
+**Incomplete**
+- None
+
+

@@ -310,19 +310,33 @@ export function VerdictDetail() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
                   <span className="text-label text-mute">Confirmed Product Category</span>
-                  <p className="font-mono text-body font-semibold">
-                    {confirmedCategory ? confirmedCategory.toUpperCase() : 'None (Unconfirmed)'}
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <p className="font-mono text-body font-semibold">
+                      {confirmedCategory ? confirmedCategory.toUpperCase() : 'None (Unconfirmed)'}
+                    </p>
+                    {confirmedCategory ? (
+                      <span className="border border-attest px-1.5 py-0.2 font-mono text-label text-attest">
+                        OFFICER CONFIRMED
+                      </span>
+                    ) : (
+                      <span className="border border-dashed border-mute px-1.5 py-0.2 font-mono text-label text-mute">
+                        AWAITING OFFICER CONFIRMATION
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-label text-mute">
+                    Sector-specific rules remain held under INSUFFICIENT_EVIDENCE until an officer confirms the category.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <label htmlFor="select-category" className="text-label text-mute">
-                    Change:
+                    Override / Correct:
                   </label>
                   <select
                     id="select-category"
                     value={confirmedCategory ?? ''}
                     onChange={(e) => setConfirmedCategory((e.target.value as ProductCategory) || null)}
-                    className="border border-hairline bg-paper px-2 py-1 font-mono text-label"
+                    className="border border-hairline bg-paper px-2 py-1 font-mono text-label text-ink"
                   >
                     <option value="">Unconfirmed</option>
                     {PRODUCT_CATEGORIES.map((c) => (
@@ -334,10 +348,10 @@ export function VerdictDetail() {
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-hairline pt-3">
+              <div className="mt-4 border-t border-hairline pt-3">
                 <span className="text-label text-mute">Reader Category Proposal</span>
                 {scan.category_proposal ? (
-                  <div className="mt-2 border border-dashed border-query bg-paper p-3">
+                  <div className="mt-2 border border-dashed border-query bg-paper p-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="border border-query px-1.5 py-0.5 font-mono text-label font-medium text-query">
@@ -349,21 +363,31 @@ export function VerdictDetail() {
                       </div>
                     </div>
                     <p className="mt-2 font-mono text-body font-semibold">
-                      {scan.category_proposal.category}
+                      {scan.category_proposal.category.toUpperCase()}
                     </p>
                     <p className="mt-1 text-secondary text-mute">
                       Confidence: {(scan.category_proposal.confidence * 100).toFixed(0)}% • {scan.category_proposal.reason}
                     </p>
                     {scan.category_proposal.span_refs.length > 0 && (
-                      <p className="mt-1 font-mono text-label text-mute">
-                        Evidence spans: {scan.category_proposal.span_refs.join(', ')}
-                      </p>
+                      <div className="mt-2">
+                        <span className="text-label text-mute">Evidence spans cited:</span>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {scan.category_proposal.span_refs.map((spanId) => (
+                            <span
+                              key={spanId}
+                              className="border border-ink bg-paper px-2 py-0.5 font-mono text-label text-ink"
+                            >
+                              {spanId}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="mt-3.5 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setConfirmedCategory(scan.category_proposal?.category ?? null)}
-                        className={`min-h-target border px-3 py-1 font-mono text-label transition-colors ${
+                        className={`min-h-target border px-3 py-1.5 font-mono text-label transition-colors ${
                           confirmedCategory === scan.category_proposal.category
                             ? 'border-attest bg-attest text-paper'
                             : 'border-ink bg-paper text-ink hover:bg-mute/10'
@@ -373,14 +397,19 @@ export function VerdictDetail() {
                           ? '✓ Confirmed as proposed'
                           : `Confirm proposal: ${scan.category_proposal.category}`}
                       </button>
+                      {confirmedCategory && confirmedCategory !== scan.category_proposal.category && (
+                        <span className="font-mono text-label text-query">
+                          (Corrected to {confirmedCategory.toUpperCase()})
+                        </span>
+                      )}
                     </div>
                     <p className="mt-2 text-label text-mute">
-                      A proposal is never the confirmed category until confirmed or corrected by the officer.
+                      A proposal is never the scan's actual category until confirmed or corrected by the officer.
                     </p>
                   </div>
                 ) : (
                   <p className="mt-1 font-mono text-secondary text-mute">
-                    None — no category proposal recorded
+                    None — no category proposal recorded on this scan
                   </p>
                 )}
               </div>
@@ -511,74 +540,98 @@ export function VerdictDetail() {
               )}
 
               {/* Action selection buttons (UI Rule 1: NO PRE-SELECTION) */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedAction(selectedAction === 'confirm' ? null : 'confirm')}
-                  className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                    selectedAction === 'confirm'
-                      ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                      : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                  }`}
-                >
-                  Confirm
-                </button>
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <span className="font-mono text-label text-hairline">
+                    Disposition choices (No default selected • Explicit selection required):
+                  </span>
+                  {selectedAction === null && (
+                    <span className="font-mono text-label text-query">
+                      * Please select an action
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAction(selectedAction === 'confirm' ? null : 'confirm')}
+                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
+                      selectedAction === 'confirm'
+                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
+                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
+                    }`}
+                  >
+                    Confirm
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedAction(selectedAction === 'override' ? null : 'override')}
-                  className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                    selectedAction === 'override'
-                      ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                      : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                  }`}
-                >
-                  Override
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAction(selectedAction === 'override' ? null : 'override')}
+                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
+                      selectedAction === 'override'
+                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
+                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
+                    }`}
+                  >
+                    Override
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedAction(selectedAction === 'reject' ? null : 'reject')}
-                  className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                    selectedAction === 'reject'
-                      ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                      : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                  }`}
-                >
-                  Reject
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAction(selectedAction === 'reject' ? null : 'reject')}
+                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
+                      selectedAction === 'reject'
+                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
+                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
+                    }`}
+                  >
+                    Reject
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedAction(selectedAction === 'annotate' ? null : 'annotate')}
-                  className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                    selectedAction === 'annotate'
-                      ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                      : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                  }`}
-                >
-                  Annotate
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAction(selectedAction === 'annotate' ? null : 'annotate')}
+                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
+                      selectedAction === 'annotate'
+                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
+                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
+                    }`}
+                  >
+                    Annotate
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedAction(selectedAction === 'request_recapture' ? null : 'request_recapture')
-                  }
-                  className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                    selectedAction === 'request_recapture'
-                      ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                      : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                  }`}
-                >
-                  Request recapture
-                </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedAction(selectedAction === 'request_recapture' ? null : 'request_recapture')
+                    }
+                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
+                      selectedAction === 'request_recapture'
+                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
+                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
+                    }`}
+                  >
+                    Request recapture
+                  </button>
+                </div>
               </div>
 
               {/* Action-specific fields when an action is selected */}
               {selectedAction && (
-                <div className="space-y-2 border-t border-hairline/40 pt-2">
-                  {/* Override requires selecting overridden_verdict (UI Rule 5) */}
+                <div className="space-y-2.5 border-t border-hairline/40 pt-2.5">
+                  {/* Notice when confirming with insufficient evidence (UI Rule 3) */}
+                  {selectedAction === 'confirm' && insufficientFindings.length > 0 && (
+                    <div className="border border-query bg-paper p-2.5 text-ink">
+                      <p className="font-mono text-label font-bold text-query">
+                        NOTICE: CONFIRMING WITH UNREADABLE EVIDENCE
+                      </p>
+                      <p className="mt-0.5 text-label text-ink">
+                        Confirming records an explicit acknowledgement that {insufficientFindings.length} declaration{insufficientFindings.length === 1 ? '' : 's'} could not be read. This will NOT be recorded as statutory compliance.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Override requires selecting overridden_verdict (UI Rule 2 & UI Rule 6) */}
                   {selectedAction === 'override' && (
                     <div>
                       <label htmlFor="overridden-verdict" className="block text-label text-hairline">
@@ -595,6 +648,11 @@ export function VerdictDetail() {
                         <option value="REVIEW">REVIEW</option>
                         <option value="POTENTIAL_VIOLATION">POTENTIAL VIOLATION</option>
                       </select>
+                      {!overriddenVerdict && (
+                        <p className="mt-1 font-mono text-label text-seal">
+                          * An override must state the substitute recommendation verdict.
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -619,12 +677,17 @@ export function VerdictDetail() {
                       onChange={(e) => setReviewNote(e.target.value)}
                       className="mt-1 min-h-target w-full border border-hairline bg-paper px-3 py-1.5 text-body text-ink placeholder:text-mute"
                     />
+                    {selectedAction !== 'confirm' && !reviewNote.trim() && (
+                      <p className="mt-1 font-mono text-label text-seal">
+                        * A text note explaining the decision is required for action: {selectedAction}.
+                      </p>
+                    )}
                   </div>
 
                   {/* Offline / Submission Error banner with retry affordance (Requirement 7) */}
                   {reviewError && (
-                    <div className="border border-seal bg-paper p-3 text-ink">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="border-2 border-seal bg-paper p-3 text-ink" role="alert">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="font-semibold text-seal">{reviewError}</p>
                           <p className="mt-0.5 text-secondary text-mute">
@@ -634,8 +697,8 @@ export function VerdictDetail() {
                         <button
                           type="button"
                           onClick={(e) => handleReviewSubmit(e as unknown as React.FormEvent)}
-                          disabled={isSubmitDisabled}
-                          className="min-h-target border border-ink bg-paper px-3 py-1 font-mono text-label text-ink hover:bg-mute/10"
+                          disabled={submittingReview}
+                          className="min-h-target border border-ink bg-paper px-4 py-1.5 font-mono text-label text-ink hover:bg-mute/10 active:bg-mute/20"
                         >
                           Retry submission
                         </button>
