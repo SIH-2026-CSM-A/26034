@@ -208,10 +208,10 @@ where this one was wrong.
 - **`main` is at `d9c44fa`** (RUL-006, #75). Verify the SHA rather than trusting this line.
 - **The local `main` branch in `~/NewProjects/26034` is at `49a6a87` and is behind
   `origin/main`.** A branch cut from local `main` starts stale. Cut from `origin/main`.
-- **Baseline: measure it, do not read it.** `origin/main` measured **801 passed / 32 skipped**
-  at `d9c44fa` and **820 / 32** at `a4e462c` on the same afternoon, clean tree, bytecode
-  purged. Three merges apart, one hour apart. **That number will be wrong by the next merge and
-  it went stale between two runs in the same session.** The CI delta is **+30 passed and −30
+- **Baseline: measure it, do not read it.** `origin/main` measured **801 / 32** at `d9c44fa`,
+  **820 / 32** at `a4e462c` and **829 / 32** at `19c7966` — one afternoon, about ninety minutes,
+  clean tree and bytecode purged each time. **That number will be wrong by the next merge, and
+  it went stale twice while this very sentence was being written.** The CI delta is **+30 passed and −30
   skipped, and it is 30 because there are exactly thirty postgres-marked tests the runner
   un-skips because it provides a Postgres service.** Derive it from the skip count; do not carry
   the figure. CI on the `rul-007` branch reported 835/2 against a local 801/32 plus RUL-007's
@@ -514,21 +514,29 @@ element and paints nothing. Scope with `useId`. Only a real browser at two width
 
 ## Where the board stands, dated 2026-09-07
 
-**`main` is at `a4e462c`, and it moved three times in nine minutes while this file was being
-written.** #76 RUL-007, #46 EVD-005 and #78 FNT-004 all merged; #77 DAT-005 opened. Every OID
-below is a timestamp, not a fact — re-read before acting.
+**`main` is at `19c7966`, and it moved four times while this file was being written.** #76
+RUL-007, #46 EVD-005 and #78 FNT-004 merged within nine minutes; #66 EXT-008 followed; #77
+DAT-005 opened; #63's head moved twice. Every OID below is a timestamp, not a fact — re-read
+before acting. **The findings were re-verified against each new head and none of them changed**,
+which is the useful half: an OID moving is not evidence that anything was addressed.
 
 **Merged 2026-09-07:** #62 CORE-003 · #56 EXT-006 · #64 DAT-003 docs · #47 MEA-006 · #65 CTR-006
 · #67 PIP-004 · #68 RUL-005 · #69 docs · #70 docs · #71 EXT-007 · #73 MEA-009 Part A ·
-#72 FNT-003 · #74 PIP-003 · #43 MEA-005 · #75 RUL-006 · #76 RUL-007 · #46 EVD-005 · #78 FNT-004.
+#72 FNT-003 · #74 PIP-003 · #43 MEA-005 · #75 RUL-006 · #76 RUL-007 · #46 EVD-005 · #78 FNT-004
+· #66 EXT-008.
 
 **Open PRs:**
 
 | PR | Owner | Ticket | Head | Base | State |
 |---|---|---|---|---|---|
-| #77 | Abhiram | DAT-005 | `2095971` | `d9c44fa` | Open, three checks green. Twelve annotated captures, uncalibrated throughout, and a populated manifest. **The highest-value item on the board.** Read it against `ingest_images.py` first — the manifest uses `records`, the writer writes `samples`. |
-| #63 | Akshaya | VIS-004 | `7bc6307` | `9a96b34` | **Blocked, and worse than previously reported.** `test_ocr.py` is 27 lines: five `pass` bodies and a `test_placeholder_ocr`. Three checks green over a hollow suite. |
-| #66 | Sitanshu | EXT-008 | `28f90c0` | `d9c44fa` | **One item left.** Page-9 citation removed, `UNSUPPORTED` separates script-bearing text from noise, session log fixed, the tests split into named claims. `binder.py` is unchanged since `b5767fb`, so `MIXED` still means any two of five. |
+| #77 | Abhiram | DAT-005 | `6a2e9fa` | `a4e462c` | Open, three checks green. Twelve annotated captures, uncalibrated throughout, and a populated manifest. **The highest-value item on the board.** Read it against `ingest_images.py` first — the manifest uses `records`, the writer writes `samples`. |
+| #63 | Akshaya | VIS-004 | `71147c9` | `19c7966` | **Blocked.** `test_ocr.py` is 27 lines: five `pass` bodies and a `test_placeholder_ocr`. Three checks green over a hollow suite. Head has moved twice; that file is byte-identical at every one of them. |
+
+**#66 EXT-008 merged with its last item open.** `binder.py:190` on `main` is
+`if len(matching_scripts) > 1: return ScriptType.MIXED`, so `MIXED` means any two of five scripts
+and no longer marks the Devanagari/Latin pair Rule 9(4) turns on — the pair EXT-006 and EXT-007
+both key off. Opened as **EXT-009**. Do not write it into the `done` EXT-008 ticket; nobody reads
+those.
 
 **#46 merged with half its blocker fixed.** The false attestation is closed —
 `retention.py:106` aborts on a storage miss instead of writing an audit entry. The key

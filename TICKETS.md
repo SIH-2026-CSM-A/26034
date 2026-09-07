@@ -8,9 +8,10 @@ ClickUp is the source of truth. This file mirrors it. `done` is terminal; nothin
 had moved since they were last reviewed, and in both cases the previous item list was wrong in
 both directions.** Re-read the head before acting on anything here.
 
-**`main` moved three times while this file was being written** — #76 RUL-007, #46 EVD-005 and
-#78 FNT-004 all merged within nine minutes, and #77 DAT-005 opened. That is the ordinary rate on
-this board. Treat every OID here as a timestamp, not a fact.
+**`main` moved four times while this file was being written** — #76 RUL-007, #46 EVD-005 and
+#78 FNT-004 within nine minutes, then #66 EXT-008. #77 DAT-005 opened. That is the ordinary rate
+on this board. Treat every OID here as a timestamp, not a fact; the *findings* below were
+re-verified against each new head and none of them changed.
 
 **Connector note:** ClickUp MCP works, but **custom-field writes are capped on this plan** —
 `clickup_update_task` with `custom_fields` returns *"Custom field usages exceeded for your
@@ -31,6 +32,7 @@ plan"*. Name and status updates work.
 | RUL-007 | #76 | Abhiram | Free space is a clearance or an overlap. `SideClearance` / `SideOverlap` discriminated union; `Rule8FreeSpaceEvaluation.overlapping_sides`. Merged 15:02. |
 | EVD-005 | #46 | Shiva Kumar | Retention and purge. Merged 15:06 — **see the note below; it merged with the storage-key defect open.** |
 | FNT-004 | #78 | Vineeth | Scan detail and submission screens on the live client. `ScanSubmission.tsx` new, `VerdictDetail.tsx` migrated. Merged 15:11. |
+| EXT-008 | #66 | Sitanshu | Additional-script detection. Tamil, Bengali and `UNSUPPORTED`; noise separated from script-bearing text. **Merged with the `MIXED` semantics item open — see EXT-009 below.** |
 | — | #70 | Abhiram | Docs: Session 13 handoff. Merged 09:13 and recorded in no board file until now. |
 
 Also merged earlier the same day, recorded in the Session 13 board: #62 CORE-003, #56 EXT-006,
@@ -85,7 +87,10 @@ choice; pick one.
 
 ### PR #63 — VIS-004 model weights · Akshaya · `vis-004-model-weights-bootstrap`
 
-Head `7bc6307`, base `9a96b34` (one merge behind main), **three checks green**.
+Head `71147c9`, rebased onto `19c7966` (current main). **The head has moved twice since this was
+first read and `test_ocr.py` is byte-identical at each one** — `+15/-187`, six functions, five
+`pass` bodies. The moves were a rebase and a session-log append. Do not read a new OID as a new
+attempt.
 
 **The blocker is no longer "five deleted tests". The whole OCR suite is hollow.**
 `bck/tests/modules/vision/test_ocr.py` at this head is twenty-seven lines, in full:
@@ -160,11 +165,29 @@ reported them as restored — see HANDOFF.md, PR review protocol item 4.
 stock-COCO substitution, `bootstrap_weights.py`, and the README. The `DetectionResult` →
 `PDPResult` rename is held until it is its own ticket.
 
-### PR #66 — EXT-008 additional-script detection · Sitanshu · `ext-008-additional-script-detection`
+### EXT-008 merged as #66 — one item followed it onto `main`, opened as EXT-009
 
-Head `b5767fb`, base `d9c44fa` (current main), three checks green. Three files, one module.
+**EXT-009 — `MIXED` no longer means what Rule 9(4) distinguishes.** On `main`,
+`bck/app/modules/extraction/binder.py:190` is:
 
-**Most of the last review is closed. Do not re-send it.**
+```python
+if len(matching_scripts) > 1:
+    return ScriptType.MIXED
+```
+
+`MIXED` was "Devanagari **and** Latin". It is now *any two of five*, so a Tamil-plus-Bengali span
+and a Devanagari-plus-Latin span are the same value — and the Devanagari/Latin pair is precisely
+the distinction Rule 9(4) turns on: Hindi in Devanagari **or** English, with other languages *in
+addition*. The rule's own boundary is the one thing the enum stopped expressing.
+**Why it matters:** EXT-006 exists to pair bilingual declarations and EXT-007 routes their
+disagreements to REVIEW_REQUIRED. Both key off that pair. Either narrow `MIXED` back to the
+statutory pair and give the general case its own member, or rename it and state in its docstring
+what it now means. Pin whichever with a test. **Open EXT-009 — do not write this into the `done`
+EXT-008 ticket.**
+
+Also not delivered on #66: no falsification was reported for the seven new claim tests.
+
+**What #66 did close, so nobody re-reviews it:**
 
 - ✅ `"Page 9"` removed from the Statutory Corpus Citation. Page numbers are a `pdftotext`
   artefact; the citation now reads `Rule 9(4)` and keeps the substance.

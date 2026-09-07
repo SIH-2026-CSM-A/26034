@@ -19,9 +19,13 @@ them, read the file.
    plus a populated `datasets/manifest.json`. This is the item every accuracy figure in the PRD
    depends on and none has been defensible without it. `declared` is per-image, not pack-level.
    Read `datasets/manifest.json` against `ingest_images.py` before merging — see Bugs.
-3. **#66 EXT-008 — one item.** `MIXED` now means any two of five scripts, so the statutory
-   Devanagari-plus-Latin pair is the one distinction it no longer expresses. Narrow it or rename
-   it, and pin the choice. Everything else on that PR is closed.
+3. **EXT-009 — `MIXED` no longer marks the pair Rule 9(4) turns on.** #66 merged with this open.
+   `bck/app/modules/extraction/binder.py:190` returns `MIXED` for any two of five scripts, so
+   Tamil-plus-Bengali and Devanagari-plus-Latin are now the same value — and the second is the
+   distinction EXT-006 pairs on and EXT-007 routes disagreements from. Narrow `MIXED` back to
+   the statutory pair and give the general case its own member, or rename it and say in its
+   docstring what it now means. Pin it with a test. **Open EXT-009; do not write a review into
+   the `done` EXT-008 ticket.**
 4. **MEA-011 / MEA-009 Part B** (Yashashvi) — replace the overlap refusal in `measure_margins`
    with `MeasurementMarginOverlapExact` / `MeasurementMarginOverlapCalibrated`. Part A (#73)
    landed the contract. Two things to know: the `dist_mm < 0` branch sits **above** the
@@ -46,9 +50,12 @@ them, read the file.
 
 5. **Write the seven tickets below.** They are specified, not vague; each has a file, a defect
    and a consequence. Until they are on the board they are invisible.
-6. **Create MEA-010, MEA-011 and EVD-007 on the board.** MEA-010 and MEA-011 are unblocked and
-   Yashashvi is idle; EVD-007 is Shiva's and follows #46 onto `main`. FNT-004 landed as #78 —
-   do not create it.
+6. **Create MEA-010, MEA-011, EVD-007 and EXT-009 on the board.** MEA-010 and MEA-011 are
+   unblocked and Yashashvi is idle; EVD-007 is Shiva's and followed #46 onto `main`; EXT-009 is
+   Sitanshu's and followed #66. FNT-004 landed as #78 — do not create it. **Three tickets in one
+   afternoon have merged with one item still open. That is the pattern to watch, not any one of
+   them: the follow-up ticket has to be created in the same breath as the merge, or the item is
+   lost the moment the ticket goes `done`.**
 7. **Persist the Rule 3(c) officer confirmation, or decide not to.** RUL-005 passes it as a
    plain `bool` down to `EvidenceContext` and deliberately does not store it: that would need a
    `contracts` enum, a `scans` column, a migration and a `ScanSummary` field, and `contracts/`
