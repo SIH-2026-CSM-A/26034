@@ -18,6 +18,9 @@ from app.contracts import (
 )
 from app.modules.extraction.binder import ExtractionResult
 from app.modules.extraction.category import (
+    CONFIDENCE_LEXICAL_SIGNAL,
+    CONFIDENCE_MUTUALLY_REINFORCING,
+    CONFIDENCE_STATUTORY_SIGNAL,
     DisplayCategory,
     classify_display_category,
     propose_category,
@@ -72,7 +75,7 @@ def test_clear_food_proposal_from_fssai_licence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_food_1",)
     assert "food" in proposal.reason
     assert "span_food_1" in proposal.reason
@@ -90,7 +93,7 @@ def test_clear_cosmetics_proposal_from_d_and_c_rules() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_cosm_1",)
     assert "cosmetics" in proposal.reason
 
@@ -107,7 +110,7 @@ def test_clear_medical_device_proposal_from_mdr_2017() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.MEDICAL_DEVICE
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
     assert proposal.span_refs == ("span_md_1",)
     assert "medical_device" in proposal.reason
 
@@ -124,7 +127,7 @@ def test_lexical_commodity_name_signal() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == 0.80
+    assert proposal.confidence == CONFIDENCE_LEXICAL_SIGNAL
     assert proposal.span_refs == ("span_lex_1",)
 
 
@@ -145,7 +148,7 @@ def test_reinforcing_statutory_and_lexical_evidence_boosts_confidence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == 0.98
+    assert proposal.confidence == CONFIDENCE_MUTUALLY_REINFORCING
     assert proposal.span_refs == ("span_shampoo", "span_lic")
 
 
@@ -272,7 +275,7 @@ def test_legitimate_mfg_md_license_triggers_medical_device() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.MEDICAL_DEVICE
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
 
 
 def test_arbitrary_14_digit_number_does_not_trigger_food() -> None:
@@ -299,7 +302,7 @@ def test_anchored_fssai_14_digit_licence_triggers_food() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == 0.95
+    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
 
 
 def test_competing_food_and_cosmetics_lexical_signals_safely_abstain() -> None:
