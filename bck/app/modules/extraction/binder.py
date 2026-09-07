@@ -94,9 +94,6 @@ _DEVANAGARI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0900-\u097F\uA8E0-\uA8F
 _LATIN_RE: Final[re.Pattern[str]] = re.compile(r"[a-zA-Z]")
 _TAMIL_RE: Final[re.Pattern[str]] = re.compile(r"[\u0B80-\u0BFF]")
 _BENGALI_RE: Final[re.Pattern[str]] = re.compile(r"[\u0980-\u09FF]")
-_HANDLED_SCRIPT_CHARS_RE: Final[re.Pattern[str]] = re.compile(
-    r"[\u0900-\u097F\uA8E0-\uA8FF\u1CD0-\u1CFFa-zA-Z\u0B80-\u0BFF\u0980-\u09FF]"
-)
 
 _DEVANAGARI_DIGITS: Final[dict[str, str]] = {
     "०": "0",
@@ -155,10 +152,28 @@ def detect_script(text: str) -> ScriptType:
       Rule 9(4) permits the use of other languages in addition to Hindi or English.
       EXT-008 distinguishes recognized additional scripts from unidentified/noise spans.
     """
-    has_dev = bool(_DEVANAGARI_RE.search(text))
-    has_lat = bool(_LATIN_RE.search(text))
-    has_tam = bool(_TAMIL_RE.search(text))
-    has_ben = bool(_BENGALI_RE.search(text))
+    has_dev = False
+    has_lat = False
+    has_tam = False
+    has_ben = False
+    has_unsupported = False
+
+    for char in text:
+        cat = unicodedata.category(char)
+        if not (cat.startswith("L") or cat.startswith("M")):
+            continue
+
+        name = unicodedata.name(char, "")
+        if _DEVANAGARI_RE.search(char) or "DEVANAGARI" in name:
+            has_dev = True
+        elif _TAMIL_RE.search(char) or "TAMIL" in name:
+            has_tam = True
+        elif _BENGALI_RE.search(char) or "BENGALI" in name:
+            has_ben = True
+        elif _LATIN_RE.search(char) or name.startswith("LATIN "):
+            has_lat = True
+        elif cat.startswith("L"):
+            has_unsupported = True
 
     matching_scripts: list[ScriptType] = []
     if has_dev:
@@ -169,11 +184,6 @@ def detect_script(text: str) -> ScriptType:
         matching_scripts.append(ScriptType.TAMIL)
     if has_ben:
         matching_scripts.append(ScriptType.BENGALI)
-
-    has_unsupported = any(
-        unicodedata.category(c).startswith("L") and not _HANDLED_SCRIPT_CHARS_RE.match(c)
-        for c in text
-    )
     if has_unsupported:
         matching_scripts.append(ScriptType.UNSUPPORTED)
 

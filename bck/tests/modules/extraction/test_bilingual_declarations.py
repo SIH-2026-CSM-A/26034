@@ -445,27 +445,36 @@ def test_contested_type_unpaired_third_span_lands_in_unclassified():
 
 
 def test_detect_script_ext_008_additional_scripts():
-    """EXT-008: Verify Tamil and Bengali script classification."""
-    # Tamil script span vs NEITHER punctuation/digits
-    assert detect_script("நிகர அளவு") == ScriptType.TAMIL
-    assert detect_script("நிகர அளவு 500g") == ScriptType.MIXED
-    # Bengali script span vs NEITHER punctuation/digits
-    assert detect_script("নীট পরিমাণ") == ScriptType.BENGALI
-    assert detect_script("নীট পরিমাণ 500g") == ScriptType.MIXED
-    # Tamil + Bengali multi-script span returns MIXED
-    assert detect_script("நிகர அளவு নীট পরিমাণ") == ScriptType.MIXED
-    # Script-bearing unsupported text returns UNSUPPORTED (Telugu, Kannada)
+    """EXT-008: Verify script classification, accented Latin, and unsupported script separation."""
+    # 1. Pure noise / punctuation / digits -> NEITHER
+    assert detect_script("12345 !!!") == ScriptType.NEITHER
+    assert detect_script("!!! --- ...") == ScriptType.NEITHER
+
+    # 2. Handled Latin (including non-ASCII accents & decomposed combining marks)
+    assert detect_script("Net Qty 500g") == ScriptType.LATIN
+    assert detect_script("é") == ScriptType.LATIN
+    assert detect_script("Café") == ScriptType.LATIN
+    assert detect_script("Nestlé") == ScriptType.LATIN
+    assert detect_script("München") == ScriptType.LATIN
+    assert detect_script("e\u0301") == ScriptType.LATIN
+
+    # 3. Existing handled scripts remain unchanged
+    assert detect_script("निवल मात्रा ५०० ग्राम") == ScriptType.DEVANAGARI
+    assert detect_script("தமிழ்") == ScriptType.TAMIL
+    assert detect_script("বাংলা") == ScriptType.BENGALI
+
+    # 4. Unsupported script-bearing text remains distinguishable from noise
     assert detect_script("నికర పరిమాణం") == ScriptType.UNSUPPORTED
     assert detect_script("ಅನುಪಾತ") == ScriptType.UNSUPPORTED
-    assert detect_script("నికర పరిమాణం 500g") == ScriptType.MIXED
-    # Script-bearing unsupported text is NOT in the same bucket as punctuation/noise
+    assert detect_script("中文") == ScriptType.UNSUPPORTED
+    assert detect_script("العربية") == ScriptType.UNSUPPORTED
     assert detect_script("నికర పరిమాణం") != detect_script("12345 !!!")
-    # Noise/punctuation remains NEITHER
-    assert detect_script("!!! --- ...") == ScriptType.NEITHER
-    assert detect_script("12345 !!!") == ScriptType.NEITHER
-    # Regressions
-    assert detect_script("Net Qty 500g") == ScriptType.LATIN
-    assert detect_script("निवल मात्रा ५०० ग्राम") == ScriptType.DEVANAGARI
+
+    # 5. Multi-script combinations -> MIXED
+    assert detect_script("நிகர அளவு 500g") == ScriptType.MIXED
+    assert detect_script("বাংলা 500g") == ScriptType.MIXED
+    assert detect_script("தமிழ் বাংলা") == ScriptType.MIXED
+    assert detect_script("నికర పరిమాణం 500g") == ScriptType.MIXED
     assert detect_script("Net Qty निवल मात्रा") == ScriptType.MIXED
 
 

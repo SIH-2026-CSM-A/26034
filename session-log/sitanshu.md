@@ -189,3 +189,12 @@
 - Full backend suite: 730 passed, 32 skipped (`23.11s`).
 - Quality gates: `ruff check .` (PASS), `ruff format --check .` (PASS), `lint-imports` (3 kept, 0 broken PASS).
 - Executed mutation falsification check (disabled `UNSUPPORTED` classification -> RED failure `AssertionError: assert NEITHER == UNSUPPORTED`, restored -> GREEN).
+
+
+- Latin Script Accented Diacritics Fix (Reviewer Correction):
+  - Fixed defect in commit `0c4a135` where General Category `L` without ASCII `a-zA-Z` misclassified accented Latin letters (`"é"`, `"Café"`, `"Nestlé"`, `"München"`) as `UNSUPPORTED` or `MIXED`.
+  - Implemented zero-dependency Latin script identification via stdlib `unicodedata.name(char, "").startswith("LATIN ")`.
+  - Accented Latin letters (`"é"`, `"Café"`, `"Nestlé"`, `"München"`) and decomposed combining marks (`"e\u0301"`) correctly classify as `ScriptType.LATIN`.
+  - Retained strict separation between unsupported scripts (`"నికర పరిమాణం"` -> `UNSUPPORTED`), noise (`"12345 !!!"` -> `NEITHER`), handled scripts (`DEVANAGARI`, `LATIN`, `TAMIL`, `BENGALI`), and multi-script spans (`MIXED`).
+  - Executed controlled mutation falsification check (bypassed `name.startswith("LATIN ")` -> RED failure `AssertionError: assert UNSUPPORTED == LATIN`, restored -> 20 passed GREEN).
+  - All 4 quality gates passed: `ruff check` (PASS), `ruff format --check` (PASS), `lint-imports` (PASS), `pytest` (741 passed, 32 skipped). `__pycache__` count: 0.
