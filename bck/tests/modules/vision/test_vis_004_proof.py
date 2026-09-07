@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
+
 from app.modules.vision.pdp import detect_pdp
+
 
 def test_zero_spans_refusal_proof():
     blank_image = np.zeros((100, 100, 3), dtype=np.uint8)
