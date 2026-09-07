@@ -53,3 +53,22 @@
 
 **Incomplete**
 - None
+
+### 2026-09-08 — migrated dashboard to generated API client (FNT-008) — Antigravity
+
+**Done**
+- Fixed cross-platform pipe execution in `fnt/scripts/generate-api.mjs` and regenerated `schema.d.ts` from backend OpenAPI spec
+- Migrated all six dashboard components under `fnt/src/officer/dashboard/` off fixtures onto live API client (`apiClient.GET('/scans')` and `apiClient.GET('/scans/{scan_id}')`)
+- Replaced mock fixture types with `types.ts` derived from generated OpenAPI schema
+- Verified Strict Verdict Claims: verdicts render strictly as PASS / REVIEW / POTENTIAL VIOLATION; zero occurrences of "violation confirmed", "illegal", or "non-compliant"
+- Ensured SVG safety in `HeatmapJurisdiction.tsx` via `useId()` pattern scoping
+- Completely removed `fnt/src/fixtures/dashboard.ts` with zero leftover references
+- Verified build: `npm ci`, `npx tsc -b`, `npx vite build`, and `npm run lint` clean
+
+**Decided**
+- Aggregated daily inspection timeline and ward density bands dynamically from live scans using tertile thresholds
+- Added live API refresh action, loading indicators, and graceful error boundaries with retry handling
+- Maintained strict scope boundary: left `AppShell.tsx` and all backend directories untouched
+
+**Incomplete**
+- None

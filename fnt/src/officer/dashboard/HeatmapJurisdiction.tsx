@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import type { HeatmapWard, DensityBand } from '../../fixtures/dashboard';
+import type { HeatmapWard, DensityBand } from './types';
 
 interface Props {
   wards: HeatmapWard[];
@@ -36,7 +36,7 @@ export const HeatmapJurisdiction: React.FC<Props> = ({ wards, activeCategory, se
 
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
         <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase">
-          Jurisdiction Heatmap � Ward Density
+          Jurisdiction Heatmap · Ward Density
         </h2>
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <span className="flex items-center gap-1 font-bold text-slate-900">
@@ -51,7 +51,10 @@ export const HeatmapJurisdiction: React.FC<Props> = ({ wards, activeCategory, se
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {wards.length === 0 ? (
+        <p className="text-xs text-slate-500 py-6 text-center">No jurisdiction scan activity recorded.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {wards.map((ward) => {
           const isSelected = ward.wardId === selectedWard;
           const displayCount =
@@ -79,12 +82,13 @@ export const HeatmapJurisdiction: React.FC<Props> = ({ wards, activeCategory, se
                 </span>
               </div>
               <div className="relative z-10 text-xs text-slate-700">
-                <span className="font-bold text-slate-900">{displayCount}</span> potential violations � {ward.totalScans} total scans
+                <span className="font-bold text-slate-900">{displayCount}</span> potential violations · {ward.totalScans} total scans
               </div>
             </button>
           );
         })}
-      </div>
+        </div>
+      )}
     </section>
   );
 };
