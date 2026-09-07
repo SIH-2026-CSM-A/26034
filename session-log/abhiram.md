@@ -2640,3 +2640,42 @@ MEA-007 (#79). Not mine to fix; raised, not touched.
 - `bck/app/core/config.py` untouched — see above.
 - The branch name still says `mkldnn-and-startup-flags`; the startup-flags half is out of scope.
   Name kept because it is pre-written on the ticket.
+
+### Correction — I called `main` red and it is not
+
+The section above says `origin/main` is red and that the failure would show on this PR's
+`CI/backend`. **`CI/backend` came back green: 862 passed, 2 skipped, 0 failed.** All three checks
+pass on #86.
+
+What is actually true, and the narrower claim I should have made:
+`tests/modules/measurement/test_measurement.py::test_coin_oblique_synthetic_geometry` fails **on
+this machine** at `origin/main` `57b6dfc`, on a detached checkout with none of my changes present,
+and **passes in CI**. It is a local, environment-dependent failure that arrived with MEA-007 (#79)
+— not a red `main`. I measured the local half and asserted the CI half without measuring it.
+
+The CI number confirms the skip-delta derivation exactly: 831 local passed + 30 un-skipped = 861,
+plus the one locally-failing test that passes there = **862**. The derived `+30` was right, and
+the 2 remaining skips are the MinIO-gated pair CI does not provide either.
+
+### Stale documentation found while verifying — reported in #86, not edited
+
+Doc updates go in their own PR. Stated as measured.
+
+1. **`HANDOFF.md:593` — "No image has ever passed through this pipeline"** is now false for the
+   OCR stage: 47 spans from a real capture. Scoped precisely — I ran `extract_panel_text`, **not**
+   the assembled orchestrator, so PDP → OCR → extraction → rules → verdict end to end is still
+   undemonstrated. The same section calls the gap "one ticket wide — VIS-004 (#63)"; #63 merged as
+   `c4922ce`.
+2. **`TODO.md:12`, the top "Now" entry**, still lists #63 VIS-004 as open and blocking and repeats
+   the "no image has ever passed" line.
+3. **`ARCHITECTURE.md:14` names "PaddleOCR PP-OCRv4".** Paddle logged at construction:
+   `Creating model: ('PP-OCRv6_medium_det', …)` and `('PP-OCRv6_medium_rec', …)`. The cached
+   weights are v6_medium, not v4. `bck/scripts/bootstrap_weights.py` names no version at all — it
+   triggers a default download and copies the first `~/.paddlex/official_models` directory whose
+   name contains `det`/`rec`, so the version is whatever paddleocr 3.7.0 defaults to on the day it
+   runs. Nothing pins it.
+4. **`bck/scripts/bootstrap_weights.py:8` calls `PaddleOCR(lang="en", use_angle_cls=False, …)`** —
+   `use_angle_cls` is the 2.x kwarg name; 3.7.0's is `use_textline_orientation`. Goes to VIS-005
+   with the rest of `scripts/`.
+
+**#86 opened, all three checks green, not merged — Abhiram merges.**
