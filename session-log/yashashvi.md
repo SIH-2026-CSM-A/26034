@@ -64,3 +64,12 @@
 - Refactored test_artwork.py to target the public API, ensuring the functions are visible to the rest of the application.
 - Retained parse_pdf_geometry as an internal helper.
 - Passed all import boundary checks and test verifications.
+
+## 2026-09-08 — MEA-013
+- Addressed MEA-007 technical debt.
+- Renamed PRIOR_CONFIDENCE_ELLIPSE_FIT to MIN_ELLIPSE_FIT_SCORE and moved it out of the prior block.
+- Updated coin_10 confidence interval to scale inversely with fit_confidence.
+- Extracted tilt sign-ambiguity logic into resolve_coin_tilt_ambiguity and added test_resolve_coin_tilt_ambiguity.
+- Successfully injected and caught a defect in the tilt logic to falsify test_coin_oblique_synthetic_geometry.
+- Documented the geometric expectation assumption in the synthetic test docstring.
+- FINDING: Empirical evaluation of contour selection against the staging dataset could not be performed because the 26034-dat worktree is not present on this local machine.

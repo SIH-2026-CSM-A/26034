@@ -443,8 +443,27 @@ def test_margin_overlap_is_negative():
     assert results_calib["above"].confidence_interval > 0.0
 
 
+def test_resolve_coin_tilt_ambiguity():
+    """Assert resolve_coin_tilt_ambiguity forces positive tilt for u_x > 0."""
+    from app.modules.measurement.services import resolve_coin_tilt_ambiguity
+
+    # u_x > 0 returns positive
+    assert resolve_coin_tilt_ambiguity(0.5, 1.0) == 0.5
+    assert resolve_coin_tilt_ambiguity(-0.5, 1.0) == 0.5
+
+    # u_x <= 0 returns negative
+    assert resolve_coin_tilt_ambiguity(0.5, -1.0) == -0.5
+    assert resolve_coin_tilt_ambiguity(-0.5, -1.0) == -0.5
+    assert resolve_coin_tilt_ambiguity(0.5, 0.0) == -0.5
+
+
 def test_coin_oblique_synthetic_geometry():
-    """Prove MEA-007 correctly recovers the original scale of an oblique coin."""
+    """Prove MEA-007 correctly recovers the original scale of an oblique coin.
+
+    Note: The synthetic focal length matches the implementation's image-diagonal assumption.
+    This test fetches its own expectation geometrically and cannot detect if the assumption is
+    wrong for a real camera.
+    """
     import cv2
     import numpy as np
 
