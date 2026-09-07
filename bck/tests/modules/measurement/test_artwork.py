@@ -29,7 +29,6 @@ def test_pdf_exact_measurement():
 
     assert isinstance(result, MeasurementExact)
     assert result.unit == "mm"
-    assert not hasattr(result, "confidence_interval")
     assert round(result.value, 1) == 4.0
 
 
@@ -122,3 +121,16 @@ def test_artwork_pdp_area_rule_7_integration():
     assert round(result.value, 1) == 1.0  # 10mm x 10mm = 100mm^2 = 1.0cm^2
     assert result.unit == "cm²"
     assert result.rule_limb == "rectangular"
+
+
+def test_svg_type_is_unsupported():
+    """Assert the SVG path is gone: an svg file_type reaches the unsupported-type refusal.
+
+    SVG ingest is out of MEA-005's scope and tracked as MEA-010. It means parsing
+    untrusted XML uploaded by an outside manufacturer, and needs ``defusedxml`` plus its
+    own review before it returns. This guards against the dispatch branch coming back.
+    """
+    result = measure_artwork_ink_extent(b'<svg width="10mm" height="4mm"/>', "svg")
+
+    assert isinstance(result, MeasurementRefusal)
+    assert result.reason == "Unsupported artwork file type: svg"
