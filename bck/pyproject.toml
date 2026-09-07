@@ -85,6 +85,7 @@ layers = [
 name = "Modules are independent of one another"
 type = "independence"
 modules = [
+    "app.modules.analytics",
     "app.modules.vision",
     "app.modules.extraction",
     "app.modules.measurement",
