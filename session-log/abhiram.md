@@ -2679,3 +2679,172 @@ Doc updates go in their own PR. Stated as measured.
    with the rest of `scripts/`.
 
 **#86 opened, all three checks green, not merged — Abhiram merges.**
+
+---
+
+## Session 21 — 2026-09-07, CORE-004 (Claude Code, Opus 5)
+
+Landed four tables and one Alembic revision ahead of their callers, so VND-001, CMP-001 and
+RVW-001 do not queue behind a single migration owner. Branch
+`core-004-vendor-complaint-review-tables`, rebased onto `b3a054d`.
+
+### What shipped
+
+- `bck/app/core/market.py` — `VendorRow` (`vendors`), `VendorScanRow` (`vendor_scans`).
+- `bck/app/core/complaints.py` — `ComplaintRow` (`complaints`), `ProductReviewRow`
+  (`product_reviews`).
+- `bck/app/core/enums.py` — `VendorType`, `ComplaintStatus`, `ConsumerSafetyClaim`.
+- `bck/alembic/versions/257f6bc96647_vendor_complaint_review_tables.py`, one revision,
+  `down_revision = a3f1d2e7b504`.
+- New tests in `tests/core/test_market.py`, `tests/core/test_complaints.py`,
+  `tests/persistence/test_postgres_market.py`; `migrated` and `request_session` moved into
+  `tests/persistence/conftest.py` so the new postgres file can reach them.
+
+`models.py` was already at 304 lines, past the limit `core/enums.py` cites as the reason the
+vocabularies were split out, so the tables went into two new files rather than onto it.
+
+### Two decisions taken against the ticket text, both settled before the revision was written
+
+`alembic/` cannot be edited after merge, so neither was left for the ticket that reads the table.
+
+1. **`complaints.resolved_at` is not in the schema.** The table is append-only: a resolution is
+   a new row carrying RESOLVED, so `resolved_at` on that row duplicates its own `raised_at` and
+   can drift from the column beside it. It makes no constraint statable and saves no join, which
+   is the test `field_findings.rule_id` had to pass. CMP-001 reads the RESOLVED row's `raised_at`
+   and walks `supersedes_id`.
+2. **`safety_verdict` is named `consumer_safety_claim`**, enum `ConsumerSafetyClaim`, members
+   SAFE and UNSAFE unchanged. "Verdict" is reserved for the rule engine's output; a crowd
+   consensus must never render as a compliance verdict, and a column name survives into
+   downstream surfaces a docstring cannot follow.
+
+### The metadata discovery path, verified rather than assumed
+
+`alembic/env.py` reaches the schema through `from app.core.models import Base`. That import
+executes `app/core/__init__.py` first, so the metadata is populated by whatever *that* file
+imports — not by `models.py` alone. A table in a module `__init__.py` does not name is invisible
+to autogenerate, which then writes an empty migration that passes `alembic check` and fails at
+the first insert.
+
+Confirmed by running env.py's own import line in a fresh interpreter after the models landed:
+
+```
+$ uv run python -c "from app.core.models import Base; print(sorted(Base.metadata.tables))"
+['complaints', 'evidence_entries', 'field_findings', 'product_reviews', 'reviews',
+ 'scans', 'vendor_scans', 'vendors', 'verdicts']
+```
+
+`test_the_metadata_registers_every_table` went from `>= 5` to `>= 9` and now names the four
+tables, because that is the assertion which fails if the `__init__.py` line is ever dropped —
+every other metadata-derived guard in that file would keep passing over tables it never hears
+about.
+
+### `ENUM_TYPES` is now derived from the metadata
+
+It was a hand-maintained dict, which does not fail on an enum nobody listed — it simply never
+asks about it. It is now a comprehension over `Base.metadata` columns, with the hand-written
+list kept beside it as `DECLARED_ENUM_TYPES` and a new test asserting the two agree, so adding
+an enum type is still a line someone has to write in review.
+
+`enum_column()` does not hide the type from the derivation: `column.type.name` is the name
+`pg_enum` spells and `column.type.enum_class` is the Python enum. Checked before relying on it —
+run against the pre-existing schema the comprehension reproduced all eight entries of the old
+hand list exactly.
+
+### Migration cycle
+
+`upgrade head` → `downgrade base` → `upgrade head` → `check`, against a scratch database.
+Autogenerate emitted no `DROP TYPE` for any of the three new types, as `64a9392a6859` and
+`a3f1d2e7b504` both record; they are module-level `sa.Enum` objects here and the downgrade drops
+each explicitly. After `downgrade base` the enum-type query returned nothing, and the second
+`upgrade head` ran clean — the leftover-type failure would have surfaced there.
+
+All three types are new, so none is referenced with `create_type=False`, and no member was added
+to any existing enum: `alembic check` does not compare the values of a type that already exists.
+
+### Measured, not cited
+
+Baseline taken on `origin/main` at `b3a054d`, clean tree, bytecode purged: **842 passed / 32
+skipped** with `DATABASE_URL` unset, **872 / 2** with it — a derived delta of +30 on main.
+
+Main then moved four times while this was in progress — `7349628`, `b3a054d`, `0dd144d`, and
+`dd52c6c` — so that baseline is stale and is recorded here as what it was, not as a number to
+subtract from. Final measurement, on the rebased tree at `dd52c6c`: **874 passed / 43 skipped**
+with `DATABASE_URL` unset, **915 / 2** with a database. Derived delta: **+41 passed, −41
+skipped**, so CI should report 915 / 2 against this base.
+
+The absolute count moved three times during the session as concurrent PRs merged — 872, 914,
+915 — which is the reason it is written with the commit it was taken at and should not be
+quoted anywhere without one.
+
+Forty-two tests added, counted off this branch's own diff rather than by subtracting two moving
+baselines — 41 collected from the three new files and 1 from the test added to
+`test_postgres.py`. Re-measuring main after the rebase would have meant a second full venv, and
+the first attempt filled the 3.9 GB `/tmp` tmpfs unpacking paddle, which is the trap `CLAUDE.md`
+documents.
+
+### Falsification — two runs, no `-x`, bytecode purged with the absolute path first
+
+**1. A column dropped from a model but not the migration.** `VendorRow.created_at`, chosen
+because it is in no constraint and no index, supplied by no fixture and read by no assertion —
+dropping a column named in `__table_args__` instead errors the whole suite at collection and
+proves nothing. Five red, and the two the ticket names failed on the aimed assertion:
+
+```
+E  alembic.util.exc.AutogenerateDiffsDetected: New upgrade operations detected:
+   [('remove_column', None, 'vendors', Column('created_at', TIMESTAMP(timezone=True), ...))]
+E  AssertionError: `alembic check` failed in a fresh interpreter ...
+   INFO [alembic.autogenerate.compare.tables] Detected removed column 'vendors.created_at'
+E  assert 255 == 0
+```
+
+The other three were the same defect caught elsewhere — the exact-column-set test in
+`test_market.py`, twice for the two designation profiles, and the async round trip.
+`test_the_migration_builds_every_declared_column[vendors]` stayed **green**, correctly: it reads
+columns back from the database, and the migration still had the column. I had predicted it would
+go red; it should not have, and that prediction was wrong.
+
+**2. Does the derivation actually bite?** Added `falsification_probe`, an enum-typed column under
+a new type name, and touched no test file at all. The derived guard picked it up on its own:
+
+```
+E  AssertionError: assert in_database == in_python
+E    Differing items:
+E    {'falsification_probe': set()} != {'falsification_probe': {'complete', 'failed', ...}}
+
+E  AssertionError: assert ENUM_TYPES == DECLARED_ENUM_TYPES
+E    Left contains 1 more item:
+E    {'falsification_probe': <enum 'ScanStatus'>}
+```
+
+The first is the drift guard asking about a type nobody listed, which the hand-maintained dict
+could not have done. Both reverted, green reconfirmed.
+
+### Raised, not fixed
+
+1. **`vendors.region` / `district` are nullable**, mirroring `Scan` because
+   `scope_to_jurisdiction` reads all three by `getattr` and the two tables must agree about what
+   a jurisdiction is. The consequence, asserted in
+   `test_a_vendor_with_no_district_is_absent_from_that_districts_officer`: a vendor recorded
+   without a district is invisible to the district officer whose patch physically contains the
+   premises, while remaining visible to the state officer above them. Whether onboarding can
+   always collect a district is VND-001's to decide.
+2. **The strongest linkage vector left on `product_reviews` is not a column.** `submitted_at`
+   with `product_identifier`, correlated against a web access log, identifies a submitter. The
+   mitigation belongs to the submission route — it must not log the request that created the
+   row. Nothing in the schema can close it; RVW-001 inherits it.
+3. **A constructor-site AST guard for `ComplaintRow`** belongs to the ticket that adds the
+   writer, not this one. `tests/pipeline/test_no_auto_submit.py` asserts its site list is
+   non-empty first, deliberately, so the test cannot be written before there is a repository
+   function to find.
+4. **`tests/modules/vision/test_preprocess.py::test_remap_curvature_performance_at_realistic_resolution`
+   is load-flaky.** It asserts `elapsed < 0.5` against a wall clock and went red once during a
+   falsification run on a busy machine, then passed in isolation and across three consecutive
+   full runs. Not touched — it is in Akshaya's directory and unrelated to this ticket. A wall-clock
+   budget in CI will do this again.
+
+### Not done, deliberately
+
+No repository, route or contracts type for any of the four tables — this ticket ships tables and
+one migration; VND-001, CMP-001 and RVW-001 own what reads them. No `relationship()` on any
+model, no `ondelete`/`onupdate` on any foreign key, no `CheckConstraint`, and no `thread_id` on
+`complaints` — matching what every existing table here does.
