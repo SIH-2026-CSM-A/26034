@@ -34,13 +34,15 @@ to six other people's imports.
 | `CategoryProposal` | A category a reader inferred, with the spans behind it. Not a confirmation. |
 | `ExtractedSpan` | Text located on an image by a provider. Raw observation. |
 | `NormalisedField` | A declaration resolved from spans into a canonical value. |
+| `CompetingReadings` | One declaration read two ways that disagree. Not a resolved declaration. |
+| `DisagreementReason` | Why two readings were recorded as competing rather than merged. |
 | `MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal` | The three measurement modes, as a discriminated union `MeasurementResult`. |
 | `RuleDefinition`, `RuleSetVersion` | An encoded provision and the published set it ships in. |
 | `RuleParameterSnapshot` | A rule's parameters copied by value at evaluation time. |
 | `FieldFinding`, `VerdictRecord` | One finding, and the complete evidence record. |
 | `CatalogueRecord` | A structured listing — the non-image ingestion path. |
 
-## Five things that are load-bearing
+## Six things that are load-bearing
 
 **`INSUFFICIENT_EVIDENCE` is not `FAIL`.** FAIL says the declaration was read and falls
 short. INSUFFICIENT_EVIDENCE says we could not read it. One is a defect in the package,
@@ -59,6 +61,16 @@ value in steps; a tolerance accepts a difference. They diverge at every boundary
 tolerance additionally requires a `tolerance_basis`, because `Decimal("0.05")` on its own
 is either five paise or five percent — the First Schedule states maximum permissible error
 as a percentage, while money tolerances are absolute.
+
+**A contested declaration is not a borne one.** `CompetingReadings` holds two or more
+readings of one obligation that do not agree — a Devanagari "२५० ग्राम" against a Latin
+"500 g". It arbitrates nothing: no primary reading, no confidence ordering, no
+first-is-best. An obligation recorded here has not been satisfied, and it never appears in
+`ExtractionResult.fields` as well — that is refused at construction, because
+`rule_findings` decides a declaration is present on the truthiness of its entry alone, so
+an obligation in both collections is a PASS on a package that contradicts itself. It routes
+to REVIEW_REQUIRED: both readings were read perfectly well, so not INSUFFICIENT_EVIDENCE,
+and which one is wrong is an officer's call, so not FAIL.
 
 **A proposal is not a confirmation.** `ProductCategory` is the officer's confirmed
 category — the value `sector_overrides` keys on, which moves an obligation to another Act

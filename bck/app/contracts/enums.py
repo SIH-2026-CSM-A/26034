@@ -240,6 +240,26 @@ class EvidenceAssetType(StrEnum):
     could expire cannot evidence the purges it records."""
 
 
+class DisagreementReason(StrEnum):
+    """Why two readings of one declaration were recorded as competing rather than merged.
+
+    One member, because the binder has exactly one branch that refuses to merge a pair. A
+    member here ships alongside something that produces it; a vocabulary for disagreements
+    nothing can yet detect would be a promise the pipeline cannot keep.
+    """
+
+    BILINGUAL_VALUE_MISMATCH = "BILINGUAL_VALUE_MISMATCH"
+    """A Devanagari reading and a Latin reading of the same declaration, in the same region
+    of the package, resolved to different values.
+
+    Covers the whole of that difference, whether it falls in the numeric value — 500 g
+    against 250 g — or in the unit — 500 g against 500 ml. Both come out of one branch in
+    ``app.modules.extraction.binder``, both put the same question to an officer, which
+    reading is right, and both route the same way. A second member for the unit limb would
+    name a case this one already covers.
+    """
+
+
 class RuleStatus(StrEnum):
     """Whether an encoded rule has been checked against its gazette source."""
 

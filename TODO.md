@@ -4,9 +4,23 @@
 
 ## Now
 
-1. **CORE-003** — `asset_type` on `EvidenceEntry`, its column, its migration, and the fix to
-   `bck/tests/core/test_persistence.py`. In flight in Lane A at plan stage. Unblocks Shiva,
-   who has been idle on it. Migration + shared contract, so it merges only with Abhiram.
+1. **PIP-004** — route a contested declaration to REVIEW_REQUIRED. CTR-006 landed
+   `CompetingReadings` and `ExtractionResult.disagreements`; nothing reads them yet, so once
+   EXT-007 populates the collection a contested obligation lands in **INSUFFICIENT_EVIDENCE**,
+   which the constraints forbid — both readings were read perfectly well. Four edit points:
+   (a) `EvidenceContext`, `bck/app/pipeline/rule_findings.py:60-93`, a field carrying the
+   contested obligations; (b) `_one_declaration`, same file `:167-197`, a REVIEW_REQUIRED
+   branch **above** the `if values:` test — its own branch, never sharing an expression with
+   INSUFFICIENT_EVIDENCE or FAIL, and no set membership test; (c) `orchestrator.py:240`, the
+   image path, fed from `extraction.disagreements`, including `field_providers` at `:256`
+   which is `dict.fromkeys(declared, …)` and would otherwise omit a contested obligation that
+   now carries a finding; (d) `orchestrator.py:295`, the catalogue path, passes empty — a
+   listing supplies one value per obligation key.
+   **Not optional polish.** `verdict.py:56-59` tests REVIEW_REQUIRED and INSUFFICIENT_EVIDENCE
+   one at a time and both return `Verdict.REVIEW`, so the package verdict is the same either
+   way. What PIP-004 buys is the correct *reason string* on the officer surface: without it
+   the system tells an officer "the evidence needed could not be obtained" about a label it
+   read perfectly, twice. **Merges before EXT-007** so the forbidden state never reaches main.
 2. **DAT-005** — annotate the fifteen staged captures. The single highest-value item on the
    board; every accuracy figure in the PRD depends on it and none is currently defensible.
 3. **Send the three review drafts** — MEA-006 to Yashashvi (unblocked by #58), EXT-006 to
@@ -22,7 +36,7 @@
    project, and `measurement/README.md` names the wrong owner.
 7. **PIP-003** — wire `propose_category` into the orchestrator as a proposal that can never
    write itself into the confirmed category.
-8. Create TAM-002, MEA-008 and EXT-007 on the board.
+8. Create TAM-002 and MEA-008 on the board. EXT-007 and PIP-004 are both on it now.
 
 ## Later
 
@@ -53,7 +67,11 @@
 
 - **#46 EVD-005** on CORE-003. Shiva has EVD-006 available and should not be idle.
 - **#47 MEA-006** — no longer blocked; #58 merged. Needs the rebase.
-- **EXT-007** on #56 merging.
+- **EXT-007** — no longer blocked; #56 merged and CTR-006 landed the contract. Sequenced
+  after PIP-004. One correction for it: at `binder.py:604` the value check runs *before*
+  `_are_spans_spatially_adjacent` at 607, so as ordered the branch cannot tell two scripts
+  disagreeing about one declaration from two unrelated declarations elsewhere on the panel.
+  Move the adjacency check above the value check first.
 - **TAM-002** on DAT-005.
 - **#43 MEA-005** on a decision about the `pdfplumber` dependency.
 - **PIP-002** on EXT-004.

@@ -31,9 +31,14 @@ from collections.abc import Sequence
 from enum import StrEnum
 from typing import Final
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.contracts import DeclarationField, ExtractedSpan, NormalisedField
+from app.contracts import (
+    CompetingReadings,
+    DeclarationField,
+    ExtractedSpan,
+    NormalisedField,
+)
 from app.modules.extraction.commodity_name import normalise_commodity_name
 from app.modules.extraction.consumer_care import normalise_consumer_care
 from app.modules.extraction.country_of_origin import normalise_country_of_origin
@@ -46,10 +51,38 @@ from app.modules.extraction.unit_sale_price import normalise_unit_sale_price
 
 
 class ExtractionResult(BaseModel):
-    """Container for resolved declaration fields and unclassified spans."""
+    """Resolved declaration fields, unclassified spans, and declarations read two ways
+    that do not agree."""
 
     fields: list[NormalisedField] = Field(default_factory=list)
     unclassified_spans: list[ExtractedSpan] = Field(default_factory=list)
+    disagreements: list[CompetingReadings] = Field(default_factory=list)
+    """Declarations read more than once, in readings that contradict each other.
+
+    Separate from :attr:`fields` because a contradicted declaration is not a resolved one:
+    an obligation listed here has not been satisfied, and a consumer that reads only
+    :attr:`fields` cannot mistake it for one.
+    """
+
+    @model_validator(mode="after")
+    def _a_disagreement_is_never_also_a_field(self) -> "ExtractionResult":
+        """No obligation appears in both collections.
+
+        Two collections mean a consumer can count one declaration twice, and someone
+        forgets exactly once. Refused at construction rather than asserted downstream,
+        because the consumers are in another layer and there is no single place there to
+        assert it.
+        """
+        both = {field.field_type for field in self.fields} & {
+            disagreement.field_type for disagreement in self.disagreements
+        }
+        if both:
+            raise ValueError(
+                f"{sorted(field.value for field in both)} appears in both fields and "
+                f"disagreements. A declaration is either resolved or contested, never "
+                f"both, and counting it twice is what this refuses."
+            )
+        return self
 
 
 MAX_VERTICAL_GAP_MULTIPLIER: Final[float] = 3.0

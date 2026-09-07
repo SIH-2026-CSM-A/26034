@@ -1360,3 +1360,105 @@ gives a different reason — their dimensions were written from memory and `coin
 the Hard Nos list — not absence of a consumer. Consequence: there is no enforced
 member-consumer guard anywhere in the repo, and the deletion rule applied in this ticket was
 applied fresh rather than inherited from that precedent.
+
+---
+
+## Session 11 — 2026-09-07, CTR-006 (Claude Code, Opus 5)
+
+**Ticket.** A contracts representation for competing readings of one declaration. Unblocks
+Sitanshu on EXT-007.
+
+**The bug this makes unrepresentable.** EXT-006 (#56) refuses to pair a Devanagari and a
+Latin declaration whose values disagree — `binder.py:604`, `if (f1.numeric_value !=
+f2.numeric_value) or (f1.unit != f2.unit): continue`. Both spans then fall through to
+`bind_spans`'s tail loop and each becomes its own `NormalisedField` of the same
+`field_type` in `fields`. `orchestrator.by_obligation` groups them into
+`declared[NET_QUANTITY] = (f1, f2)`, and `rule_findings._one_declaration` decides presence
+on nothing but that tuple's truthiness — so a package declaring "500 g" on one line and
+"२५० ग्राम" on the next got **PASS**, with `observed_value="500 g | 250 g"` printed as if
+it were one reading. `tests/modules/extraction/test_bilingual_declarations.py:185` pins
+today's two-record behaviour; EXT-007 changes it.
+
+**Shipped.** `DisagreementReason` in `contracts/enums.py`, `CompetingReadings` in
+`contracts/evidence.py` (`field_type`, `readings: tuple[NormalisedField, ...]` with
+`min_length=2`, `reason`), both exported, two README rows and a sixth load-bearing note.
+
+**One enum member, deliberately.** `BILINGUAL_VALUE_MISMATCH`, and its docstring covers
+both limbs of that `or` — the numeric value and the unit. A second member for the unit limb
+has no consumer: PIP-004 routes both to REVIEW_REQUIRED identically and the officer sees
+both readings either way. Same rule that kept `DERIVED_ARTEFACT` out of CORE-003 — a member
+ships alongside something that consumes it. The docstring is deliberately not narrowed to
+`numeric_value`, because a narrow docstring is what makes the next person add a second
+member for a case the first already covers.
+
+**Authorised crossing into `modules/extraction/`, and it is not precedent.**
+`ExtractionResult` is **not** in `contracts/` — it is `binder.py:48`, a bare
+`pydantic.BaseModel`. CTR-006's out-of-scope line puts `modules/extraction/` off limits, but
+the capability has nowhere else to land. Abhiram authorised the crossing for this ticket
+only, same shape as CORE-003's evidence crossing: the `disagreements` field, its import, and
+the disjointness validator. Nothing else in `binder.py` was touched — **the non-pairing
+branch at 604 is EXT-007's**. Moving `ExtractionResult` into `contracts/` was considered and
+settled against: ARCHITECTURE.md records that as tidy-up rather than correction, and
+PIP-002's `contracts/binding.py` was dropped from history so it would not be recreated.
+
+**Why the disjointness invariant is a validator and not an assertion.** The ticket asked for
+a test that `fields` and `disagreements` are disjoint by `field_type`. Nothing populates
+`disagreements` until EXT-007, so a test asserting disjointness over real `bind_spans`
+output would be **vacuously true** — the decorative green tick five PRs on this project have
+already shipped. Refusing the overlap at construction is what makes the guard real today,
+and it is also the stronger form: two collections mean a consumer can double-count, and
+someone forgets exactly once.
+
+**Falsification — four defects, four reds, all reverted.** Each with
+`/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +` first and the surviving
+directory count asserted at **0** rather than trusting an exit code.
+
+| Defect introduced | Test that went red |
+|---|---|
+| `Field(min_length=2)` → `min_length=1` | `test_a_single_reading_is_not_a_disagreement` |
+| `wrong` set forced empty in the cross-check validator | `test_a_reading_of_another_obligation_is_refused` |
+| `both` set forced empty in the disjointness validator | `test_a_field_in_disagreements_is_never_also_in_fields` |
+| `ContractModel` `frozen=True` → `frozen=False` | `test_a_disagreement_is_frozen` |
+
+The frozen test is called out because "a mutation test against a frozen object" is on this
+repo's list of five unfalsifiable tests. This one was falsified against the config that
+makes it hold, and it goes red.
+
+**Gate.** `739 passed, 32 skipped` locally. Baseline on `origin/main` measured in the same
+session by stashing: `731 passed, 32 skipped` — exactly **+8**, nothing else moved. Ruff
+clean, `ruff format --check` clean, `lint-imports` **3 contracts kept over 111 files**
+(checked it analysed something rather than passing fast on a missing install).
+
+**Note for whoever next edits CLAUDE.md.** Its stated local baseline of `707 passed / 32
+skipped` is stale — it predates EXT-006. The number on `origin/main` today is 731/32. Not
+corrected here; doc updates go in their own PR.
+
+**Handed to EXT-007 (Sitanshu).** At `binder.py:604` the value check runs **before**
+`_are_spans_spatially_adjacent` at 607. As ordered, the branch cannot tell "two scripts
+disagreeing about one declaration" from "two unrelated declarations elsewhere on the panel".
+The adjacency check has to move above the value check, or EXT-007 will record disagreements
+that are not disagreements.
+
+**Handed to PIP-004, and it is not optional polish.** `rule_findings.py` needs zero lines to
+stop the wrongful PASS — once EXT-007 diverts the pair into `disagreements` they never enter
+`extraction.fields`, so `by_obligation` never sees them, `declared` has no key, and
+`_one_declaration` falls to the `unreadable_reason` branch. But that branch yields
+**INSUFFICIENT_EVIDENCE**, which the constraints forbid: both readings were read perfectly
+well. `verdict.py:56-59` tests REVIEW_REQUIRED and INSUFFICIENT_EVIDENCE one at a time and
+both return `Verdict.REVIEW`, so the package-level verdict is the same either way — what
+PIP-004 buys is the correct **reason string on the officer surface**. Without it the system
+tells an officer "the evidence needed could not be obtained" about a label it read perfectly,
+twice. Four edit points:
+
+1. `EvidenceContext`, `app/pipeline/rule_findings.py:60-93` — a field carrying the
+   contested obligations.
+2. `_one_declaration`, `app/pipeline/rule_findings.py:167-197` — a REVIEW_REQUIRED branch
+   **above** the `if values:` test. Its own branch: never sharing an expression with
+   INSUFFICIENT_EVIDENCE or FAIL, and no set membership test.
+3. `orchestrator.py:240`, the image path — fed from `extraction.disagreements`. Includes
+   `field_providers` at `:256`, which is `dict.fromkeys(declared, ...)` and would otherwise
+   omit a contested obligation that now carries a finding.
+4. `orchestrator.py:295`, the catalogue path — a listing supplies one value per obligation
+   key, so this passes empty.
+
+PIP-004 merges **before** EXT-007, so the forbidden state never reaches `main`.
