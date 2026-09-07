@@ -114,8 +114,9 @@ waits for a module with a caller for one.
 `ocr_rec_model_dir` that is unset or absent on disk. `app/main.py`'s lifespan calls it once
 and refuses to start when it returns anything.
 
-Once, at boot, and never as a fallback. `detect_pdp` and `extract_panel_text` raise
-`FileNotFoundError` without their weights, so the alternative is a 500 on an officer's
+Once, at boot, and never as a fallback. `extract_panel_text` raises `FileNotFoundError`
+without its tessdata directory, and `detect_pdp` raises `RuntimeError` naming
+`PDP_WEIGHTS_PATH` without its weights, so the alternative is a 500 on an officer's
 first scan — and substituting a different stage would produce a verdict by a path nobody
 chose. Weights are gitignored and pre-cached, so the case this guards is a fresh clone.
 
