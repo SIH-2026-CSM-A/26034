@@ -36,7 +36,9 @@ to six other people's imports.
 | `NormalisedField` | A declaration resolved from spans into a canonical value. |
 | `CompetingReadings` | One declaration read two ways that disagree. Not a resolved declaration. |
 | `DisagreementReason` | Why two readings were recorded as competing rather than merged. |
-| `MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal` | The three measurement modes, as a discriminated union `MeasurementResult`. |
+| `MeasurementExact` / `MeasurementCalibrated` / `MeasurementRefusal` | The three provenances a measurement can have, and no fourth. |
+| `MeasurementMargin*` / `MeasurementMarginOverlap*` | The margin shapes, where zero is a reading and a negative clearance is an intrusion rather than a failure. Exact and calibrated variants of each, siblings and never subclasses. |
+| `MeasurementResult` | All seven of the above as one union, discriminated on `mode`. The only type a measurement crosses a module boundary as. |
 | `RuleDefinition`, `RuleSetVersion` | An encoded provision and the published set it ships in. |
 | `RuleParameterSnapshot` | A rule's parameters copied by value at evaluation time. |
 | `FieldFinding`, `VerdictRecord` | One finding, and the complete evidence record. |

@@ -1662,3 +1662,124 @@ files, 3 contracts kept / 0 broken, checked directly rather than through a pipe.
   compilation. The limb rests on a territoriality argument about the Act, which is not
   sourced here. The docs PR corrects `rules-corpus/README.md`, which had claimed Rule 25
   supports it.
+
+## Session 14 — 2026-09-07, MEA-009 Part A (Claude Code, Opus 5)
+
+**Ticket:** MEA-009 Part A — a measurement outcome for a negative margin. Branch
+`mea-009-margin-overlap-outcome`, cut from `2817c6b`. `contracts/` only; Part B is
+Yashashvi's and is blocked on this landing.
+
+### The problem
+
+`measure_margins` (`modules/measurement/services.py`, MEA-006 / #47) computes a clearance per
+direction and returns `MeasurementRefusal(reason="Margin overlaps active ink region.")` when
+the figure comes back negative. A negative clearance means the surrounding ink has crossed
+into the free space Rule 8(1)'s proviso requires — the violation the measurement exists to
+detect. A refusal maps to INSUFFICIENT_EVIDENCE in `pipeline/measurement_findings.py:37`, so
+the current shape says "we could not obtain the evidence" about a package we measured exactly
+and whose measurement *is* the finding. Standing constraint #5 is the reason that matters.
+
+### Two types, not one
+
+`MeasurementMarginOverlapExact` and `MeasurementMarginOverlapCalibrated`, siblings off
+`_MeasurementExactBase` and `_MeasurementCalibratedBase` — the same private bases CTR-005's
+four hang off, never subclasses of any of them.
+
+The deciding evidence was in the producing code, not in the ticket. **The `dist_mm < 0` branch
+sits above the `is_artwork` split**, so an overlap arises on both provenances, and the
+calibrated arm already computes `confidence = max(abs(dist_px) * conf_interval,
+confidence_floor)` — `abs()`, so a negative distance already has a well-defined interval that
+a single type would throw away. A single type would also need `confidence_interval: float |
+None` and `reference_object: str | None`, which is exactly the shape this module exists to
+make unrepresentable: a millimetre figure with no stated provenance. That is standing
+constraint #2, and `test_millimetre_payload_with_no_calibration_source_is_rejected_by_the_union`
+is the existing guard on it.
+
+**The field is `overlap`, not `value`, and this is the one place these types depart from their
+four siblings.** `pipeline/measurement_findings.py:59` formats any millimetre-bearing result as
+`f"{result.value} {result.unit}"`. An overlap carrying `value=0.4` would reach an officer as
+the identical string a 0.4 mm *clearance* produces — same number, opposite meaning, and no way
+downstream to tell them apart. Under this name that line raises instead of misreporting, and
+the mode has to be handled deliberately. Same reasoning as `MeasurementRefusal`, which carries
+no `value` on purpose. `extra="forbid"` closes the other direction.
+
+`gt=0`, as a positive magnitude. Zero is not an overlap — a flush declaration has a clearance
+of exactly 0.0 and is already `MeasurementMarginExact`; admitting 0.0 here would give one
+physical fact two representations. The direction lives in the type name, not in the sign.
+`confidence_interval` tightened to `gt=0` on the calibrated variant, mirroring
+`MeasurementMarginCalibrated`: reversing the sign of a distance recovered from a photograph
+changes none of the pixel quantisation that made that tightening necessary.
+
+**Observation, not verdict.** No `numeral_height_mm`, no multiple, no side name, no severity.
+Rule 8(1)'s multiples are read from the rule store by `modules/rules/placement.py:52-55` and
+compared against the numeral's own height. A test pins the field-name set against a literal so
+a threshold added later turns red.
+
+**No migration and no enum change.** `mode` is a `Literal`, not a `contracts.enums` member; no
+ORM model or migration references a measurement type; the two evidence renderers branch on
+report strings rather than on the union. Verified before assuming it.
+
+### Naming corrected in review before any code was written
+
+The plan proposed `MeasurementOverlapExact` with mode `margin_overlap_exact`. Abhiram caught
+that the class name and its own discriminator disagreed: CTR-005's convention is the class name
+minus `Measurement`, snake-cased, *is* the mode — `MeasurementMarginExact` → `margin_exact`.
+These are margin outcomes, so `Margin` belongs in the name. Renamed before implementation.
+
+### Falsification — nine defects, every one confirmed red, all reverted
+
+Bytecode purged with the absolute-path `find` before each, surviving directory count asserted
+at **0** rather than trusting the exit code. `measurement.py` restored byte-for-byte after each
+and asserted equal to the original.
+
+| Defect introduced | Test that went red |
+|---|---|
+| `gt=0` → `ge=0` on both overlap types (same byte length) | `..._of_exactly_zero_is_not_an_overlap`, alone |
+| Lower bound removed — negative handed straight through | `..._is_carried_as_a_positive_magnitude` (+ the zero test) |
+| Field renamed `overlap` → `value` | `..._cannot_be_read_as_a_margin_value` (+ 4 that name the field) |
+| `reference_object` defaulted to `None` on the calibrated base | `..._without_a_reference_object_raises` (+ the CTR-005 guard on the same base) |
+| `confidence_interval` given a default on the overlap type | `..._without_a_confidence_interval_raises`, alone |
+| `gt=0` interval tightening dropped | `..._may_not_claim_a_zero_width_confidence_interval`, alone |
+| Overlap made a subclass of the margin it inverts | `..._is_not_substitutable_for_a_margin` (+ 2) |
+| A `numeral_height_mm` field added | `..._carries_a_rule_threshold`, alone |
+| Calibrated overlap dropped from the union | `..._round_trips_through_the_union_as_itself`, alone |
+
+**The first pass of this ran with `-x` and was a false confirmation.** Four of the nine reported
+red on a test that was merely first in file order, not on the test the defect claims to be
+caught by — for D3 it reported the round-trip guard, not the `value`-shadowing guard. Re-run
+without `-x`, every defect turns its own claimed test red. This is the exact pattern AGENTS.md
+warns about under "check that the defect you inject is the defect the test claims to catch",
+and `-x` is a good way to walk into it.
+
+**One test was not written, deliberately.** The union round-trip was already covered by
+`test_each_measurement_shape_round_trips_through_the_union_as_itself`; the two overlap shapes
+were added to its tuple and its docstring corrected from five shapes to seven, rather than a
+second round-trip test being written beside it.
+
+### Gate
+
+Baseline **772 passed / 32 skipped** on `origin/main` @ `2817c6b`, measured in this session
+with a clean tree and bytecode purged. This branch: **780 / 32** — **+8**, exactly the eight new
+test functions, nothing else moved. `ruff check`, `ruff format --check` and `lint-imports` all
+exit 0, read directly rather than through a pipe; 3 contracts kept / 0 broken over 112 files
+and 377 dependencies.
+
+CLAUDE.md still claims 707 / 32. That is now five merges stale and Session 13 already flagged
+it. Not corrected here — doc updates go in their own PR.
+
+### Raised, not taken
+
+`FreeSpaceMeasurement` (`modules/rules/results.py:82`) types all four clearances as
+`PositiveDecimal`, so `evaluate_rule8_free_space` cannot today accept an overlap — nor a flush
+margin of `0.0`, which is a pre-existing gap the margin types already had. It is in
+`modules/rules/` and it is not MEA-009. Abhiram is opening a ticket; flagged in the PR body and
+not touched here.
+
+### Unblocks MEA-009 Part B (Yashashvi)
+
+The types are exported and inert until `modules/measurement` returns them. Two things Part B
+should know before starting. **The overlap branch is above the `is_artwork` split**, so both
+shapes have to be constructed there, not one. And **margins are still not wired into the
+pipeline at all** — `pipeline/orchestrator.py:156-164` deliberately omits `measure_margins`,
+because it needs a declaration bounding box that EXT-004 supplies, so Part B changes what the
+function returns without changing what any scan currently does.
