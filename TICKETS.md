@@ -104,11 +104,6 @@ blocks Part B (Yashashvi). A negative margin means ink intruding into the Rule 8
 the violation the measurement exists to detect — and returning `MeasurementRefusal` makes a
 detected violation look like a failed measurement.
 
-**RUL-006 — `applies_to` is a decorative field that reads as a scope guard.** Fourteen rules
-carry it, a test enforces its vocabulary, it is copied into every verdict snapshot, and **no
-evaluator reads it**. Now sits beside RUL-005's real gate. Default recommendation: remove it.
-Decide after reading RUL-005 as merged.
-
 **PIP-003 — wire `propose_category` into the orchestrator** as a proposal that never writes
 itself into the confirmed category.
 
@@ -147,7 +142,16 @@ Tamper detection must not be described as working until it has run against annot
 
 ## Board hygiene
 
-Move to `done` when their PRs merge: RUL-005 (#68 merged — do this).
+Move to `done` when their PRs merge: RUL-005 (#68 merged — do this), RUL-006 (in review).
+
+**RUL-006 is out of "To do — Abhiram" and in review.** `applies_to` is removed from the rule
+store. Two corrections to what the ticket said, for anyone reading it on ClickUp: it claimed
+**fourteen** rules carried the field — it was **28**, every rule in the store, because
+`applies_to` was `Field(min_length=1)` (29 tokens, 6 distinct, 22 of them `retail_packages`).
+And the replay risk the ticket flagged does not exist: `applies_to` was a key inside
+`parameters`, not a field on `RuleParameterSnapshot`, and `extra="forbid"` does not reach
+inside a `dict[str, JsonValue]`, so historical `field_findings.rule_snapshot` rows replay
+unchanged. No migration was needed.
 
 Not yet on the board: nothing outstanding. CORE-003 was created retroactively; CTR-005 already
 existed; the duplicate RUL-005 was deleted.

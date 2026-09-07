@@ -266,6 +266,38 @@ to PASS, unreachable while sector overrides were the only source of NOT_APPLICAB
 Rule 3 reaches it, and PASS on a package the system did not evaluate is the same error
 the empty-findings case already guards against.
 
+### What actually scopes a rule (RUL-006, and what it removed)
+
+Three mechanisms, and only three:
+
+| Question | Answered by |
+|---|---|
+| Does Chapter II reach this package at all? | `chapter_ii_scope` — `modules/rules/scope.py` |
+| Does another framework govern this obligation? | the sector `OverrideTarget` — `pipeline/dispositions.py` |
+| Which declarations does this rule govern? | `RuleDefinition.governs_declarations` / `.governs()` |
+
+A fourth used to look like a fourth. `applies_to` was a required, non-empty tuple of scope
+tokens on every rule in the store — 28 rules, 29 tokens, 6 distinct — enforced by a
+vocabulary test and copied into every persisted verdict snapshot, and **read by nothing**.
+Grepping the tokens themselves across `bck/app/` returned only `rules.yaml`. RUL-006 removed
+it. It was not merely dead: 22 rules asserted `retail_packages` while the thing that decides
+retail-vs-not is `chapter_ii_scope`, and `medical_device_packages` restated a sector override
+that is executable code — a drifting second statement of something already decided elsewhere,
+written on the rule itself and sitting beside the real gate.
+
+Removing it did not touch verdict replay, which was verified rather than assumed.
+`applies_to` was never a field on `RuleParameterSnapshot`; it was a key inside `parameters`,
+typed `dict[str, JsonValue]`. `ContractModel`'s `extra="forbid"` governs the model's own
+fields and does not reach inside a dict, so rows in `field_findings.rule_snapshot` written
+before the change re-validate unchanged through the same `model_validate` call
+`pipeline/responses.py` makes on read-back. No migration, no backfill.
+`test_a_stored_row_naming_a_retired_parameter_still_replays` pins that property, and
+`test_the_snapshot_emits_exactly_these_parameter_keys` pins the key set `parameters` may
+hold — both in `tests/pipeline/test_rule_snapshot.py`.
+
+`contracts.RuleDefinition.applies_to` still exists. It defaults to `()` and is reachable only
+through `RuleParameterSnapshot.from_rule`, which nothing in `bck/app/` calls. Follow-up.
+
 ### Competing readings (CTR-006 #65, PIP-004 #67)
 
 `CompetingReadings` holds two or more readings of one declaration that disagree. It
