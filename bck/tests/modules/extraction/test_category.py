@@ -367,7 +367,7 @@ def test_display_taxonomy_packaged_food() -> None:
     assert display_prop.category == DisplayCategory.PACKAGED_FOOD
     assert display_prop.parent_category is None
     assert display_prop.path == ("packaged_goods", "packaged_food")
-    assert display_prop.confidence == 0.80
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
 
 
 def test_display_taxonomy_cosmetics() -> None:
@@ -384,7 +384,7 @@ def test_display_taxonomy_cosmetics() -> None:
     assert display_prop.category == DisplayCategory.COSMETICS
     assert display_prop.parent_category is None
     assert display_prop.path == ("packaged_goods", "cosmetics")
-    assert display_prop.confidence == 0.80
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
 
 
 def test_display_taxonomy_electronics() -> None:
@@ -405,7 +405,7 @@ def test_display_taxonomy_electronics() -> None:
         "non_food_packaged_goods",
         "electronics",
     )
-    assert display_prop.confidence == 0.80
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
 
 
 def test_display_taxonomy_household() -> None:
@@ -426,7 +426,7 @@ def test_display_taxonomy_household() -> None:
         "non_food_packaged_goods",
         "household",
     )
-    assert display_prop.confidence == 0.80
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
 
 
 def test_display_taxonomy_missing_evidence_returns_none() -> None:
