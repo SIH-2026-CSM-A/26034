@@ -64,3 +64,9 @@
 - Refactored test_artwork.py to target the public API, ensuring the functions are visible to the rest of the application.
 - Retained parse_pdf_geometry as an internal helper.
 - Passed all import boundary checks and test verifications.
+
+## 2026-09-08 — MEA-008
+- Investigated the proposed 50 mm printable calibration card.
+- FINDING (Route B): The printable asset does not exist in the repository. The 50 mm figure is a design parameter for an unproduced artefact.
+- Aborted adding the card to REF_DIMS and aborted detector implementation.
+- This enforces the DAT-004 guardrail: a reference object exists only if it can be physically verified and detected. The three sourced reference objects stay as they are: ₹10 coin 27.0 mm, ID-1 card 85.60 × 53.98 mm, EAN-13 37.29 mm.
