@@ -37,7 +37,6 @@ def _definition(status: RuleStatus) -> RuleDefinition:
         status=status,
         effective_from=date(2020, 1, 1),
         effective_to=None,
-        applies_to=("test_input",),
         conditions={
             "kind": "declaration_required",
             "declarations": ["test_declaration"],
