@@ -1,4 +1,7 @@
-"""Tamper detection module public entry point."""
+"""Tamper detection module for LegalMetrix AI.
+
+Exposes public entry point detect_tampering and underlying detection services.
+"""
 
 import numpy as np
 
@@ -12,15 +15,13 @@ from app.modules.tamper.detector import (
 from app.modules.tamper.domain import TamperDetectionResult
 
 
-def detect_tampering(image: np.ndarray, spans: list[ExtractedSpan]) -> list[TamperDetectionResult]:
-    """Public entry point for tamper detection.
+def detect_tampering(
+    image: np.ndarray,
+    spans: list[ExtractedSpan],
+) -> list[TamperDetectionResult]:
+    """Detect tampering in the image based on extracted spans.
 
-    Expected input shape for orchestrator wiring:
-        - image: np.ndarray (BGR or grayscale image array of the package scan)
-        - spans: list[ExtractedSpan] (extracted text spans with polygons and text values)
-
-    Returns:
-        list[TamperDetectionResult]: Combined findings for conflicting MRPs and sticker overlays.
+    Delegates to conflicting MRP detection and sticker overlay detection.
     """
     results: list[TamperDetectionResult] = []
     results.extend(detect_conflicting_mrps(spans))
