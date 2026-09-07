@@ -5,6 +5,7 @@ import pytest
 from docx import Document
 from pypdf import PdfReader
 
+from app.contracts.enums import FieldState, Verdict
 from app.modules.evidence.export import (
     UnconfirmedVerdictExportError,
     export_compliance_report,
@@ -15,19 +16,19 @@ class MockDeclaration:
     def __init__(self, field_name, declared_value, state, ocr_provider, confidence):
         self.field_name = field_name
         self.declared_value = declared_value
-        self.state = state
+        self.state = state  # Should be FieldState
         self.ocr_provider = ocr_provider
         self.confidence = confidence
 
 
 class MockRuleEvaluation:
-    def __init__(self, rule_id, clause, parameter, required, measured, status, notes=None):
+    def __init__(self, rule_id, clause, parameter, required, measured, state, notes=None):
         self.rule_id = rule_id
         self.clause = clause
         self.parameter = parameter
         self.required = required
         self.measured = measured
-        self.status = status
+        self.state = state  # Should be FieldState
         self.notes = notes
 
 
@@ -41,7 +42,7 @@ class MockConfirmation:
 class MockVerdictRecord:
     def __init__(
         self,
-        overall_verdict,
+        verdict,
         is_human_confirmed=True,
         report_id="REP-123",
         rule_set_version="v1.0",
@@ -54,7 +55,7 @@ class MockVerdictRecord:
         declarations=None,
         rule_evaluations=None,
     ):
-        self.overall_verdict = overall_verdict
+        self.verdict = verdict  # Should be Verdict
         self.is_human_confirmed = is_human_confirmed
         self.report_id = report_id
         self.rule_set_version = rule_set_version
@@ -89,13 +90,13 @@ def extract_docx_text(docx_bytes):
 @pytest.fixture
 def confirmed_record():
     return MockVerdictRecord(
-        overall_verdict="PASS",
+        verdict=Verdict.PASS,
         declarations=[
-            MockDeclaration("Net Weight", "500g", "MATCH", "PaddleOCR", 0.98),
+            MockDeclaration("Net Weight", "500g", FieldState.PASS, "PaddleOCR", 0.98),
         ],
         rule_evaluations=[
-            MockRuleEvaluation("R1", "Clause 4(1)", "Weight", ">=500g", "505g", "COMPLIANT"),
-            MockRuleEvaluation("R2", "Clause 5(2)", "Font Size", ">=2mm", "2.1mm", "COMPLIANT"),
+            MockRuleEvaluation("R1", "Clause 4(1)", "Weight", ">=500g", "505g", FieldState.PASS),
+            MockRuleEvaluation("R2", "Clause 5(2)", "Font Size", ">=2mm", "2.1mm", FieldState.PASS),
         ],
     )
 
@@ -115,16 +116,16 @@ def test_divergence_pdf_docx(confirmed_record):
         confirmed_record.source_image_hash.lower(),
         confirmed_record.confirmation.confirmed_by.lower(),
         confirmed_record.confirmation.officer_action.lower(),
-        confirmed_record.overall_verdict.lower(),
+        confirmed_record.verdict.value.lower(),
         "net weight",
         "500g",
-        "match",
+        FieldState.PASS.value.lower(),
         "paddleocr",
         "r1",
         "clause 4(1)",
         "weight",
         "505g",
-        "compliant",
+        FieldState.PASS.value.lower(),
         "r2",
         "clause 5(2)",
         "font size",
@@ -145,18 +146,25 @@ def test_pass_report_completeness(confirmed_record):
         assert rule.rule_id in pdf_text
         assert rule.clause in pdf_text
         assert rule.parameter in pdf_text
-        assert rule.status in pdf_text
+        assert rule.state.value in pdf_text
 
 
 def test_forbidden_vocabulary():
     """AC3: Assert POTENTIAL_VIOLATION reports avoid banned terms."""
     record = MockVerdictRecord(
-        overall_verdict="POTENTIAL VIOLATION",
-        declarations=[MockDeclaration("Weight", "400g", "MISMATCH", "PaddleOCR", 0.95)],
-        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "400g", "NON_COMPLIANT")],
+        verdict=Verdict.POTENTIAL_VIOLATION,
+        declarations=[MockDeclaration("Weight", "400g", FieldState.FAIL, "PaddleOCR", 0.95)],
+        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "400g", FieldState.FAIL)],
     )
 
-    banned_terms = ["violation confirmed", "non-compliant", "illegal", "guilty"]
+    banned_terms = [
+        "violation confirmed",
+        "non-compliant",
+        "non_compliant",
+        "noncompliant",
+        "illegal",
+        "guilty",
+    ]
 
     for fmt in ["pdf", "docx"]:
         out_bytes = export_compliance_report(record, format=fmt)
@@ -170,7 +178,7 @@ def test_forbidden_vocabulary():
 
 def test_human_confirmation_gate():
     """AC4: Assert unconfirmed records raise UnconfirmedVerdictExportError."""
-    record = MockVerdictRecord(overall_verdict="PASS", is_human_confirmed=False)
+    record = MockVerdictRecord(verdict=Verdict.PASS, is_human_confirmed=False)
 
     for fmt in ["pdf", "docx"]:
         with pytest.raises(UnconfirmedVerdictExportError):
@@ -179,7 +187,6 @@ def test_human_confirmation_gate():
 
 def test_clause_citation_assertion(confirmed_record):
     """AC5: Assert 100% of rule check rows contain a non-empty clause_reference."""
-    # We test this by checking the rendered output
     pdf_bytes = export_compliance_report(confirmed_record, format="pdf")
     pdf_text = extract_pdf_text(pdf_bytes)
 
@@ -191,11 +198,17 @@ def test_clause_citation_assertion(confirmed_record):
 def test_measurement_refusal_rendering():
     """AC: Assert measurement refusal renders as 'Measurement declined' instead of 'N/A'."""
     record = MockVerdictRecord(
-        overall_verdict="REVIEW",
-        declarations=[MockDeclaration("Weight", "500g", "MATCH", "PaddleOCR", 0.99)],
+        verdict=Verdict.REVIEW,
+        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
         rule_evaluations=[
             MockRuleEvaluation(
-                "R1", "C1", "Font Size", ">=2mm", None, "INSUFFICIENT_EVIDENCE", notes="Refused"
+                "R1",
+                "C1",
+                "Font Size",
+                ">=2mm",
+                None,
+                FieldState.INSUFFICIENT_EVIDENCE,
+                notes="Refused",
             )
         ],
     )
@@ -218,11 +231,17 @@ def test_insufficient_evidence_rendering():
     """
     reason_text = "Image too blurry to determine font size"
     record = MockVerdictRecord(
-        overall_verdict="REVIEW",
-        declarations=[MockDeclaration("Weight", "500g", "MATCH", "PaddleOCR", 0.99)],
+        verdict=Verdict.REVIEW,
+        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
         rule_evaluations=[
             MockRuleEvaluation(
-                "R1", "C1", "Font Size", ">=2mm", None, "INSUFFICIENT_EVIDENCE", notes=reason_text
+                "R1",
+                "C1",
+                "Font Size",
+                ">=2mm",
+                None,
+                FieldState.INSUFFICIENT_EVIDENCE,
+                notes=reason_text,
             )
         ],
     )
@@ -232,33 +251,27 @@ def test_insufficient_evidence_rendering():
         text = extract_pdf_text(out_bytes) if fmt == "pdf" else extract_docx_text(out_bytes)
 
         # 1. Distinct from FAIL
-        assert "INSUFFICIENT_EVIDENCE" in text
-        assert "FAIL" not in text
+        assert FieldState.INSUFFICIENT_EVIDENCE.value in text
+        assert FieldState.FAIL.value not in text
 
         # 2. Actual reason appears
         assert reason_text in text, f"Reason '{reason_text}' missing from {fmt} report"
-
-        # 3. No generic placeholders for the reason
-        # The primary check is that reason_text IS present.
 
 
 def test_offline_and_zero_stub():
     """AC6: Assert clean execution offline and no placeholder text."""
     record = MockVerdictRecord(
-        overall_verdict="PASS",
-        declarations=[MockDeclaration("Weight", "500g", "MATCH", "PaddleOCR", 0.99)],
-        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "500g", "COMPLIANT")],
+        verdict=Verdict.PASS,
+        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
+        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "500g", FieldState.PASS)],
     )
 
     with patch("socket.socket", side_effect=OSError("Offline")):
-        # PDF export
         pdf_bytes = export_compliance_report(record, format="pdf")
         pdf_text = extract_pdf_text(pdf_bytes)
-        # DOCX export
         docx_bytes = export_compliance_report(record, format="docx")
         docx_text = extract_docx_text(docx_bytes)
 
-    # Check for placeholders
     placeholders = ["sample text", "placeholder", "lorem ipsum", "[INSERT]", "TBD"]
     for text in [pdf_text, docx_text]:
         text_lower = text.lower()

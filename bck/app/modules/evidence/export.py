@@ -28,7 +28,7 @@ def build_report_model(verdict_record) -> OfficerReportModel:
         confirmed_at=verdict_record.confirmation.confirmation_timestamp,
         officer_action=verdict_record.confirmation.officer_action,
         officer_notes=getattr(verdict_record, "officer_notes", None),
-        overall_verdict=verdict_record.overall_verdict,
+        overall_verdict=verdict_record.verdict,
         extracted_declarations=[
             ExportDeclaration(
                 field_name=d.field_name,
@@ -46,7 +46,7 @@ def build_report_model(verdict_record) -> OfficerReportModel:
                 parameter_name=r.parameter,
                 required_value=r.required,
                 measured_value=r.measured,
-                status=r.status,
+                state=r.state,
                 notes=r.notes,
             )
             for r in verdict_record.rule_evaluations

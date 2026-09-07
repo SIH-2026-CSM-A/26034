@@ -67,7 +67,7 @@ def _build_rules_section(doc: Document, report: OfficerReportModel):
     hdr_cells[6].text = "Notes"
     for r in report.rule_evaluations:
         measured = r.measured_value
-        if measured is None and r.status == "INSUFFICIENT_EVIDENCE":
+        if measured is None and r.state == "INSUFFICIENT_EVIDENCE":
             measured = "Measurement declined"
         elif measured is None:
             measured = "N/A"
@@ -78,7 +78,7 @@ def _build_rules_section(doc: Document, report: OfficerReportModel):
         row_cells[2].text = r.parameter_name
         row_cells[3].text = r.required_value or "N/A"
         row_cells[4].text = measured
-        row_cells[5].text = r.status
+        row_cells[5].text = r.state
         row_cells[6].text = r.notes or ""
 
 

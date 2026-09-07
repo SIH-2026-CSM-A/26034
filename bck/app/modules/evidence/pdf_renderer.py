@@ -89,7 +89,7 @@ def _build_rules_section(elements: list, report: OfficerReportModel, styles: dic
     rule_data = [["Rule ID", "Clause", "Parameter", "Required", "Measured", "Status", "Notes"]]
     for r in report.rule_evaluations:
         measured = r.measured_value
-        if measured is None and r.status == "INSUFFICIENT_EVIDENCE":
+        if measured is None and r.state == "INSUFFICIENT_EVIDENCE":
             measured = "Measurement declined"
         elif measured is None:
             measured = "N/A"
@@ -101,7 +101,7 @@ def _build_rules_section(elements: list, report: OfficerReportModel, styles: dic
                 r.parameter_name,
                 r.required_value or "N/A",
                 measured,
-                r.status,
+                r.state,
                 r.notes or "",
             ]
         )

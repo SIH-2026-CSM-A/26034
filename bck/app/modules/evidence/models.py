@@ -1,9 +1,9 @@
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict
 
-VerdictState = Literal["PASS", "REVIEW", "POTENTIAL VIOLATION"]
-"""Strict possible states for the overall verdict."""
+from app.contracts.enums import FieldState, Verdict
+
+# BSA §63(4) Part A compliant report schema
+# Certifies electronic record authenticity for Legal Metrology evidence.
 
 
 class ExportDeclaration(BaseModel):
@@ -13,7 +13,7 @@ class ExportDeclaration(BaseModel):
 
     field_name: str
     declared_value: str | None
-    state: str  # e.g. "MATCH", "MISMATCH", "INSUFFICIENT_EVIDENCE"
+    state: FieldState
     ocr_provider: str
     confidence: float
 
@@ -28,7 +28,7 @@ class ExportRuleEvaluation(BaseModel):
     parameter_name: str
     required_value: str | None
     measured_value: str | None
-    status: str  # "COMPLIANT", "NON_COMPLIANT", "INSUFFICIENT_EVIDENCE"
+    state: FieldState
     notes: str | None = None
 
 
@@ -49,6 +49,6 @@ class OfficerReportModel(BaseModel):
     confirmed_at: str
     officer_action: str
     officer_notes: str | None = None
-    overall_verdict: VerdictState
+    overall_verdict: Verdict
     extracted_declarations: list[ExportDeclaration]
     rule_evaluations: list[ExportRuleEvaluation]
