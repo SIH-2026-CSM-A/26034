@@ -315,3 +315,27 @@ uff check . -> clean (All checks passed!).
   - Quality gates: `ruff check` (0 errors), `ruff format --check` (clean), `lint-imports` (3 contracts kept), `compileall -q app` (0 errors), `git diff --check` (clean).
 - Falsification Verification:
   - All 7 display & legal taxonomy falsification mutations (disable electronics, disable household, remove parent hierarchy, disable display tie resolution, disable legal tie resolution, invalid display in CategoryProposal, widen ProductCategory) evaluated to RED and restored to 100% GREEN.
+
+
+- CMP-001 Manufacturer Complaint Loop (Part A - Domain & Service):
+  - Created `bck/app/modules/complaints/` domain & service modules (`domain.py`, `service.py`, `__init__.py`).
+  - Implemented `ComplaintStatus` StrEnum (`RAISED`, `ACKNOWLEDGED`, `RESOLVED`, `REJECTED`).
+  - Implemented immutable `ComplaintRecord` representing pure domain append-only complaint thread history rows (`id`, `scan_id`, `verdict_id`, `manufacturer_name`, `issue_summary`, `status`, `raised_by_officer_id`, `raised_at`, `supersedes_id`).
+  - Implemented explicit transition validation (`validate_status_transition`) enforcing valid paths (`RAISED` -> `ACKNOWLEDGED`, `RESOLVED`, `REJECTED`; `ACKNOWLEDGED` -> `RESOLVED`, `REJECTED`). Disallowed all reverse/terminal transitions (e.g. `RESOLVED` -> `RAISED`), raising `InvalidStatusTransitionError`. Reopening after resolution requires constructing a new thread referencing `prior_complaint` via `supersedes_id`.
+  - Implemented structural officer confirmation gate (`ConfirmedVerdict`) requiring a non-null officer `ReviewRow` with finalising action (`CONFIRM`, `REJECT`, `OVERRIDE`) yielding effective verdict `POTENTIAL_VIOLATION`. Rejecting machine-only verdicts, missing reviews, `ANNOTATE`, `REQUEST_RECAPTURE`, effective `PASS`, `REVIEW`, or invalid `OVERRIDE` by raising `UnconfirmedVerdictError`.
+  - Implemented factual complaint text builder `build_issue_summary()` citing `rule_id`, `field`, `measured_value`, `required_value`, and "potential violation", while rejecting forbidden legal terms ("violation confirmed", "illegal", "non-compliant").
+  - Implemented `ComplaintService` methods `raise_complaint()` and `transition_complaint()`.
+  - Created unit tests in `bck/tests/modules/complaints/test_complaints_domain.py` covering all transition rules, confirmation gate checks, wording restrictions, and append-only thread behaviors.
+- Falsification Verification:
+  - Mutated transition matrix in `domain.py` so `RESOLVED -> RAISED` became legal.
+  - Executed `pytest` without `-x` -> Falsification suite failed RED (`FAILED tests/modules/complaints/test_complaints_domain.py::TestInvalidTransitions::test_invalid_transitions` - `Failed: DID NOT RAISE InvalidStatusTransitionError`).
+  - Restored original `domain.py` -> Test suite returned 100% GREEN (13 passed).
+- Quality Gates & Scope Compliance:
+  - `pytest tests/modules/complaints/test_complaints_domain.py`: 13 passed.
+  - `ruff check app/modules/complaints tests/modules/complaints`: 0 errors.
+  - `ruff format --check app/modules/complaints tests/modules/complaints`: 4 files formatted.
+  - `lint-imports`: 3 contracts kept (Layers, Module independence, No bck.* import path).
+  - `compileall -q app`: 0 errors.
+  - Full backend pytest suite: 918 passed, 51 skipped, 1 pre-existing MEA-007 synthetic geometry failure (`test_coin_oblique_synthetic_geometry`).
+  - Bytecode purge: 0 surviving `__pycache__` directories.
+  - Ownership integrity: No changes to `repository.py` (Part B deferred), `contracts/**`, `core/**`, `pipeline/**`, `persistence/**`, `migrations/**`, `analytics/**`, `frontend/**`, `rules/**`, `measurement/**`, `evidence/**`.
