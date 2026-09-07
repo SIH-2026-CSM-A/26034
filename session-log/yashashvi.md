@@ -79,3 +79,9 @@
 - Updated `measure_margins` return signature and migrated all measurement tests to dot notation (`results.above`).
 - Successfully falsified and reverted the margin threshold via defect injection.
 - **WIRING HANDOFF:** `pipeline/measurement_findings.py:59` expects a `.value` attribute for string formatting, but the margin overlap contracts deliberately use `.overlap` to prevent false clearances (MEA-009). The pipeline orchestration must be updated to handle the `MeasurementMarginSet` shape and the overlap fields before Rule 8 can go live. Over to Abhiram.
+
+## 2026-09-08 — MEA-015
+- Implemented secure SVG artwork dimension extraction using `defusedxml`.
+- Added real SVG fixtures to assert standard `mm` dimensions, `pt`/`in` unit conversions, and rotated/swapped dimensions.
+- Enforced strict refusal for dimensionless SVGs (e.g., `viewBox`-only) to prevent false physical precision.
+- Successfully verified parser safety by substituting `xml.etree.ElementTree` and proving the standard library parsed an entity-expansion payload that `defusedxml` safely caught.
