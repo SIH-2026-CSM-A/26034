@@ -87,11 +87,13 @@ type = "independence"
 modules = [
     "app.modules.analytics",
     "app.modules.vision",
+    "app.modules.vendor",
     "app.modules.extraction",
     "app.modules.measurement",
     "app.modules.rules",
     "app.modules.tamper",
     "app.modules.evidence",
+    "app.modules.complaints",
 ]
 
 [[tool.importlinter.contracts]]

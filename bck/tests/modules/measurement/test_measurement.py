@@ -263,17 +263,17 @@ def test_measure_margins():
         artwork_dpi=25.4,  # mm_per_pixel = 1.0
     )
 
-    assert isinstance(results["above"], MeasurementMarginExact)
-    assert np.isclose(results["above"].value, 80.0)
+    assert isinstance(results.above, MeasurementMarginExact)
+    assert np.isclose(results.above.value, 80.0)
 
-    assert isinstance(results["below"], MeasurementMarginExact)
-    assert np.isclose(results["below"].value, 100.0)
+    assert isinstance(results.below, MeasurementMarginExact)
+    assert np.isclose(results.below.value, 100.0)
 
-    assert isinstance(results["left"], MeasurementMarginExact)
-    assert np.isclose(results["left"].value, 70.0)
+    assert isinstance(results.left, MeasurementMarginExact)
+    assert np.isclose(results.left.value, 70.0)
 
-    assert isinstance(results["right"], MeasurementMarginExact)
-    assert np.isclose(results["right"].value, 100.0)
+    assert isinstance(results.right, MeasurementMarginExact)
+    assert np.isclose(results.right.value, 100.0)
 
 
 def test_ean_13_exact_width_regression():
@@ -363,9 +363,9 @@ def test_zero_margin_is_valid():
         artwork_dpi=25.4,
     )
 
-    assert isinstance(results["above"], MeasurementMarginExact)
-    assert results["above"].value == 0.0
-    assert results["left"].value == 0.0
+    assert isinstance(results.above, MeasurementMarginExact)
+    assert results.above.value == 0.0
+    assert results.left.value == 0.0
 
 
 def test_zero_margin_calibrated_path():
@@ -391,9 +391,9 @@ def test_zero_margin_calibrated_path():
         is_artwork=False,
     )
 
-    assert isinstance(results["above"], MeasurementMarginCalibrated)
-    assert results["above"].value == 0.0
-    assert results["above"].confidence_interval > 0.0
+    assert isinstance(results.above, MeasurementMarginCalibrated)
+    assert results.above.value == 0.0
+    assert results.above.confidence_interval > 0.0
 
 
 def test_margin_overlap_is_negative():
@@ -421,9 +421,9 @@ def test_margin_overlap_is_negative():
         artwork_dpi=25.4,
     )
 
-    assert not isinstance(results_artwork["above"], MeasurementRefusal)
-    assert isinstance(results_artwork["above"], MeasurementMarginOverlapExact)
-    assert results_artwork["above"].overlap == 10.0
+    assert not isinstance(results_artwork.above, MeasurementRefusal)
+    assert isinstance(results_artwork.above, MeasurementMarginOverlapExact)
+    assert results_artwork.above.overlap == 10.0
 
     # 2. Calibrated Path
     ref_image = np.zeros((100, 100), dtype=np.uint8)
@@ -437,14 +437,33 @@ def test_margin_overlap_is_negative():
         is_artwork=False,
     )
 
-    assert not isinstance(results_calib["above"], MeasurementRefusal)
-    assert isinstance(results_calib["above"], MeasurementMarginOverlapCalibrated)
-    assert results_calib["above"].overlap > 0.0
-    assert results_calib["above"].confidence_interval > 0.0
+    assert not isinstance(results_calib.above, MeasurementRefusal)
+    assert isinstance(results_calib.above, MeasurementMarginOverlapCalibrated)
+    assert results_calib.above.overlap > 0.0
+    assert results_calib.above.confidence_interval > 0.0
+
+
+def test_resolve_coin_tilt_ambiguity():
+    """Assert resolve_coin_tilt_ambiguity forces positive tilt for u_x > 0."""
+    from app.modules.measurement.services import resolve_coin_tilt_ambiguity
+
+    # u_x > 0 returns positive
+    assert resolve_coin_tilt_ambiguity(0.5, 1.0) == 0.5
+    assert resolve_coin_tilt_ambiguity(-0.5, 1.0) == 0.5
+
+    # u_x <= 0 returns negative
+    assert resolve_coin_tilt_ambiguity(0.5, -1.0) == -0.5
+    assert resolve_coin_tilt_ambiguity(-0.5, -1.0) == -0.5
+    assert resolve_coin_tilt_ambiguity(0.5, 0.0) == -0.5
 
 
 def test_coin_oblique_synthetic_geometry():
-    """Prove MEA-007 correctly recovers the original scale of an oblique coin."""
+    """Prove MEA-007 correctly recovers the original scale of an oblique coin.
+
+    Note: The synthetic focal length matches the implementation's image-diagonal assumption.
+    This test fetches its own expectation geometrically and cannot detect if the assumption is
+    wrong for a real camera.
+    """
     import cv2
     import numpy as np
 

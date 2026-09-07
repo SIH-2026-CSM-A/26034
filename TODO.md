@@ -85,12 +85,22 @@ them, read the file.
    `contracts` enum, a `scans` column, a migration and a `ScanSummary` field, and `contracts/`
    is single-owner. It is auditable today only through the `reason` text on the findings it
    produced. Decide whether an officer needs to filter scans by it.
-8. **Persist the category proposal, or decide not to.** PIP-003 (#74) leaves it present on the
-   POST response and `None` on a GET re-read, because the `scans` row has no column for it. A
-   column plus its migration is a ticket of its own, and it is the thing that decides whether
-   an officer can act on a proposal after reloading the page. Separately: the catalogue path
-   proposes nothing, because `propose_category` takes an `ExtractionResult` that a listing
-   never builds. Decide whether a listing should propose.
+8. **Persist the category proposal and the display category, or decide not to.** PIP-003 (#74)
+   left the proposal present on the POST response and `None` on a GET re-read, because the
+   `scans` row has no column for it. PIP-006 (#112) puts `display_category` in exactly the same
+   position, for exactly the same reason — **two fields now, one migration.** A column plus its
+   migration is a ticket of its own, and it is the thing that decides whether an officer can
+   act on either after reloading the page.
+
+   Note what this does *not* block: the officer dashboard's category filter already works off
+   `product_category` (`fnt/src/officer/dashboard/index.tsx:172`), the officer's confirmed
+   legal category. Persisting these two would add a *presentation* axis beside it, not repair
+   a broken filter. Putting `display_category` on `ScanSummary` without a column was considered
+   in PIP-006 and refused: always-`None` reads as working.
+
+   Separately: the catalogue path proposes and classifies nothing, because both
+   `propose_category` and `classify_display_category` take an `ExtractionResult` that a listing
+   never builds. Decide whether a listing should.
 9. **Resolve `/fnt/` ownership.** Three sources give three answers — `.github/CODEOWNERS:29`
    assigns all of `/fnt/` to `@vineethsimha2151`; `HANDOFF.md` says the officer surface stays
    with Abhiram because it is on the demo path; `AGENTS.md:120` says Abhiram *"(Vineeth's
@@ -355,12 +365,25 @@ same batch. Nothing real was lost; DAT-005 does not change shape.
   return the whole image at confidence 0.0, which removes the other half of this hazard.)
 - **The 50 mm calibration card.** Deferred to MEA-008 and may close as a finding rather than an
   implementation. **Cost:** the manufacturer self-check flow (F2) has no reference object.
+- **`test_coin_oblique_synthetic_geometry` is flaky on CI** (`measurement/`, Yashashvi's).
+  Same commit, two CI runs: green (1003 passed), then
+  `Height 259.93 deviates from 200.0 by >5%` on a tree differing only in one markdown file,
+  then green again on a bare re-run. Passes 5/5 locally. Found during PIP-006 (#112) and
+  raised there; not diagnosed. There is no RNG in `measurement/services.py` — the path is
+  `Canny` → `findContours` → `max(key=contourArea)` → `fitEllipse`. **Cost:** a red tick on
+  an unrelated PR that costs someone a bisect, and a measurement guard that cannot be trusted
+  to mean what it says until it is deterministic.
+- **`test_independence_contract_lists_the_eight_modules` pins nine modules**
+  (`bck/tests/test_import_boundaries.py:67`). #101 renamed it from seven to eight; #104 added
+  `complaints` to the list without renaming again. **Cost:** cosmetic today — a name that
+  miscounts what it pins is a name the next person distrusts.
 - **UP042 conversion in `datasets/schema.py`.** **Cost:** the datasets CI job cannot gain a ruff
   step, so that directory is linted by nobody.
 - **Rule 6(11) encoding.** Deliberately not in the rule store;
   `bck/tests/modules/rules/test_loader.py:124` asserts its absence. **Cost:** F18 — is a unit
   sale price declared, and on the correct unit basis for the net quantity — is unevaluated. The
   extraction side exists (`bck/app/modules/extraction/unit_sale_price.py`); the rule does not.
-- **Persisting the Rule 3(c) officer flag and the PIP-003 category proposal.** Both need a
-  column and a migration, both are `contracts`-owned. **Cost:** neither survives a page reload,
-  so an officer cannot act on either after leaving the scan.
+- **Persisting the Rule 3(c) officer flag, the PIP-003 category proposal and the PIP-006 display
+  category.** All three need a column and a migration, all three are `contracts`-owned.
+  **Cost:** none of them survives a page reload, so an officer cannot act on any after leaving
+  the scan. Three fields, one migration — worth doing as one ticket rather than three.

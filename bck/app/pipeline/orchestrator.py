@@ -37,6 +37,7 @@ from app.contracts import (
 )
 from app.core import CalibrationMethod, get_settings
 from app.modules.extraction import bind_spans, propose_category
+from app.modules.extraction.category import DisplayCategoryTaxonomy, classify_display_category
 from app.modules.measurement import (
     calculate_pdp_area,
     measure_ink_extent,
@@ -138,6 +139,28 @@ class ImageScanResult(ContractModel):
     ``None`` where the evidence is missing, sparse, ambiguous or conflicting across
     categories. That is :func:`~app.modules.extraction.propose_category` abstaining, which
     is a reading in its own right and not a failure to produce one.
+    """
+
+    display_category: DisplayCategoryTaxonomy | None = None
+    """Where this package belongs in a browsing taxonomy. A presentation axis, nothing more.
+
+    **This is not** :class:`~app.modules.rules.ProductCategory` **and it never becomes one.**
+    They answer different questions. ``ProductCategory`` says which Act governs the package,
+    and the sector gate dispatches obligations on it; this says which shelf a person would
+    look on. ``packaged_food`` and ``food`` are not the same claim, and letting a display
+    label reach the sector gate would change which rules apply on the strength of the word
+    "shampoo".
+
+    So nothing downstream reads it — not the sector gate, not
+    :class:`~app.pipeline.rule_findings.EvidenceContext`, not the verdict. It travels beside
+    ``category_proposal`` and is subject to the same rule as that field: an obligation a
+    sector override could move stays INSUFFICIENT_EVIDENCE until a person confirms the
+    category, and neither of these readings is that person.
+
+    ``None`` where no display signal was read, or where two branches of the taxonomy scored
+    equally. That is
+    :func:`~app.modules.extraction.category.classify_display_category` abstaining, which is a
+    reading in its own right and not a failure to produce one.
     """
 
 
@@ -282,6 +305,14 @@ def run_image_scan(
     # on the strength of a regex over OCR text.
     proposal = propose_category(extraction)
 
+    # The display taxonomy, read off the same extraction and stopping in the same place. It
+    # is a separate axis from the proposal above rather than a finer grain of it: that one
+    # names the Act, this one names the shelf. Both are excluded from EvidenceContext for
+    # the same reason, and this one for an additional one — `packaged_food` is not `food`,
+    # so routing on it would apply the FSS Act to a package on the strength of a taxonomy
+    # built for a filter bar.
+    display = classify_display_category(extraction)
+
     declared = by_obligation(extraction.fields)
     contested = by_obligation(extraction.disagreements)
 
@@ -321,6 +352,7 @@ def run_image_scan(
             bbox=detection.bbox, area_px=detection.area, confidence=detection.confidence
         ),
         category_proposal=proposal,
+        display_category=display,
     )
 
 

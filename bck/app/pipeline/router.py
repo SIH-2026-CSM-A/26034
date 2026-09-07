@@ -158,14 +158,16 @@ async def submit_image_scan(
         outcome.spans,
         [span.span_id for span in outcome.unclassified_spans],
     )
-    # The proposal rides the response and touches nothing else. `new_scan` above already
-    # wrote `product_category` from the submitted form field, which is the officer's own
-    # answer; this is the evidence for the question, not a second way of answering it.
+    # The proposal and the display classification ride the response and touch nothing else.
+    # `new_scan` above already wrote `product_category` from the submitted form field, which
+    # is the officer's own answer; these are evidence for the question and a presentation
+    # axis beside it, not two more ways of answering it.
     return scan_detail(
         scan,
         outcome.verdict,
         finalised=False,
         category_proposal=outcome.category_proposal,
+        display_category=outcome.display_category,
     )
 
 

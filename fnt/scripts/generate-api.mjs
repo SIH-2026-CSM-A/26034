@@ -23,7 +23,8 @@ if (!schema) {
   const userLocalBin = process.env.HOME ? `${process.env.HOME}/.local/bin` : '';
   const currentPath = process.env.PATH || '';
   const extendedPath = userLocalBin ? `${userLocalBin}:${currentPath}` : currentPath;
-  const raw = execSync(`uv run --project ../bck python -c '${pyCode}'`, {
+  const raw = execSync('uv run --project ../bck python -', {
+    input: pyCode,
     env: { ...process.env, PATH: extendedPath, JWT_SECRET: process.env.JWT_SECRET || '0123456789abcdef0123456789abcdef', WSLENV: `${process.env.WSLENV || ''}:JWT_SECRET` },
     maxBuffer: 50 * 1024 * 1024,
   }).toString();

@@ -12,7 +12,7 @@ from app.contracts import (
     MeasurementResult,
 )
 
-from .schemas import PackageShape
+from .schemas import MeasurementMarginSet, PackageShape
 
 # If a measurement has zero variance (e.g. flush margins), we cannot claim perfect
 # physical certainty. We document an uncalibrated prior based on pixel quantisation:
@@ -28,10 +28,18 @@ REF_DIMS = {
 # Uncalibrated priors to be recalibrated once an evaluation set exists.
 PRIOR_CONFIDENCE_CARD = 0.01
 PRIOR_CONFIDENCE_COIN = 0.05
-PRIOR_CONFIDENCE_ELLIPSE_FIT = 0.80
 PRIOR_CONFIDENCE_EAN = 0.10
 
 MIN_PLANARITY_THRESHOLD = 0.85
+MIN_ELLIPSE_FIT_SCORE = 0.80
+
+
+def resolve_coin_tilt_ambiguity(theta: float, u_x: float) -> float:
+    """Explicitly resolve the two-way sign ambiguity of a coin ellipse fit.
+
+    We assume the top of the coin is further away from the camera.
+    """
+    return float(np.abs(theta)) if u_x > 0 else float(-np.abs(theta))
 
 
 def detect_reference_object(
@@ -107,7 +115,7 @@ def detect_reference_object(
             )
 
         fit_confidence = min(ellipse_area, contour_area) / max(ellipse_area, contour_area)
-        if fit_confidence < PRIOR_CONFIDENCE_ELLIPSE_FIT:
+        if fit_confidence < MIN_ELLIPSE_FIT_SCORE:
             return MeasurementRefusal(
                 reason=(
                     "Failed to detect reference: "
@@ -117,10 +125,7 @@ def detect_reference_object(
 
         # Calculate the tilt angle
         theta = np.arccos(b / a)
-
-        # Sign ambiguity: we explicitly resolve the two-way sign ambiguity by
-        # assuming the top of the coin is further away from the camera.
-        theta = np.abs(theta) if u[0] > 0 else -np.abs(theta)
+        theta = resolve_coin_tilt_ambiguity(theta, u[0])
 
         # Construct true 3x3 3D rotation matrix representing the tilt
         k_u = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
@@ -149,7 +154,7 @@ def detect_reference_object(
         diameter_px = a * 2.0
         scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
 
-        return scale, scale * PRIOR_CONFIDENCE_COIN, h_matrix
+        return scale, (scale * PRIOR_CONFIDENCE_COIN) / fit_confidence, h_matrix
 
     elif ref_type == "id_card":
         edges = cv2.Canny(gray, 50, 150)
@@ -523,14 +528,16 @@ def measure_margins(
     ref_type: str | None = None,
     is_artwork: bool = False,
     artwork_dpi: float | None = None,
-) -> dict[str, MeasurementResult]:
+) -> MeasurementMarginSet:
     """Measure the margins around a declaration bounding box."""
 
-    def make_refusals(reason: str) -> dict[str, MeasurementResult]:
-        return {
-            direction: MeasurementRefusal(reason=reason)
-            for direction in ("above", "below", "left", "right")
-        }
+    def make_refusals(reason: str) -> MeasurementMarginSet:
+        return MeasurementMarginSet(
+            **{
+                direction: MeasurementRefusal(reason=reason)
+                for direction in ("above", "below", "left", "right")
+            }
+        )
 
     if is_artwork:
         if artwork_dpi is None or artwork_dpi <= 0:
@@ -646,4 +653,4 @@ def measure_margins(
                 reference_object=ref_type,
             )
 
-    return results
+    return MeasurementMarginSet(**results)
