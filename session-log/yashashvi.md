@@ -58,3 +58,9 @@
 - Used Antigravity to safely inject and revert defects to falsify test boundaries (flush limits, type dispatch, and magnitude constraints).
 - Refactored test_margin_overlap_is_negative to verify both artwork and calibrated paths using literal expected values.
 - Verified all tests pass cleanly.
+
+## 2026-09-08 — MEA-012
+- Exposed measure_artwork_ink_extent and calculate_artwork_pdp_area through measurement/__init__.py to provide a public service-level entry point.
+- Refactored test_artwork.py to target the public API, ensuring the functions are visible to the rest of the application.
+- Retained parse_pdf_geometry as an internal helper.
+- Passed all import boundary checks and test verifications.
