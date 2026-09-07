@@ -108,4 +108,24 @@
 **Incomplete**
 - Live endpoint migration deferred pending backend router implementation
 
+### 2026-09-08 — FNT-010 re-audit following PR #110 rebase — Antigravity
+
+**Done**
+- Rebased branch onto `origin/main` following PR #110 (`Cmp 001 manufacturer complaint loop Part B`)
+- Re-ran `npm run generate:api` against current backend app
+- Re-inspected generated `fnt/src/services/generated/schema.d.ts`
+- Verified PR #110 only landed `bck/app/modules/complaints/repository.py` (database persistence layer) and did not add or mount FastAPI routers in `bck/app/main.py`
+- Confirmed zero HTTP routes exist for either VND-002 or CMP-002 in OpenAPI schema
+- Enforced Missing Endpoint Protocol: stopped migration of `VendorSubmissions.tsx` and `ComplaintTracking.tsx` to prevent inventing unserved client calls or breaking TypeScript typecheck
+- Maintained fixture files `fnt/src/fixtures/vendor-submissions.fixture.ts` and `fnt/src/fixtures/complaints.fixture.ts` to prevent broken half-migrated state
+- Verified frontend build (`npx tsc -b && npx vite build`) remains clean and unbroken
+
+**Decided**
+- Strict adherence to rule: never delete fixtures or leave broken imports while underlying endpoints remain unserved in backend router
+- Preserved strict verdict terminology (`PASS`, `REVIEW`, `POTENTIAL_VIOLATION`) and human-confirmation gate (`is_confirmed === true`) in current UI implementations
+
+**Incomplete**
+- Client migration of Vendor Submissions and Complaint Tracking pending FastAPI HTTP router implementation and mount for VND-002 and CMP-002
+
+
 
