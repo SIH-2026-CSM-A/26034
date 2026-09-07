@@ -110,20 +110,38 @@ def test_chain_verification_with_purge():
     assert 0 in verification.purged_indices
 
 
-def test_chain_verification_tampered_purge():
-    """AC: Tampered entry still fails verification after purge."""
-    now = datetime.now(UTC).isoformat()
-    e0 = create_genesis_entry("Data 0", now, EvidenceAssetType.PRODUCT_IMAGE)
-    e1 = append_entry(e0, "Data 1", now, EvidenceAssetType.PRODUCT_IMAGE)
+def test_chain_verification_tampered_purge(retention_manager, storage_client, sample_record):
+    """AC: Tampered entry still fails verification even after it is purged."""
+    now = datetime.now(UTC)
+    now_str = now.isoformat()
+    e0 = create_genesis_entry("Data 0", now_str, EvidenceAssetType.PRODUCT_IMAGE)
+    e1 = append_entry(e0, "Data 1", now_str, EvidenceAssetType.PRODUCT_IMAGE)
 
-    # Tamper with e0
+    # Store e0 so it can be purged
+    storage_client.store_image(e0.payload.encode("utf-8"))
+
+    # 1. Tamper with e0 (change payload, keep hash)
     tampered_e0 = e0.model_copy(update={"payload": "Tampered Data"})
 
-    chain = [tampered_e0, e1]
+    # 2. Purge e0 (force expired)
+    expired_e0 = tampered_e0.model_copy(
+        update={"timestamp": (now - timedelta(days=400)).isoformat()}
+    )
+
+    success, audit_entry = retention_manager.purge_evidence(
+        expired_e0, e1, sample_record, False, now
+    )
+    assert success is True
+    assert audit_entry is not None
+
+    # Resulting chain: [tampered_e0, e1, audit_entry]
+    chain = [tampered_e0, e1, audit_entry]
     verification = verify_chain(chain)
 
+    # 3. Assert verification still fails due to tampering
     assert verification.is_valid is False
     assert verification.reason == "payload_hash_mismatch"
+    assert verification.broken_link_index == 0
 
 
 def test_legal_hold_prevents_purge(
