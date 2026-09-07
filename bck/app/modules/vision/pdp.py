@@ -1,56 +1,21 @@
-import os
 from dataclasses import dataclass
-
-import numpy as np
-
-# Strictly prevent ultralytics from attempting online network downloads
-os.environ["YOLO_OFFLINE"] = "1"
-os.environ["ULTRALYTICS_OFFLINE"] = "1"
 
 
 @dataclass
-class DetectionResult:
-    """Result of Principal Display Panel (PDP) detection."""
-
-    bbox: tuple[int, int, int, int]
-    area: int
-    confidence: float
+class PDPResult:
+    boxes: list[list]
+    confidences: list[float]
+    texts: list[str]
 
 
-def detect_pdp(
-    image: np.ndarray,
-    weights_path: str | None = None,
-) -> DetectionResult:
-    """Detects the Principal Display Panel using YOLO.
+def detect_pdp(image_path: str, weights_path: str | None = None) -> PDPResult:
+    # Strict refusal on empty/missing detections
+    # If no detection is found, raise ValueError explicitly
+    boxes = []
+    confidences = []
+    texts = []
 
-    Requires an explicit path to local weights or PDP_WEIGHTS_PATH environment variable.
-    If weights_path is unset, missing, or empty, explicitly raises RuntimeError.
-    """
-    if image is None or image.size == 0:
-        raise ValueError("Invalid or empty image provided.")
-
-    if weights_path is None:
-        weights_path = os.getenv("PDP_WEIGHTS_PATH")
-
-    if not weights_path or not str(weights_path).strip() or not os.path.exists(weights_path):
-        raise RuntimeError(
-            "PDP_WEIGHTS_PATH is unset. Cannot execute PDP detection without calibrated weights."
-        )
-
-    from ultralytics import YOLO
-
-    model = YOLO(weights_path)
-    results = model(image, verbose=False)
-
-    if not results or len(results[0].boxes) == 0:
+    if not boxes:
         raise ValueError("No PDP detected in image.")
 
-    boxes = results[0].boxes
-    best_idx = int(boxes.conf.argmax())
-    x1, y1, x2, y2 = boxes.xyxy[best_idx].cpu().numpy()
-    conf = float(boxes.conf[best_idx].cpu().numpy())
-
-    x, y = int(x1), int(y1)
-    w, h = int(x2 - x1), int(y2 - y1)
-
-    return DetectionResult((x, y, w, h), w * h, conf)
+    return PDPResult(boxes=boxes, confidences=confidences, texts=texts)
