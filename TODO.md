@@ -1,4 +1,4 @@
-# TODO.md — end of Session 13, 2026-09-07
+# TODO.md — end of Session 14, 2026-09-07
 
 ---
 
@@ -15,41 +15,48 @@
    two-record behaviour and is the test EXT-007 changes.
 2. **DAT-005** — annotate the fifteen staged captures. The single highest-value item on the
    board; every accuracy figure in the PRD depends on it and none is currently defensible.
-3. **Send the three review drafts** — MEA-006 to Yashashvi (unblocked by #58), EXT-006 to
+3. **MEA-009 Part B** (Yashashvi) — replace the overlap refusal in `measure_margins` with
+   `MeasurementMarginOverlapExact` / `MeasurementMarginOverlapCalibrated`. Part A landed the
+   contract. Two things to know: the `dist_mm < 0` branch sits **above** the `is_artwork`
+   split, so both shapes must be constructed there; and margins are still not wired into
+   `pipeline/orchestrator.py` at all (it omits `measure_margins` pending EXT-004's declaration
+   bounding box), so this changes what the function returns without changing any scan yet.
+4. **Send the three review drafts** — MEA-006 to Yashashvi (unblocked by #58), EXT-006 to
    Sitanshu, EVD-005 to Shiva.
 
 ## Next
 
-4. Add `datasets` as a required status check in the `main-protection` ruleset. It has now
+5. Add `datasets` as a required status check in the `main-protection` ruleset. It has now
    reported once, which is the precondition.
-5. **Correct the test-count gotcha in CLAUDE.md.** It says backend reports 707 passed / 32
-   skipped locally and 737 / 2 on the runner. Both are stale by two merges. Measured on
-   `origin/main` in Session 13: **739 / 32** at a95e8fb, **741 / 32** at d1114af. Every
+6. **Correct the test-count gotcha in CLAUDE.md.** It says backend reports 707 passed / 32
+   skipped locally and 737 / 2 on the runner. Both are now stale by five merges. Measured on
+   `origin/main`: **739 / 32** at a95e8fb and **741 / 32** at d1114af in Session 13, and
+   **772 / 32** at 2817c6b in Session 14. Every
    session that reads the documented figure as a baseline starts from a wrong number, and
    #68 nearly reported a delta of +29 against a baseline that had moved underneath it. Fix
    the local figure, re-derive the runner figure alongside it, and say in the gotcha that a
    baseline is to be measured rather than quoted — the number will go stale again.
-6. **Persist the Rule 3(c) officer confirmation, or decide not to.** RUL-005 passes it as a
+7. **Persist the Rule 3(c) officer confirmation, or decide not to.** RUL-005 passes it as a
    plain `bool` down to `EvidenceContext` and deliberately does not store it: that would need
    a `contracts` enum, a `scans` column, a migration and a `ScanSummary` field, and
    `contracts/` is single-owner. It is auditable today only through the `reason` text on the
    findings it produced. Decide whether an officer needs to filter scans by it.
-7. **Docs PR — the `rtk` gotcha.** CLAUDE.md and AGENTS.md document the unsafe purge form.
+8. **Docs PR — the `rtk` gotcha.** CLAUDE.md and AGENTS.md document the unsafe purge form.
    Load-bearing for every falsification on this project.
-8. **DAT-003, ownership only.** CODEOWNERS still assigns `datasets/` to someone off the
+9. **DAT-003, ownership only.** CODEOWNERS still assigns `datasets/` to someone off the
    project, and `measurement/README.md` names the wrong owner.
-9. **PIP-003** — wire `propose_category` into the orchestrator as a proposal that can never
+10. **PIP-003** — wire `propose_category` into the orchestrator as a proposal that can never
    write itself into the confirmed category.
-10. Create TAM-002 and MEA-008 on the board. EXT-007 and PIP-004 are both on it now.
+11. Create TAM-002 and MEA-008 on the board. EXT-007 and PIP-004 are both on it now.
 
 ## Later
 
-11. **TAM-002** once DAT-005 exists — wiring plus the false-positive rate on real labels.
-12. **EVD-004 / EVD-006** — the report export takes mock shapes and needs a real
+12. **TAM-002** once DAT-005 exists — wiring plus the false-positive rate on real labels.
+13. **EVD-004 / EVD-006** — the report export takes mock shapes and needs a real
     `VerdictRecord`. Shiva's, and unblocked; he should be on it rather than idle.
-13. The seven UP042 findings in `datasets/schema.py`. Converting a schema that serialises to
+14. The seven UP042 findings in `datasets/schema.py`. Converting a schema that serialises to
     JSON is its own change, and until it happens the datasets job cannot gain a ruff step.
-14. The officer surface's presentation of 65 findings per scan. RUL-004 established this is a
+15. The officer surface's presentation of 65 findings per scan. RUL-004 established this is a
     presentation problem, not a rule-store one.
 
 ## Bugs
@@ -57,8 +64,16 @@
 - **`measure_margins` raises on a flush declaration on both paths.** Pre-existing on the
   artwork path; now also on the calibrated path since `MeasurementMarginCalibrated`
   constrains `confidence_interval` to `gt=0`. MEA-006 (#47) fixes it in `services.py`.
-- **`max(0, dist_px)` swallows overlap.** Ink intruding into the Rule 8(1) free space reads as
-  a margin of exactly zero — flush and overlapping become the same reading. In MEA-006's scope.
+- **An overlap is still reported as a refusal.** MEA-006 (#47) stopped `max(0, dist_px)`
+  collapsing overlap into a flush margin, but replaced it with
+  `MeasurementRefusal(reason="Margin overlaps active ink region.")` — which
+  `pipeline/measurement_findings.py:37` maps to INSUFFICIENT_EVIDENCE. So ink intruding into
+  the Rule 8(1) free space now reads as "we could not measure it" rather than as the finding.
+  MEA-009 Part A landed the two outcome types; **Part B (Yashashvi) returns them.**
+- **`FreeSpaceMeasurement` cannot carry an overlap, or a flush margin.**
+  `modules/rules/results.py:82` types all four clearances as `PositiveDecimal`, so
+  `evaluate_rule8_free_space` rejects `0.0` as well as any intrusion. Pre-existing, surfaced by
+  MEA-009; needs its own ticket in `modules/rules/`.
 - **Port-shadowing.** `POSTGRES_PORT` in the repo-root `.env`, `DATABASE_URL` in `bck/.env`,
   nothing linking them. Setting one without the other connects to the wrong server silently.
 - **`rtk` refuses single-line `find … -exec`** and exits 1. `find … ; pytest` on one line
