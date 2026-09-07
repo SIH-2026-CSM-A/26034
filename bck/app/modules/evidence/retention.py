@@ -8,7 +8,7 @@ from app.core.enums import ReviewAction
 from app.core.models import ReviewRow
 
 from .chain import append_purge_entry
-from .domain import EvidenceEntry, EvidenceAssetType
+from .domain import EvidenceAssetType, EvidenceEntry
 from .storage import EvidenceStorageClient
 
 logger = logging.getLogger(__name__)
@@ -18,16 +18,20 @@ def is_legal_hold(record: VerdictRecord, review_row: ReviewRow | None) -> bool:
     """
     Determines if evidence should be exempt from purge due to a legal hold.
 
-    Requirement: Evidence attached to a confirmed POTENTIAL_VIOLATION
-    under active review must not be purged. Confirmation is structural:
-    indicated by the existence of a ReviewRow with a final action.
+    Requirement: A confirmed POTENTIAL_VIOLATION is on legal hold if:
+    (a) It has no review row (unreviewed potential violation must NEVER be purged), OR
+    (b) Its review action is CONFIRM or OVERRIDE.
+
+    It is released from legal hold ONLY if the review action is REJECT.
     """
     if record.verdict != Verdict.POTENTIAL_VIOLATION:
         return False
 
-    return review_row is not None and review_row.action in (
+    if review_row is None:
+        return True
+
+    return review_row.action in (
         ReviewAction.CONFIRM,
-        ReviewAction.REJECT,
         ReviewAction.OVERRIDE,
     )
 
@@ -71,7 +75,7 @@ class RetentionManager:
         record: VerdictRecord,
         review_row: ReviewRow | None,
         current_time: datetime,
-    ) -> tuple[bool, EvidenceEntry | None]:
+    ) -> tuple[bool | str, EvidenceEntry | None]:
         """
         Executes the purge workflow for a single evidence entry.
 
@@ -97,15 +101,20 @@ class RetentionManager:
             return False, None
 
         # 4. Storage Purge
-        # The storage key is the payload_hash for images, or we assume the storage client
-        # knows how to handle the storage_key if the payload was a path.
-        # For this system, we use the payload_hash as the key for CAS.
-        storage_key = f"evidence/{entry.payload_hash}"
+        # Use the persisted storage reference if available; otherwise, fallback to
+        # reconstructed key for legacy entries (which may fail as per lead review).
+        storage_key = entry.storage_ref or f"evidence/{entry.payload_hash}"
         try:
-            self.storage_client.purge_image(storage_key)
+            purged = self.storage_client.purge_image(storage_key)
+            if not purged:
+                logger.error(
+                    f"Purge aborted for entry {entry.sequence}: Asset not found in storage."
+                )
+                return False, "asset_not_found"
         except Exception as e:
             logger.error(f"Failed to purge storage for entry {entry.sequence}: {e}")
             return False, None
+
 
         # 5. Audit Entry
         audit_entry = append_purge_entry(

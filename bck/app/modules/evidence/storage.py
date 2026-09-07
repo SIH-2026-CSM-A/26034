@@ -29,10 +29,12 @@ class EvidenceStorageClient(ABC):
         pass
 
     @abstractmethod
-    def purge_image(self, storage_key: str) -> None:
+    def purge_image(self, storage_key: str) -> bool:
         """
         Permanently deletes the asset bytes and replaces them with a tombstone.
         Must be idempotent.
+
+        Returns True if the object existed and was deleted, False if not found.
         """
         pass
 
@@ -69,15 +71,16 @@ class LocalStorageClient(EvidenceStorageClient):
 
         return data
 
-    def purge_image(self, storage_key: str) -> None:
+    def purge_image(self, storage_key: str) -> bool:
         file_path = self.base_path / storage_key
         if not file_path.exists():
-            return  # Idempotent: nothing to purge
+            return False  # Not found
 
         if file_path.read_bytes() == b"TOMBSTONE":
-            return  # Idempotent: already purged
+            return True  # Idempotent: already purged, but existed
 
         file_path.write_bytes(b"TOMBSTONE")
+        return True
 
 
 class S3ContentAddressedStorageClient(EvidenceStorageClient):
@@ -131,14 +134,17 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
             raise AssetPurgedError(f"Asset purged: {storage_key}")
         return data
 
-    def purge_image(self, storage_key: str) -> None:
+    def purge_image(self, storage_key: str) -> bool:
         try:
             response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
             if response["Body"].read() == b"TOMBSTONE":
-                return  # Idempotent
-        except Exception:
-            # If object doesn't exist, it's already effectively purged/missing
-            return
+                return True  # Idempotent
+        except Exception as e:
+            # Check for 404 / NoSuchKey specifically
+            error_code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            if error_code in ("404", "NoSuchKey"):
+                return False
+            raise
 
         self.s3.put_object(
             Bucket=self.bucket_name,
@@ -146,3 +152,4 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
             Body=b"TOMBSTONE",
             ContentType="text/plain",
         )
+        return True

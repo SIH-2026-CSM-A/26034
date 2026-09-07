@@ -20,5 +20,8 @@
 - **Enforced rules**: Human confirmation gate; strict verdict phrasing (PASS / REVIEW / POTENTIAL VIOLATION); zero occurrences of "violation confirmed" or "non-compliant"; explicit refusal and `INSUFFICIENT_EVIDENCE` handling; 100% clause reference citations.
 - **Agent used**: Claude Code
 
-## 2026-09-06 (Continued)
-- **What was done**: Fixed vocabulary alignment on PR #41. Replaced internal string states with `Verdict` and `FieldState` enums from `app.contracts`. Expanded `test_forbidden_vocabulary` to block `non_compliant` and `noncompliant`.
+## 2026-09-07
+- **What was done**: Implemented evidence retention and purge mechanism (EVD-005). Integrated Content-Addressed Storage (CAS) tombstoning, auditable purge records in the hash chain, and legal hold logic for `POTENTIAL_VIOLATION` verdicts.
+- **PR #46 Fixes**: Resolved false purge attestation (no audit record if asset missing), handled string JSON payloads in `is_purged`, implemented specific S3 `ClientError` handling for 404s, and corrected legal hold conditions.
+- **Verification**: Verified tamper-after-purge detection and retention window eligibility across different asset classes (`PRODUCT_IMAGE` vs `PERSONAL_IDENTIFIER`). Fixed test topologies and `NameError` in legal hold tests.
+- **Agent used**: Claude Code

@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -10,7 +11,7 @@ from app.modules.evidence.chain import (
     create_genesis_entry,
     verify_chain,
 )
-from app.modules.evidence.domain import PurgeRecordPayload, EvidenceAssetType
+from app.modules.evidence.domain import EvidenceAssetType, PurgeRecordPayload
 from app.modules.evidence.retention import RetentionManager
 from app.modules.evidence.storage import AssetPurgedError, LocalStorageClient
 
@@ -62,6 +63,33 @@ def evidence_chain():
     return [e0, e1]
 
 
+def test_storage_purge_propagates_errors(storage_client):
+    """AC: Non-404 errors during purge must propagate."""
+    with patch.object(storage_client, 'purge_image', side_effect=RuntimeError("Network failure")), \
+         pytest.raises(RuntimeError, match="Network failure"):
+        storage_client.purge_image("some-key")
+
+def test_s3_purge_propagates_errors():
+    """AC: S3 purge must propagate permission/network errors."""
+    from unittest.mock import MagicMock
+
+    from app.modules.evidence.storage import S3ContentAddressedStorageClient
+
+    client = S3ContentAddressedStorageClient("http://localhost", "bucket", "key", "secret")
+    client.s3 = MagicMock()
+
+    # Mock a 403 Forbidden error
+    error_response = MagicMock()
+    error_response.get.return_value = {"Error": {"Code": "403"}}
+    client.s3.get_object.side_effect = Exception("Forbidden")
+    # Need to mock the .response attribute on the exception
+    client.s3.get_object.side_effect = type(
+        'Exception', (Exception,), {'response': error_response}
+    )("Forbidden")
+
+    with pytest.raises(Exception, match="Forbidden"):
+        client.purge_image("some-key")
+
 def test_storage_purge_and_error(storage_client):
     """AC: Purged bytes are gone and get_image raises AssetPurgedError."""
     key = storage_client.store_image(b"some image data")
@@ -87,6 +115,17 @@ def test_storage_purge_idempotency(storage_client):
     with pytest.raises(AssetPurgedError):
         storage_client.get_image(key)
 
+
+def test_is_purged_handles_json_string():
+    """AC: is_purged works for both dict and JSON string payloads."""
+    payload_dict = {"type": "purge_record", "target_sequence": 0}
+    payload_json = json.dumps(payload_dict)
+
+    e_dict = create_genesis_entry(payload_dict, "now", EvidenceAssetType.AUDIT_LOG)
+    e_json = create_genesis_entry(payload_json, "now", EvidenceAssetType.AUDIT_LOG)
+
+    assert e_dict.is_purged is True
+    assert e_json.is_purged is True
 
 def test_chain_verification_with_purge():
     """AC: verify_chain passes across a purged entry and reports it."""
@@ -138,10 +177,33 @@ def test_chain_verification_tampered_purge(retention_manager, storage_client, sa
     chain = [tampered_e0, e1, audit_entry]
     verification = verify_chain(chain)
 
-    # 3. Assert verification still fails due to tampering
+    # 3. Assert verification still fails due to tampering AND reports it as purged
     assert verification.is_valid is False
     assert verification.reason == "payload_hash_mismatch"
     assert verification.broken_link_index == 0
+    assert 0 in verification.purged_indices
+
+    # 4. Verify untampered purge succeeds
+    e_clean = create_genesis_entry("Clean", now_str, EvidenceAssetType.PRODUCT_IMAGE)
+    storage_client.store_image(e_clean.payload.encode("utf-8"))
+
+    # Purge happens based on the entry's current state, not the one used for hashing
+    expired_clean = e_clean.model_copy(
+        update={"timestamp": (now - timedelta(days=400)).isoformat()}
+    )
+
+    # The chain linkage must use the original (non-expired) entry for the hash to be correct
+    e_clean_next = append_entry(e_clean, "Clean Next", now_str, EvidenceAssetType.PRODUCT_IMAGE)
+
+    success_clean, audit_clean = retention_manager.purge_evidence(
+        expired_clean, e_clean_next, sample_record, None, now
+    )
+    assert success_clean is True
+
+    clean_chain = [e_clean, e_clean_next, audit_clean]
+    verification_clean = verify_chain(clean_chain)
+    assert verification_clean.is_valid is True
+    assert 0 in verification_clean.purged_indices
 
 
 def test_legal_hold_prevents_purge(
@@ -162,19 +224,9 @@ def test_legal_hold_prevents_purge(
 
     # Run purge workflow
     now = datetime.now(UTC)
-    # Create a review row to trigger legal hold for POTENTIAL_VIOLATION
-    from app.core.models import ReviewRow
-    from app.core.enums import ReviewAction
-    from uuid import uuid4
-    review_row = ReviewRow(
-        scan_id=uuid4(),
-        verdict_id=uuid4(),
-        action=ReviewAction.CONFIRM,
-        officer_id="officer",
-        note="Confirming",
-        created_at=now,
-    )
-    result = retention_manager.purge_evidence(e0, e0, record, review_row, now)
+    # Build a valid chain (e0 -> e1) and purge e0 referencing e1
+    e1 = append_entry(e0, "Data 1", now.isoformat(), EvidenceAssetType.PRODUCT_IMAGE)
+    result = retention_manager.purge_evidence(e0, e1, record, None, now)
 
     assert result[0] is False
     # Verify data still exists
@@ -248,7 +300,11 @@ def test_safety_flag(storage_client, sample_record, evidence_chain):
             update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
         )
 
-        result = rm.purge_evidence(e0, e0, sample_record, None, datetime.now(UTC))
+        # Build a valid chain (e0 -> e1) and purge e0 referencing e1
+        e1 = append_entry(
+            e0, "Data 1", datetime.now(UTC).isoformat(), EvidenceAssetType.PRODUCT_IMAGE
+        )
+        result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
 
         assert result[0] is False
         assert storage_client.get_image(f"evidence/{e0.payload_hash}") == (
@@ -276,7 +332,11 @@ def test_purge_creates_audit_record(storage_client, sample_record, evidence_chai
             update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
         )
 
-        result = rm.purge_evidence(e0, e0, sample_record, None, datetime.now(UTC))
+        # Build a valid chain (e0 -> e1) and purge e0 referencing e1
+        e1 = append_entry(
+            e0, "Data 1", datetime.now(UTC).isoformat(), EvidenceAssetType.PRODUCT_IMAGE
+        )
+        result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
 
         assert result[0] is True
         # Check that it's actually purged in storage
