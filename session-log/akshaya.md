@@ -47,8 +47,12 @@
 =======
 ## Session - VIS-004: PaddleOCR 3.7.0 & Offline Setup Protocol
 - **PaddleOCR 3.7.0 API Migration**: Standardized PaddleOCR initialization in `bck/app/modules/vision/ocr.py` to use `text_detection_model_dir`, `text_recognition_model_dir`, `use_textline_orientation=False`, `device="cpu"`, and `ocr.predict(image)`, completely eliminating legacy PaddleOCR 2.x parameters (`cls=False`).
-- **PDP Empty-Detection Graceful Fallback**: Verified in `bck/app/modules/vision/pdp.py` that missing, unset, or non-existent `PDP_WEIGHTS_PATH` values return full-image bounds `(0, 0, w, h)` with `confidence=0.0` without falling back to COCO weights or network downloads. Added comprehensive unit tests in `bck/tests/modules/vision/test_pdp.py`.
+- **PDP Signature & Graceful Argument Handling**: Refactored `detect_pdp()` in `bck/app/modules/vision/pdp.py` to accept `weights_path: str | None = None` (defaulting to `os.getenv("PDP_WEIGHTS_PATH")`), supporting both `np.ndarray` and image file path strings (`str | os.PathLike`). Omitted or missing weights paths gracefully return full-image bounds `(0, 0, w, h)` with `confidence=0.0` without throwing `TypeError`.
 - **Environment Configuration**: Updated `bck/.env.example` with all four required offline environment variables (`PDP_WEIGHTS_PATH`, `OCR_DET_MODEL_DIR`, `OCR_REC_MODEL_DIR`, `TESSERACT_TESSDATA_DIR`) using real path examples and explicit documentation that blank values are treated as unset.
 - **Offline Model Setup Documentation**: Expanded `bck/app/modules/vision/README.md` with complete CLI setup protocols, model storage footprint summary (~25.8 MB total), Tesseract apt installation, tessdata path export, and PaddleOCR v4 tarball extraction steps.
+<<<<<<< HEAD
 - **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 686 passed, 32 skipped).
 >>>>>>> 24d3e2a (feat(vision): bootstrap local weights and 3.7.0 PaddleOCR API (VIS-004))
+=======
+- **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 687 passed, 32 skipped).
+>>>>>>> d433fc6 (docs(session-log): append VIS-004 session entry)
