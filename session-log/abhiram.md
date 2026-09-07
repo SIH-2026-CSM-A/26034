@@ -2848,3 +2848,176 @@ No repository, route or contracts type for any of the four tables — this ticke
 one migration; VND-001, CMP-001 and RVW-001 own what reads them. No `relationship()` on any
 model, no `ondelete`/`onupdate` on any foreign key, no `CheckConstraint`, and no `thread_id` on
 `complaints` — matching what every existing table here does.
+
+## Session 22 — 2026-09-07, VIS-008 (Claude Code, Opus 5)
+
+**`detect_pdp` works without a trained model.** `bck/app/modules/vision/pdp.py` and
+`bck/tests/modules/vision/test_pdp.py`. Nothing else touched. `vision/` is Akshaya's;
+this edit is assigned, following the VIS-004 precedent.
+
+Base `20d4259`. Started on `57abefc` and rebased twice as `origin/main` moved mid-session (VIS-006
+landed as #86 taking Session 20, then CORE-004 taking Session 21, so this is 22 — the number was
+read at write time and re-read after each rebase).
+
+### What changed
+
+`detect_pdp` no longer raises `RuntimeError` when there are no weights. It runs a
+morphological largest-coherent-text-region heuristic instead: greyscale, `MORPH_GRADIENT`
+for glyph edges, Otsu, a width-scaled `MORPH_CLOSE` to merge glyphs into blocks, largest
+external contour. Standard OpenCV, already a dependency, no model, no new package.
+
+The two paths return **different types**, deliberately:
+
+| | model path | no-weights path |
+|---|---|---|
+| type | `PDPResult` | `HeuristicTextRegion` |
+| `method` | `"model"` | `"heuristic"` |
+| `text` | present (vestigial) | **absent** |
+
+Siblings with no shared base, for the reason `contracts/measurement.py:38-45` gives about
+the margin/overlap types: a subclass would make `isinstance(region, PDPResult)` true while
+no longer guaranteeing what `PDPResult` promises, and every `isinstance` check written
+against the model type would start passing vacuously over a guess. Both carry
+`bbox`/`confidence`/`area` so `orchestrator.py:320-322` needs no change — structural
+compatibility for a caller that only records where the panel was, type-level distinction
+for anything that acts on the figure.
+
+Confidence on the heuristic side is `HEURISTIC_CONFIDENCE_PRIOR = 0.3`, documented as an
+uncalibrated prior and a fixed sentinel — not an accuracy, not measured, and deliberately
+not comparable to a detector's own score. Per AGENTS.md constraint 12.
+
+A missing weights *file* routes to the heuristic rather than raising. That is on purpose:
+`orchestrator.py:264` passes `str(settings.pdp_weights_path)`, so once `pdp_weights_path`
+becomes optional the string arriving here is `"None"`. Raising on it would move the
+boot-time refusal into the first scan instead of removing it.
+
+### Refusals — all kept, one added
+
+Empty array and empty detection both still `raise ValueError("No PDP detected in image.")`,
+unchanged from #63. Added: an unreadable image path, a frame with no contour, and a
+heuristic region covering `MAX_FRAME_COVERAGE` (0.98) or more of the frame. That last one
+is the point — uniform noise measured coverage 1.000, which is exactly the full-image
+box at `confidence 0.0` that #63 removed.
+
+`test_detect_pdp_unset_weights_raises_runtime_error` asserted behaviour this ticket
+deliberately replaces. Not deleted — renamed to
+`test_detect_pdp_unset_weights_falls_back_to_heuristic` with the reason in its docstring.
+
+### Falsification — six defects, full suite each, no `-x`
+
+Bytecode purged with `/usr/bin/find` on its own line and the directory count asserted zero
+before every run. Each defect reddened **exactly one** test, 850 passed alongside it:
+
+1. `MAX_FRAME_COVERAGE` 0.98 → 1.01 → `test_heuristic_refuses_a_frame_spanning_region`
+2. no-contour branch returns `(0, 0, w, h)` at 0.0 → `test_heuristic_refuses_a_blank_frame`
+3. `HeuristicTextRegion(PDPResult)` → `test_heuristic_region_is_not_a_model_detection`,
+   red on the aimed line `assert not isinstance(region, PDPResult)`
+4. model path returns `HeuristicTextRegion` → `test_model_detection_is_not_a_heuristic_region`
+5. empty array returns a degenerate region → `test_detect_pdp_empty_image`, `DID NOT RAISE`
+6. `HEURISTIC_CONFIDENCE_PRIOR` 0.3 → 0.4 → `test_heuristic_confidence_is_a_fixed_uncalibrated_prior`
+
+**My own errors, recorded.**
+
+- Defect 5 was first injected by *deleting* the guard. The test went red — but with a
+  `TypeError` from ultralytics choking on the fake weights file, not the `ValueError` the
+  test names. That is an incidental red and would have been a false confirmation. Re-aimed
+  it at the real defect (return a degenerate region instead of refusing) and it failed with
+  `DID NOT RAISE ValueError`, which is the claim.
+- The first attempt at this session-log entry was reconstructed with a broken `git show |
+  grep '^+'` pipeline that extracted zero lines, so the commit was empty and the rebase
+  dropped it. Caught by checking `git show --stat`, not by assuming. Nothing above this
+  heading was affected — the file was restored from `origin/main` verbatim first.
+
+### Real images — 4 captures, honest count
+
+Run in place against `~/NewProjects/26034/datasets/raw/`, read-only, nothing copied in.
+One kernel ratio, applied uniformly, no per-image tuning. Judged by rendering the bbox over
+the capture and looking at it, not by the coverage number.
+
+| file on disk | what it actually shows | coverage | is it a panel? |
+|---|---|---|---|
+| `cosmetics_himalaya_face_wash_100ml_001` | a Parle-G packet | 0.577 | no — the whole packet face |
+| `cosmetics_himalaya_face_wash_100ml_002` | flat Parle-G artwork | 0.596 | no — the whole printed sheet |
+| `food_parle_g_biscuits_001` | a face wash tube | 0.202 | yes — the back-of-tube declaration block |
+| `food_parle_g_biscuits_002` | a face wash tube | 0.276 | yes — the printed area, cap excluded |
+
+**4/4 return a region. 0/4 return the whole frame. 2/4 are plausibly the panel.**
+
+The two that are not are the ones where the package fills the frame and carries print
+across its whole face — there, "largest coherent text region" and "the package" are the
+same thing. Not tuned away; it is the finding. Direction of the harm, read off
+`rules.yaml:267-286` rather than from memory: Table-I bands a *larger* area to a *taller*
+required height, so overestimating panel area biases toward POTENTIAL VIOLATION — the same
+direction as the #63 defect. It does not bite today (see finding 4 below), and the
+frame-coverage ceiling is what stops the extreme case.
+
+### Gates
+
+Baselines measured in-session, clean tree, bytecode purged before each run, main's two files
+checked back out over mine each time rather than a number carried forward. Base moved twice
+under this branch:
+
+| base | main | this branch |
+|---|---|---|
+| `57abefc` | 842 / 32 | 851 / 32 |
+| `dd52c6c` | 843 / 32 | 852 / 32 |
+| `20d4259` | 874 / 43 | 883 / 43 |
+
++9 every time, matching the +9 tests in `test_pdp.py` (5 → 14). Three worked measurements, no
+baseline to quote — the totals moved by 31 passed and 11 skipped between the first and last
+while this entry was being written.
+
+CI delta, and **my derivation of it was wrong twice**. First I ran
+`pytest -m postgres --collect-only`, got **31** of 884 collected, and predicted CI would show
+**883 passed / 1 skipped**, adding that this was 31 rather than the 30 `CLAUDE.md` states. CI
+reported **882 passed, 2 skipped** — exactly **30** un-skipped, and `CLAUDE.md` was right. The
+mark count is not the un-skip count.
+
+Then the base moved to `20d4259` and CI reported **924 passed / 2 skipped** against local
+**883 / 43** — **41** un-skipped. So `CLAUDE.md`'s 30 is now stale too, and the lesson is not
+"the number is 30", it is that **the delta has to be read off the CI summary line every time**.
+Do not compute it from `-m postgres --collect-only` and do not carry it from this entry either.
+Corrected in the PR body as well.
+
+`ruff check`, `ruff format --check` and `lint-imports` all exit 0; `lint-imports` analysed 118
+files and 404 dependencies, so it had the installed package and really ran. Exit codes read
+directly, not through a pipe.
+
+### Raised, not fixed — all for the batched docs PR
+
+1. ~~`bck/app/modules/vision/README.md:103`~~ — **already fixed by DOCS-005 (#95)**, which
+   landed on `main` mid-session. Re-checked after rebasing; the stale sentence is gone.
+2. `bck/tests/core/test_startup.py:4` now says `detect_pdp` raises `RuntimeError`, which
+   DOCS-005 made correct and **this PR makes stale again** — it now raises neither.
+   `bck/app/core/README.md:117` is correct as DOCS-005 left it (only `extract_panel_text`).
+3. `ARCHITECTURE.md:357` and `TODO.md:355` still describe `detect_pdp` returning the whole
+   image at confidence 0.0 on empty detection. Not fixed by DOCS-005. `TODO.md` deliberately
+   left alone rather than folded into this ticket.
+4. **The detected PDP area never reaches Rule 7.** `orchestrator._measurements` computes
+   `"pdp_area"` from `calculate_pdp_area(image, …)` over the *whole image*, independent of
+   `detection`; `detection` is read only into `PanelDetection`. The coupling this ticket's
+   type distinction protects against is prospective, not active.
+5. `PDPResult.area` is `float`, `PanelDetection.area_px` is `int` (`orchestrator.py:80-85`).
+6. ~~`pdp.py` takes box `[0]`, not `conf.argmax()`, while the docs said `argmax`~~ — the
+   **docs half was fixed by DOCS-005 (#95)**; `CLAUDE.md:116` now says `boxes.xyxy[0]`, "the
+   first box the detector returns, not the most confident one". The code behaviour stands and
+   is unchanged here; selecting the most confident box is a behaviour change this ticket did
+   not ask for.
+7. **`datasets/` — reported exactly, not diagnosed, nothing touched.** DAT-005 (#77) claims
+   twelve annotated captures across six SKUs.
+   - `datasets/annotations/food/` — 10 files; `datasets/annotations/cosmetics/` — 2.
+   - `datasets/manifest.json` — 12 records.
+   - **0 of 12** `relative_image_path` entries resolve to a file.
+   - 4 JPEGs exist on disk and none is referenced by any manifest record. The manifest's
+     Parle-G entries are `food_parle_g_biscuits_82_5g_00{1,2}`; the directory on disk is
+     `food_parle_g_biscuits_00{1,2}`. There is no Himalaya record or annotation at all.
+   - **The two categories' contents are swapped against their filenames**: the two files
+     under `raw/cosmetics/…himalaya_face_wash…` are photographs of a Parle-G biscuit packet,
+     and the two under `raw/food/…parle_g_biscuits…` are photographs of a face wash tube.
+
+### Still open after this
+
+**This does not unblock the demo on its own.** `pdp_weights_path` is still in
+`Settings.missing_model_paths()` (`bck/app/core/config.py:186-207`), so `main.py:47-61`
+still refuses to boot. `bck/app/core/config.py` was not touched — another session had it
+open, and that change is Abhiram's.
