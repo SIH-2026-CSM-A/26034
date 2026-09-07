@@ -498,4 +498,3 @@ def test_additional_script_unclassified_span_conservation():
     assert len(res.unclassified_spans) == 2
     unclassified_ids = {s.span_id for s in res.unclassified_spans}
     assert unclassified_ids == {"tam1", "ben1"}
-
