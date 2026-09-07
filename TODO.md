@@ -1,4 +1,4 @@
-# TODO.md — end of Session 14, 2026-09-07
+# TODO.md — end of Session 15, 2026-09-07
 
 ---
 
@@ -42,11 +42,21 @@
    `contracts/` is single-owner. It is auditable today only through the `reason` text on the
    findings it produced. Decide whether an officer needs to filter scans by it.
 8. **Docs PR — the `rtk` gotcha.** CLAUDE.md and AGENTS.md document the unsafe purge form.
-   Load-bearing for every falsification on this project.
+   Load-bearing for every falsification on this project. **Fold in two more corrections:**
+   CLAUDE.md's test baseline says 707/32 and `origin/main` @ `acc0815` measures **780/32** —
+   six merges stale; and `ARCHITECTURE.md:247` and `:296` still say `propose_category` has
+   no caller, which PIP-003 (Session 15) fixed.
 9. **DAT-003, ownership only.** CODEOWNERS still assigns `datasets/` to someone off the
    project, and `measurement/README.md` names the wrong owner.
-10. **PIP-003** — wire `propose_category` into the orchestrator as a proposal that can never
-   write itself into the confirmed category.
+10. **PIP-003 landed (Session 15).** `propose_category` has a caller, an export and a test
+   that goes red the moment a proposal routes anything — confirming `food` rather than
+   proposing it takes the gate-settled count from 30 to 0, which is what the test pins. Two
+   follow-ups it deliberately did not take: **(a)** the proposal is **not persisted** —
+   present on the POST response and `None` on a GET re-read, because the `scans` row has no
+   column for it. A column plus its migration is a ticket of its own, and it is the thing
+   that decides whether an officer can act on a proposal after reloading the page.
+   **(b)** the catalogue path proposes nothing; `propose_category` takes an
+   `ExtractionResult` that a listing never builds. Decide whether a listing should propose.
 11. Create TAM-002 and MEA-008 on the board. EXT-007 and PIP-004 are both on it now.
 
 ## Later
