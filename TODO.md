@@ -15,10 +15,34 @@ them, read the file.
    has twelve real tests there. Three checks green. Exact items in `TICKETS.md`. **No image has
    ever passed through this pipeline and this is the ticket that changes that** — it has now
    burned more than a day and has gone backwards.
-2. **#77 DAT-005 — review and merge.** Twelve annotated captures, uncalibrated throughout,
-   plus a populated `datasets/manifest.json`. This is the item every accuracy figure in the PRD
-   depends on and none has been defensible without it. `declared` is per-image, not pack-level.
-   Read `datasets/manifest.json` against `ingest_images.py` before merging — see Bugs.
+2. ~~**DAT-005** — annotate the captures.~~ **Merged as #77.** **Not** the fifteen `_staging/`
+   files: those all carry a ₹10 coin, which is why the ticket was parked. Twelve new real
+   captures landed — six SKUs, front and back, no reference object in any frame — annotated at
+   `datasets/annotations/{food,cosmetics}/` with a twelve-record `datasets/manifest.json`. All
+   twelve are `uncalibrated`, `reference_object.present` false, `pdp.is_measurable` false, every
+   height field null, verdict `REVIEW`. `_staging/` is untouched and still unannotated; its
+   provenance is unconfirmed and that is a separate decision.
+
+   **Both `TestCommittedAnnotationsLoad` guards now execute, for the first time ever.**
+   `datasets/tests/test_schema_guards.py:121` and `:128` each open with
+   `if not files: pytest.skip("corpus is empty pending real captures (DAT-002)")`. From DAT-002
+   until #77 they skipped every run, including every CI run since #60 put `datasets/` in the
+   pipeline. Verified three ways. Locally with the twelve annotations present both pass;
+   locally with `datasets/annotations/{food,cosmetics}/` removed both report
+   `SKIPPED … corpus is empty pending real captures (DAT-002)`; and in CI the `datasets` job
+   went from **26 passed / 2 skipped** on #76 and #66 to **28 passed / 0 skipped** on #77 — the
+   two that stopped skipping are these two. They run in the `datasets` job, not `backend`:
+   `bck/pyproject.toml:56` is `testpaths = ["tests"]`, so `cd bck && uv run pytest` has never
+   collected `datasets/tests/` and the backend count says nothing about them.
+   `test_every_annotation_validates` now validates all twelve against `LabelledSample`, and
+   `test_no_annotation_claims_a_millimetre_height` now asserts on all twelve that an
+   uncalibrated capture carries no `numeral_height_mm` and no `letter_height_mm`. **That second
+   guard is what enforces Constraint 2 on ground truth**, and this is the first run in which it
+   has had a sample to enforce it against.
+
+   **It does not make an accuracy figure available.** Every capture is uncalibrated, so nothing
+   in the set can support a Rule 7 finding. No accuracy figure is quoted anywhere and none
+   should be until a calibrated set exists.
 3. **EXT-009 — `MIXED` no longer marks the pair Rule 9(4) turns on.** #66 merged with this open.
    `bck/app/modules/extraction/binder.py:190` returns `MIXED` for any two of five scripts, so
    Tamil-plus-Bengali and Devanagari-plus-Latin are now the same value — and the second is the
@@ -75,8 +99,11 @@ them, read the file.
 
 ## Later
 
-10. **TAM-002** once #77 merges — wiring plus the false-positive rate on real labels. This is
-    the first ticket on the board that can be run against annotated images.
+10. **TAM-002 — unblocked by #77, and it should start.** Wiring plus the false-positive rate on
+    real labels; the first ticket on the board that can run against annotated images. One thing
+    to carry from DAT-005: **all twelve captures are uncalibrated**, so a false-positive rate
+    measured against them is a real number, but nothing in the set can support a Rule 7 finding.
+    Do not let a tamper figure be read as an accuracy figure for the measurement path.
 11. **EVD-004 / EVD-006 / EVD-007** — the report export takes mock shapes and needs a real
     `VerdictRecord`; EVD-007 single-sources the evidence storage key. All three are Shiva's and
     all three are unblocked now that #46 has merged.
@@ -107,25 +134,32 @@ It also contradicts `datasets/README.md`. Needs a `NOT_IN_FRAME` state or a `vis
 bool, and a decision about which — a state changes the enum and therefore needs an
 `ALTER TYPE ... ADD VALUE` if it ever reaches Postgres.
 
-**2. `ingest_images.py` writes a manifest key the tests do not read, and #77 makes that worse
-rather than better.** `bck/tests/contracts/test_manifest_integrity.py:16` and `:41` both loop
-`manifest.get("records", [])`. `datasets/ingest_images.py:47-52` writes a `"samples"` key.
+**2. `ingest_images.py` emits `samples`; everything that reads the manifest reads `records`.
+Since #77 this is a live regression risk, not a latent one.** `datasets/ingest_images.py:47-52`
+writes a `"samples"` key. `bck/tests/contracts/test_manifest_integrity.py:16` and `:41` both
+loop `manifest.get("records", [])`.
 
-On `main` today the committed `datasets/manifest.json` is nineteen bytes — `{"records": []}` —
-and was not produced by that writer at all: it has no `manifest_version` and no `total_samples`.
-So both loops get `[]` twice over, and `test_annotation_image_sha256_matches_manifest` has **no
-assertion outside its loop**, so it passes against any JSON object whatsoever. Two green tests
-claim the annotation hashes match the images and nothing is compared.
+**Before #77** the defect was dormant: the committed `datasets/manifest.json` was nineteen bytes
+— `{"records": []}` — so both loops got `[]` twice over and two green tests claimed the
+annotation hashes matched the images while comparing nothing.
+`test_annotation_image_sha256_matches_manifest` still has **no assertion outside its loop**, so
+it passes against any JSON object whatsoever.
 
-**#77 changes the shape of the defect, not its existence.** It lands a real hand-written
-manifest with twelve `records`, so both tests stop being vacuous — good. But the writer still
-emits `samples`, so **running the project's own ingest script would replace that manifest with
-one the tests silently skip**, and the suite would go green on nothing again with no diff to
-explain it. **Why it matters:** the corpus integrity guard is the only thing standing between a
-fabricated annotation and a quoted accuracy figure, and this project has already lost a corpus
-to fabrication once. Fix the writer to emit `records`, or delete the writer and say the manifest
-is maintained by hand. Do not fix the tests to read `samples` — the checked-in manifest is the
-artefact that matters.
+**After #77 the same mismatch destroys real data.** `main` now carries a **real twelve-record
+manifest keyed `records`**, hand-written, carrying the `sha256` of every annotated capture. The
+writer has not been fixed. **So anyone who runs the project's own ingest script to regenerate
+the manifest silently replaces twelve records with a `samples` array** — the integrity tests go
+back to looping an empty list, both stay green, and there is no failing test and no obvious diff
+to say the corpus guard stopped guarding. The script is the documented way to rebuild the
+manifest, so this is a thing someone will do, not a thing they might.
+
+**Why it matters:** those two tests are the only link between a checked-in annotation and the
+image it claims to describe, and this project has already lost a corpus to fabrication once.
+**Fix the writer to emit `records`**, or delete the writer and state that the manifest is
+maintained by hand. Do **not** fix the tests to read `samples` — the checked-in manifest is the
+artefact that matters. Either way, add the assertion that makes an empty manifest fail, so the
+vacuum cannot come back quietly. Until it is fixed, treat `ingest_images.py` as unsafe to run
+against `datasets/`.
 
 **3. `ingest_images.py` demands a Google Drive ID the design explicitly forbids.**
 `datasets/ingest_images.py:18-19` raises `ValueError("A valid Google Drive folder ID must be
@@ -247,7 +281,6 @@ gone, not outstanding.
 
 ## Blocked
 
-- **TAM-002** on #77 landing. Genuinely blocked; Akshaya has #63 in the meantime.
 - **`measure_margins` orchestrator wiring** (item 4a) on EXT-004's declaration bounding box
   *and* on MEA-011. Blocked twice.
 - **PIP-002** on EXT-004.
@@ -256,14 +289,20 @@ gone, not outstanding.
 them: #43 MEA-005 (`pdfplumber` approved, merged), #47 MEA-006 (#58 merged), EXT-007 (#65 and
 #67 landed the contract and the pipeline; merged as #71), PIP-004 (merged), MEA-010 and MEA-011
 (unblocked by #43), FNT-004 (merged as #78), EVD-005 (merged as #46), RUL-007 (merged as #76),
-EVD-006 and EVD-007 (Shiva is free).
+EVD-006 and EVD-007 (Shiva is free), **TAM-002 — unblocked, DAT-005 merged as #77** — and
+DAT-005 itself, which was blocked on a phone and six real packages, not on code.
 
 ---
 
 ## Done — with dates
 
-**2026-09-07, later** — #76 RUL-007 (15:02) · #46 EVD-005 (15:06) · #78 FNT-004 (15:11).
-Three merges in nine minutes, all while this file was being rewritten.
+**2026-09-07, later** — #76 RUL-007 (15:02) · #46 EVD-005 (15:06) · #78 FNT-004 (15:11) ·
+#66 EXT-008 · **#77 DAT-005**. Five merges while this file was being rewritten, three of them
+inside nine minutes.
+
+**#77 is the one that changes what this project can claim.** The corpus is no longer zero,
+`TestCommittedAnnotationsLoad` stops skipping, and TAM-002 becomes runnable — the first ticket
+on this board that can be measured against real labels rather than synthetic spans.
 
 **2026-09-07, Session 14** — #71 EXT-007 · #72 FNT-003 · #73 MEA-009 Part A · #74 PIP-003 ·
 #43 MEA-005 · #75 RUL-006 · #70 docs.

@@ -514,23 +514,48 @@ element and paints nothing. Scope with `useId`. Only a real browser at two width
 
 ## Where the board stands, dated 2026-09-07
 
-**`main` is at `19c7966`, and it moved four times while this file was being written.** #76
-RUL-007, #46 EVD-005 and #78 FNT-004 merged within nine minutes; #66 EXT-008 followed; #77
-DAT-005 opened; #63's head moved twice. Every OID below is a timestamp, not a fact — re-read
-before acting. **The findings were re-verified against each new head and none of them changed**,
-which is the useful half: an OID moving is not evidence that anything was addressed.
+**`main` is at `5713935`, and it moved five times while this file was being written.** #76
+RUL-007, #46 EVD-005 and #78 FNT-004 merged within nine minutes; #66 EXT-008 and #77 DAT-005
+followed; #63's head moved twice. Every OID below is a timestamp, not a fact — re-read before
+acting. **The findings were re-verified against each new head and none of them changed**, which
+is the useful half: an OID moving is not evidence that anything was addressed.
+
+**Four of those five merged with one item still open** — EVD-007, EXT-009, the
+`ingest_images.py` manifest key, and `MIXED`. None was written back into its `done` ticket;
+all four are in `TODO.md`. **That is the pattern to watch on this board, not any one of them:
+the follow-up ticket has to exist before the merge, or the item dies with the ticket.**
 
 **Merged 2026-09-07:** #62 CORE-003 · #56 EXT-006 · #64 DAT-003 docs · #47 MEA-006 · #65 CTR-006
 · #67 PIP-004 · #68 RUL-005 · #69 docs · #70 docs · #71 EXT-007 · #73 MEA-009 Part A ·
 #72 FNT-003 · #74 PIP-003 · #43 MEA-005 · #75 RUL-006 · #76 RUL-007 · #46 EVD-005 · #78 FNT-004
-· #66 EXT-008.
+· #66 EXT-008 · #77 DAT-005.
 
 **Open PRs:**
 
 | PR | Owner | Ticket | Head | Base | State |
 |---|---|---|---|---|---|
-| #77 | Abhiram | DAT-005 | `6a2e9fa` | `a4e462c` | Open, three checks green. Twelve annotated captures, uncalibrated throughout, and a populated manifest. **The highest-value item on the board.** Read it against `ingest_images.py` first — the manifest uses `records`, the writer writes `samples`. |
-| #63 | Akshaya | VIS-004 | `71147c9` | `19c7966` | **Blocked.** `test_ocr.py` is 27 lines: five `pass` bodies and a `test_placeholder_ocr`. Three checks green over a hollow suite. Head has moved twice; that file is byte-identical at every one of them. |
+| #63 | Akshaya | VIS-004 | `71147c9` | `19c7966` | **Blocked, and the only PR still open.** `test_ocr.py` is 27 lines: five `pass` bodies and a `test_placeholder_ocr`. Three checks green over a hollow suite. Head has moved twice; that file is byte-identical at every one of them. |
+
+**#77 DAT-005 merged and the corpus is no longer zero.** Twelve annotated captures, six SKUs
+front and back, **uncalibrated throughout**, with a twelve-record `datasets/manifest.json`. Not
+the fifteen `_staging/` files — those carry a ₹10 coin, which is why the ticket was parked;
+`_staging/` is untouched and its provenance is still unconfirmed. **Both
+`TestCommittedAnnotationsLoad` guards (`datasets/tests/test_schema_guards.py:121,128`) execute
+for the first time ever** — they `pytest.skip` on an empty corpus and had skipped every run since
+DAT-002, including every CI run since #60. Measured, not asserted: the `datasets` CI job went
+from **26 passed / 2 skipped** on #76 and #66 to **28 passed / 0 skipped** on #77, and removing
+the annotations locally puts both back to `SKIPPED`. **They run in the `datasets` job, not
+`backend`** — `bck/pyproject.toml:56` is `testpaths = ["tests"]`, so the backend suite has never
+collected `datasets/tests/` and its count says nothing about them. **TAM-002 is
+unblocked** and is the first ticket here that can be measured against real labels. **No accuracy
+figure follows from this:** every capture is uncalibrated, so nothing in the set can support a
+Rule 7 finding.
+
+**And one item followed #77 onto `main`.** `datasets/ingest_images.py:47-52` writes a `samples`
+key while everything reading the manifest reads `records`. That was dormant over a nineteen-byte
+stub; against a real twelve-record manifest it means **regenerating with the project's own
+ingest script silently destroys the corpus index and both integrity tests go back to looping an
+empty list, green.** Treat `ingest_images.py` as unsafe to run until it is fixed.
 
 **#66 EXT-008 merged with its last item open.** `binder.py:190` on `main` is
 `if len(matching_scripts) > 1: return ScriptType.MIXED`, so `MIXED` means any two of five scripts
@@ -545,18 +570,19 @@ whether they coincide depends on what a caller passes as `payload` — **and ret
 caller**. Undetermined at runtime, untestable today, and it will be settled by whoever wires it.
 Tracked as EVD-007. Do not write it into the `done` EVD-005 ticket.
 
-**Sessions running at handoff — ask Abhiram for both outputs before acting:**
-`DAT-005` in `~/26034-dat` on `dat-005-annotate-staged-captures`, annotating the staged captures;
-`RUL-007` in `~/26034-ctr`, now open as #76.
+**No sessions running at handoff.** Both that were in flight have merged — DAT-005 as #77 out
+of `~/26034-dat`, RUL-007 as #76 out of `~/26034-ctr`. Several worktrees now sit on merged
+branches and need a fresh cut from `origin/main`.
 
-**To do:** MEA-010 and MEA-011 (Yashashvi, both unblocked by #43) · MEA-007 (Yashashvi, in
-progress, needs a rebase — `services.py` changed) · MEA-008 · MEA-009 Part B (Yashashvi) ·
-FNT-004 (Vineeth, unblocked, `npm run generate:api` first) · TAM-002 (Akshaya, genuinely blocked
-on DAT-005 landing) · EVD-006 (Shiva).
+**To do:** **TAM-002 (Akshaya — unblocked by #77, and the first ticket here that can be measured
+against real labels)** · MEA-010 and MEA-011 (Yashashvi, both unblocked by #43) · MEA-007
+(Yashashvi, in progress, needs a rebase — `services.py` changed) · MEA-008 · MEA-009 Part B
+(Yashashvi) · EVD-006 and EVD-007 (Shiva, free since #46) · EXT-009 (Sitanshu, free since #66).
 
 **Open items nobody owns yet:** the seven UP042 findings; persisting the Rule 3(c) officer flag;
-the `/fnt/` three-way ownership disagreement; the seven identified-not-written tickets in
-`TODO.md`.
+the `/fnt/` three-way ownership disagreement; the identified-not-written tickets in `TODO.md`;
+and the `ingest_images.py` manifest key, which is the only one of them that can destroy
+committed data if someone runs the script.
 
 **The ARUCO_MARKER discrepancy is closed.** Do not re-raise it.
 

@@ -8,10 +8,15 @@ ClickUp is the source of truth. This file mirrors it. `done` is terminal; nothin
 had moved since they were last reviewed, and in both cases the previous item list was wrong in
 both directions.** Re-read the head before acting on anything here.
 
-**`main` moved four times while this file was being written** — #76 RUL-007, #46 EVD-005 and
-#78 FNT-004 within nine minutes, then #66 EXT-008. #77 DAT-005 opened. That is the ordinary rate
+**`main` moved five times while this file was being written** — #76 RUL-007, #46 EVD-005 and
+#78 FNT-004 within nine minutes, then #66 EXT-008, then #77 DAT-005. That is the ordinary rate
 on this board. Treat every OID here as a timestamp, not a fact; the *findings* below were
 re-verified against each new head and none of them changed.
+
+**Only one PR is now open: #63.** Six of the seven that were in flight this afternoon have
+merged, and four of them merged with one item still open. Those four items are EVD-007, EXT-009,
+the `ingest_images.py` manifest key, and `MIXED` — all recorded below and in `TODO.md`, none of
+them written back into an already-`done` ticket.
 
 **Connector note:** ClickUp MCP works, but **custom-field writes are capped on this plan** —
 `clickup_update_task` with `custom_fields` returns *"Custom field usages exceeded for your
@@ -33,6 +38,7 @@ plan"*. Name and status updates work.
 | EVD-005 | #46 | Shiva Kumar | Retention and purge. Merged 15:06 — **see the note below; it merged with the storage-key defect open.** |
 | FNT-004 | #78 | Vineeth | Scan detail and submission screens on the live client. `ScanSubmission.tsx` new, `VerdictDetail.tsx` migrated. Merged 15:11. |
 | EXT-008 | #66 | Sitanshu | Additional-script detection. Tamil, Bengali and `UNSUPPORTED`; noise separated from script-bearing text. **Merged with the `MIXED` semantics item open — see EXT-009 below.** |
+| DAT-005 | #77 | Abhiram | Twelve annotated captures, uncalibrated throughout, and a twelve-record `datasets/manifest.json`. **The corpus is no longer zero.** Both `TestCommittedAnnotationsLoad` guards execute for the first time. Unblocks TAM-002. |
 | — | #70 | Abhiram | Docs: Session 13 handoff. Merged 09:13 and recorded in no board file until now. |
 
 Also merged earlier the same day, recorded in the Session 13 board: #62 CORE-003, #56 EXT-006,
@@ -58,32 +64,45 @@ Also merged earlier the same day, recorded in the Session 13 board: #62 CORE-003
 
 ## Open PRs — exact remaining items
 
-### PR #77 — DAT-005 annotate the real captures · Abhiram · `dat-005-annotate-staged-captures`
+### DAT-005 merged as #77 — the corpus is no longer zero
 
-Head `2095971`, base `d9c44fa`, three checks green. **The highest-value item on the board.**
-
-Twelve annotation files across six SKUs (two captures each: colgate 100 g, aarambh oats 1.5 kg,
+Twelve annotation files across six SKUs, two captures each (colgate 100 g, aarambh oats 1.5 kg,
 aashirvaad atta 1 kg, dhara oil 1 L, mdh masala 100 g, parle-g 82.5 g), **uncalibrated
-throughout**, plus a populated `datasets/manifest.json` — twelve `records`, each with a
+throughout** — `reference_object.present` false, `pdp.is_measurable` false, every height field
+null, verdict `REVIEW` — plus a twelve-record `datasets/manifest.json`, each record carrying a
 `sha256`, a `relative_image_path` and an `annotation_path`.
 
-**Two things to read before merging.**
+**Not** the fifteen `_staging/` files: all six of those marked `_uncalibrated` carry a ₹10 coin
+in frame, which is why the ticket was parked. `_staging/` is untouched and still unannotated,
+its provenance unconfirmed, and that is a separate decision.
 
-1. **`datasets/manifest.json` is hand-written and uses the key the tests read, not the key the
-   writer writes.** The new manifest has a top-level `records` array;
-   `bck/tests/contracts/test_manifest_integrity.py:16,41` loops `records`, so those two tests
-   stop being vacuous the moment this merges — good. But `datasets/ingest_images.py:47-52`
-   writes `samples`. **Running the ingest script would replace this manifest with one the tests
-   silently skip.** The divergence has changed shape, not closed: it was two vacuous tests over
-   an empty stub, and becomes two real tests over a hand-maintained file that the project's own
-   tool would destroy. Fix the writer, or delete it.
-2. Check Rule 26 against the corpus for anything at or under 10 g / 10 ml. None of these six is,
-   so the exemption should not appear — confirm it does not.
+**Both `TestCommittedAnnotationsLoad` guards now execute, for the first time ever.**
+`datasets/tests/test_schema_guards.py:121` and `:128` each open with
+`if not files: pytest.skip("corpus is empty pending real captures (DAT-002)")`, so from DAT-002
+until this merge they skipped every run — including every CI run since #60 put `datasets/` into
+the pipeline. Verified three ways. Locally with the twelve annotations present both pass;
+locally with `datasets/annotations/{food,cosmetics}/` removed both report
+`SKIPPED … corpus is empty pending real captures (DAT-002)`; and in CI the `datasets` job went
+from **26 passed / 2 skipped** on #76 and #66 to **28 passed / 0 skipped** on #77 — the two that
+stopped skipping are these two. They run in the `datasets` job, not `backend`:
+`bck/pyproject.toml:56` is `testpaths = ["tests"]`, so `cd bck && uv run pytest` has never
+collected `datasets/tests/` and the backend count says nothing about them.
+`test_no_annotation_claims_a_millimetre_height` is the one that matters — it enforces
+Constraint 2 on ground truth, and this is the first run in which it has had a sample to enforce
+it against.
 
-This PR also edits `TODO.md +43/-5` and `session-log/abhiram.md +215/-0`, and so does the
-Session 14 docs PR. **Whichever lands second resolves by reconstruction** — take main's file
-verbatim, append, prove it with `git diff --numstat` showing zero deletions. Merge order is a
-choice; pick one.
+**TAM-002 is unblocked** and is the first ticket on this board that can be measured against real
+labels. Carry one caveat into it: every capture is uncalibrated, so a false-positive rate
+measured against this set is a real number, but **nothing in the set can support a Rule 7
+finding** and no accuracy figure for the measurement path may be quoted from it.
+
+**One item followed it onto `main`, and it is now a live regression risk.**
+`datasets/ingest_images.py:47-52` still writes a `samples` key while everything that reads the
+manifest reads `records`. Before #77 that was dormant over a nineteen-byte stub. Now `main`
+carries a real twelve-record manifest, so **regenerating it with the project's own ingest script
+silently replaces twelve records with a `samples` array**, both integrity tests go back to
+looping an empty list, and they stay green. Treat `ingest_images.py` as unsafe to run against
+`datasets/` until the key is fixed. Full write-up in `TODO.md`, Bugs, item 2.
 
 ### PR #63 — VIS-004 model weights · Akshaya · `vis-004-model-weights-bootstrap`
 
@@ -308,9 +327,11 @@ to the hidden element and paints nothing, and only a browser catches it.
 **EVD-006 — Shiva. Unblocked and he is now free.** The report export takes mock shapes and needs
 a real `VerdictRecord`. EVD-007 (above) is his too.
 
-**TAM-002 — Akshaya. Genuinely blocked on DAT-005 landing.** Wiring plus false-positive rate on
-real labels. **Tamper detection must not be described as working until it has run against
-annotated labels.**
+**TAM-002 — Akshaya. Unblocked by #77 and it should start.** Wiring plus false-positive rate on
+real labels — the first ticket on this board that can run against annotated images. **Tamper
+detection must not be described as working until it has run against annotated labels**, and now
+it can. All twelve captures are uncalibrated: a false-positive rate from this set is a real
+number, a Rule 7 accuracy figure is not.
 
 **EXT-008 — Sitanshu.** One item, above. Then FNT-004's backend counterpart is not his; he is
 free after this.
