@@ -1,6 +1,6 @@
 # Measurement
 
-**Owner:** @Abhiram-0910
+**Owner:** @Yashashvi-05
 
 Derives physical measurements from the image — principal display panel area, character height, net quantity magnitudes — that the rules need to judge conformity.
 
