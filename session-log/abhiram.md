@@ -1564,3 +1564,101 @@ is 739/32. Session 11 flagged it at 731/32 and it has moved again since. Not cor
 handover still stands: at `binder.py:604` the value check runs before
 `_are_spans_spatially_adjacent` at 607, and the adjacency check has to move above it or
 EXT-007 will record disagreements that are not disagreements.
+
+## Session 13 — 2026-09-07, RUL-005 (Claude Code, Opus 5)
+
+**Ticket:** RUL-005 — encode the retail-sale scope limb. PR #68, cut from a95e8fb and
+rebased onto d1114af when PIP-004 (#67) landed underneath it.
+
+Read-only research pass first, then the encoding. Three of the ticket's premises were wrong
+and the research pass corrected them before any code was written.
+
+### What the corpus actually says
+
+The limb is **Rule 3, "Applicability of the Chapter"**, and it has **three limbs, not one**.
+The ticket named only 3(c); 3(a) — more than 25 kg or 25 litre — is the limb that actually
+fires on real packages and is computable from `NET_QUANTITY` today.
+
+Rule 3 disapplies **Chapter II only** (rules 3–23). Every rule in the store that produces a
+finding is inside it; the Rule 2 definitions are Chapter I and are `NOT_AN_OBLIGATION`
+anyway. A guard pins that set so a future Chapter III rule cannot be silently suppressed.
+
+**Corpus gaps found, recorded rather than filled from memory:**
+
+- The compilation prints the substitution of clauses 2(bb) and 2(bc) as *"(i) for clauses
+  (bb) and (bc), the following clauses shall be substituted, namely"* and **does not name the
+  notification**. Recorded in the rule's own comment. Semi-official source, stated as such.
+- **Hotels, hospitals, airlines and railways are nowhere in this corpus.** They are canonical
+  in secondary commentary. Anything listing them is listing them from memory.
+
+### Two corrections to the plan, both accepted before implementation
+
+**Rule 3(b) is subsumed by 3(a).** Bags above 50 kg are already above 25 kg, so confirming
+3(b) can never change an answer 3(a) has not given. Its parameters are stored; no officer
+input was built, because that would be a branch that can never fire. `rule_3b_is_subsumed_by_rule_3a()`
+reads both figures from the store and is guarded, so an amendment reopens the question
+instead of leaving a stale comment.
+
+**An excluded package would otherwise have returned PASS.** `derive_verdict` documented
+NOT_APPLICABLE as falling through to PASS — correct while sector overrides were the only
+source of that state, since they carve out *some* obligations and leave the rest. Rule 3
+carves out all of them. Without the new all-NOT_APPLICABLE pass this ticket would have
+replaced POTENTIAL_VIOLATION with PASS on the very package it exists to fix.
+
+### Shape
+
+`app/modules/rules/scope.py`, sibling to `sector.py`. `SectorOverrideCondition` was **not**
+bent to fit and no `ProductCategory` member was invented: a scope limb is not a sector, not
+an override target, and does not vary per rule. Decided once per scan in `build_findings`,
+applied in `_findings_for_rule` **before** the sector check — a sector override moves one
+obligation, Rule 3 decides whether the chapter holding it reaches the package at all.
+
+Every threshold is read from the store via `rule_by_id`; none is written in Python.
+
+**No contracts change.** Both new inputs are plain `bool` on `EvidenceContext`, reaching it
+the way `source_is_listing` does. `product_category` is a contracts type because it is
+persisted on the `scans` row — these are not. Persisting the officer's assertion as a column
+and filtering on it needs a contracts enum plus a migration: **raised, not taken.** The
+assertion already appears in the `reason` of every finding it produces.
+
+### Falsification — sixteen defects, all confirmed red
+
+Bytecode purged with the absolute-path `find` first, every time. Three findings worth the
+next person's attention:
+
+1. **Two tests could not fail on their first draft.** The marker test and the threshold test
+   read their expected value *out of the store* and fed it back — comparing the store against
+   itself. A same-length edit to `not_for_retail_sale_marker` in `rules.yaml` left both green.
+   Both now pin corpus literals (`25`, `50`, `"not for retail sale"`). This is the fifth
+   instance of the unfalsifiable-test pattern on this project and the first where the test
+   fetched its own expectation; worth watching for specifically.
+2. **A docstring asserted a binder behaviour that is false.** It claimed the binder leaves
+   `not for retail sale` unclassified. Measured: on its own line it binds to
+   `COMMON_OR_GENERIC_NAME`. Per CLAUDE.md the *claim* was corrected, not the code — and a
+   marker printed beside a batch code, which is how packs actually carry it, genuinely is
+   unbound and now carries a test that does prove the all-spans read matters.
+3. **The 739 existing tests passing unchanged is itself the evidence** for "nothing is
+   inferred from an absence". Worth stating as a result rather than as an intention.
+
+### Baseline
+
+**741 passed / 32 skipped on `origin/main` (d1114af), measured in-session** — and 739/32 on
+a95e8fb before PIP-004 landed, measured the same way. CLAUDE.md still says 707/32; that is now
+two merges stale and someone should correct it. This branch: **772 / 32**. Zero regressions,
+zero new skips. `ruff` clean, `lint-imports` exit 0 over 112
+files, 3 contracts kept / 0 broken, checked directly rather than through a pipe.
+
+`ruff format` reformatted two files that were already on `main` clean; folded in.
+
+### Not done, deliberately
+
+- **The HTTP surface was not exercised.** `app.main` refuses to boot without four model
+  weight paths absent from this machine, and mocking them would not be an end-to-end check.
+  Verified through the suite, including the orchestrator image path over patched vision,
+  which does cover OCR text → normalisation → scope → verdict.
+- **The export limb is dropped and stays [SOFT].** It is Rule 25, Chapter IV, and it points
+  the *other* way: it makes Chapter II the standard an export pack must be re-labelled to
+  before sale in India, not a scope exclusion. `export package` is undefined in the whole
+  compilation. The limb rests on a territoriality argument about the Act, which is not
+  sourced here. The docs PR corrects `rules-corpus/README.md`, which had claimed Rule 25
+  supports it.
