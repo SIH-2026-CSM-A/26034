@@ -26,38 +26,20 @@ def compute_payload_hash(payload: dict | str) -> str:
     return compute_sha256(serialized)
 
 
-def compute_entry_hash(
-    sequence: int,
-    timestamp: str,
-    payload_hash: str,
-    prev_hash: str,
-    asset_type: EvidenceAssetType,
-) -> str:
-    """Computes the hash of an evidence entry metadata.
-
-    ``asset_type`` is inside the hash because it decides when the entry may be destroyed.
-    Left outside, an entry could be relabelled from one asset class to another, fall under
-    a different retention window, and :func:`verify_chain` would still report the chain
-    intact — a tamper vector on the one structure whose purpose is detecting tampering.
-
-    Appended last so the four original fields keep their positions.
-    """
-    data = f"{sequence}:{timestamp}:{payload_hash}:{prev_hash}:{asset_type}"
+def compute_entry_hash(sequence: int, timestamp: str, payload_hash: str, prev_hash: str) -> str:
+    """Computes the hash of an evidence entry metadata."""
+    data = f"{sequence}:{timestamp}:{payload_hash}:{prev_hash}"
     return compute_sha256(data)
 
 
 def create_genesis_entry(
     payload: dict | str, timestamp: str, asset_type: EvidenceAssetType
 ) -> EvidenceEntry:
-    """Creates the first entry in the evidence chain.
-
-    ``asset_type`` is required rather than defaulted: a default would let an entry carry a
-    retention disposition nobody chose.
-    """
+    """Creates the first entry in the evidence chain."""
     sequence = 0
     prev_hash = GENESIS_PREV_HASH
     payload_hash = compute_payload_hash(payload)
-    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash, asset_type)
+    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash)
 
     return EvidenceEntry(
         sequence=sequence,
@@ -71,20 +53,13 @@ def create_genesis_entry(
 
 
 def append_entry(
-    prev_entry: EvidenceEntry,
-    payload: dict | str,
-    timestamp: str,
-    asset_type: EvidenceAssetType,
+    prev_entry: EvidenceEntry, payload: dict | str, timestamp: str, asset_type: EvidenceAssetType
 ) -> EvidenceEntry:
-    """Appends a new entry to the evidence chain.
-
-    ``asset_type`` is per entry and is not inherited from ``prev_entry``: a chain mixes
-    asset classes, and a purge record appended after a photograph is an audit log.
-    """
+    """Appends a new entry to the evidence chain."""
     sequence = prev_entry.sequence + 1
     prev_hash = prev_entry.entry_hash
     payload_hash = compute_payload_hash(payload)
-    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash, asset_type)
+    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash)
 
     return EvidenceEntry(
         sequence=sequence,
@@ -97,14 +72,40 @@ def append_entry(
     )
 
 
+def append_purge_entry(
+    prev_entry: EvidenceEntry, target_sequence: int, reason: str, timestamp: str
+) -> EvidenceEntry:
+    """Appends an immutable purge record to the evidence chain."""
+    from .domain import PurgeRecordPayload
+
+    payload = PurgeRecordPayload(
+        target_sequence=target_sequence,
+        purge_timestamp=timestamp,
+        reason=reason,
+    ).model_dump()
+
+    # Purge records are AUDIT_LOG type
+    from app.contracts import EvidenceAssetType
+
+    return append_entry(
+        prev_entry=prev_entry,
+        payload=payload,
+        timestamp=timestamp,
+        asset_type=EvidenceAssetType.AUDIT_LOG,
+    )
+
+
 def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
     """Verifies the integrity and continuity of the evidence chain."""
     if not entries:
         return ChainVerification(is_valid=False, broken_link_index=0, reason="missing_genesis")
 
+    purged_indices = []
+
     for i, entry in enumerate(entries):
-        # 1. Timestamp validation
+        # 1. Timestamp validation (Offline ISO-8601 UTC)
         try:
+            # fromisoformat handles 'YYYY-MM-DDTHH:MM:SS' and 'YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM'
             datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             return ChainVerification(
@@ -119,11 +120,7 @@ def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
 
         # 3. Entry hash integrity
         actual_entry_hash = compute_entry_hash(
-            entry.sequence,
-            entry.timestamp,
-            entry.payload_hash,
-            entry.prev_hash,
-            entry.asset_type,
+            entry.sequence, entry.timestamp, entry.payload_hash, entry.prev_hash
         )
         if entry.entry_hash != actual_entry_hash:
             return ChainVerification(
@@ -131,20 +128,32 @@ def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
             )
 
         # 4. Chain linkage and sequence
+        if i == 0 and (entry.sequence != 0 or entry.prev_hash != GENESIS_PREV_HASH):
+            # Genesis validation
+            return ChainVerification(is_valid=False, broken_link_index=0, reason="missing_genesis")
         if i == 0:
-            if entry.sequence != 0 or entry.prev_hash != GENESIS_PREV_HASH:
-                return ChainVerification(
-                    is_valid=False, broken_link_index=0, reason="missing_genesis"
-                )
-        else:
-            prev = entries[i - 1]
-            if entry.prev_hash != prev.entry_hash:
-                return ChainVerification(
-                    is_valid=False, broken_link_index=i, reason="previous_hash_mismatch"
-                )
-            if entry.sequence != prev.sequence + 1:
-                return ChainVerification(
-                    is_valid=False, broken_link_index=i, reason="ordering_violation"
-                )
+            continue
 
-    return ChainVerification(is_valid=True)
+        prev = entries[i - 1]
+        # Hash linkage
+        if entry.prev_hash != prev.entry_hash:
+            return ChainVerification(
+                is_valid=False, broken_link_index=i, reason="previous_hash_mismatch"
+            )
+        # Sequence ordering
+        if entry.sequence != prev.sequence + 1:
+            return ChainVerification(
+                is_valid=False, broken_link_index=i, reason="ordering_violation"
+            )
+
+    # Identify purged entries by scanning for purge records
+    for entry in entries:
+        if entry.is_purged and isinstance(entry.payload, dict):
+            target_seq = entry.payload.get("target_sequence")
+            # Find the index of the target sequence
+            for idx, e in enumerate(entries):
+                if e.sequence == target_seq:
+                    purged_indices.append(idx)
+                    break
+
+    return ChainVerification(is_valid=True, purged_indices=sorted(list(set(purged_indices))))

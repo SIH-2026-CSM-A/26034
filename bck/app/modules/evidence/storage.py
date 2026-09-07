@@ -5,6 +5,12 @@ from pathlib import Path
 import boto3
 
 
+class AssetPurgedError(Exception):
+    """Raised when an asset has been purged for retention/privacy."""
+
+    pass
+
+
 class EvidenceStorageClient(ABC):
     """Abstract base class for evidence storage."""
 
@@ -19,6 +25,14 @@ class EvidenceStorageClient(ABC):
     def get_image(self, storage_key: str) -> bytes:
         """
         Retrieves image bytes by its storage key.
+        """
+        pass
+
+    @abstractmethod
+    def purge_image(self, storage_key: str) -> None:
+        """
+        Permanently deletes the asset bytes and replaces them with a tombstone.
+        Must be idempotent.
         """
         pass
 
@@ -49,7 +63,21 @@ class LocalStorageClient(EvidenceStorageClient):
         if not file_path.exists():
             raise FileNotFoundError(f"Object not found: {storage_key}")
 
-        return file_path.read_bytes()
+        data = file_path.read_bytes()
+        if data == b"TOMBSTONE":
+            raise AssetPurgedError(f"Asset purged: {storage_key}")
+
+        return data
+
+    def purge_image(self, storage_key: str) -> None:
+        file_path = self.base_path / storage_key
+        if not file_path.exists():
+            return  # Idempotent: nothing to purge
+
+        if file_path.read_bytes() == b"TOMBSTONE":
+            return  # Idempotent: already purged
+
+        file_path.write_bytes(b"TOMBSTONE")
 
 
 class S3ContentAddressedStorageClient(EvidenceStorageClient):
@@ -98,4 +126,23 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
 
     def get_image(self, storage_key: str) -> bytes:
         response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
-        return response["Body"].read()
+        data = response["Body"].read()
+        if data == b"TOMBSTONE":
+            raise AssetPurgedError(f"Asset purged: {storage_key}")
+        return data
+
+    def purge_image(self, storage_key: str) -> None:
+        try:
+            response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
+            if response["Body"].read() == b"TOMBSTONE":
+                return  # Idempotent
+        except Exception:
+            # If object doesn't exist, it's already effectively purged/missing
+            return
+
+        self.s3.put_object(
+            Bucket=self.bucket_name,
+            Key=storage_key,
+            Body=b"TOMBSTONE",
+            ContentType="text/plain",
+        )

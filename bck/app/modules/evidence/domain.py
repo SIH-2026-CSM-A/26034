@@ -16,12 +16,29 @@ class EvidenceEntry(BaseModel):
     payload: dict | str
     asset_type: EvidenceAssetType
 
+    @property
+    def is_purged(self) -> bool:
+        """True if the payload is a purge record."""
+        return isinstance(self.payload, dict) and self.payload.get("type") == "purge_record"
+
+
+class PurgeRecordPayload(BaseModel):
+    """Payload for an immutable purge event in the hash chain."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = "purge_record"
+    target_sequence: int
+    purge_timestamp: str
+    reason: str
+
 
 class ChainVerification(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     is_valid: bool
     broken_link_index: int | None = None
+    purged_indices: list[int] = []
     reason: (
         Literal[
             "payload_hash_mismatch",
