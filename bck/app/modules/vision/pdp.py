@@ -2,42 +2,38 @@ import os
 from dataclasses import dataclass
 
 import numpy as np
+import ultralytics
 
 
 @dataclass
-class DetectionResult:
-    bbox: tuple[int, int, int, int]
-    area: int
+class PDPResult:
+    bbox: tuple
     confidence: float
+    area: float
+    text: str = ""
 
 
-def detect_pdp(image: np.ndarray, weights_path: str) -> DetectionResult:
-    """
-    Detects the Principal Display Panel using YOLO.
-    Requires an explicit path to local weights to enforce offline capability.
-    """
-    if image is None or image.size == 0:
-        return DetectionResult((0, 0, 0, 0), 0, 0.0)
+def detect_pdp(image_path, weights_path=None) -> PDPResult:
+    if isinstance(image_path, np.ndarray) and image_path.size == 0:
+        raise ValueError("No PDP detected in image.")
 
-    # Strictly prevent YOLO from attempting a network download if the file is missing
-    if not os.path.exists(weights_path):
-        raise FileNotFoundError(f"Offline model weights not found at: {weights_path}")
+    w = weights_path or os.getenv("PDP_WEIGHTS_PATH")
+    if not w or not os.path.exists(w):
+        raise RuntimeError(
+            "PDP_WEIGHTS_PATH is unset. Cannot execute PDP detection without calibrated weights."
+        )
 
-    from ultralytics import YOLO
+    model = ultralytics.YOLO(w)
+    res = model(image_path)
 
-    model = YOLO(weights_path)
-    results = model(image, verbose=False)
+    if not res or not hasattr(res[0], "boxes") or len(res[0].boxes) == 0:
+        raise ValueError("No PDP detected in image.")
 
-    if not results or len(results[0].boxes) == 0:
-        h, w = image.shape[:2]
-        return DetectionResult((0, 0, w, h), w * h, 0.0)
+    c = res[0].boxes.xyxy[0].cpu().numpy()
+    bw, bh = int(c[2] - c[0]), int(c[3] - c[1])
 
-    boxes = results[0].boxes
-    best_idx = int(boxes.conf.argmax())
-    x1, y1, x2, y2 = boxes.xyxy[best_idx].cpu().numpy()
-    conf = float(boxes.conf[best_idx].cpu().numpy())
-
-    x, y = int(x1), int(y1)
-    w, h = int(x2 - x1), int(y2 - y1)
-
-    return DetectionResult((x, y, w, h), w * h, conf)
+    return PDPResult(
+        bbox=(int(c[0]), int(c[1]), bw, bh),
+        confidence=float(res[0].boxes.conf[0].cpu().numpy()),
+        area=float(bw * bh),
+    )

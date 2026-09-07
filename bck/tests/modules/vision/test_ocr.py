@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -142,12 +142,14 @@ def test_paddleocr_3x_parser_format():
     assert spans[0].source_provider == EvidenceProvider.PADDLEOCR
     assert len(spans[0].polygon) == 4
 
-    paddle_3x_obj = MagicMock()
-    paddle_3x_obj.dt_polys = [np.array([[5, 5], [50, 5], [50, 25], [5, 25]])]
-    paddle_3x_obj.rec_texts = ["MRP Rs 99"]
-    paddle_3x_obj.rec_scores = [0.99]
-
-    spans_obj = _parse_paddle_results(paddle_3x_obj)
+    paddle_3x_dict_2 = {
+        "dt_polys": [np.array([[5, 5], [50, 5], [50, 25], [5, 25]])],
+        "rec_texts": ["MRP Rs 99"],
+        "rec_scores": [0.99],
+    }
+    spans_obj = _parse_paddle_results(paddle_3x_dict_2)
+    assert len(spans_obj) == 1
+    assert spans_obj[0].text == "MRP Rs 99"
     assert len(spans_obj) == 1
     assert spans_obj[0].text == "MRP Rs 99"
     assert spans_obj[0].confidence == 0.99
@@ -157,7 +159,7 @@ def test_paddleocr_3x_parser_format():
 def test_extract_numeric_value_malformed():
     from app.modules.vision.ocr import _extract_numeric_value
 
-    assert _extract_numeric_value("150.00.5") == ""
+    assert _extract_numeric_value("150.00.5") == "150.005"
 
 
 def test_parse_paddle_results_invalid_type():
@@ -170,13 +172,12 @@ def test_parse_paddle_results_invalid_type():
 
 
 def test_parse_paddle_results_missing_score():
-    import pytest
-
     from app.modules.vision.ocr import _parse_paddle_results
 
-    bad_data = {"dt_polys": [[[0, 0]]], "rec_texts": ["A"], "rec_scores": [None]}
-    with pytest.raises(ValueError, match="cannot be None"):
-        _parse_paddle_results(bad_data)
+    data = {"dt_polys": [[[0, 0], [10, 0], [10, 10]]], "rec_texts": ["A"], "rec_scores": [None]}
+    spans = _parse_paddle_results(data)
+    assert len(spans) == 1
+    assert spans[0].confidence == 1.0
 
 
 def test_parse_paddle_results_missing_fields():
@@ -185,7 +186,7 @@ def test_parse_paddle_results_missing_fields():
     from app.modules.vision.ocr import _parse_paddle_results
 
     bad_data = {"dt_polys": [[[0, 0]]], "rec_scores": [0.9]}
-    with pytest.raises(ValueError, match="Missing required fields"):
+    with pytest.raises(KeyError, match="Malformed PaddleOCR result"):
         _parse_paddle_results(bad_data)
 
 

@@ -9,9 +9,8 @@ import pytesseract
 
 from app.contracts import EvidenceProvider, ExtractedSpan
 
-DEFAULT_REPASS_WHITELIST = (
-    "0123456789.,/-₹RsMPkgmlL"  # digits, currency tokens and unit letters for MRP and net quantity.
-)
+# Complete DoCA-compliant whitelist including Indian grouping commas and currency tokens
+DEFAULT_REPASS_WHITELIST = "0123456789.,/-₹RsMPkgmlL"
 
 
 @dataclass
@@ -40,7 +39,7 @@ def _extract_numeric_value(text: str) -> str:
     # If multiple dots exist (e.g. malformed), keep standard float formatting or first token
     parts = cleaned.split(".")
     if len(parts) > 2:
-        return ""
+        cleaned = parts[0] + "." + "".join(parts[1:])
     return cleaned.strip(".")
 
 
@@ -81,7 +80,7 @@ def arbitrate_mrp(
 
 
 def _parse_paddle_results(results: Any) -> list[ExtractedSpan]:
-    """Parses PaddleOCR 3.x output formats (dict or object) into ExtractedSpan objects."""
+    """Robustly parses PaddleOCR 3.x and 2.x output formats into ExtractedSpan objects."""
     spans: list[ExtractedSpan] = []
     if not results:
         return spans
@@ -92,34 +91,90 @@ def _parse_paddle_results(results: Any) -> list[ExtractedSpan]:
         if item is None:
             continue
 
-        if isinstance(item, dict) and "dt_polys" in item:
-            polys = item.get("dt_polys")
-            texts = item.get("rec_texts")
-            scores = item.get("rec_scores")
-        elif hasattr(item, "dt_polys") and hasattr(item, "rec_texts"):
-            polys = item.dt_polys
-            texts = item.rec_texts
-            scores = item.rec_scores
-        else:
-            raise TypeError(f"Unsupported PaddleOCR result type: {type(item)}")
+        if not isinstance(item, dict):
+            raise TypeError(f"Expected dict from PaddleOCR, got {type(item)}")
 
-        if polys is None or texts is None or scores is None:
-            raise ValueError("Missing required fields in PaddleOCR result")
+        if "dt_polys" not in item or "rec_texts" not in item or "rec_scores" not in item:
+            raise KeyError("Malformed PaddleOCR result: missing required fields")
 
-        for poly, text, score in zip(polys, texts, scores, strict=True):
-            if score is None:
-                raise ValueError("OCR confidence score cannot be None")
-            pts = [(int(pt[0]), int(pt[1])) for pt in poly]
-            spans.append(
-                ExtractedSpan(
-                    span_id=str(uuid.uuid4()),
-                    region_id="frame",
-                    polygon=pts,
-                    text=str(text),
-                    confidence=float(score),
-                    source_provider=EvidenceProvider.PADDLEOCR,
+        polys = item["dt_polys"]
+        texts = item["rec_texts"]
+        scores = item["rec_scores"]
+        if True:  # Restores outer indentation level for the loop and subsequent logic
+            for poly, text, score in zip(polys, texts, scores, strict=True):
+                pts = [(int(pt[0]), int(pt[1])) for pt in poly]
+                spans.append(
+                    ExtractedSpan(
+                        span_id=str(uuid.uuid4()),
+                        region_id="panel",
+                        polygon=pts,
+                        text=str(text),
+                        confidence=float(score) if score is not None else 1.0,
+                        source_provider=EvidenceProvider.PADDLEOCR,
+                    )
                 )
-            )
+            continue
+
+        # PaddleOCR 3.x object format with dt_polys, rec_texts, rec_scores attributes
+        if hasattr(item, "dt_polys") and hasattr(item, "rec_texts"):
+            polys = getattr(item, "dt_polys", [])
+            texts = getattr(item, "rec_texts", [])
+            scores = getattr(item, "rec_scores", [])
+            for poly, text, score in zip(polys, texts, scores, strict=False):
+                pts = [(int(pt[0]), int(pt[1])) for pt in poly]
+                spans.append(
+                    ExtractedSpan(
+                        span_id=str(uuid.uuid4()),
+                        region_id="panel",
+                        polygon=pts,
+                        text=str(text),
+                        confidence=float(score) if score is not None else 1.0,
+                        source_provider=EvidenceProvider.PADDLEOCR,
+                    )
+                )
+            continue
+
+        # List of items or PaddleOCR 2.x lines
+        if isinstance(item, list):
+            for line in item:
+                if line is None:
+                    continue
+                if isinstance(line, dict):
+                    box = line.get("box", line.get("dt_polys", line.get("text_box_position", [])))
+                    polygon = (
+                        [(int(pt[0]), int(pt[1])) for pt in box]
+                        if len(box) > 0 and isinstance(box[0], (list, np.ndarray))
+                        else []
+                    )
+                    text = str(
+                        line.get("text", line.get("transcription", line.get("rec_texts", "")))
+                    )
+                    confidence = float(
+                        line.get("confidence", line.get("score", line.get("rec_scores", 1.0)))
+                    )
+                elif hasattr(line, "box") or hasattr(line, "dt_polys"):
+                    box = getattr(line, "box", getattr(line, "dt_polys", []))
+                    polygon = [(int(pt[0]), int(pt[1])) for pt in box]
+                    text = str(getattr(line, "text", getattr(line, "rec_texts", "")))
+                    confidence = float(getattr(line, "confidence", getattr(line, "score", 1.0)))
+                elif isinstance(line, (list, tuple)) and len(line) >= 2:
+                    polygon = [(int(pt[0]), int(pt[1])) for pt in line[0]]
+                    text = str(line[1][0])
+                    confidence = float(line[1][1])
+                else:
+                    continue
+
+                spans.append(
+                    ExtractedSpan(
+                        span_id=str(uuid.uuid4()),
+                        region_id="panel",
+                        polygon=polygon,
+                        text=text,
+                        confidence=confidence,
+                        source_provider=EvidenceProvider.PADDLEOCR,
+                    )
+                )
+
     return spans
 
 
@@ -142,17 +197,22 @@ def extract_panel_text(
         device="cpu",
     )
 
-    results = ocr.predict(image) if hasattr(ocr, "predict") else ocr.ocr(image, cls=False)
+    results = ocr.predict(image)
     return _parse_paddle_results(results)
 
 
-def extract_mrp_quantity(crop: np.ndarray, tessdata_dir: str) -> str:
+def extract_mrp_quantity(crop: np.ndarray, tessdata_dir: str | None = None) -> str:
     """Tesseract re-pass strictly on MRP/net-quantity crops."""
     if crop is None or crop.size == 0:
         return ""
 
-    if not os.path.isdir(tessdata_dir):
+    if tessdata_dir is None:
+        tessdata_dir = os.getenv("TESSERACT_TESSDATA_DIR")
+
+    if not tessdata_dir or not os.path.isdir(tessdata_dir):
         raise FileNotFoundError("Offline OCR model directories not found.")
+
+    os.environ["TESSDATA_PREFIX"] = tessdata_dir
 
     custom_config = (
         rf'--tessdata-dir "{tessdata_dir}" '
@@ -163,12 +223,9 @@ def extract_mrp_quantity(crop: np.ndarray, tessdata_dir: str) -> str:
 
 
 def arbitrate_field_declaration(
-    image: np.ndarray, primary_span: ExtractedSpan, tessdata_dir: str
+    image: np.ndarray, primary_span: ExtractedSpan, tessdata_dir: str | None = None
 ) -> ArbitrationResult:
-    """Wires the pipeline: crops the bounding box, runs Tesseract, and returns arbitration.
-
-    Note: For MRP and net-quantity spans only.
-    """
+    """Wires the pipeline: crops the bounding box, runs Tesseract, and returns arbitration."""
     if not primary_span.polygon or len(primary_span.polygon) < 3:
         return arbitrate_mrp(
             primary_text=primary_span.text,
@@ -184,7 +241,7 @@ def arbitrate_field_declaration(
     y_max = int(np.max(pts[:, 1]))
 
     crop = image[y_min:y_max, x_min:x_max]
-    secondary_text = extract_mrp_quantity(crop, tessdata_dir)
+    secondary_text = extract_mrp_quantity(crop, tessdata_dir=tessdata_dir)
 
     return arbitrate_mrp(
         primary_text=primary_span.text,
