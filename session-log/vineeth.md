@@ -135,6 +135,7 @@
 - Migrated `ComplaintTracking.tsx` to `apiClient`: connects to live `/scans` endpoint for scan context, enforces human-confirmation gate against live scans (`finalised === true`), and initializes complaint records to `[]` for unserved CMP-002 endpoints
 - Preserved strict verdict terminology (`PASS`, `REVIEW`, `POTENTIAL_VIOLATION`) and append-only progression logic (`supersedes_id`)
 - Fully verified frontend: `npx tsc -b`, `npm run lint` (0 warnings, 0 errors), and `npx vite build` (clean production bundle)
+- Addressed PR #120 review: removed decorative useEffect from VendorSubmissions.tsx, updated verdict_id to string | null with verdict_id: null in ComplaintTracking.tsx, replaced placeholder strings with em-dashes
 
 **Decided**
 - Zero fabricated data: where endpoints are unserved (`/vendors`, `/complaints`), state renders honest 0 items rather than simulated data

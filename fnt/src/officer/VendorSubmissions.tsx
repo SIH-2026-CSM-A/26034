@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiClient } from '../services/apiClient'
 import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictTag } from './components/VerdictBanner'
 
@@ -93,30 +92,9 @@ export function VendorSubmissions() {
   const [districtFilter, setDistrictFilter] = useState<string>('ALL')
   const [selectedItem, setSelectedItem] = useState<VendorSubmissionItem | null>(null)
 
-  // Missing Endpoint Fallback: VND-002 (e.g. GET /vendors) is unserved in backend schema.
-  // Per instructions: DO NOT invent API calls; initialize state with empty arrays ([]).
-  // Fabricated data has been completely eliminated.
+  // GET /vendors is currently unserved.
   const [submissions, setSubmissions] = useState<VendorSubmissionItem[]>([])
-
-  useEffect(() => {
-    let active = true
-    async function loadLiveBackendContext() {
-      try {
-        await apiClient.GET('/scans')
-        if (active) {
-          setSubmissions([])
-        }
-      } catch {
-        if (active) {
-          setSubmissions([])
-        }
-      }
-    }
-    loadLiveBackendContext()
-    return () => {
-      active = false
-    }
-  }, [])
+  void setSubmissions
 
   // Unique districts for filter dropdown
   const districts = useMemo(() => {

@@ -12,7 +12,7 @@ type ScanSummary = components['schemas']['ScanSummary']
 export interface ComplaintRecord {
   id: string
   scan_id: string
-  verdict_id: string
+  verdict_id: string | null
   manufacturer_name: string
   issue_summary: string
   status: ComplaintStatus
@@ -28,7 +28,7 @@ export interface ComplaintThread {
   latest_record: ComplaintRecord
   history: ComplaintRecord[]
   scan_id: string
-  verdict_id: string
+  verdict_id: string | null
   manufacturer_name: string
   product_description: string
   vendor_name: string
@@ -69,9 +69,9 @@ function buildComplaintThreads(
       verdict_id: head.verdict_id,
       manufacturer_name: head.manufacturer_name,
       product_description: scan?.product_category ? `Category: ${scan.product_category}` : 'Packaged commodity',
-      vendor_name: 'Inspection Record',
-      district: 'Assigned Jurisdiction',
-      state: 'State Metrology Division',
+      vendor_name: '—',
+      district: '—',
+      state: '—',
     }
   })
 }
@@ -335,7 +335,7 @@ export function ComplaintTracking() {
     const newRecord: ComplaintRecord = {
       id: `cmp-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
       scan_id: sub.id,
-      verdict_id: sub.id,
+      verdict_id: null,
       manufacturer_name: manufacturerName.trim(),
       issue_summary: issueSummary.trim(),
       status: 'RAISED',
