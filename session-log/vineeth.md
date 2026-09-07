@@ -41,3 +41,20 @@
 
 **Incomplete**
 - None
+
+### 2026-09-07 — regenerate API client for PIP-003 and disposition schemas — Antigravity
+
+**Done**
+- Configured CLI wrappers for npm/npx/node and hardened `scripts/generate-api.mjs` with explicit PATH and JWT_SECRET handling
+- Executed `npm run generate:api` to synchronize frontend schema with backend FastAPI definitions
+- Verified frontend build (`tsc -b && vite build`) and lint (`oxlint` with 0 warnings/errors)
+- Verified backend pipeline test suite with pytest (93 passed, 20 skipped)
+- Committed regeneration chore on `feature/FNT-005-officer-confirmation`
+
+**Decided**
+- Maintained single source of truth by dumping OpenAPI schema directly from backend FastAPI app rather than manual TypeScript typing
+- Rejected AI attribution trailers on commit messages per repository rules
+
+**Incomplete**
+- None
+
