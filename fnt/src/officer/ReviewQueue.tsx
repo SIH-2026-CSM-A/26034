@@ -131,7 +131,13 @@ export function ReviewQueue() {
         <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3">
           <span className="text-label text-mute">PCCS</span>
           <span className="text-label text-mute">Review queue</span>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3">
+            <Link
+              to="/officer/capture"
+              className="flex min-h-target items-center border border-ink bg-paper px-3 py-1 font-mono text-label text-ink hover:bg-mute/10"
+            >
+              Camera
+            </Link>
             <Link
               to="/officer/new"
               className="flex min-h-target items-center border border-ink bg-ink px-3 py-1 text-label text-paper hover:bg-ink/90"

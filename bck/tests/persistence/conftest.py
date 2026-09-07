@@ -15,15 +15,18 @@ which drops every table. Point ``DATABASE_URL`` at a scratch database.
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import psycopg
 import pytest
 from alembic.config import Config
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from alembic import command
 from app.core.config import Settings, get_settings
-from app.core.db import dispose_engine
+from app.core.db import dispose_engine, get_session
 
 JWT_SECRET = "test-signing-key-not-used-anywhere-real"
 """Required to construct :class:`Settings` at all. Nothing here exercises tokens."""
@@ -80,6 +83,14 @@ def alembic_config(database_url: str) -> Config:
 
 
 @pytest.fixture
+def migrated(alembic_config: Config) -> Iterator[Config]:
+    """A database at head, returned to base afterwards so the next run starts clean."""
+    command.upgrade(alembic_config, "head")
+    yield alembic_config
+    command.downgrade(alembic_config, "base")
+
+
+@pytest.fixture
 async def engine_disposed() -> AsyncIterator[None]:
     """Close the async pool inside the test's own event loop.
 
@@ -88,3 +99,19 @@ async def engine_disposed() -> AsyncIterator[None]:
     """
     yield
     await dispose_engine()
+
+
+@asynccontextmanager
+async def request_session() -> AsyncIterator[AsyncSession]:
+    """One session, obtained and released exactly as a request handler obtains it.
+
+    ``get_session`` is a generator dependency: FastAPI advances it once and closes it
+    when the response is done. Driving it the same way here means its teardown is under
+    test too, not just the session it yields.
+    """
+    sessions = get_session()
+    session = await anext(sessions)
+    try:
+        yield session
+    finally:
+        await sessions.aclose()

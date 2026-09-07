@@ -252,3 +252,66 @@ uff check . -> clean (All checks passed!).
 - 797 passed, 32 skipped across full backend suite (`16.00s`).
 - Quality gates: `ruff check` (PASS), `ruff format --check` (PASS), `lint-imports` (PASS), `git diff --check` (PASS).
 - `session-log/sitanshu.md` numstat against `origin/main`: 0 deletions, additions > 0.
+
+
+### 2026-09-07 — ExT-004 Declaration Bounding Box Prerequisite for Rule 8 Free-Space Clearance (Sitanshu)
+
+**Done**
+- Source-of-Truth Inspection & Data Flow Audit:
+  - Audited bck/app/modules/extraction/binder.py and extraction data models.
+  - Verified NormalisedField.span_refs identifies backing ExtractedSpan objects whose polygons field (tuple[Point, ...]) contains source bounding geometry.
+  - Confirmed measure_margins() in bck/app/modules/measurement/services.py expects bounding box representation.
+- Implementation of get_declaration_bbox() in bck/app/modules/extraction/binder.py:
+  - Pure canonical query helper: get_declaration_bbox(field: NormalisedField, spans: Sequence[ExtractedSpan]) -> tuple[float, float, float, float] | None.
+  - Calculates exact (min_x, min_y, max_x, max_y) enclosing bounding envelope over the union of all polygons of referenced spans.
+  - Preserves exact floating-point canvas pixel coordinates; quantization (floor/ceil integer conversion) is deferred to downstream measurement callers.
+- Refusal Behavior:
+  - Returns None (refusal) when geometry is undeterminable: empty span_refs, missing referenced span_id, empty or < 3 vertex polygons, non-finite (NaN/Inf) coordinates, or degenerate zero/negative area envelopes (min_x >= max_x or min_y >= max_y).
+- Unit Testing & Falsification (bck/tests/modules/extraction/test_bilingual_declarations.py):
+  - Added 11 focused unit tests covering single span, bilingual pairs, multi-line address envelopes, empty refs refusal, missing span ID refusal, empty polygons, < 3 vertex polygons, maloformed point refusal, non-finite coord refusal, degenerate geometry refusal, and fractional floating-point preservation.
+  - Executed 6 independent falsification mutations (multi-span union truncation, min/max corruption, dummy refusal bbox, float quantization, non-finite coords, degenerate envelope) — all 6 went RED under mutation and returned 100% GREEN upon restoration.
+- Quality Gates & Integrity:
+  - All 4 quality gates passed: ruff check . (0 errors), ruff format --check . (0 format violations), lint-imports (3 contracts kept, 0 broken across 115 files), pytest (812 passed, 32 skipped).
+  - Targeted extraction tests: 39 passed in 1.23s.
+  - python -m py_compile passed cleanly on modified modules.
+  - Rebased cleanly onto current origin/main (c4922ce2463cd4485969c3de09b1d5d9db2e7033).
+  - No contracts, pipeline, or measurement files modified. Zero AI-attribution trailers.
+
+
+### 2026-09-08 — EXT-011 Product Categorisation Taxonomy (Sitanshu)
+
+**Done**
+- Verified Taxonomy Contracts & Boundaries:
+  - Confirmed `ProductCategory` enum in `bck/app/contracts/enums.py` retains exactly 3 gazette-anchored members (`food`, `cosmetics`, `medical_device`), matching `sector:` keys in `bck/app/modules/rules/data/rules.yaml`.
+  - Confirmed `CategoryProposal` remains a contract model defined in `bck/app/contracts/evidence.py` and exported strictly via `bck/app/contracts/__init__.py`. It is NOT exported from `bck/app/modules/extraction/__init__.py`.
+  - Confirmed `propose_category` in `bck/app/modules/extraction/category.py` remains a pure, deterministic inference function returning `CategoryProposal | None`.
+- Refactored Category Unit Tests (`bck/tests/modules/extraction/test_category.py`):
+  - Replaced imported confidence constants (`CONFIDENCE_STATUTORY_SIGNAL`, `CONFIDENCE_LEXICAL_SIGNAL`, `CONFIDENCE_MUTUALLY_REINFORCING`) with hardcoded literal float assertions (`0.95`, `0.80`, `0.98`) to adhere to strict literal test assertion contracts.
+  - Added `test_equal_confidence_tie_returns_none` verifying that when two active categories evaluate to equal non-zero confidence scores, `propose_category` deterministically abstains and returns `None`.
+- Falsification Verification:
+  - Purged bytecode (`__pycache__`) and verified surviving count was 0.
+  - Mutated conflict/tie abstention guard in `category.py` (`if second_score >= top_score:` replaced with `if False:`).
+  - Executed pytest without `-x` -> 3 tests failed RED (`test_conflicting_category_evidence_returns_none`, `test_competing_food_and_cosmetics_lexical_signals_safely_abstain`, `test_equal_confidence_tie_returns_none`).
+  - Restored `category.py` from scratchpad backup -> All 19 tests passed GREEN (100%).
+- Scope & Verification:
+  - All 327 extraction module unit tests passed (`327 passed`).
+  - Verified no contracts, pipeline, core model, or analytics files were touched.
+  - Checked `git diff --numstat origin/main -- session-log/sitanshu.md` confirming 0 deletions.
+
+- Deterministic Display Category Taxonomy Implementation:
+  - Implemented `DisplayCategory(StrEnum)` (`packaged_food`, `cosmetics`, `non_food_packaged_goods`, `electronics`, `household`) and `DisplayCategoryTaxonomy(dataclass)` in `bck/app/modules/extraction/category.py`.
+  - Implemented `classify_display_category(result: ExtractionResult) -> DisplayCategoryTaxonomy | None` covering demo product space branches (`packaged_goods` -> `packaged_food`, `cosmetics`, `non_food_packaged_goods` -> `electronics`, `household`).
+  - Restored imported confidence constants (`CONFIDENCE_STATUTORY_SIGNAL`, `CONFIDENCE_LEXICAL_SIGNAL`, `CONFIDENCE_MUTUALLY_REINFORCING`) across test expected value assertions in `bck/tests/modules/extraction/test_category.py`.
+- Legal Sector & Data Flow Isolation:
+  - `DisplayCategory` remains completely separate from `ProductCategory` (`food`, `cosmetics`, `medical_device`).
+  - `CategoryProposal.category` remains strictly `ProductCategory` and is not auto-confirmed.
+  - Electronics and household products return `propose_category(result) is None` for legal sector proposal, preventing illegal sector rule dispatch while providing valid display taxonomy classification.
+- ANL-001 & Scope Alignment:
+  - ANL-001 is not present in the repository, so analytics vocabulary alignment is not claimed.
+- Comprehensive Verification Results:
+  - Focused category unit tests (`bck/tests/modules/extraction/test_category.py`): 29 passed.
+  - Extraction module unit tests (`bck/tests/modules/extraction`): 337 passed.
+  - Full backend pytest suite: 851 passed, 32 skipped, 1 pre-existing MEA-007 synthetic geometry failure.
+  - Quality gates: `ruff check` (0 errors), `ruff format --check` (clean), `lint-imports` (3 contracts kept), `compileall -q app` (0 errors), `git diff --check` (clean).
+- Falsification Verification:
+  - All 7 display & legal taxonomy falsification mutations (disable electronics, disable household, remove parent hierarchy, disable display tie resolution, disable legal tie resolution, invalid display in CategoryProposal, widen ProductCategory) evaluated to RED and restored to 100% GREEN.

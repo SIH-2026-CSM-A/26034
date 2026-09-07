@@ -15,7 +15,7 @@ class ExportDeclaration(BaseModel):
     declared_value: str | None
     state: FieldState
     ocr_provider: str
-    confidence: float
+    confidence: float | None = None
 
 
 class ExportRuleEvaluation(BaseModel):
@@ -43,7 +43,7 @@ class OfficerReportModel(BaseModel):
     report_id: str
     generated_at: str
     rule_set_version: str
-    evidence_hash: str
+    evidence_hash: str | None = None
     source_image_path: str | None
     confirmed_by: str
     confirmed_at: str

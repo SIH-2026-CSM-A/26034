@@ -6,6 +6,8 @@ from app.contracts import (
     MeasurementExact,
     MeasurementMarginCalibrated,
     MeasurementMarginExact,
+    MeasurementMarginOverlapCalibrated,
+    MeasurementMarginOverlapExact,
     MeasurementRefusal,
     MeasurementResult,
 )
@@ -26,6 +28,7 @@ REF_DIMS = {
 # Uncalibrated priors to be recalibrated once an evaluation set exists.
 PRIOR_CONFIDENCE_CARD = 0.01
 PRIOR_CONFIDENCE_COIN = 0.05
+PRIOR_CONFIDENCE_ELLIPSE_FIT = 0.80
 PRIOR_CONFIDENCE_EAN = 0.10
 
 MIN_PLANARITY_THRESHOLD = 0.85
@@ -71,25 +74,82 @@ def detect_reference_object(
         return cv2.getPerspectiveTransform(src_pts, dst_pts)
 
     if ref_type == "coin_10":
-        blurred = cv2.medianBlur(gray, 5)
-        circles = cv2.HoughCircles(
-            blurred,
-            cv2.HOUGH_GRADIENT,
-            dp=1,
-            minDist=20,
-            param1=50,
-            param2=30,
-            minRadius=10,
-            maxRadius=max(gray.shape) // 2,
-        )
-        if circles is not None and len(circles) > 0:
-            circles = np.uint16(np.around(circles))
-            max_circle = max(circles[0, :], key=lambda c: c[2])
-            diameter_px = max_circle[2] * 2
-            if diameter_px > 0:
-                scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
-                return scale, scale * PRIOR_CONFIDENCE_COIN, None
-        return MeasurementRefusal(reason=f"Failed to detect reference object of type: {ref_type}.")
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(blurred, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours:
+            return MeasurementRefusal(reason="Failed to detect reference: No contours found.")
+
+        best_cnt = max(contours, key=cv2.contourArea)
+        if len(best_cnt) < 5:
+            return MeasurementRefusal(
+                reason="Failed to detect reference: too few points for ellipse fit."
+            )
+
+        (xc, yc), (w, h), angle_deg = cv2.fitEllipse(best_cnt)
+        if w == 0 or h == 0:
+            return MeasurementRefusal(reason="Failed to detect reference: Degenerate ellipse fit.")
+
+        angle_rad = np.deg2rad(angle_deg)
+        if w > h:
+            a, b = w / 2.0, h / 2.0
+            u = np.array([np.cos(angle_rad), -np.sin(angle_rad), 0.0])
+        else:
+            a, b = h / 2.0, w / 2.0
+            u = np.array([np.sin(angle_rad), np.cos(angle_rad), 0.0])
+
+        ellipse_area = np.pi * a * b
+        contour_area = cv2.contourArea(best_cnt)
+        if ellipse_area == 0 or contour_area == 0:
+            return MeasurementRefusal(
+                reason=("Failed to detect reference: Zero area contour or ellipse.")
+            )
+
+        fit_confidence = min(ellipse_area, contour_area) / max(ellipse_area, contour_area)
+        if fit_confidence < PRIOR_CONFIDENCE_ELLIPSE_FIT:
+            return MeasurementRefusal(
+                reason=(
+                    "Failed to detect reference: "
+                    f"Ellipse fit not confident (score {fit_confidence:.2f})."
+                )
+            )
+
+        # Calculate the tilt angle
+        theta = np.arccos(b / a)
+
+        # Sign ambiguity: we explicitly resolve the two-way sign ambiguity by
+        # assuming the top of the coin is further away from the camera.
+        theta = np.abs(theta) if u[0] > 0 else -np.abs(theta)
+
+        # Construct true 3x3 3D rotation matrix representing the tilt
+        k_u = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
+        r_tilt = np.eye(3) + np.sin(theta) * k_u + (1.0 - np.cos(theta)) * (k_u @ k_u)
+
+        # Invert the rotation to properly unwarp the plane
+        r_inv = r_tilt.T
+
+        # Construct a pseudo-camera intrinsic matrix using focal length = image diagonal
+        h_img, w_img = gray.shape
+        f_val = np.sqrt(w_img**2 + h_img**2)
+        k_mat = np.array([[f_val, 0.0, xc], [0.0, f_val, yc], [0.0, 0.0, 1.0]])
+        k_inv = np.linalg.inv(k_mat)
+
+        # The forward rotation shifted the optical center. Calculate that pixel shift.
+        v_forward = r_tilt @ np.array([0.0, 0.0, 1.0])
+        dx = f_val * v_forward[0] / v_forward[2]
+        dy = f_val * v_forward[1] / v_forward[2]
+
+        # Create an inverse translation to keep the coin centered and preserve exact scale
+        t_inv = np.array([[1.0, 0.0, dx], [0.0, 1.0, dy], [0.0, 0.0, 1.0]])
+
+        # Compute the true perspective homography: H = K @ R_inv @ K_inv @ T_inv
+        h_matrix = k_mat @ r_inv @ k_inv @ t_inv
+
+        diameter_px = a * 2.0
+        scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px
+
+        return scale, scale * PRIOR_CONFIDENCE_COIN, h_matrix
 
     elif ref_type == "id_card":
         edges = cv2.Canny(gray, 50, 150)
@@ -560,7 +620,17 @@ def measure_margins(
     for direction, dist_px in distances_px.items():
         dist_mm = dist_px * mm_per_pixel
         if dist_mm < 0:
-            results[direction] = MeasurementRefusal(reason="Margin overlaps active ink region.")
+            if is_artwork:
+                results[direction] = MeasurementMarginOverlapExact(overlap=abs(dist_mm), unit="mm")
+            else:
+                confidence_floor = UNCALIBRATED_QUANTISATION_PRIOR_PX * mm_per_pixel
+                confidence = max(abs(dist_px) * conf_interval, confidence_floor)
+                results[direction] = MeasurementMarginOverlapCalibrated(
+                    overlap=abs(dist_mm),
+                    confidence_interval=confidence,
+                    unit="mm",
+                    reference_object=ref_type,
+                )
             continue
 
         if is_artwork:

@@ -117,6 +117,10 @@ You own directories. Nobody else edits them, and you edit nobody else's.
 | `bck/app/modules/extraction/` | Sitanshu |
 | `bck/app/modules/measurement/` | Yashashvi |
 | `bck/app/modules/evidence/` | Shiva Kumar |
+| `bck/app/modules/analytics/` | Jashwanth *(new, ANL-001)* |
+| `bck/app/modules/vendor/` | B.V. Yashwanth *(new, VND-001)* |
+| `bck/app/modules/complaints/` | Shiva Kumar *(new, CMP-001)* |
+| `bck/app/modules/reviews/` | Jashwanth *(new, RVW-001)* |
 | `fnt/` officer surface | Abhiram *(Vineeth's module, he is unavailable)* |
 | `fnt/` admin surface | Rohan |
 | `datasets/` | Abhiram *(from Aashritha, off the project)* |

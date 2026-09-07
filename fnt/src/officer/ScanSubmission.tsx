@@ -205,9 +205,17 @@ export function ScanSubmission() {
           <form onSubmit={handleSubmit} className="mt-6 space-y-6">
             {/* File Upload */}
             <div className="border border-hairline bg-paper p-4">
-              <label htmlFor="scan-file" className="block text-body font-medium">
-                Package photograph or artwork file
-              </label>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <label htmlFor="scan-file" className="block text-body font-medium">
+                  Package photograph or artwork file
+                </label>
+                <Link
+                  to="/officer/capture"
+                  className="font-mono text-label text-ink underline underline-offset-4 hover:text-mute"
+                >
+                  Switch to live camera →
+                </Link>
+              </div>
               <p className="mt-0.5 text-secondary text-mute">
                 Accepts JPEG, PNG, WebP, SVG, or PDF artwork.
               </p>

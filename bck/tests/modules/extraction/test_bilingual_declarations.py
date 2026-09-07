@@ -10,10 +10,16 @@ from app.contracts import (
     EvidenceProvider,
     ExtractedSpan,
     FieldState,
+    NormalisedField,
     Verdict,
 )
 from app.modules.extraction import bind_spans
-from app.modules.extraction.binder import ScriptType, _preprocess_devanagari_text, detect_script
+from app.modules.extraction.binder import (
+    ScriptType,
+    _preprocess_devanagari_text,
+    detect_script,
+    get_declaration_bbox,
+)
 from app.pipeline.findings import build_findings
 from app.pipeline.orchestrator import by_obligation
 from app.pipeline.rule_findings import EvidenceContext
@@ -560,3 +566,205 @@ def test_recognized_additional_script_unnormalized_routes_to_review():
     assert verdict == Verdict.REVIEW
     assert verdict != Verdict.POTENTIAL_VIOLATION
     assert verdict != Verdict.PASS
+
+
+def test_get_declaration_bbox_single_span():
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (200.0, 20.0), (200.0, 50.0), (10.0, 50.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    bbox = get_declaration_bbox(field, [span])
+    assert bbox == (10.0, 20.0, 200.0, 50.0)
+
+
+def test_get_declaration_bbox_bilingual_pair():
+    span1 = ExtractedSpan(
+        span_id="lat1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (200.0, 20.0), (200.0, 50.0), (10.0, 50.0)),
+    )
+    span2 = ExtractedSpan(
+        span_id="dev1",
+        text="निवल मात्रा ५०० ग्राम",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((15.0, 60.0), (210.0, 60.0), (210.0, 90.0), (15.0, 90.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("lat1", "dev1"),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    bbox = get_declaration_bbox(field, [span1, span2])
+    assert bbox == (10.0, 20.0, 210.0, 90.0)
+
+
+def test_get_declaration_bbox_multi_line_address():
+    span1 = ExtractedSpan(
+        span_id="a1",
+        text="Mfg by ABC Foods",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((50.0, 100.0), (300.0, 100.0), (300.0, 130.0), (50.0, 130.0)),
+    )
+    span2 = ExtractedSpan(
+        span_id="a2",
+        text="Mumbai 400001",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((40.0, 140.0), (280.0, 140.0), (280.0, 170.0), (40.0, 170.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NAME_AND_ADDRESS,
+        span_refs=("a1", "a2"),
+        normalised_value="Mfg by ABC Foods Mumbai 400001",
+        parse_confidence=0.95,
+    )
+    bbox = get_declaration_bbox(field, [span1, span2])
+    assert bbox == (40.0, 100.0, 300.0, 170.0)
+
+
+def test_get_declaration_bbox_refusal_empty_span_refs():
+    field = NormalisedField.model_construct(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=(),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, []) is None
+
+
+def test_get_declaration_bbox_refusal_missing_span_id():
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("missing_id",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, []) is None
+
+
+def test_get_declaration_bbox_refusal_empty_polygon():
+    span = ExtractedSpan.model_construct(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=(),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, [span]) is None
+
+
+def test_get_declaration_bbox_refusal_insufficient_vertices():
+    span = ExtractedSpan.model_construct(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (100.0, 20.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, [span]) is None
+
+
+def test_get_declaration_bbox_refusal_malformed_point():
+    span = ExtractedSpan.model_construct(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0,), (100.0, 20.0), (100.0, 50.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, [span]) is None
+
+
+def test_get_declaration_bbox_refusal_non_finite_coordinate():
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((float("nan"), 10.0), (100.0, 10.0), (100.0, 50.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, [span]) is None
+
+
+def test_get_declaration_bbox_refusal_degenerate_geometry():
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (10.0, 20.0), (10.0, 50.0), (10.0, 50.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    assert get_declaration_bbox(field, [span]) is None
+
+
+def test_get_declaration_bbox_fractional_coordinates():
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.35, 20.75), (100.25, 20.75), (100.25, 50.85), (10.35, 50.85)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    bbox = get_declaration_bbox(field, [span])
+    assert bbox == (10.35, 20.75, 100.25, 50.85)

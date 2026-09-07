@@ -25,3 +25,31 @@
 
 **Incomplete**
 - None
+
+### 2026-09-07 — officer confirmation interface — Antigravity
+
+**Done**
+- Regenerated API client for disposition schemas
+- Implemented ReviewRequest submission (Confirm, Override, Reject)
+
+**Decided**
+- Framed all automated findings strictly as recommendations
+- Prevented INSUFFICIENT_EVIDENCE from folding into a pass state
+
+**Incomplete**
+- None
+
+### 2026-09-08 — PWA camera capture screen (FNT-006) — Antigravity
+
+**Done**
+- Configured Vite with `basicSsl` for local HTTPS and `vite-plugin-pwa` for app shell precaching and web manifest
+- Built `CameraCapture.tsx` with live `getUserMedia` stream (`facingMode: "environment"`), viewfinder with scoped SVG pattern via `useId()`, preview-and-retake flow, and submission to `apiClient.POST('/scans/image')`
+- Routed camera capture at `/officer/capture` and linked from Review Queue and Scan Submission
+
+**Decided**
+- Excluded offline verdict syncing per F51 cut
+- Preserved light-ground palette (#DCDFDB) and 48px minimum touch target across mobile viewport (390px)
+- Maintained honest hardware error presentation when camera is denied/unavailable without fake data
+
+**Incomplete**
+- None

@@ -21,6 +21,8 @@ from app.modules.extraction.category import (
     CONFIDENCE_LEXICAL_SIGNAL,
     CONFIDENCE_MUTUALLY_REINFORCING,
     CONFIDENCE_STATUTORY_SIGNAL,
+    DisplayCategory,
+    classify_display_category,
     propose_category,
 )
 
@@ -329,3 +331,190 @@ def test_pan_masala_without_fssai_does_not_trigger_food_lexical_signal() -> None
     result = ExtractionResult(fields=[field], unclassified_spans=[])
 
     assert propose_category(result) is None
+
+
+def test_equal_confidence_tie_returns_none() -> None:
+    """Test 19: Tie abstention when two active categories have equal non-zero confidence."""
+    field1 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Edible Oil",
+        span_refs=("span_oil",),
+    )
+    field2 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Shampoo",
+        span_refs=("span_shampoo",),
+    )
+    result = ExtractionResult(fields=[field1, field2], unclassified_spans=[])
+
+    assert propose_category(result) is None
+
+
+# --- Display Taxonomy Unit & Invariant Tests (EXT-011) ----------------------------------
+
+
+def test_display_taxonomy_packaged_food() -> None:
+    """Test A: Packaged food evidence maps to packaged_food display category."""
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Edible Oil",
+        span_refs=("span_oil",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    display_prop = classify_display_category(result)
+    assert display_prop is not None
+    assert display_prop.category == DisplayCategory.PACKAGED_FOOD
+    assert display_prop.parent_category is None
+    assert display_prop.path == ("packaged_goods", "packaged_food")
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
+
+
+def test_display_taxonomy_cosmetics() -> None:
+    """Test B: Shampoo/cosmetic evidence maps to cosmetics display category."""
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Herbal Shampoo",
+        span_refs=("span_shampoo",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    display_prop = classify_display_category(result)
+    assert display_prop is not None
+    assert display_prop.category == DisplayCategory.COSMETICS
+    assert display_prop.parent_category is None
+    assert display_prop.path == ("packaged_goods", "cosmetics")
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
+
+
+def test_display_taxonomy_electronics() -> None:
+    """Test C & E: Phone/electronics packaging maps to electronics branch."""
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Smartphone Charger",
+        span_refs=("span_phone",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    display_prop = classify_display_category(result)
+    assert display_prop is not None
+    assert display_prop.category == DisplayCategory.ELECTRONICS
+    assert display_prop.parent_category == DisplayCategory.NON_FOOD_PACKAGED_GOODS
+    assert display_prop.path == (
+        "packaged_goods",
+        "non_food_packaged_goods",
+        "electronics",
+    )
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
+
+
+def test_display_taxonomy_household() -> None:
+    """Test D & E: Household product maps to household branch."""
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Liquid Detergent",
+        span_refs=("span_det",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    display_prop = classify_display_category(result)
+    assert display_prop is not None
+    assert display_prop.category == DisplayCategory.HOUSEHOLD
+    assert display_prop.parent_category == DisplayCategory.NON_FOOD_PACKAGED_GOODS
+    assert display_prop.path == (
+        "packaged_goods",
+        "non_food_packaged_goods",
+        "household",
+    )
+    assert display_prop.confidence == CONFIDENCE_LEXICAL_SIGNAL
+
+
+def test_display_taxonomy_missing_evidence_returns_none() -> None:
+    """Test F: Missing or sparse evidence returns None for display taxonomy."""
+    result = ExtractionResult(fields=[], unclassified_spans=[])
+    assert classify_display_category(result) is None
+
+
+def test_display_taxonomy_competing_signals_abstain() -> None:
+    """Test G & H: Conflicting or equal-confidence display signals abstain cleanly."""
+    field1 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Smartphone",
+        span_refs=("span_phone",),
+    )
+    field2 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Detergent",
+        span_refs=("span_det",),
+    )
+    result = ExtractionResult(fields=[field1, field2], unclassified_spans=[])
+
+    assert classify_display_category(result) is None
+
+
+def test_product_category_enum_remains_strictly_three_members() -> None:
+    """Test I: ProductCategory enum remains strictly food, cosmetics, medical_device."""
+    assert len(ProductCategory) == 3
+    assert set(ProductCategory) == {
+        ProductCategory.FOOD,
+        ProductCategory.COSMETICS,
+        ProductCategory.MEDICAL_DEVICE,
+    }
+
+
+def test_category_proposal_unexported_from_extraction_init() -> None:
+    """Test K: CategoryProposal is still NOT exported from app.modules.extraction.__init__."""
+    import app.modules.extraction as ext_mod
+
+    assert not hasattr(ext_mod, "CategoryProposal")
+    assert hasattr(ext_mod, "propose_category")
+
+
+def test_electronics_and_household_do_not_produce_legal_sector_proposals() -> None:
+    """Test L & M: Electronics/Household display items return None for legal sector proposal."""
+    field = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Smartphone",
+        span_refs=("span_phone",),
+    )
+    result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None
+    disp = classify_display_category(result)
+    assert disp is not None
+    assert disp.category == DisplayCategory.ELECTRONICS
+
+
+def test_all_demo_signals_classified() -> None:
+    """Verify each required demo commodity signal is correctly classified."""
+    for s in ["Biscuits", "Edible Oil", "Ghee", "Butter"]:
+        res = ExtractionResult(
+            fields=[_make_field(DeclarationField.COMMON_OR_GENERIC_NAME, s, ("s1",))],
+            unclassified_spans=[],
+        )
+        d = classify_display_category(res)
+        assert d is not None and d.category == DisplayCategory.PACKAGED_FOOD
+
+    for s in ["Shampoo", "Soap", "Lotion", "Toothpaste", "Cream", "Perfume"]:
+        res = ExtractionResult(
+            fields=[_make_field(DeclarationField.COMMON_OR_GENERIC_NAME, s, ("s1",))],
+            unclassified_spans=[],
+        )
+        d = classify_display_category(res)
+        assert d is not None and d.category == DisplayCategory.COSMETICS
+
+    for s in ["Phone", "Smartphone", "Charger", "Headphones", "Earbuds", "Electronics"]:
+        res = ExtractionResult(
+            fields=[_make_field(DeclarationField.COMMON_OR_GENERIC_NAME, s, ("s1",))],
+            unclassified_spans=[],
+        )
+        d = classify_display_category(res)
+        assert d is not None and d.category == DisplayCategory.ELECTRONICS
+
+    for s in ["Detergent", "Cleaner", "Disinfectant", "Dishwash"]:
+        res = ExtractionResult(
+            fields=[_make_field(DeclarationField.COMMON_OR_GENERIC_NAME, s, ("s1",))],
+            unclassified_spans=[],
+        )
+        d = classify_display_category(res)
+        assert d is not None and d.category == DisplayCategory.HOUSEHOLD

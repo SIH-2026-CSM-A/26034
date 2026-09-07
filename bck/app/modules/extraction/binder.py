@@ -26,6 +26,7 @@ Bilingual declarations in Hindi (Devanagari) and English (Latin) representing th
 declaration field are spatially paired into single NormalisedField records with plural span_refs.
 """
 
+import math
 import re
 import unicodedata
 from collections.abc import Sequence
@@ -215,6 +216,67 @@ def _get_bbox(polygon: tuple[tuple[float, float], ...]) -> _BBox:
     xs = [p[0] for p in polygon]
     ys = [p[1] for p in polygon]
     return min(xs), min(ys), max(xs), max(ys)
+
+
+def get_declaration_bbox(
+    field: NormalisedField,
+    spans: Sequence[ExtractedSpan],
+) -> tuple[float, float, float, float] | None:
+    """Calculate exact (min_x, min_y, max_x, max_y) enclosing bounding box
+    for a field's referenced spans.
+
+    Returns None (refusal) if geometry is undeterminable (missing refs, invalid/empty polygons,
+    fewer than 3 vertices, non-finite coordinates, or degenerate zero/negative area envelope).
+    """
+    if not field.span_refs:
+        return None
+
+    span_map = {s.span_id: s for s in spans}
+    xs: list[float] = []
+    ys: list[float] = []
+
+    for span_id in field.span_refs:
+        span = span_map.get(span_id)
+        if span is None:
+            return None
+
+        poly = span.polygon
+        if not poly or len(poly) < 3:
+            return None
+
+        for pt in poly:
+            try:
+                if hasattr(pt, "x") and hasattr(pt, "y"):
+                    x, y = pt.x, pt.y
+                elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+                    x, y = pt[0], pt[1]
+                else:
+                    return None
+            except (AttributeError, IndexError, TypeError):
+                return None
+
+            try:
+                fx = float(x)
+                fy = float(y)
+            except (ValueError, TypeError):
+                return None
+
+            if not (math.isfinite(fx) and math.isfinite(fy)):
+                return None
+
+            xs.append(fx)
+            ys.append(fy)
+
+    if not xs or not ys:
+        return None
+
+    min_x, min_y = min(xs), min(ys)
+    max_x, max_y = max(xs), max(ys)
+
+    if min_x >= max_x or min_y >= max_y:
+        return None
+
+    return (min_x, min_y, max_x, max_y)
 
 
 _ANCHOR_RE: Final[re.Pattern[str]] = re.compile(

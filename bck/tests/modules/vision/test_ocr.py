@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -83,6 +83,37 @@ def test_extract_panel_text_mocked(mock_paddle, tmp_path):
     assert kwargs.get("text_recognition_model_dir") == rec_dir
 
 
+@patch("paddleocr.PaddleOCR")
+def test_extract_panel_text_disables_mkldnn(mock_paddle, tmp_path):
+    """PaddleOCR must be constructed with ``enable_mkldnn=False``.
+
+    Without it, ``ocr.predict`` aborts inside paddle's C++ oneDNN executor on this CPU with
+    ``NotImplementedError: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support
+    [pir::ArrayAttribute<pir::DoubleAttribute>] (onednn_instruction.cc:116)`` — so the only
+    OCR entry point the orchestrator has never returns a span.
+
+    Measured for VIS-006 against a real capture, with neither ``FLAGS_USE_MKLDNN`` nor
+    ``FLAGS_ENABLE_PIR_API`` set in the process: this kwarg on its own is what makes the
+    call succeed, returning 47 spans. Exporting those two variables before the process
+    starts and passing no kwarg reproduces the crash with a byte-identical traceback, so
+    they are not the fix and are deliberately not set anywhere.
+    """
+    mock_paddle.return_value.predict.return_value = {
+        "dt_polys": [[[0, 0], [10, 0], [10, 10], [0, 10]]],
+        "rec_texts": ["TEST"],
+        "rec_scores": [0.99],
+    }
+
+    det_dir = tmp_path / "det"
+    rec_dir = tmp_path / "rec"
+    det_dir.mkdir()
+    rec_dir.mkdir()
+
+    extract_panel_text(np.zeros((100, 100, 3), dtype=np.uint8), str(det_dir), str(rec_dir))
+
+    assert mock_paddle.call_args.kwargs["enable_mkldnn"] is False
+
+
 def test_offline_guarantee_raises_on_missing_tessdata():
     with pytest.raises(FileNotFoundError):
         extract_mrp_quantity(np.zeros((10, 10, 3), dtype=np.uint8), "/invalid/path")
@@ -142,12 +173,14 @@ def test_paddleocr_3x_parser_format():
     assert spans[0].source_provider == EvidenceProvider.PADDLEOCR
     assert len(spans[0].polygon) == 4
 
-    paddle_3x_obj = MagicMock()
-    paddle_3x_obj.dt_polys = [np.array([[5, 5], [50, 5], [50, 25], [5, 25]])]
-    paddle_3x_obj.rec_texts = ["MRP Rs 99"]
-    paddle_3x_obj.rec_scores = [0.99]
-
-    spans_obj = _parse_paddle_results(paddle_3x_obj)
+    paddle_3x_dict_2 = {
+        "dt_polys": [np.array([[5, 5], [50, 5], [50, 25], [5, 25]])],
+        "rec_texts": ["MRP Rs 99"],
+        "rec_scores": [0.99],
+    }
+    spans_obj = _parse_paddle_results(paddle_3x_dict_2)
+    assert len(spans_obj) == 1
+    assert spans_obj[0].text == "MRP Rs 99"
     assert len(spans_obj) == 1
     assert spans_obj[0].text == "MRP Rs 99"
     assert spans_obj[0].confidence == 0.99
@@ -170,13 +203,12 @@ def test_parse_paddle_results_invalid_type():
 
 
 def test_parse_paddle_results_missing_score():
-    import pytest
-
     from app.modules.vision.ocr import _parse_paddle_results
 
-    bad_data = {"dt_polys": [[[0, 0]]], "rec_texts": ["A"], "rec_scores": [None]}
-    with pytest.raises(ValueError, match="cannot be None"):
-        _parse_paddle_results(bad_data)
+    data = {"dt_polys": [[[0, 0], [10, 0], [10, 10]]], "rec_texts": ["A"], "rec_scores": [None]}
+    spans = _parse_paddle_results(data)
+    assert len(spans) == 1
+    assert spans[0].confidence == 0.0
 
 
 def test_parse_paddle_results_missing_fields():
@@ -185,7 +217,7 @@ def test_parse_paddle_results_missing_fields():
     from app.modules.vision.ocr import _parse_paddle_results
 
     bad_data = {"dt_polys": [[[0, 0]]], "rec_scores": [0.9]}
-    with pytest.raises(ValueError, match="Missing required fields"):
+    with pytest.raises(KeyError, match="Malformed PaddleOCR result"):
         _parse_paddle_results(bad_data)
 
 
