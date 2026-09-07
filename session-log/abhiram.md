@@ -2126,3 +2126,180 @@ PIP-003, 16 to MEA-005, so this is **17**.
 `pipeline/responses.py` also changed in that window; `finding_from_row` still makes the
 `RuleParameterSnapshot.model_validate` call the replay guard cites, checked rather than
 assumed.
+
+
+## Session 18 — 2026-09-07, RUL-007 (Claude Code, Opus 5)
+
+Branch `rul-007-free-space-overlap-states`, worktree `~/26034-ctr`. Session 16 was the
+MEA-005 takeover (#43) and Session 17 the RUL-006 retirement of `applies_to` (#75). Both
+merged while this was in flight — see the rebase note below.
+
+### The defect
+
+`FreeSpaceMeasurement` typed all four clearances `PositiveDecimal`. Rule 8(1)'s proviso is
+breached by exactly two readings and `gt=0` rejected both at construction:
+
+- a **flush** declaration, `dist_mm == 0`, which MEA-006 deliberately made representable as
+  `MeasurementMarginExact(value=0.0)`;
+- an **overlap**, which MEA-009 Part A (#73) added as `MeasurementMarginOverlapExact` /
+  `MeasurementMarginOverlapCalibrated`.
+
+So `evaluate_rule8_free_space` accepted every compliant reading and no violating one. It did
+not crash only because `measure_margins` is not wired into the orchestrator.
+
+### Why the sign was not enough
+
+The ticket offered widening the numeric type so the sign carries the meaning. Rejected
+against the code: the evaluator did not dispatch structurally. `placement.py` was one
+generator expression doing `observed < required` over four `Decimal`s, so a 2 mm overlap and
+a 2 mm clearance became the same object separated by a sign that expression was not obliged
+to read, and `deficient_sides` would have named them identically. That is the collapse
+MEA-009 rejected at the contracts layer, rebuilt one layer up.
+
+The falsification that settles it is D3 below: comparing an overlap's magnitude against the
+requirement passes every behavioural test in the file except the one written for it.
+
+### Two variants, not three
+
+The ticket named three states — clearance, flush, overlap. Shipped as two, and Abhiram took
+the pushback. `contracts` models a flush declaration as a margin of exactly 0.0 and says so
+in as many words: `MeasurementMarginOverlapExact.overlap` refuses 0.0 because admitting it
+"would give one physical fact two representations". A third `SideFlush` variant here would
+rebuild precisely that, and would force the eventual adapter to re-derive a `value == 0.0`
+boundary contracts deliberately declined to draw — a skippable check of the kind the ticket
+exists to remove.
+
+```
+SideClearance(state="clearance", distance_mm: ge=0)   # 0 is flush
+SideOverlap(state="overlap",     overlap_mm: gt=0)    # direction is the type, never a sign
+SideSpace = Annotated[SideClearance | SideOverlap, Field(discriminator="state")]
+```
+
+That is member-for-member with `MeasurementMarginExact` against
+`MeasurementMarginOverlapExact`, so the adapter, when someone writes it, is a `mode` → variant
+lookup with no arithmetic in it.
+
+`Rule8FreeSpaceEvaluation` gained `overlapping_sides` beside `deficient_sides`. Every
+overlapping side is deficient; the reverse does not hold. Reporting one list would have
+rebuilt at the reporting layer the ambiguity the two variants just removed at the data layer.
+
+The four side fields lost their `_mm` suffix. They no longer hold a millimetre scalar and the
+old name would have lied.
+
+### What was raised and not taken
+
+**No adapter, and `rule_snapshot.py` is unchanged.** The ticket scoped "whatever
+`rule_snapshot.py` needs to translate the contracts measurement types". It needs nothing —
+it translates `RuleDefinition` → `RuleParameterSnapshot` and has never seen a measurement.
+The contracts-measurement → `FreeSpaceMeasurement` adapter has no producer to adapt from:
+
+- `measure_margins` still returns `MeasurementRefusal("Margin overlaps active ink region.")`
+  for a negative clearance. That is MEA-011, Yashashvi's module, unlanded.
+- No `free_space` entry reaches `context.measurements` until EXT-004 binds a declaration to a
+  bounding box. `orchestrator.py` says so in a comment where the call would go.
+
+Writing it now would be a merged-with-no-caller, which this repo already carries five
+instances of. Raised on the PR rather than taken.
+
+`measurement_findings.py` carries a live trap for whoever does write it: the non-Table-I
+branch formats `f"{result.value} {result.unit}"`, and an overlap type has no `.value` — by
+design, per the MEA-009 docstring. It is unreachable today because `free_space` never enters
+`context.measurements`. Flagged for the wiring ticket, not fixed here.
+
+### The rewritten test
+
+`test_a_missing_or_zero_clearance_fails_to_construct` asserted that a zero clearance must
+fail to construct, "because zero is the value an absent measurement arrives as". True of the
+old shape, false now — MEA-006 settled that a zero margin is a physical fact about the
+package. Not deleted: rewritten as `test_one_physical_fact_has_one_representation`, keeping
+the half still true (a zero `numeral_height_mm` is still no numeral) and adding the boundary
+that now matters — a flush side is a zero clearance and never a zero overlap.
+
+### Falsification
+
+Ten defects, each aimed at one test's own claim, all run **without `-x`**, each reverted from
+a scratchpad copy and not `git checkout --`. Bytecode purged before every run with the
+absolute-path `find` on its own line, asserting the surviving directory count is zero rather
+than trusting an exit code. Every file verified byte-identical to its pristine copy by
+`md5sum` afterwards.
+
+| # | Defect | Went red |
+|---|---|---|
+| D1 | `distance_mm: PositiveDecimal` (the original defect) | flush test only |
+| D2 | `_falls_short` returns `False` for an overlap | both overlap tests + the pipeline test |
+| D3 | `_falls_short` returns `overlap_mm < required` | **large-overlap test only** |
+| D4 | `overlapping_sides=()` unconditionally | both overlap tests + the pipeline test |
+| D5 | `overlap_mm: NonNegativeDecimal` | one-physical-fact test only |
+| D6 | `Decimal("2") * numeral_height` in `placement.py` | literal scan `[placement]` only |
+| D7 | `letter_height_mm` added to the measurement | measurement field pin only |
+| D8 | a third multiple on `FreeSpaceCondition` | condition field pin only |
+| D9 | `POTENTIAL_VIOLATION` → `INSUFFICIENT_EVIDENCE` | pipeline test only |
+| D10 | a module-level float in `results.py` | literal scan `[results]` only |
+
+Two are worth reading twice. **D3** isolates the large-overlap test while the other overlap
+test stays green, which is what proves the two carry different claims — the test was
+originally written with a 0.1 mm overlap, which a magnitude comparison also fails, so it
+proved nothing until the figure was changed to 10 mm against an 8 mm requirement. **D6**
+produces arithmetically identical output — `2 × numeral_height` is what the store says — so
+every behavioural test stays green and only the AST scan catches it.
+
+The AST scan excludes `bool`, which subclasses `int`. `_falls_short` returns `True` and that
+is a dispatch outcome, not a millimetre. Abhiram flagged this shape before implementation
+started and the narrowing is the one it asked for — the alternative was contorting the module
+to satisfy the test.
+
+### Gate
+
+Measured three times, because the base moved under this branch twice. Clean tree, bytecode
+purged, directory count asserted zero rather than an exit code trusted, exit codes read
+directly and never through a pipe.
+
+| base | `origin/main` | this branch | delta |
+|---|---|---|---|
+| `9a96b34`, at the start | 795 / 32 | — | — |
+| `2f915f4`, after the #43 rebase | 800 / 32 | 804 / 32 | +4 |
+| `d9c44fa`, after the #75 rebase | **801 / 32** | **805 / 32** | **+4** |
+
+The same four tests on every base — zero regressions, zero new skips. **Do not quote these
+numbers.** The baseline moved three times in one session; measure it.
+
+CI on the runner: **835 passed / 2 skipped**, all three checks green (backend 2m12s, datasets
+27s, frontend 25s). Thirty above the local 805 because the runner provides a Postgres service
+and un-skips the postgres-marked tests. Both numbers are correct; they count different sets.
++4 net and not +9: nine tests were added and the five parameters of the rewritten
+`test_a_missing_or_zero_clearance_fails_to_construct` came out.
+
+Ruff clean, `ruff format --check` clean over 152 files, `lint-imports` 3 contracts kept / 0
+broken over 114 files, `app` confirmed installed first so the contracts
+were analysing something.
+
+**`tests/modules/vision/test_preprocess.py::test_remap_curvature_performance_at_realistic_resolution`
+fails intermittently on `origin/main`, before this branch exists.** It went red on the first
+baseline run, then passed three times in isolation and passed on a second full-suite run. It
+is a wall-clock assertion that flakes under full-suite load. Not caused here and not fixed
+here; raised so the next person who sees it red does not go looking in the rules module.
+
+### Rebase
+
+Two PRs landed while this branch was open, so it was rebased twice.
+
+`#43` (MEA-005) added `pdfplumber` to `bck/pyproject.toml`. Rebased onto `2f915f4`, no
+conflicts, then `uv sync` with `TMPDIR` under `~`. **Anyone pulling this needs `uv sync`** or
+`tests/modules/measurement/test_artwork.py` will fail to import.
+
+`#75` (RUL-006) retired `applies_to` from the rule store. Rebased onto `d9c44fa`; the code
+commit replayed clean and the only conflict was this file. Resolved by reconstruction as
+CLAUDE.md requires — `git show origin/main:session-log/abhiram.md > session-log/abhiram.md`,
+then this block appended — never by editing conflict markers. Proved with
+`git diff --numstat origin/main -- session-log/abhiram.md` showing **0 deletions**.
+
+Both PRs also took a session number while this session was mid-flight: 16 went to MEA-005 and
+17 to RUL-006, which is why this is 18. The number was checked again after the second rebase
+rather than trusted from the first.
+
+### Not done, deliberately
+
+- **Nothing is wired into the orchestrator.** Still blocked on EXT-004, and its own ticket.
+- **`measurement/services.py` is untouched.** MEA-011 is Yashashvi's, and `measure_margins`
+  still reports an overlap as a refusal. Until it lands, `SideOverlap` has no producer outside
+  tests — the type is ready for it, which is the same shape MEA-009 Part A shipped in.
