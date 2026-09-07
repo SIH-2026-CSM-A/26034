@@ -102,7 +102,7 @@ class RetentionManager:
 
         # 4. Storage Purge
         # Use the payload hash to derive the storage key (content-addressed).
-        storage_key = f"evidence/{entry.payload_hash}"
+        storage_key = entry.storage_key
         try:
             purged = self.storage_client.purge_image(storage_key)
             if not purged:
