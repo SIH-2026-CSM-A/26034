@@ -72,3 +72,23 @@
 
 **Incomplete**
 - None
+
+### 2026-09-08 — Vendor Submissions and Complaint Raise-and-Track screens (FNT-009) — Antigravity
+
+**Done**
+- Created `fnt/src/fixtures/vendor-submissions.fixture.ts` holding structured vendor premises (`kirana`, `supermarket`, `godown`), commodity scan records, routed officer assignments by jurisdiction, and officer confirmation states.
+- Created `fnt/src/fixtures/complaints.fixture.ts` modeling immutable append-only complaint event records, thread reconstruction via `supersedes_id`, and initial lifecycle fixtures.
+- Created `fnt/src/officer/components/OfficerHeader.tsx` providing consistent navigation across Queue, Dashboard, Vendor Submissions, and Complaints.
+- Built `fnt/src/officer/VendorSubmissions.tsx` displaying trading premises, commodity scans, recommended verdicts, jurisdiction routing, filtering, search, and detailed inspection modal.
+- Built `fnt/src/officer/ComplaintTracking.tsx` providing complete lifecycle tracking (`RAISED` → `ACKNOWLEDGED` → `RESOLVED` / `REJECTED`), thread audit history viewer, raise complaint flow, and reopen flow.
+- Enforced UI Rule 1 (Human Confirmation): Strictly hid and forbade the "Raise Complaint" path for raw machine verdicts; only officer-confirmed verdicts can be escalated.
+- Enforced UI Rule 2 (Terminology): Strictly adhered to `PASS`, `REVIEW`, `POTENTIAL_VIOLATION` with no prohibited terms ("fails", "illegal", "violation confirmed", "non-compliant").
+- Enforced UI Rule 3 (Append-Only): Omitted edit-in-place forms; implemented complaint reopening and status transitions as new superseding records.
+- Registered `/officer/vendors` and `/officer/complaints` in `fnt/src/officer/OfficerRoutes.tsx` and updated `fnt/src/officer/ReviewQueue.tsx` navigation.
+
+**Decided**
+- Maintained strict Tailwind light-ground styling matching `fnt/DESIGN.md` (paper `#DCDFDB`, ink `#101A24`, ruled rows, 48px touch targets, mobile responsiveness at 390px).
+
+**Incomplete**
+- None
+

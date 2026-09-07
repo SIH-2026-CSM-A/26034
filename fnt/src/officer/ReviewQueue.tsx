@@ -129,8 +129,19 @@ export function ReviewQueue() {
     <div className="min-h-screen bg-paper text-ink">
       <header className="border-b-2 border-ink">
         <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3">
-          <span className="text-label text-mute">PCCS</span>
-          <span className="text-label text-mute">Review queue</span>
+          <span className="text-label font-bold text-ink">PCCS</span>
+          <nav aria-label="Officer primary navigation" className="flex items-center gap-3">
+            <span className="text-label font-semibold text-ink border-b-2 border-ink">Queue</span>
+            <Link to="/officer/dashboard" className="text-label text-mute hover:text-ink">
+              Dashboard
+            </Link>
+            <Link to="/officer/vendors" className="text-label text-mute hover:text-ink">
+              Vendor Submissions
+            </Link>
+            <Link to="/officer/complaints" className="text-label text-mute hover:text-ink">
+              Complaints
+            </Link>
+          </nav>
           <div className="ml-auto flex items-center gap-3">
             <Link
               to="/officer/capture"
