@@ -195,6 +195,7 @@ def extract_panel_text(
         text_recognition_model_dir=text_recognition_model_dir,
         use_textline_orientation=False,
         device="cpu",
+        enable_mkldnn=False,
     )
 
     results = ocr.predict(image)

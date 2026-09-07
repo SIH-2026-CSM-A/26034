@@ -2530,3 +2530,152 @@ All five reverted, green reconfirmed: 30 passed across `../datasets` and
 - **`CLAUDE.md`'s test-count gotcha is still stale** (707/32 local, 737/2 runner; measured
   801/32 local this session). Flagged in Sessions 13, 14, 15 and again here. Its
   session-numbering note still says "Next is Session 14", four behind. Both for the docs PR.
+
+## Session 20 — 2026-09-07, VIS-006 (Claude Code, Opus 5)
+
+Branch `vis-006-mkldnn-and-startup-flags`, rebased onto `7349628`.
+
+`extract_panel_text` — the only OCR entry point the application has, called from
+`app/pipeline/orchestrator.py:269` and nowhere else — aborted on every call on this CPU inside
+paddle's C++ oneDNN executor:
+
+```
+NotImplementedError: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support
+[pir::ArrayAttribute<pir::DoubleAttribute>] (at .../onednn/onednn_instruction.cc:116)
+```
+
+The workaround existed in `bck/scripts/vis_004_proof.py` and nowhere the application reaches, so
+the production OCR path had never returned a span on this machine. Fixed by adding
+`enable_mkldnn=False` to the `PaddleOCR(...)` constructor in `app/modules/vision/ocr.py:198`.
+
+### The experiment the ticket was missing
+
+The ticket carried two measured facts — env vars alone crash, env vars plus kwarg work — and
+concluded the kwarg was the fix. But the working run varied **two** things at once, so the kwarg
+alone had never been tried. Abhiram caught this when I raised the contradiction in the scope, and
+the missing cell got run before any code was written:
+
+| Configuration | Result |
+|---|---|
+| `FLAGS_` env vars, no kwarg | oneDNN `NotImplementedError` (previously measured) |
+| `FLAGS_` env vars + kwarg | 47 spans (previously measured) |
+| **kwarg only, no `FLAGS_` anywhere** | **47 spans** — measured this session |
+
+Run against a real capture, asserting `os.environ.get(...)` was `None` for both
+`FLAGS_USE_MKLDNN` and `FLAGS_ENABLE_PIR_API` *before* anything imported paddle, rather than
+assuming a clean shell. `bck/.env` does not exist, so nothing set them behind the run.
+
+**So the kwarg alone is sufficient and the two `FLAGS_` variables were never the fix.** They are
+deliberately set nowhere. `core/config.py` is untouched and this is not a cross-module PR.
+
+### Falsification
+
+Removed `enable_mkldnn=False`, purged bytecode (`/usr/bin/find . -name __pycache__ -type d -exec
+rm -rf {} +`, directory count asserted `0`, not the exit code), ran the whole vision file without
+`-x`:
+
+```
+>       assert mock_paddle.call_args.kwargs["enable_mkldnn"] is False
+E       KeyError: 'enable_mkldnn'
+
+tests/modules/vision/test_ocr.py:114: KeyError
+=========================== short test summary info ============================
+FAILED tests/modules/vision/test_ocr.py::test_extract_panel_text_disables_mkldnn
+========================= 1 failed, 12 passed in 6.01s =========================
+```
+
+Exactly one red and it is the targeted test. `test_extract_panel_text_mocked` asserts only the two
+model dirs and stayed green, so the injected defect turned red the line it was aimed at. Reverted,
+re-purged, 13 passed.
+
+### Measurements
+
+Measured in this session, clean tree, bytecode purged, not carried from any document.
+
+- `origin/main` at `57b6dfc`: **830 passed, 1 failed, 32 skipped**
+- This branch: **831 passed, 1 failed, 32 skipped** — delta `+1`, the new test
+
+The 32 skips are 30 `DATABASE_URL`-gated and **2 MinIO-gated**, so the derived CI figure is
+**+30 passed / -30 skipped, leaving 2 skipped** — not 32. Derived by reading the skip reasons, not
+recalled.
+
+`ruff check` 0 · `ruff format --check` 0 · `lint-imports` 0, 117 files and 398 dependencies
+analysed, 3 contracts kept. Exit codes read directly, never through a pipe.
+
+### `origin/main` is red, and it is not this branch
+
+`tests/modules/measurement/test_measurement.py::test_coin_oblique_synthetic_geometry` fails at
+`57b6dfc` with `assert np.float32(0.29966766) <= 0.05` — same test, same assertion, identical
+value, on a detached checkout of `origin/main` with no changes of mine present. It arrived with
+MEA-007 (#79). Not mine to fix; raised, not touched.
+
+### Corrections to the ticket as written
+
+1. **The `hasattr` 2.x ternary the ticket asked me to delete does not exist.** At `c4922ce`,
+   `grep -n "cls=False"` returns 0 matches and `ocr.py:200` was already a plain
+   `results = ocr.predict(image)`. Line 145 is a list comprehension inside
+   `_parse_paddle_results`. That deletion landed inside #63.
+2. **The comment the ticket asked for could not be written truthfully.** It wanted the env vars
+   documented as necessary "because the constructor kwarg alone is not sufficient" — the evidence
+   said the reverse. Claim corrected, code not invented.
+
+### Raised, not fixed
+
+1. **`_parse_paddle_results:103` is `if True:` closing on an unconditional `continue`.** Lines
+   118–180 — the 3.x-object branch, the 2.x list branch, `text_box_position`, `line[1][0]` tuples —
+   are unreachable for every input, while the docstring claims "Robustly parses PaddleOCR 3.x and
+   2.x output formats". The larger 2.x-shaped hazard the ticket was reaching for. Goes to VIS-005.
+2. **A capture is misfiled in `datasets/`.**
+   `datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/` OCRs as `'Parle-G'`,
+   `'Parle-G Gluco BISCUITS'`, `'NET WEIGHT: 110g+20g EXTRA: 130g'`. It is a biscuit packet filed
+   as a cosmetics face wash — wrong product, wrong category, and the net-quantity declaration on it
+   belongs to a food commodity. Found by running the OCR path over it, so it survived annotation.
+3. **`pyproject.toml:17` is `paddleocr>=2.10.0`, a floor, not a pin.** `uv.lock` pins 3.7.0 and
+   3.7.0 is installed, so "pinned to 3.7.0" is true of the lockfile only. A fresh resolve is free
+   to take 2.x, against which this module's 3.x-only parser raises `TypeError`.
+
+### Not done, deliberately
+
+- `bck/scripts/vis_004_proof.py` untouched — its defects are VIS-005.
+- `bck/app/core/config.py` untouched — see above.
+- The branch name still says `mkldnn-and-startup-flags`; the startup-flags half is out of scope.
+  Name kept because it is pre-written on the ticket.
+
+### Correction — I called `main` red and it is not
+
+The section above says `origin/main` is red and that the failure would show on this PR's
+`CI/backend`. **`CI/backend` came back green: 862 passed, 2 skipped, 0 failed.** All three checks
+pass on #86.
+
+What is actually true, and the narrower claim I should have made:
+`tests/modules/measurement/test_measurement.py::test_coin_oblique_synthetic_geometry` fails **on
+this machine** at `origin/main` `57b6dfc`, on a detached checkout with none of my changes present,
+and **passes in CI**. It is a local, environment-dependent failure that arrived with MEA-007 (#79)
+— not a red `main`. I measured the local half and asserted the CI half without measuring it.
+
+The CI number confirms the skip-delta derivation exactly: 831 local passed + 30 un-skipped = 861,
+plus the one locally-failing test that passes there = **862**. The derived `+30` was right, and
+the 2 remaining skips are the MinIO-gated pair CI does not provide either.
+
+### Stale documentation found while verifying — reported in #86, not edited
+
+Doc updates go in their own PR. Stated as measured.
+
+1. **`HANDOFF.md:593` — "No image has ever passed through this pipeline"** is now false for the
+   OCR stage: 47 spans from a real capture. Scoped precisely — I ran `extract_panel_text`, **not**
+   the assembled orchestrator, so PDP → OCR → extraction → rules → verdict end to end is still
+   undemonstrated. The same section calls the gap "one ticket wide — VIS-004 (#63)"; #63 merged as
+   `c4922ce`.
+2. **`TODO.md:12`, the top "Now" entry**, still lists #63 VIS-004 as open and blocking and repeats
+   the "no image has ever passed" line.
+3. **`ARCHITECTURE.md:14` names "PaddleOCR PP-OCRv4".** Paddle logged at construction:
+   `Creating model: ('PP-OCRv6_medium_det', …)` and `('PP-OCRv6_medium_rec', …)`. The cached
+   weights are v6_medium, not v4. `bck/scripts/bootstrap_weights.py` names no version at all — it
+   triggers a default download and copies the first `~/.paddlex/official_models` directory whose
+   name contains `det`/`rec`, so the version is whatever paddleocr 3.7.0 defaults to on the day it
+   runs. Nothing pins it.
+4. **`bck/scripts/bootstrap_weights.py:8` calls `PaddleOCR(lang="en", use_angle_cls=False, …)`** —
+   `use_angle_cls` is the 2.x kwarg name; 3.7.0's is `use_textline_orientation`. Goes to VIS-005
+   with the rest of `scripts/`.
+
+**#86 opened, all three checks green, not merged — Abhiram merges.**
