@@ -73,3 +73,9 @@
 - Successfully injected and caught a defect in the tilt logic to falsify test_coin_oblique_synthetic_geometry.
 - Documented the geometric expectation assumption in the synthetic test docstring.
 - FINDING: Empirical evaluation of contour selection against the staging dataset could not be performed because the 26034-dat worktree is not present on this local machine.
+
+## 2026-09-08 — MEA-014
+- Wrapped the four directional margins into a single `MeasurementMarginSet` compound shape in `schemas.py` to satisfy the single-result-per-condition pipeline constraint.
+- Updated `measure_margins` return signature and migrated all measurement tests to dot notation (`results.above`).
+- Successfully falsified and reverted the margin threshold via defect injection.
+- **WIRING HANDOFF:** `pipeline/measurement_findings.py:59` expects a `.value` attribute for string formatting, but the margin overlap contracts deliberately use `.overlap` to prevent false clearances (MEA-009). The pipeline orchestration must be updated to handle the `MeasurementMarginSet` shape and the overlap fields before Rule 8 can go live. Over to Abhiram.
