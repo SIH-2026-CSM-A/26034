@@ -77,3 +77,33 @@ Ticket status was not changed by Codex. No commit, push, or pull request was cre
 
 No commit, push, or pull request was created.
 
+### 2026-09-08 — RVW-001 review portal integration correction — Codex
+
+**Agent**
+
+- Codex
+
+**Done**
+
+- Added `app.modules.reviews` to the import-linter independence contract.
+- Updated the pinned module-count boundary test from seven to eight modules.
+- Confirmed `product_reviews` uses structural anonymity: it has no reviewer identity column,
+  account/contact/device/IP/fingerprint field, or reviewer foreign key. `anonymous_token`
+  remains a fresh per-row token and is not client supplied, returned, reused, or used for
+  deduplication.
+- Confirmed `REVIEW_PUBLICATION_THRESHOLD = 3` is a named reviews-module constant documented
+  as an uncalibrated prototype prior: one submission provides no corroboration, two remain a
+  pair, and three is the smallest repeated-matching cohort selected for the prototype. It is
+  neither legally required nor statistically validated.
+- Updated PR #113 with the threshold rationale and structural-anonymity statement.
+
+**Verification**
+
+- RVW-001 focused PostgreSQL tests previously passed: 37 passed, zero skips.
+- The shared import-boundary failure was the expected missing reviews registration and is now
+  addressed in this ticket-authorized change.
+
+**Handoff**
+
+- Abhiram still owns mounting `reviews_router` in application composition.
+
