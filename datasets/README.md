@@ -53,9 +53,17 @@ reference object cannot support a Rule 7 letter-height finding, so its height fi
 `INSUFFICIENT_EVIDENCE` and the sample's verdict is `REVIEW`, never `PASS`. Ground truth
 that demands the system overclaim will score correct refusals as failures.
 
-Packages sold outside India for retail there are outside LMPC scope; a missing INR MRP on
-such a pack is `NOT_APPLICABLE`, not `FAIL`. That scope limb is **[SOFT]** — verify it
-against the corpus text before encoding it as a rule rather than an annotation convention.
+Packages outside Chapter II are `NOT_APPLICABLE`, never `FAIL` — the obligation does not
+arise. Two limbs, and they are no longer the same one:
+
+- **Rule 3 is [SOURCED] and encoded** as `R3-CHAPTER-II-SCOPE` (RUL-005). A pack over 25 kg
+  or 25 litre is out of scope deterministically; a pack bearing `not for retail sale` routes
+  to `REVIEW`, not to `NOT_APPLICABLE`, because the marker is evidence and not proof. Annotate
+  to that: a 30 kg sack is `NOT_APPLICABLE` throughout, a marked pack is `REVIEW`.
+- **The export limb is still [SOFT]** and its old justification was wrong — Rule 25 makes
+  Chapter II the standard an export pack must be re-labelled *to*, not a scope exclusion. See
+  `rules-corpus/README.md`. Keep annotating a foreign-retail pack's missing INR MRP as
+  `NOT_APPLICABLE` by convention, and do not cite Rule 25 for it.
 
 ## Layout
 

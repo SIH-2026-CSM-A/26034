@@ -165,8 +165,50 @@ under the threshold.
 
 ## Scope of the Rules themselves
 
-LMPC 2011 governs packages **intended for retail sale in India**. An export pack carrying no
-INR retail sale price is outside that scope, so the correct field state for a missing MRP on
-such a pack is `NOT_APPLICABLE` — not FAIL, and not a recorded defect. **This scope limb is
-[SOFT]:** it drives an annotation convention in `datasets/` today and should be verified
-against the corpus text before it is encoded as a rule.
+Two separate claims used to sit under this heading as one. They are different provisions,
+they are sourced differently, and RUL-005 encoded only the first.
+
+### Chapter II scope — [SOURCED], encoded by RUL-005
+
+Chapter II is headed **"PROVISIONS APPLICABLE TO PACKAGES INTENDED FOR RETAIL SALE"** and
+**Rule 3** names the packages it does not reach:
+
+> **3. Applicability of the Chapter-** The provisions of this chapter shall not apply to-
+> (a) packages of commodities containing quantity of more than 25 kilogram or 25 litre;
+> (b) cement, fertilizer and agricultural farm produce sold in bags above 50 kilogram; and
+> (c) packaged commodities meant for industrial consumers or institutional consumers
+
+Definitions in **Rule 2(bb)** and **Rule 2(bc)**, both *as substituted*, and both requiring
+the package to bear a declaration `not for retail sale`. Encoded as `R3-CHAPTER-II-SCOPE`.
+
+Three things worth carrying forward:
+
+- **The compilation does not name the notification** that substituted 2(bb) and 2(bc). It
+  prints only *"(i) for clauses (bb) and (bc), the following clauses shall be substituted,
+  namely"*. Semi-official source; the clause text is verbatim, the instrument is not in the
+  corpus.
+- **The Rules name no institutions.** Hotels, hospitals, airlines and railways are canonical
+  in secondary commentary and appear **nowhere** in this corpus. Do not list them.
+- **Rule 3(b) is subsumed by 3(a)** on this text — everything in bags above 50 kg is already
+  above 25 kg — so it decides nothing that 3(a) has not already decided.
+
+### The export limb — still [SOFT], and its old justification was wrong
+
+The claim was that an export pack carrying no INR retail sale price is outside scope, making
+a missing MRP `NOT_APPLICABLE`. **Rule 25 does not support that and points the other way:**
+
+> **25. Restrictions on sale of export packages in India.-** An export package shall not be
+> sold in India unless the manufacturer or packer has re-packed or relabeled the commodity in
+> accordance with the provisions contained in Chapter II, and where any export package is
+> sold in India without such re-packing or re-labeling, such package shall be liable to be
+> seized in accordance with the provisions of the Act.
+
+Rule 25 is Chapter IV and is not a scope exclusion. It makes Chapter II the standard an
+export pack must be **brought up to** before it may be sold in India, and failing that a
+seizure trigger. **`export package` is undefined anywhere in this compilation** — three
+occurrences of the word, all in Rule 25 and its chapter heading.
+
+What the limb actually rests on is a **territoriality** argument about the Legal Metrology
+Act 2009, not Rule 3 and not Rule 25. That may well be right; it is not sourced here. The
+limb stays **[SOFT]** and must not be encoded by citing Rule 25, which would put a rule
+number behind a proposition it does not carry.
