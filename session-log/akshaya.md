@@ -52,3 +52,4 @@
 - **Proof Script Output**: Executed `scripts/vis_004_proof.py` against `datasets/raw/_staging/sample_capture.jpg` and captured exact terminal output showing model paths, `dt_polys` count (5), and top 5 `rec_texts` with `rec_scores`.
 - **Environment & Documentation**: Updated `bck/.env.example` with all four required offline model environment variables and documented CLI caching setup in `bck/app/modules/vision/README.md`.
 - **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 724 passed, 32 skipped cleanly).
+- 2026-09-07: Restored test_ocr.py bodies, deleted placeholder, and rewrote assertions to test PaddleOCR 3.7.0 API expectations per review comments. (Antigravity)
