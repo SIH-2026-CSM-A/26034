@@ -359,3 +359,24 @@ uff check . -> clean (All checks passed!).
   - Full backend pytest suite: verified.
   - Bytecode purge: 0 surviving `__pycache__` directories.
   - Ownership integrity: Modified ONLY allowed files (`repository.py`, `__init__.py`, `test_complaints_repository.py`, `session-log/sitanshu.md`). No modifications to `contracts`, `pipeline`, `frontend`, `analytics`, `measurement`, `evidence`, `rules`, `core`, `persistence`, `migrations`. No git commits or pushes made.
+
+- EXT-010 Follow-Up (Typed Declaration-BBox Refusal & Dead Branch Removal):
+  - Refactored get_declaration_bbox() in bck/app/modules/extraction/binder.py to replace ambiguous None returns with typed BboxRefusal(reason=BboxRefusalReason, span_id=...).
+  - Added BboxRefusalReason(StrEnum) with 7 explicit reasons categorised into Category A (evidence gap: NO_SPAN_REFS, UNKNOWN_SPAN_ID) and Category B (geometry defect: EMPTY_POLYGON, INSUFFICIENT_VERTICES, MALFORMED_VERTEX, NON_FINITE_COORDINATE, DEGENERATE_ENVELOPE).
+  - Added @dataclass(frozen=True) class BboxRefusal(reason: BboxRefusalReason, span_id: str | None = None).
+  - Implemented bbox_refusal_officer_reason(refusal: BboxRefusal) -> str ensuring distinct officer-facing messages across all seven refusal reasons.
+  - Removed dead hasattr(pt, "x") geometry branch in polygon processing since ExtractedSpan.polygon is typed as tuple[tuple[float, float], ...]. Uses tuple indexing (x, y) = pt[0], pt[1].
+  - Updated extraction tests in bck/tests/modules/extraction/test_bilingual_declarations.py covering all seven refusal causes, span traceability, category distinctions, and officer refusal messages.
+- Falsification Verification:
+  - Falsification A: Mutated MALFORMED_VERTEX return path -> pytest failed RED (AssertionError in test_insufficient_vertices_and_malformed_vertex_have_distinct_reasons).
+  - Falsification B: Mutated bbox_refusal_officer_reason to return "generic failure" -> pytest failed RED (AssertionError in test_all_seven_reasons_produce_distinct_officer_messages).
+  - Falsification C: Mutated MALFORMED_VERTEX return to EMPTY_POLYGON -> pytest failed RED (AssertionError in test_get_declaration_bbox_refusal_malformed_point).
+  - Falsification D: Mutated EMPTY_POLYGON return to None -> pytest failed RED (AssertionError in test_get_declaration_bbox_refusal_empty_polygon).
+- Quality Gates & Scope Compliance:
+  - pytest tests/modules/extraction/test_bilingual_declarations.py: 57 passed.
+  - ruff check .: All checks passed!
+  - ruff format --check .: 187 files formatted.
+  - lint-imports: 3 contracts kept.
+  - Full backend pytest suite: 966 passed, 51 skipped, 1 pre-existing MEA-007 synthetic geometry failure (test_coin_oblique_synthetic_geometry).
+  - Bytecode purge: 0 surviving __pycache__ directories.
+  - Ownership & Scope Integrity: Modified ONLY allowed files (binder.py, test_bilingual_declarations.py, session-log/sitanshu.md). No changes made to bck/app/contracts/, measure_margins(), pipeline wiring, or EXT-011. No git commits or pushes made.
