@@ -35,7 +35,7 @@ frontend:   cd fnt && npm ci && npx tsc -b && npx vite build
 All five backend commands must pass before a PR is opened. CI runs the same set, plus the
 frontend build on every PR.
 
-## Standing constraints
+## Environment traps
 
 ### The `__pycache__` purge — use the absolute path
 
@@ -57,7 +57,7 @@ exit code.
 
 `rtk` also intercepts `gh run view --job ... --log`, returning `rtk: Run ID required`. Use
 `gh api repos/<owner>/<repo>/actions/jobs/<id>/logs` instead.
- — these never bend
+## Standing constraints — these never bend
 
 1. **Verdicts are PASS / REVIEW / POTENTIAL VIOLATION.** Never "violation confirmed", never
    "non-compliant" as a finding, never "illegal". A human confirmation step sits between any

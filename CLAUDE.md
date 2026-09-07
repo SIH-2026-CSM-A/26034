@@ -156,7 +156,7 @@ exit code.
 ## Prove your tests can fail
 
 Before claiming a guard works, introduce the defect it guards against and confirm the test
-goes red, then revert. **Run `find . -name __pycache__ -type d -exec rm -rf {} +` first.**
+goes red, then revert. **Run `/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +` first.**
 Python's `.pyc` staleness check is mtime-and-size, and a falsification edit is usually exactly
 the shape that defeats it — one string swapped for another of the same byte length
 (`"medical_device"` → `"MEDICAL_DEVICE"`). Stale bytecode reports a green pass over a real
