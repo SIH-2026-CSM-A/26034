@@ -297,3 +297,21 @@ uff check . -> clean (All checks passed!).
   - All 327 extraction module unit tests passed (`327 passed`).
   - Verified no contracts, pipeline, core model, or analytics files were touched.
   - Checked `git diff --numstat origin/main -- session-log/sitanshu.md` confirming 0 deletions.
+
+- Deterministic Display Category Taxonomy Implementation:
+  - Implemented `DisplayCategory(StrEnum)` (`packaged_food`, `cosmetics`, `non_food_packaged_goods`, `electronics`, `household`) and `DisplayCategoryTaxonomy(dataclass)` in `bck/app/modules/extraction/category.py`.
+  - Implemented `classify_display_category(result: ExtractionResult) -> DisplayCategoryTaxonomy | None` covering demo product space branches (`packaged_goods` -> `packaged_food`, `cosmetics`, `non_food_packaged_goods` -> `electronics`, `household`).
+  - Restored imported confidence constants (`CONFIDENCE_STATUTORY_SIGNAL`, `CONFIDENCE_LEXICAL_SIGNAL`, `CONFIDENCE_MUTUALLY_REINFORCING`) across test expected value assertions in `bck/tests/modules/extraction/test_category.py`.
+- Legal Sector & Data Flow Isolation:
+  - `DisplayCategory` remains completely separate from `ProductCategory` (`food`, `cosmetics`, `medical_device`).
+  - `CategoryProposal.category` remains strictly `ProductCategory` and is not auto-confirmed.
+  - Electronics and household products return `propose_category(result) is None` for legal sector proposal, preventing illegal sector rule dispatch while providing valid display taxonomy classification.
+- ANL-001 & Scope Alignment:
+  - ANL-001 is not present in the repository, so analytics vocabulary alignment is not claimed.
+- Comprehensive Verification Results:
+  - Focused category unit tests (`bck/tests/modules/extraction/test_category.py`): 29 passed.
+  - Extraction module unit tests (`bck/tests/modules/extraction`): 337 passed.
+  - Full backend pytest suite: 851 passed, 32 skipped, 1 pre-existing MEA-007 synthetic geometry failure.
+  - Quality gates: `ruff check` (0 errors), `ruff format --check` (clean), `lint-imports` (3 contracts kept), `compileall -q app` (0 errors), `git diff --check` (clean).
+- Falsification Verification:
+  - All 7 display & legal taxonomy falsification mutations (disable electronics, disable household, remove parent hierarchy, disable display tie resolution, disable legal tie resolution, invalid display in CategoryProposal, widen ProductCategory) evaluated to RED and restored to 100% GREEN.
