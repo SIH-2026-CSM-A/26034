@@ -39,13 +39,21 @@ session. Measure on `origin/main` in your own session, with a clean tree and byt
 purged, before claiming a delta. CI reports roughly 30 higher because it un-skips the
 postgres-marked tests.
 
-The historical figures were 737 passed / 2 skipped on the runner and 707 / 32 locally. The
-difference is the 30 postgres-marked tests, which CI un-skips because it provides a Postgres
-service. Both numbers are correct.
+`origin/main` at `d9c44fa` measured **801 passed / 32 skipped** locally on 2026-09-07. That
+figure is recorded as a worked example of the measurement, not as a baseline to quote — it was
+already wrong once before this line was written.
 
-Session-log numbering in `session-log/abhiram.md`: 10 = CORE-003, 11 = CTR-006,
-12 = PIP-004, 13 = RUL-005. Next is Session 14. Resolve conflicts in that file by reconstruction — take main's version verbatim
-and append your block — never by editing conflict markers. Prove it with
+**Derive the CI delta; never carry it.** CI reports **+30 passed and -30 skipped**, and it is 30
+because exactly thirty tests are postgres-marked and the runner provides a Postgres service. Read
+the local skip count and add it. A session that wrote the delta from memory instead of deriving
+it got 45, and told the next session to write 45 too.
+
+**Session numbering lives in `session-log/abhiram.md` and nowhere else.** Read the last
+`## Session N` heading in that file and take the next number. Do not carry a number in this file
+or in any other — this line held a stale number four sessions running, and RUL-006 renumbered its
+session three times mid-review as concurrent work landed. Resolve conflicts in that file by
+reconstruction — take main's version verbatim and append your block — never by editing conflict
+markers. Prove it with
 `git diff --numstat origin/main -- session-log/abhiram.md` showing zero deletions.
 
 

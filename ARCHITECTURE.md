@@ -244,8 +244,13 @@ under any spelling, and do not invent `coin_5` either.
 - **The ground-truth schema refuses incoherent calibration claims.** `ReferenceObject`
   rejects `present: true` without an identified object of known size, and `present: false`
   carrying a dimension. `object_type` is required with no default.
-- **`propose_category`** (deterministic, regex + corpus-grounded lexicon) exists in
-  `extraction/` but has no caller yet — PIP-003.
+- **`propose_category`** (deterministic, regex + corpus-grounded lexicon) lives in
+  `extraction/` and **has a caller since PIP-003 (#74)**: `pipeline/orchestrator.py:39` imports
+  it and `:283` calls it, once per scan. The proposal stops there — it is returned on the
+  response and is never written into the confirmed category, and it is not persisted, because
+  the `scans` row has no column for it. `CategoryProposal` is deliberately **not** exported
+  from `extraction/__init__.py`; it is a contracts type and a second import path for it is the
+  defect class the third import-linter contract forbids.
 
 ### Rule 3 Chapter II scope (RUL-005, #68)
 
@@ -323,10 +328,19 @@ fabricated and were deleted in DAT-002 (#53, merged). Exactly one commit ever ad
 under `datasets/annotations/` — `da8278f` (#8, DAT-001), eight files, one author, one batch —
 so the four proven fabricated and the four never reviewed share that provenance and nothing
 real was lost. Fifteen real captures are staged at `datasets/raw/_staging/`, gitignored and
-unannotated. DAT-005 annotates them.
+unannotated — twelve `.png`, three `.jpg`, six of them `_uncalibrated`. **Because they are
+gitignored they exist only in the worktree that captured them (`~/26034-dat`); an empty
+`datasets/raw/` in any other worktree is not evidence they are missing.** Note that
+`datasets/ingest_images.py:24` globs `**/*.[jJ][pP][gG]`, so twelve of the fifteen are invisible
+to the ingest script. DAT-005 annotates them.
 
-Four modules have merged with no caller: `EvidenceEntryRow`, `propose_category`,
-`measure_margins`, and `tamper/`. An uncalled function is invisible to CI and to review.
+Five things have merged with no caller: `EvidenceEntryRow`, `measure_margins`, `tamper/`,
+and — since MEA-005 (#43) — `measure_artwork_ink_extent` and `calculate_artwork_pdp_area`
+(`modules/measurement/artwork.py:65,79`), neither of which is in `measurement/__init__.py`'s
+`__all__`. `propose_category` came off this list in PIP-003 (#74). An uncalled function is
+invisible to CI and to review, and artwork mode is the only path that yields an exact millimetre
+figure — so the one measurement that never needs a refusal is built and unreachable. MEA-011
+wires it.
 
 There is no PDP-trained detector. Pointing `PDP_WEIGHTS_PATH` at stock `yolov8n.pt` is worse
 than leaving it unset: stock COCO weights return a confident wrong box that feeds the Rule 7

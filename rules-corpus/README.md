@@ -23,12 +23,20 @@ hand and are updated by hand when an amendment lands. **Do not build a fetcher.*
 
 ## Known gaps
 
-**There is no enforced member-consumer guard anywhere in the repo.** ARCHITECTURE.md and
-HANDOFF.md both stated that `ARUCO_MARKER`, `RULER_SCALE` and `CHECKERBOARD` were deleted
-from `ReferenceObjectType` for lacking `REF_DIMS` entries. They are still present at
-`datasets/schema.py:55-57` and still lack them. The rule — a member ships only alongside
-something that consumes it — is right and has been applied fresh on every ticket since,
-but nothing enforces it. Unresolved.
+**The member-consumer guard is enforced. This paragraph used to say it was not, and that was
+wrong.** It claimed `ARUCO_MARKER`, `RULER_SCALE` and `CHECKERBOARD` were "still present at
+`datasets/schema.py:55-57`". They are not, and have not been since DAT-004 (#59):
+`ReferenceObjectType` has four members — `NONE`, `COIN_10`, `ID_CARD`, `EAN_13` — and
+`REF_DIMS` (`bck/app/modules/measurement/services.py:20-24`) carries the three real ones. The
+guard is `datasets/tests/test_schema_guards.py:89-112`, asserting
+`offered <= set(REF_DIMS)`, and it has executed in CI since #60 put `datasets/` into the
+pipeline. **The rule — a member ships only alongside its `REF_DIMS` entry and its detector
+branch — is right, is applied fresh on every ticket, and is now also enforced. Closed.**
+
+One caveat worth carrying: `offered <= set(REF_DIMS)` is a subset assertion, the same shape
+RUL-006 deleted `test_rule_store_contains_only_ticket_authorized_scopes` for. It is green against
+an empty enum. It is not vacuous today because the enum has four members, but a PR that emptied
+`ReferenceObjectType` would pass it.
 
 
 **Consolidated e-book (amended to 24.12.2024) — not captured.** `doca.gov.in/lm-ebook/`
@@ -104,7 +112,16 @@ sale price must be declared:
 
 The rule states **no tolerance, no rounding increment and no permitted difference**. The
 ±₹0.01 and ±₹0.05 figures appearing in earlier project documents are assumptions, not law,
-and must not be encoded. A test asserts the rule store excludes them.
+and must not be encoded.
+
+**Rule 6(11) is deliberately not encoded, and no rule id for it exists.** That is why it does not
+appear in the encoded-id list below. `bck/tests/modules/rules/test_loader.py:124`
+(`test_rule_store_excludes_f18_and_rule_6_11`) asserts the exclusion — precisely, it asserts that
+no rule's `rule_id` or `clause_ref` contains `"f18"` or `"6(11)"`. **It does not assert anything
+about the ± figures**; the test that does
+(`bck/tests/contracts/test_contracts.py:615`) constructs an ad-hoc `RuleDefinition` in memory and
+proves nothing about `rules.yaml`. If Rule 6(11) is ever encoded, the ± figures need a real
+store-level guard written at the same time.
 
 F18 is therefore two checks: is a unit sale price declared, and is it declared on the correct
 unit basis for the net quantity.
@@ -144,11 +161,28 @@ merged into one check.**
 
 ## Encoded rule ids
 
-`R6-1-A` · `R6-1-AA` · `R6-1-D` · `R6-11` · `R7-2-TABLE-I` · `R7-3-WIDTH-RATIO` ·
-`R7-4-PDP-AREA` · `R7-MEDICAL-DEVICE-OVERRIDE` · `R8-1-PDP-PLACEMENT` · `R8-1-FREE-SPACE` ·
-`R9-1-MANNER` · `R9-3-OUTER-CONTAINER` · `R2-KA-COMBINATION-PACKAGE` ·
-`R2-KB-GROUP-PACKAGE` · `R2-KC-MULTI-PIECE-PACKAGE` · `R2-KC-MULTI-PIECE-FOOD` ·
-`R6-1-A-EXPL-III-FOOD` · `R6-1-D-COSMETICS` · `R6-10A-ECOMMERCE-FILTER`
+All 28, read out of `bck/app/modules/rules/data/rules.yaml`:
+
+`R3-CHAPTER-II-SCOPE` · `R6-1-A` · `R6-1-AA` · `R6-1-B` · `R6-1-C` · `R6-1-D` ·
+`R6-1-D-GSR-722E` · `R6-1-DA` · `R6-1-E` · `R6-1-F` · `R6-1-G` · `R7-2-TABLE-I` ·
+`R7-3-WIDTH-RATIO` · `R7-4-PDP-AREA` · `R7-5-OTHER-LAW` · `R7-MEDICAL-DEVICE-OVERRIDE` ·
+`R6-1-A-EXPL-III-FOOD` · `R6-1-D-COSMETICS` · `R8-1-PDP-PLACEMENT` · `R8-1-FREE-SPACE` ·
+`R9-1-MANNER` · `R9-3-OUTER-CONTAINER` · `R2-KA-COMBINATION-PACKAGE` · `R2-KB-GROUP-PACKAGE` ·
+`R2-KC-MULTI-PIECE-PACKAGE` · `R2-KC-MULTI-PIECE-FOOD` · `R6-10A-GSR-128E` · `R6-10A-GSR-312E`
+
+**Regenerate this list from the store; never edit it by hand, and never add an id to it because
+someone noticed one was missing.** Nothing in CI reads this file, so a wrong list ships green.
+The nineteen-id list that stood here until 2026-09-07 was wrong in thirteen places: eleven real
+ids absent, and two listed that have never existed in code — `R6-11` (deliberately unencoded,
+see above) and `R6-10A-ECOMMERCE-FILTER`, which entered in a docs commit (`756462b`) and lives
+only in the gazette *filename* `GSR-128E__…__country-of-origin-ecommerce-filter.pdf`. The
+e-commerce obligation is encoded as `R6-10A-GSR-128E` and `R6-10A-GSR-312E` and has been since
+RUL-001 (#21).
+
+The store itself *is* pinned: `bck/tests/modules/rules/test_loader.py:133`
+(`EXPECTED_RULE_GAZETTE_MAPPING`) maps every rule id to its gazette file and
+`test_explicit_rule_id_gazette_provenance_mapping` asserts exact equality. That guard catches a
+change to `rules.yaml`. It does not look at this document.
 
 Package definitions carry `severity: REVIEW` — a definition classifies, it does not propose a
 violation.
