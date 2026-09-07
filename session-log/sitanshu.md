@@ -163,3 +163,34 @@
 - All 18 tests in `test_bilingual_declarations.py` PASSED (`0.17s`).
 - Full suite executed via `/snap/bin/uv run pytest`: 704 passed, 32 skipped in 33.89s.
 - `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` all clean (PASS).
+
+
+### 2026-09-07 — EXT-007 Bilingual Declaration Disagreement (Sitanshu)
+
+**Done**
+- Base Branch: `ext-007-bilingual-disagreement` branched directly from `origin/main` (`d1114af`).
+- Prerequisites Verified: CTR-006 (#65) and PIP-004 (#67) present on `origin/main`.
+- Adjacency-Order Correction in `bck/app/modules/extraction/binder.py`:
+  - Re-ordered candidate pairing loop inside `_pair_bilingual_fields` so spatial adjacency check (`_are_spans_spatially_adjacent`) executes **BEFORE** the value/unit mismatch check.
+  - Enforced the three required disagreement conditions: (1) same field type, (2) spatially adjacent spans, (3) differing numeric value, unit, or normalised value.
+- Disagreement Handling & Representation:
+  - Diverted contested bilingual pairs into `ExtractionResult.disagreements` as `CompetingReadings` using `DisagreementReason.BILINGUAL_VALUE_MISMATCH`.
+  - Both original reading candidates are preserved inside `CompetingReadings.readings` (Latin candidate first, Devanagari second).
+  - Ensured strict contract disjointness: contested `field_type` is suppressed from `ExtractionResult.fields`.
+- Test Matrix:
+  - Expanded `bck/tests/modules/extraction/test_bilingual_declarations.py` to 26 unit tests covering agreeing bilingual pairs, numeric contradictions, unit contradictions, spatial separation, script restrictions (MIXED/NEITHER), monolingual regression, reading preservation, disjointness, and downstream PIP-004 routing (`REVIEW_REQUIRED` state and `REVIEW` verdict; no false `FAIL` / `INSUFFICIENT_EVIDENCE`).
+- Falsification:
+  - Temporarily commented out spatial adjacency check in `_pair_bilingual_fields`.
+  - Executed pytest -> 3 tests failed RED (`test_disagreement_requires_spatial_adjacency` failed because distant spans were wrongfully treated as disagreements).
+  - Restored spatial adjacency check -> pytest returned GREEN (26 passed).
+
+**Verification**
+- Focused Tests: `uv run pytest tests/modules/extraction/test_bilingual_declarations.py` (26 passed).
+- All 4 Quality Gates:
+  - `ruff check .` -> clean (PASS).
+  - `ruff format --check .` -> clean (PASS).
+  - `lint-imports` -> 3 contracts kept over 111 files / 368 dependencies (PASS).
+  - `pytest` -> 749 passed, 32 skipped in 15.32s (PASS).
+- `__pycache__` count: 0 (after `/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +`).
+- No contracts files modified (`bck/app/contracts/**` untouched).
+- No AI-attribution trailer.

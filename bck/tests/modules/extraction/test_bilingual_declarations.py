@@ -1,10 +1,22 @@
-"""Tests for bilingual declarations (Devanagari/Latin) binding and pairing rules."""
+"""Tests for bilingual declarations (Devanagari/Latin) binding, pairing, and disagreement rules."""
+
+from datetime import date
 
 import pytest
 
-from app.contracts import DeclarationField, EvidenceProvider, ExtractedSpan
+from app.contracts import (
+    DeclarationField,
+    DisagreementReason,
+    EvidenceProvider,
+    ExtractedSpan,
+    FieldState,
+    Verdict,
+)
 from app.modules.extraction import bind_spans
 from app.modules.extraction.binder import ScriptType, _preprocess_devanagari_text, detect_script
+from app.pipeline.findings import build_findings
+from app.pipeline.orchestrator import by_obligation
+from app.pipeline.rule_findings import EvidenceContext
 
 
 def _make_span(
@@ -61,6 +73,7 @@ def test_monolingual_latin_regression():
     assert field.normalised_value == "500 g"
     assert field.span_refs == ("s1",)
     assert field.parse_confidence == pytest.approx(0.95)
+    assert len(res.disagreements) == 0
 
 
 def test_bilingual_net_quantity_pairing():
@@ -75,6 +88,7 @@ def test_bilingual_net_quantity_pairing():
     assert field.normalised_value == "500 g"
     assert field.span_refs == ("lat1", "dev1")
     assert field.parse_confidence == pytest.approx(0.95)
+    assert len(res.disagreements) == 0
 
 
 def test_devanagari_only_binding():
@@ -87,6 +101,7 @@ def test_devanagari_only_binding():
     assert field.field_type == DeclarationField.NET_QUANTITY
     assert field.normalised_value == "500 g"
     assert field.span_refs == ("dev1",)
+    assert len(res.disagreements) == 0
 
 
 def test_unpaired_span_conservation():
@@ -149,6 +164,7 @@ def test_spatial_pairing_distant_spans_do_not_pair():
 
     assert len(res.fields) == 2
     assert set(res.fields[0].span_refs + res.fields[1].span_refs) == {"lat1", "dev1"}
+    assert len(res.disagreements) == 0
 
 
 def test_spatial_pairing_horizontal_offset_exceeded_does_not_pair():
@@ -160,6 +176,7 @@ def test_spatial_pairing_horizontal_offset_exceeded_does_not_pair():
 
     assert len(res.fields) == 2
     assert set(res.fields[0].span_refs + res.fields[1].span_refs) == {"lat1", "dev1"}
+    assert len(res.disagreements) == 0
 
 
 def test_different_region_spans_do_not_pair():
@@ -169,6 +186,7 @@ def test_different_region_spans_do_not_pair():
     res = bind_spans([s_lat, s_dev])
 
     assert len(res.fields) == 2
+    assert len(res.disagreements) == 0
 
 
 def test_wrong_declaration_nearby_text_does_not_pair():
@@ -180,17 +198,156 @@ def test_wrong_declaration_nearby_text_does_not_pair():
     assert len(res.fields) == 2
     types = {f.field_type for f in res.fields}
     assert types == {DeclarationField.NET_QUANTITY, DeclarationField.RETAIL_SALE_PRICE}
+    assert len(res.disagreements) == 0
 
 
-def test_bilingual_numeric_mismatch_does_not_pair():
+def test_bilingual_numeric_mismatch_creates_competing_readings():
+    """EXT-007: Adjacent bilingual spans with numeric contradiction form a disagreement."""
     s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
     s_dev = _make_span("dev1", "निवल मात्रा २५० ग्राम", y0=140.0, y1=170.0)
 
     res = bind_spans([s_lat, s_dev])
 
+    assert len(res.fields) == 0
+    assert len(res.disagreements) == 1
+    dis = res.disagreements[0]
+    assert dis.field_type == DeclarationField.NET_QUANTITY
+    assert dis.reason == DisagreementReason.BILINGUAL_VALUE_MISMATCH
+    assert len(dis.readings) == 2
+    assert dis.readings[0].normalised_value == "500 g"
+    assert dis.readings[1].normalised_value == "250 g"
+    assert DeclarationField.NET_QUANTITY not in [f.field_type for f in res.fields]
+
+
+def test_bilingual_unit_mismatch_creates_competing_readings():
+    """EXT-007: Spatially adjacent bilingual spans with unit contradiction form a disagreement."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "निवल मात्रा ५०० मिलीलीटर", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_lat, s_dev])
+
+    assert len(res.fields) == 0
+    assert len(res.disagreements) == 1
+    dis = res.disagreements[0]
+    assert dis.field_type == DeclarationField.NET_QUANTITY
+    assert dis.reason == DisagreementReason.BILINGUAL_VALUE_MISMATCH
+    assert len(dis.readings) == 2
+    assert dis.readings[0].unit == "g"
+    assert dis.readings[1].unit == "ml"
+    assert DeclarationField.NET_QUANTITY not in [f.field_type for f in res.fields]
+
+
+def test_disagreement_requires_spatial_adjacency():
+    """EXT-007 Requirement 4: Different value on distant spans must NOT form a disagreement."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "निवल मात्रा २५० ग्राम", y0=600.0, y1=630.0)
+
+    res = bind_spans([s_lat, s_dev])
+
+    assert len(res.disagreements) == 0
     assert len(res.fields) == 2
     vals = {f.normalised_value for f in res.fields}
     assert vals == {"500 g", "250 g"}
+
+
+def test_disagreement_requires_same_field_type():
+    """EXT-007 Requirement 5: Different field types must NOT form a disagreement."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "MRP Rs. 250", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_lat, s_dev])
+
+    assert len(res.disagreements) == 0
+    assert len(res.fields) == 2
+
+
+def test_mixed_spans_do_not_participate_in_bilingual_disagreement():
+    """EXT-007 Requirement 6: MIXED script spans do not form bilingual disagreements."""
+    s_mix = _make_span("mix1", "निवल मात्रा 500g", y0=100.0, y1=130.0)
+    s_lat = _make_span("lat1", "Net Qty 250g", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_mix, s_lat])
+
+    assert len(res.disagreements) == 0
+    assert len(res.fields) == 2
+
+
+def test_neither_spans_do_not_participate_in_bilingual_disagreement():
+    """EXT-007 Requirement 7: NEITHER script spans do not form bilingual disagreements."""
+    s_n1 = _make_span("n1", "12345 !!!", y0=100.0, y1=130.0)
+    s_n2 = _make_span("n2", "67890 !!!", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_n1, s_n2])
+
+    assert len(res.disagreements) == 0
+
+
+def test_both_readings_survive_in_competing_readings():
+    """EXT-007 Requirement 9: Both original readings survive in CompetingReadings."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "निवल मात्रा २५० ग्राम", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_lat, s_dev])
+
+    assert len(res.disagreements) == 1
+    dis = res.disagreements[0]
+    span_refs_in_readings = set()
+    for reading in dis.readings:
+        span_refs_in_readings.update(reading.span_refs)
+    assert span_refs_in_readings == {"lat1", "dev1"}
+
+
+def test_contract_disjointness_invariant():
+    """EXT-007 Requirement 10: Contested field_type is absent from ExtractionResult.fields."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "निवल मात्रा २५० ग्राम", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_lat, s_dev])
+
+    fields_types = {f.field_type for f in res.fields}
+    disagreements_types = {d.field_type for d in res.disagreements}
+    assert fields_types.isdisjoint(disagreements_types)
+    assert DeclarationField.NET_QUANTITY not in fields_types
+    assert DeclarationField.NET_QUANTITY in disagreements_types
+
+
+def test_downstream_routing_and_verdict():
+    """EXT-007 Requirement 11, 12, 13: PIP-004 routing produces REVIEW_REQUIRED and REVIEW verdict,
+    NOT FAIL and NOT INSUFFICIENT_EVIDENCE."""
+    s_lat = _make_span("lat1", "Net Qty 500g", y0=100.0, y1=130.0)
+    s_dev = _make_span("dev1", "निवल मात्रा २५० ग्राम", y0=140.0, y1=170.0)
+
+    res = bind_spans([s_lat, s_dev])
+    assert len(res.disagreements) == 1
+
+    from app.modules.rules import default_rule_set_version
+
+    contested = by_obligation(res.disagreements)
+    context = EvidenceContext(
+        rule_set_version=default_rule_set_version(),
+        evaluation_date=date(2026, 9, 6),
+        declared={},
+        contested=contested,
+        measurements={},
+        product_category=None,
+        source_is_listing=False,
+        unreadable_reason=None,
+    )
+
+    from app.modules.rules import load_rules
+
+    findings = build_findings(load_rules(), context)
+    r61c_findings = [f for f in findings if f.rule_snapshot.rule_id == "R6-1-C"]
+
+    assert len(r61c_findings) > 0
+    assert all(f.state == FieldState.REVIEW_REQUIRED for f in r61c_findings)
+    assert not any(f.state == FieldState.FAIL for f in r61c_findings)
+    assert not any(f.state == FieldState.INSUFFICIENT_EVIDENCE for f in r61c_findings)
+
+    from app.pipeline.verdict import derive_verdict
+
+    verdict = derive_verdict(r61c_findings)
+    assert verdict == Verdict.REVIEW
 
 
 def test_conservative_parse_confidence_uses_minimum():

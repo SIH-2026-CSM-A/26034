@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.contracts import (
     CompetingReadings,
     DeclarationField,
+    DisagreementReason,
     ExtractedSpan,
     NormalisedField,
 )
@@ -602,9 +603,10 @@ def _are_spans_spatially_adjacent(s1: ExtractedSpan, s2: ExtractedSpan) -> bool:
 def _pair_bilingual_fields(
     spans: Sequence[ExtractedSpan],
     consumed_ids: set[str],
-) -> tuple[list[NormalisedField], set[str]]:
+) -> tuple[list[NormalisedField], list[CompetingReadings], set[str]]:
     """Spatial pairing of Devanagari and Latin spans representing the same declaration."""
     paired_fields: list[NormalisedField] = []
+    disagreements: list[CompetingReadings] = []
     newly_consumed: set[str] = set()
 
     parsed_candidates: list[tuple[ExtractedSpan, NormalisedField, ScriptType]] = []
@@ -637,11 +639,27 @@ def _pair_bilingual_fields(
             if f1.field_type != f2.field_type:
                 continue
 
-            if (f1.numeric_value != f2.numeric_value) or (f1.unit != f2.unit):
-                continue
-
             if not _are_spans_spatially_adjacent(s1, s2):
                 continue
+
+            if (
+                (f1.numeric_value != f2.numeric_value)
+                or (f1.unit != f2.unit)
+                or (f1.normalised_value != f2.normalised_value)
+            ):
+                reading1 = f1 if script1 == ScriptType.LATIN else f2
+                reading2 = f2 if script1 == ScriptType.LATIN else f1
+                disagreement = CompetingReadings(
+                    field_type=f1.field_type,
+                    readings=(reading1, reading2),
+                    reason=DisagreementReason.BILINGUAL_VALUE_MISMATCH,
+                )
+                disagreements.append(disagreement)
+                paired_span_ids.add(s1.span_id)
+                paired_span_ids.add(s2.span_id)
+                newly_consumed.add(s1.span_id)
+                newly_consumed.add(s2.span_id)
+                break
 
             refs = (
                 (s1.span_id, s2.span_id)
@@ -667,7 +685,7 @@ def _pair_bilingual_fields(
             newly_consumed.add(s2.span_id)
             break
 
-    return paired_fields, newly_consumed
+    return paired_fields, disagreements, newly_consumed
 
 
 def bind_spans(spans: Sequence[ExtractedSpan]) -> ExtractionResult:
@@ -686,19 +704,27 @@ def bind_spans(spans: Sequence[ExtractedSpan]) -> ExtractionResult:
     fields.extend(address_fields)
     consumed_span_ids.update(address_consumed)
 
-    bilingual_fields, bilingual_consumed = _pair_bilingual_fields(spans, consumed_span_ids)
+    bilingual_fields, bilingual_disagreements, bilingual_consumed = _pair_bilingual_fields(
+        spans, consumed_span_ids
+    )
     fields.extend(bilingual_fields)
     consumed_span_ids.update(bilingual_consumed)
+
+    contested_field_types = {d.field_type for d in bilingual_disagreements}
 
     unclassified_spans: list[ExtractedSpan] = []
     for span in spans:
         if span.span_id in consumed_span_ids:
             continue
         field = _dispatch_single_span(span)
-        if field is not None:
+        if field is not None and field.field_type not in contested_field_types:
             fields.append(field)
             consumed_span_ids.add(span.span_id)
         else:
             unclassified_spans.append(span)
 
-    return ExtractionResult(fields=fields, unclassified_spans=unclassified_spans)
+    return ExtractionResult(
+        fields=fields,
+        unclassified_spans=unclassified_spans,
+        disagreements=bilingual_disagreements,
+    )
