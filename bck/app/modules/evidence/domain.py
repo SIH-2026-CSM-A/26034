@@ -6,6 +6,11 @@ from pydantic import BaseModel, ConfigDict
 from app.contracts import EvidenceAssetType
 
 
+def derive_storage_key(payload_hash: str) -> str:
+    """Canonical single source of truth for evidence storage key derivation."""
+    return f"evidence/{payload_hash}"
+
+
 class EvidenceEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -33,7 +38,7 @@ class EvidenceEntry(BaseModel):
     @property
     def storage_key(self) -> str:
         """Derives the content-addressed storage key from the payload hash."""
-        return f"evidence/{self.payload_hash}"
+        return derive_storage_key(self.payload_hash)
 
 
 class PurgeRecordPayload(BaseModel):

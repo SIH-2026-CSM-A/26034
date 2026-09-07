@@ -4,6 +4,8 @@ from pathlib import Path
 
 import boto3
 
+from app.modules.evidence.domain import derive_storage_key
+
 
 class AssetPurgedError(Exception):
     """Raised when an asset has been purged for retention/privacy."""
@@ -50,7 +52,7 @@ class LocalStorageClient(EvidenceStorageClient):
 
     def store_image(self, image_bytes: bytes) -> str:
         sha256_hash = hashlib.sha256(image_bytes).hexdigest()
-        storage_key = f"evidence/{sha256_hash}"
+        storage_key = derive_storage_key(sha256_hash)
 
         file_path = self.base_path / storage_key
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,7 +107,7 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
 
     def store_image(self, image_bytes: bytes) -> str:
         sha256_hash = hashlib.sha256(image_bytes).hexdigest()
-        storage_key = f"evidence/{sha256_hash}"
+        storage_key = derive_storage_key(sha256_hash)
 
         try:
             # Deduplication: check if object exists before writing
