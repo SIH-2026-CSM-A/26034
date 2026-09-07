@@ -1885,3 +1885,99 @@ Session 14 did not correct it either. Not corrected here — doc updates go in t
 (`acc0815`), so `fnt/src/services/generated/schema.d.ts` is in the tree now and was generated
 from the schema as it stood before this branch. It goes stale the moment this merges and
 needs regenerating — `fnt/scripts/generate-api.mjs`, which #72 also added.
+
+## Session 16 — 2026-09-07, MEA-005 takeover (Claude Code, Opus 5)
+
+**MEA-005 was completed on Yashashvi's branch**, `mea-005-artwork-vector-ingest`, PR #43. Her
+two commits stay and I added one on top, rebased onto `acc0815` and force-with-lease pushed.
+No new PR, no history rewrite.
+
+**`artwork.py`'s PDF implementation is hers.** `parse_pdf_geometry`, the bounding box over
+`chars` / `rects` / `curves`, the refusal ladder and the `pdfplumber` choice are all
+unchanged. So is `services.py`'s `_compute_rule_7_area` extraction, which is
+behaviour-preserving — the `OTHER`-shape planarity guard moved above the branch but is still
+gated on `shape == PackageShape.OTHER`.
+
+### What I changed
+
+1. **Removed the SVG path entirely** — the `xml.etree.ElementTree` import, `re`,
+   `parse_svg_geometry` with its nested `parse_length`, and both `file_type == "svg"` dispatch
+   branches. `xml.etree.ElementTree` is vulnerable to entity expansion and the input is XML
+   uploaded by an outside manufacturer. It needs `defusedxml` and its own review; out of scope
+   for MEA-005 and tracked as MEA-010. Both dispatch sites already had an `else` limb, so
+   `"svg"` now reaches `Unsupported artwork file type: svg`.
+2. **Extracted `PT_TO_MM = 25.4 / 72.0`.** Two adjacent copies of the same literal is where a
+   one-character divergence hides, and falsifying the conversion needs a single place to change.
+3. **Deleted one assertion that could not fail** and added one test that can.
+
+### The review record was wrong on three counts
+
+Worth stating because all three came from prose, not from code, and I took the first at face
+value before checking.
+
+- **The PR body says the tests "fully mock the PDF/SVG inputs". They do not.** Commit
+  `fa52a87` had already rewritten them into real `reportlab` round-trips that `pdfplumber`
+  genuinely opens. Reviewing the body rather than the diff would have had me rewrite four
+  working tests.
+- **`fa52a87`'s message claims "remove SVG". It did not.** Its diffstat touches only
+  `test_artwork.py` and `session-log/yashashvi.md`. The whole SVG path was still there.
+- **The same message claims "Extract PT_TO_MM constant". No such constant existed.**
+
+A commit message that overstates is the same defect class as a test that cannot fail: a green
+signal covering an absence. This is the sixth unfalsifiable-or-overstated-claim instance logged
+on this project and the first where the false claim lived in a *commit message* rather than in
+a test. Read the diffstat, not the subject line.
+
+### Falsification — six defects, each aimed at one test's own claim
+
+Run without `-x` every time, bytecode purged with the absolute-path `find` first and the
+surviving directory count asserted at zero. `-x` reports whichever test comes first in file
+order rather than the one the defect targets.
+
+| Defect | Went red |
+|---|---|
+| `PT_TO_MM` → `25.4 / 96.0` | `test_pdf_exact_measurement`, `test_pdf_rotated_axes`, `test_artwork_pdp_area_rule_7_integration`. Raster and svg tests stayed green, correctly insensitive. |
+| `page.images` branch deleted | `test_pdf_raster_only_refusal` only |
+| `return width_mm, height_mm` swapped | `test_pdf_rotated_axes` (and the ink-extent test, which also reads axis order) |
+| `rule_limb` `"rectangular"` → `"rect"` | `test_artwork_pdp_area_rule_7_integration` only |
+| `_, height_mm = geom` → `height_mm, _ = geom` | `test_pdf_exact_measurement` only |
+| `svg` dispatch branch restored | `test_svg_type_is_unsupported` only |
+
+All five tests can fail, and the `PT_TO_MM` run turning **both** dimension tests red is the
+evidence that both call sites took the constant — one call site left inline would have shown
+as a test staying green.
+
+`assert not hasattr(result, "confidence_interval")` was removed rather than falsified.
+`MeasurementExact` declares no such field — it belongs to `_MeasurementCalibratedBase`, a
+separate private base — so the `isinstance(result, MeasurementExact)` on the line above already
+guaranteed it. It could not fail under any implementation. The test's docstring already carried
+the true claim, so there was nothing to rename it to.
+
+### Baseline
+
+**795 passed / 32 skipped on `origin/main` (`9a96b34`), measured in-session** with the tree
+clean and bytecode purged. This branch after the rebase: **800 / 32** — the five artwork tests,
+zero regressions, zero new skips. The branch was rebased twice: 780/32 on `acc0815` first, then
+again onto `9a96b34` after EXT-007 and PIP-003 landed mid-review. Both baselines were measured,
+neither carried over. `ruff check` and `ruff format --check` exit 0,
+`lint-imports` exit 0 over 114 files with 3 contracts kept and 0 broken, read directly rather
+than through a pipe.
+
+CLAUDE.md's session numbering note says "next is Session 14". `main` now carries 14 from
+MEA-009 Part A and 15 from PIP-003, so this is 16. The note is two merges stale, and this
+entry was renumbered from 15 after PIP-003 landed mid-review.
+
+### Not done, deliberately
+
+- **`pdfplumber>=0.11` is still an undecided dependency.** `TODO.md` lists #43 as blocked on
+  that decision and this takeover does not resolve it — the PDF path stays as written, so the
+  dependency stays with it. Flagged on the PR, not settled by me.
+- **`measure_artwork_ink_extent` and `calculate_artwork_pdp_area` have no caller.** Neither is
+  exported from `modules/measurement/__init__.py` and nothing under `bck/` imports them; they
+  are reachable only from their tests. Wiring them is a separate ticket and was not in MEA-005's
+  scope.
+- **`session-log/yashashvi.md` was not touched.** `3c23cc3` had deleted twelve lines from it and
+  her own `fa52a87` restored them, so it was already byte-identical to `origin/main` when I
+  picked the branch up. I ran the restore anyway; it was a no-op.
+  `git diff --numstat origin/main -- session-log/yashashvi.md` is empty. Nothing appended to it —
+  it is her log.
