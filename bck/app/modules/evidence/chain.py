@@ -2,6 +2,8 @@ import hashlib
 import json
 from datetime import datetime
 
+from app.contracts import EvidenceAssetType
+
 from .domain import ChainVerification, EvidenceEntry
 
 GENESIS_PREV_HASH = "0" * 64
@@ -24,18 +26,38 @@ def compute_payload_hash(payload: dict | str) -> str:
     return compute_sha256(serialized)
 
 
-def compute_entry_hash(sequence: int, timestamp: str, payload_hash: str, prev_hash: str) -> str:
-    """Computes the hash of an evidence entry metadata."""
-    data = f"{sequence}:{timestamp}:{payload_hash}:{prev_hash}"
+def compute_entry_hash(
+    sequence: int,
+    timestamp: str,
+    payload_hash: str,
+    prev_hash: str,
+    asset_type: EvidenceAssetType,
+) -> str:
+    """Computes the hash of an evidence entry metadata.
+
+    ``asset_type`` is inside the hash because it decides when the entry may be destroyed.
+    Left outside, an entry could be relabelled from one asset class to another, fall under
+    a different retention window, and :func:`verify_chain` would still report the chain
+    intact — a tamper vector on the one structure whose purpose is detecting tampering.
+
+    Appended last so the four original fields keep their positions.
+    """
+    data = f"{sequence}:{timestamp}:{payload_hash}:{prev_hash}:{asset_type}"
     return compute_sha256(data)
 
 
-def create_genesis_entry(payload: dict | str, timestamp: str) -> EvidenceEntry:
-    """Creates the first entry in the evidence chain."""
+def create_genesis_entry(
+    payload: dict | str, timestamp: str, asset_type: EvidenceAssetType
+) -> EvidenceEntry:
+    """Creates the first entry in the evidence chain.
+
+    ``asset_type`` is required rather than defaulted: a default would let an entry carry a
+    retention disposition nobody chose.
+    """
     sequence = 0
     prev_hash = GENESIS_PREV_HASH
     payload_hash = compute_payload_hash(payload)
-    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash)
+    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash, asset_type)
 
     return EvidenceEntry(
         sequence=sequence,
@@ -44,15 +66,25 @@ def create_genesis_entry(payload: dict | str, timestamp: str) -> EvidenceEntry:
         prev_hash=prev_hash,
         entry_hash=entry_hash,
         payload=payload,
+        asset_type=asset_type,
     )
 
 
-def append_entry(prev_entry: EvidenceEntry, payload: dict | str, timestamp: str) -> EvidenceEntry:
-    """Appends a new entry to the evidence chain."""
+def append_entry(
+    prev_entry: EvidenceEntry,
+    payload: dict | str,
+    timestamp: str,
+    asset_type: EvidenceAssetType,
+) -> EvidenceEntry:
+    """Appends a new entry to the evidence chain.
+
+    ``asset_type`` is per entry and is not inherited from ``prev_entry``: a chain mixes
+    asset classes, and a purge record appended after a photograph is an audit log.
+    """
     sequence = prev_entry.sequence + 1
     prev_hash = prev_entry.entry_hash
     payload_hash = compute_payload_hash(payload)
-    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash)
+    entry_hash = compute_entry_hash(sequence, timestamp, payload_hash, prev_hash, asset_type)
 
     return EvidenceEntry(
         sequence=sequence,
@@ -61,6 +93,7 @@ def append_entry(prev_entry: EvidenceEntry, payload: dict | str, timestamp: str)
         prev_hash=prev_hash,
         entry_hash=entry_hash,
         payload=payload,
+        asset_type=asset_type,
     )
 
 
@@ -86,7 +119,11 @@ def verify_chain(entries: list[EvidenceEntry]) -> ChainVerification:
 
         # 3. Entry hash integrity
         actual_entry_hash = compute_entry_hash(
-            entry.sequence, entry.timestamp, entry.payload_hash, entry.prev_hash
+            entry.sequence,
+            entry.timestamp,
+            entry.payload_hash,
+            entry.prev_hash,
+            entry.asset_type,
         )
         if entry.entry_hash != actual_entry_hash:
             return ChainVerification(

@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.contracts import (
     DeclarationField,
+    EvidenceAssetType,
     FieldState,
     RuleDefinition,
     RuleParameterSnapshot,
@@ -318,9 +319,21 @@ def test_an_evidence_chain_verifies_after_a_round_trip(db: Session) -> None:
     db.add(scan)
     db.commit()
 
-    genesis = create_genesis_entry({"event": "scan_received"}, "2026-09-06T09:00:00+00:00")
-    second = append_entry(genesis, {"event": "verdict_assembled"}, "2026-09-06T09:01:00+00:00")
-    third = append_entry(second, {"event": "report_exported"}, "2026-09-06T09:02:00+00:00")
+    genesis = create_genesis_entry(
+        {"event": "scan_received"}, "2026-09-06T09:00:00+00:00", EvidenceAssetType.AUDIT_LOG
+    )
+    second = append_entry(
+        genesis,
+        {"event": "verdict_assembled"},
+        "2026-09-06T09:01:00+00:00",
+        EvidenceAssetType.AUDIT_LOG,
+    )
+    third = append_entry(
+        second,
+        {"event": "report_exported"},
+        "2026-09-06T09:02:00+00:00",
+        EvidenceAssetType.PRODUCT_IMAGE,
+    )
     built = [genesis, second, third]
     assert verify_chain(built).is_valid
 
@@ -333,6 +346,7 @@ def test_an_evidence_chain_verifies_after_a_round_trip(db: Session) -> None:
             prev_hash=entry.prev_hash,
             entry_hash=entry.entry_hash,
             payload_json=json.dumps(entry.payload, sort_keys=True, separators=(",", ":")),
+            asset_type=entry.asset_type,
             storage_ref=None,
         )
         for entry in built
@@ -349,6 +363,7 @@ def test_an_evidence_chain_verifies_after_a_round_trip(db: Session) -> None:
             prev_hash=row.prev_hash,
             entry_hash=row.entry_hash,
             payload=row.payload_json,
+            asset_type=row.asset_type,
         )
         for row in rows
     ]
@@ -356,3 +371,30 @@ def test_an_evidence_chain_verifies_after_a_round_trip(db: Session) -> None:
     verification = verify_chain(reloaded)
     assert verification.is_valid, verification.reason
     assert [entry.entry_hash for entry in reloaded] == [entry.entry_hash for entry in built]
+
+
+def test_relabelling_an_asset_type_breaks_the_entry_hash() -> None:
+    """``asset_type`` is inside the entry hash, not merely stored beside it.
+
+    It is the field a retention window is read from. Outside the hash, an entry could be
+    relabelled from one asset class to another, become purgeable under a different rule,
+    and :func:`verify_chain` would still report the chain intact — a tamper vector on the
+    one structure whose entire purpose is detecting tampering.
+
+    Nothing else in the suite would notice: every other assertion about an entry hash
+    recomputes it from the same inputs, so a field left out of the hash is invisible.
+    """
+    payload = {"event": "scan_received"}
+    timestamp = "2026-09-06T09:00:00+00:00"
+
+    as_capture = create_genesis_entry(payload, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
+    as_audit_log = create_genesis_entry(payload, timestamp, EvidenceAssetType.AUDIT_LOG)
+
+    assert as_capture.payload_hash == as_audit_log.payload_hash, (
+        "the payloads are identical; only asset_type differs"
+    )
+    assert as_capture.entry_hash != as_audit_log.entry_hash
+
+    relabelled = as_capture.model_copy(update={"asset_type": EvidenceAssetType.AUDIT_LOG})
+    assert not verify_chain([relabelled]).is_valid
+    assert verify_chain([relabelled]).reason == "entry_hash_mismatch"

@@ -15,6 +15,7 @@ rearranging files inside ``contracts/`` is not a change to six other people's im
 from app.contracts.base import ContractModel
 from app.contracts.enums import (
     DeclarationField,
+    EvidenceAssetType,
     EvidenceProvider,
     FieldState,
     ProductCategory,
@@ -50,6 +51,7 @@ __all__ = [
     "CategoryProposal",
     "ContractModel",
     "DeclarationField",
+    "EvidenceAssetType",
     "EvidenceProvider",
     "ExtractedSpan",
     "FieldFinding",

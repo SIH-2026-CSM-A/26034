@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.contracts import EvidenceAssetType
 from app.modules.evidence.chain import (
     GENESIS_PREV_HASH,
     append_entry,
@@ -17,7 +18,7 @@ def test_genesis_entry():
     """Verify create_genesis_entry produces sequence 0 and correct prev_hash."""
     payload = {"data": "genesis"}
     timestamp = "2026-09-05T12:00:00Z"
-    entry = create_genesis_entry(payload, timestamp)
+    entry = create_genesis_entry(payload, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
 
     assert entry.sequence == 0
     assert entry.prev_hash == GENESIS_PREV_HASH
@@ -34,11 +35,11 @@ def test_long_chain_and_tampering():
     timestamp = "2026-09-05T12:00:00Z"
 
     # 1. Build 100-entry chain
-    genesis = create_genesis_entry({"i": 0}, timestamp)
+    genesis = create_genesis_entry({"i": 0}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
     chain.append(genesis)
 
     for i in range(1, 100):
-        entry = append_entry(chain[-1], {"i": i}, timestamp)
+        entry = append_entry(chain[-1], {"i": i}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
         chain.append(entry)
 
     assert verify_chain(chain).is_valid is True
@@ -60,10 +61,10 @@ def test_entry_deletion():
     chain = []
     timestamp = "2026-09-05T12:00:00Z"
 
-    genesis = create_genesis_entry({"i": 0}, timestamp)
+    genesis = create_genesis_entry({"i": 0}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
     chain.append(genesis)
     for i in range(1, 100):
-        chain.append(append_entry(chain[-1], {"i": i}, timestamp))
+        chain.append(append_entry(chain[-1], {"i": i}, timestamp, EvidenceAssetType.PRODUCT_IMAGE))
 
     # Delete entry at index 15
     shortened_chain = list(chain)
@@ -77,13 +78,13 @@ def test_entry_deletion():
 def test_chain_continuity_reappend():
     """Verify appending to a valid chain maintains validity."""
     timestamp = "2026-09-05T12:00:00Z"
-    chain = [create_genesis_entry({"i": 0}, timestamp)]
+    chain = [create_genesis_entry({"i": 0}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)]
 
     # Verify initial
     assert verify_chain(chain).is_valid is True
 
     # Append and verify
-    new_entry = append_entry(chain[-1], {"i": 1}, timestamp)
+    new_entry = append_entry(chain[-1], {"i": 1}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
     chain.append(new_entry)
 
     assert verify_chain(chain).is_valid is True
@@ -92,7 +93,7 @@ def test_chain_continuity_reappend():
 def test_verify_chain_contract():
     """Assert return type is strictly ChainVerification."""
     timestamp = "2026-09-05T12:00:00Z"
-    chain = [create_genesis_entry({"i": 0}, timestamp)]
+    chain = [create_genesis_entry({"i": 0}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)]
 
     result = verify_chain(chain)
     assert type(result) is ChainVerification

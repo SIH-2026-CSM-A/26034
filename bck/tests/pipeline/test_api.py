@@ -289,6 +289,7 @@ async def test_a_verdict_is_hash_chained_with_the_spans_behind_it(
                 prev_hash=row.prev_hash,
                 entry_hash=row.entry_hash,
                 payload=row.payload_json,
+                asset_type=row.asset_type,
             )
         ]
     )
@@ -327,6 +328,7 @@ async def test_tampering_with_a_stored_payload_breaks_the_chain(
                 prev_hash=row.prev_hash,
                 entry_hash=row.entry_hash,
                 payload=row.payload_json.replace("POTENTIAL_VIOLATION", "PASS"),
+                asset_type=row.asset_type,
             )
         ]
     )
