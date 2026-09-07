@@ -129,8 +129,24 @@ contract between them.
 project, DAT-001 is superseded by DAT-002 + DAT-003, assign her nothing. `extraction/` is
 **Sitanshu's**: EXT-004 was a one-off exception delivered by B.V. Yashwanth because Sitanshu
 had never started it, and it does not extend past that ticket — EXT-005 and EXT-006 are his.
-`measurement/` is Yashashvi's and she is active again. CODEOWNERS still names Aashritha on
-`datasets/`; DAT-003 corrects it and is unmerged, so the file currently lies.
+`measurement/` is Yashashvi's and she is active again. **DAT-003 merged as #64 and
+`.github/CODEOWNERS` now reads `/datasets/ @Abhiram-0910`. That entry is correct — do not
+re-raise it.**
+
+**Recorded shifts, 2026-09-07.** `.github/CODEOWNERS` was brought into line with the table above,
+which had been right while the file was wrong. `bck/app/modules/rules/` and
+`bck/tests/modules/rules/` moved off `@badugujashwanth-create` (Jashwanth Badugu, off the
+project) to `@Abhiram-0910`. `bck/app/modules/tamper/` and `bck/tests/modules/tamper/` moved off
+`@adepushivasai901-ops` (never engaged) to `@aksha08-ya`, following TAM-001.
+`session-log/yashashvi.md`, `session-log/vineeth.md` and `session-log/shiva-kumar.md` gained
+entries — all three files existed with no owner. Vineeth's GitHub username is
+`@vineethsimha2151`; he shipped FNT-003 as #72.
+
+**`/fnt/` ownership is unresolved and was deliberately not decided by that edit.**
+`.github/CODEOWNERS` assigns all of `/fnt/` to `@vineethsimha2151`, `HANDOFF.md` says the officer
+surface stays with Abhiram because it is on the demo path, and the table above says Abhiram
+*(Vineeth's module, he is unavailable)* — and he is demonstrably available. Three sources, three
+answers. Decide it on purpose; do not let a CODEOWNERS edit decide it silently.
 
 ## The import rule
 

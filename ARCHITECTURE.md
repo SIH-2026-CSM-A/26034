@@ -244,8 +244,13 @@ under any spelling, and do not invent `coin_5` either.
 - **The ground-truth schema refuses incoherent calibration claims.** `ReferenceObject`
   rejects `present: true` without an identified object of known size, and `present: false`
   carrying a dimension. `object_type` is required with no default.
-- **`propose_category`** (deterministic, regex + corpus-grounded lexicon) exists in
-  `extraction/` but has no caller yet — PIP-003.
+- **`propose_category`** (deterministic, regex + corpus-grounded lexicon) lives in
+  `extraction/` and **has a caller since PIP-003 (#74)**: `pipeline/orchestrator.py:39` imports
+  it and `:283` calls it, once per scan. The proposal stops there — it is returned on the
+  response and is never written into the confirmed category, and it is not persisted, because
+  the `scans` row has no column for it. `CategoryProposal` is deliberately **not** exported
+  from `extraction/__init__.py`; it is a contracts type and a second import path for it is the
+  defect class the third import-linter contract forbids.
 
 ### Rule 3 Chapter II scope (RUL-005, #68)
 
@@ -265,6 +270,38 @@ subsumption test that goes red if a future amendment raises 3(a)'s threshold.
 to PASS, unreachable while sector overrides were the only source of NOT_APPLICABLE.
 Rule 3 reaches it, and PASS on a package the system did not evaluate is the same error
 the empty-findings case already guards against.
+
+### What actually scopes a rule (RUL-006, and what it removed)
+
+Three mechanisms, and only three:
+
+| Question | Answered by |
+|---|---|
+| Does Chapter II reach this package at all? | `chapter_ii_scope` — `modules/rules/scope.py` |
+| Does another framework govern this obligation? | the sector `OverrideTarget` — `pipeline/dispositions.py` |
+| Which declarations does this rule govern? | `RuleDefinition.governs_declarations` / `.governs()` |
+
+A fourth used to look like a fourth. `applies_to` was a required, non-empty tuple of scope
+tokens on every rule in the store — 28 rules, 29 tokens, 6 distinct — enforced by a
+vocabulary test and copied into every persisted verdict snapshot, and **read by nothing**.
+Grepping the tokens themselves across `bck/app/` returned only `rules.yaml`. RUL-006 removed
+it. It was not merely dead: 22 rules asserted `retail_packages` while the thing that decides
+retail-vs-not is `chapter_ii_scope`, and `medical_device_packages` restated a sector override
+that is executable code — a drifting second statement of something already decided elsewhere,
+written on the rule itself and sitting beside the real gate.
+
+Removing it did not touch verdict replay, which was verified rather than assumed.
+`applies_to` was never a field on `RuleParameterSnapshot`; it was a key inside `parameters`,
+typed `dict[str, JsonValue]`. `ContractModel`'s `extra="forbid"` governs the model's own
+fields and does not reach inside a dict, so rows in `field_findings.rule_snapshot` written
+before the change re-validate unchanged through the same `model_validate` call
+`pipeline/responses.py` makes on read-back. No migration, no backfill.
+`test_a_stored_row_naming_a_retired_parameter_still_replays` pins that property, and
+`test_the_snapshot_emits_exactly_these_parameter_keys` pins the key set `parameters` may
+hold — both in `tests/pipeline/test_rule_snapshot.py`.
+
+`contracts.RuleDefinition.applies_to` still exists. It defaults to `()` and is reachable only
+through `RuleParameterSnapshot.from_rule`, which nothing in `bck/app/` calls. Follow-up.
 
 ### Competing readings (CTR-006 #65, PIP-004 #67)
 
@@ -291,10 +328,19 @@ fabricated and were deleted in DAT-002 (#53, merged). Exactly one commit ever ad
 under `datasets/annotations/` — `da8278f` (#8, DAT-001), eight files, one author, one batch —
 so the four proven fabricated and the four never reviewed share that provenance and nothing
 real was lost. Fifteen real captures are staged at `datasets/raw/_staging/`, gitignored and
-unannotated. DAT-005 annotates them.
+unannotated — twelve `.png`, three `.jpg`, six of them `_uncalibrated`. **Because they are
+gitignored they exist only in the worktree that captured them (`~/26034-dat`); an empty
+`datasets/raw/` in any other worktree is not evidence they are missing.** Note that
+`datasets/ingest_images.py:24` globs `**/*.[jJ][pP][gG]`, so twelve of the fifteen are invisible
+to the ingest script. DAT-005 annotates them.
 
-Four modules have merged with no caller: `EvidenceEntryRow`, `propose_category`,
-`measure_margins`, and `tamper/`. An uncalled function is invisible to CI and to review.
+Five things have merged with no caller: `EvidenceEntryRow`, `measure_margins`, `tamper/`,
+and — since MEA-005 (#43) — `measure_artwork_ink_extent` and `calculate_artwork_pdp_area`
+(`modules/measurement/artwork.py:65,79`), neither of which is in `measurement/__init__.py`'s
+`__all__`. `propose_category` came off this list in PIP-003 (#74). An uncalled function is
+invisible to CI and to review, and artwork mode is the only path that yields an exact millimetre
+figure — so the one measurement that never needs a refusal is built and unreachable. MEA-011
+wires it.
 
 There is no PDP-trained detector. Pointing `PDP_WEIGHTS_PATH` at stock `yolov8n.pt` is worse
 than leaving it unset: stock COCO weights return a confident wrong box that feeds the Rule 7

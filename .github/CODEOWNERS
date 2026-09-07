@@ -13,16 +13,16 @@
 /bck/app/modules/vision/            @aksha08-ya
 /bck/app/modules/extraction/        @krishbattula4
 /bck/app/modules/measurement/       @Yashashvi-05
-/bck/app/modules/rules/             @badugujashwanth-create
-/bck/app/modules/tamper/            @adepushivasai901-ops
+/bck/app/modules/rules/             @Abhiram-0910           # from @badugujashwanth-create, off the project
+/bck/app/modules/tamper/            @aksha08-ya             # from @adepushivasai901-ops, never engaged; TAM-001
 /bck/app/modules/evidence/          @Shiva-Kumar-Akula
 
 # Tests follow their module's owner.
 /bck/tests/modules/vision/          @aksha08-ya
 /bck/tests/modules/extraction/      @krishbattula4
 /bck/tests/modules/measurement/     @Yashashvi-05
-/bck/tests/modules/rules/           @badugujashwanth-create
-/bck/tests/modules/tamper/          @adepushivasai901-ops
+/bck/tests/modules/rules/           @Abhiram-0910           # follows the module
+/bck/tests/modules/tamper/          @aksha08-ya             # follows the module
 /bck/tests/modules/evidence/        @Shiva-Kumar-Akula
 
 # Frontend and data.
@@ -33,3 +33,6 @@
 /session-log/abhiram.md             @Abhiram-0910
 /session-log/akshaya.md             @aksha08-ya
 /session-log/sitanshu.md            @krishbattula4
+/session-log/yashashvi.md           @Yashashvi-05
+/session-log/shiva-kumar.md         @Shiva-Kumar-Akula
+/session-log/vineeth.md             @vineethsimha2151
