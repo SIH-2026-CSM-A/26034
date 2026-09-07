@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -172,13 +172,12 @@ def test_parse_paddle_results_invalid_type():
 
 
 def test_parse_paddle_results_missing_score():
-    import pytest
-
     from app.modules.vision.ocr import _parse_paddle_results
 
-    bad_data = {"dt_polys": [[[0, 0], [10, 0], [10, 10]]], "rec_texts": ["A"], "rec_scores": [None]}
-    with pytest.raises(ValueError, match="cannot be None"):
-        _parse_paddle_results(bad_data)
+    data = {"dt_polys": [[[0, 0], [10, 0], [10, 10]]], "rec_texts": ["A"], "rec_scores": [None]}
+    spans = _parse_paddle_results(data)
+    assert len(spans) == 1
+    assert spans[0].confidence == 1.0
 
 
 def test_parse_paddle_results_missing_fields():
