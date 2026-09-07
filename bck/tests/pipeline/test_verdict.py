@@ -121,8 +121,31 @@ def test_not_applicable_alongside_pass_is_pass() -> None:
     assert derive_verdict(findings) is Verdict.PASS
 
 
-def test_only_not_applicable_findings_are_pass() -> None:
-    assert derive_verdict((finding(FieldState.NOT_APPLICABLE),)) is Verdict.PASS
+def test_every_finding_not_applicable_is_review_and_never_pass() -> None:
+    """Nothing was evaluated, so nothing may be asserted — the empty case in another form.
+
+    Renamed and inverted by RUL-005. It previously asserted PASS, which was correct while
+    the only source of NOT_APPLICABLE was a sector override: those carve out some
+    obligations and leave the rest, so an all-NOT_APPLICABLE set was unreachable. Rule 3
+    reaches it — a package outside Chapter II owes nothing in the store — and PASS on a
+    package this system did not evaluate is the same error
+    :func:`test_no_findings_is_review_and_never_pass` already guards against.
+
+    Still not a merge: NOT_APPLICABLE keeps falling through when anything else is present,
+    which :func:`test_not_applicable_alongside_pass_is_pass` pins.
+    """
+    assert derive_verdict((finding(FieldState.NOT_APPLICABLE),)) is Verdict.REVIEW
+    assert derive_verdict((finding(FieldState.NOT_APPLICABLE),)) is not Verdict.PASS
+
+    every_field = tuple(
+        finding(FieldState.NOT_APPLICABLE, field)
+        for field in (
+            DeclarationField.NET_QUANTITY,
+            DeclarationField.RETAIL_SALE_PRICE,
+            DeclarationField.MANUFACTURE_DATE,
+        )
+    )
+    assert derive_verdict(every_field) is Verdict.REVIEW
 
 
 def test_no_findings_is_review_and_never_pass() -> None:

@@ -5,8 +5,10 @@ this rule and what we actually managed to observe, what may we say about each de
 it governs? They are pure and take no session, no clock and no image, so every branch
 below is reachable in a test without a database or a model.
 
-**The ordering that matters.** :func:`sector_findings` runs before any evaluator. A sector
-override is a carve-out rather than a stricter path — G.S.R. 778(E) does not raise the bar
+**The ordering that matters.** :func:`scope_findings` runs before :func:`sector_findings`,
+and both run before any evaluator. Rule 3 decides whether Chapter II reaches the package at
+all; only then is it worth asking whether a sector has moved one obligation inside it. A
+sector override is a carve-out rather than a stricter path — G.S.R. 778(E) does not raise the bar
 for a medical device, it moves character height, width and the panel declaration to the
 Medical Devices Rules, 2017 outright — so whether the packaged rules govern an obligation
 at all is settled first. Evaluating a carved-out obligation and filtering the answer
@@ -39,6 +41,8 @@ from app.contracts import (
 from app.modules.rules import (
     ProductCategory,
     RuleDefinition,
+    ScopeDecision,
+    ScopeStatus,
     Verdict,
     controlling_framework,
     evaluate_rule,
@@ -113,6 +117,27 @@ class EvidenceContext:
     was never obtained, so an absence is INSUFFICIENT_EVIDENCE carrying this text.
     ``None`` says we looked, so an absence is a finding about the package."""
 
+    not_for_retail_sale_observed: bool = False
+    """Whether the marker Rule 2(bb) and 2(bc) require was read off this package.
+
+    ``False`` means *not observed* and never "the package bears no such mark". Nothing is
+    inferred from it: a ``False`` here produces no finding and no reason text, and the scan
+    evaluates exactly as it would have done without this field. Only ``True`` does anything,
+    and what it does is route to an officer.
+
+    Computed by the orchestrator, which holds the spans; this context deliberately carries
+    only normalised evidence. Always ``False`` on the catalogue path, where a listing
+    supplies declarations by obligation and carries no marker to read.
+    """
+
+    institutional_or_industrial_confirmed: bool = False
+    """The officer's *confirmed* Rule 3(c) exclusion. ``False`` confirms nothing.
+
+    The same shape as :attr:`product_category`, and for the same reason: routing a package
+    out of Chapter II is a legal determination, and this system does not make it on a
+    classifier's guess. An officer asserts it; the label only ever indicates it.
+    """
+
 
 def finding(
     rule: RuleDefinition,
@@ -130,6 +155,54 @@ def finding(
         reason=reason,
         **values,  # type: ignore[arg-type]
     )
+
+
+SCOPE_FIELD_STATE: dict[ScopeStatus, FieldState] = {
+    ScopeStatus.EXCLUDED: FieldState.NOT_APPLICABLE,
+    ScopeStatus.UNCERTAIN: FieldState.REVIEW_REQUIRED,
+}
+"""What each settled scope status means for one field.
+
+``GOVERNED`` is absent deliberately, and its absence is the control flow: a governed
+package produces no scope findings at all and falls through to the ordinary builders. Only
+the two statuses that *settle* a rule appear here.
+
+Neither value is FAIL and neither is INSUFFICIENT_EVIDENCE. Rule 3 removes the duty or says
+we cannot yet tell whether it arises; neither is a statement that the package fell short,
+and neither is a statement about our reading. Both are set directly rather than derived
+through ``FIELD_STATE_FROM_VERDICT``, which stays non-total over ``FieldState`` for exactly
+the reason its own docstring gives.
+"""
+
+
+def scope_findings(
+    rule: RuleDefinition,
+    fields: tuple[DeclarationField, ...],
+    scope: ScopeDecision,
+    context: EvidenceContext,
+) -> list[FieldFinding] | None:
+    """Findings that settle a rule before applicability, or ``None`` to carry on.
+
+    Rule 3 is prior to the sector question. A sector override moves one obligation to
+    another framework; Rule 3 decides whether the chapter holding that obligation reaches
+    the package at all. Answering the narrower question first would attribute a package
+    outside Chapter II to the Medical Devices Rules, 2017, which is a different wrong
+    answer rather than a smaller one.
+    """
+    state = SCOPE_FIELD_STATE.get(scope.status)
+    if state is None:
+        return None
+
+    return [
+        finding(
+            rule,
+            field,
+            state,
+            f"{scope.limb} — {scope.reason}",
+            context,
+        )
+        for field in fields
+    ]
 
 
 def sector_findings(

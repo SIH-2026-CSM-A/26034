@@ -76,6 +76,7 @@ CONDITION_DISPOSITION: dict[str, Disposition] = {
     "ecommerce_country_of_origin_filter": Disposition.LISTING,
     "sector_override": Disposition.NOT_AN_OBLIGATION,
     "package_definition": Disposition.NOT_AN_OBLIGATION,
+    "chapter_ii_scope": Disposition.NOT_AN_OBLIGATION,
     "other_law_carve_out": Disposition.NOT_AN_OBLIGATION,
     "numeric_constraint": Disposition.NOT_AN_OBLIGATION,
 }

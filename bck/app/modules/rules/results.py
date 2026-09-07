@@ -11,10 +11,12 @@ from __future__ import annotations
 from decimal import Decimal
 
 from .base import (
+    NonEmptyText,
     OverrideTarget,
     PositiveDecimal,
     ProductCategory,
     Rule7Route,
+    ScopeStatus,
     StrictRuleModel,
     Verdict,
     WidthRatioResult,
@@ -33,6 +35,24 @@ class SectorOverride(StrictRuleModel):
     target: OverrideTarget
     controlling_framework: str
     rule_id: str
+
+
+class ScopeDecision(StrictRuleModel):
+    """Whether Chapter II reaches one package, and the limb of Rule 3 that says so.
+
+    ``limb`` and ``rule_id`` travel with the status for the same reason they do on
+    :class:`SectorOverride`: an officer asked why a 30 kilogram sack bore no findings gets
+    the clause, not an assertion. ``limb`` is ``None`` exactly when ``status`` is
+    :attr:`~app.modules.rules.base.ScopeStatus.GOVERNED` — no limb fired, so there is none
+    to name.
+
+    ``reason`` is written for the officer reading the finding, not for a log.
+    """
+
+    status: ScopeStatus
+    reason: NonEmptyText
+    rule_id: NonEmptyText
+    limb: NonEmptyText | None = None
 
 
 class Rule7HeightEvaluation(StrictRuleModel):
