@@ -54,3 +54,4 @@
 - **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 724 passed, 32 skipped cleanly).
 - 2026-09-07: Restored test_ocr.py bodies, deleted placeholder, and rewrote assertions to test PaddleOCR 3.7.0 API expectations per review comments. (Antigravity)
 - 2026-09-07: Fixed 4 failing unit tests in test_ocr.py by aligning test assertions with ocr.py implementation (dict parsing, numeric cleaning, and validation errors). (Antigravity)
+- 2026-09-07: Implemented VIS-007 Capture Quality Gate (blur detection via Laplacian variance, glare detection in HSV space, and completeness/framing checks) strictly within bck/app/modules/vision/. (Antigravity)
