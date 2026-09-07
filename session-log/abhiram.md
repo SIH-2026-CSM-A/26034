@@ -1783,3 +1783,105 @@ shapes have to be constructed there, not one. And **margins are still not wired 
 pipeline at all** — `pipeline/orchestrator.py:156-164` deliberately omits `measure_margins`,
 because it needs a declaration bounding box that EXT-004 supplies, so Part B changes what the
 function returns without changing what any scan currently does.
+
+## Session 15 — 2026-09-07, PIP-003 (Claude Code, Opus 5)
+
+**Ticket:** PIP-003 — wire `propose_category` into the orchestrator as a proposal that can
+never write itself into the confirmed category. Branch cut from `origin/main` @ `2817c6b`,
+worktree `~/26034-ctr`. Session numbering: 13 = RUL-005, this is 14.
+
+`propose_category` merged in EXT-005 (#52) with no caller and no export — the fourth module
+on this project to ship that way. It now has both, and the thing it exists for: nothing
+previously proposed a category for an officer to confirm, so every sector-gated obligation
+settled at INSUFFICIENT_EVIDENCE with no route out.
+
+### The separation, and how it is held
+
+`CategoryProposal` is evidence the pipeline offers. `Scan.product_category` is the officer's
+act, arriving through the request boundary. `ARCHITECTURE.md` states it as a decision — a
+confirmed category is a precondition of rule evaluation, not a filter after it.
+
+`propose_category` is called immediately after `bind_spans` and the result goes onto
+`ImageScanResult.category_proposal` and out through `ScanDetail`. **`EvidenceContext` is not
+touched.** Its `product_category=product_category` is still the function parameter. That one
+line not changing is the whole ticket.
+
+### The measurement that turns the claim into a demonstration
+
+An unconfirmed-category image scan over `PANEL_SPANS` produces **65 findings, 53
+INSUFFICIENT_EVIDENCE, 30 of them carrying `UNCONFIRMED_CATEGORY_REASON`, verdict REVIEW**.
+Measured on `origin/main` @ `2817c6b` before any code was written, and re-measured after:
+identical. The new test adds one FSSAI span, gets a live `FOOD @ 0.95` proposal, and pins
+those four figures as literals.
+
+Confirming `food` instead of proposing it takes gate-settled from **30 to 0** and
+INSUFFICIENT_EVIDENCE from 53 to 52. Total findings stays 65 and the verdict stays REVIEW in
+both states — so a test asserting only those two would have passed over the defect. The
+gate-settled count is the load-bearing assertion and it is ordered first so the failure
+explains itself.
+
+### Falsification — four defects, all confirmed red, bytecode purged before each
+
+| Injected defect | Result |
+|---|---|
+| Orchestrator adopts the proposal as the confirmed category | `assert 0 == 30` — the gate fully unmasked |
+| `repository.py` imports `CategoryProposal` | structural guard red |
+| `run_image_scan` returns `category_proposal=None` | `assert None is not None` |
+| A second `Scan(...)` construction site | `assert 2 == 1`, both sites named |
+
+The first is the bug the ticket exists to prevent, and it is reachable in one line.
+
+### Crossing into `modules/extraction/`
+
+Authorised for this ticket only, **not precedent** — the same authorisation shape as CTR-006.
+Additive only: one import line, one `__all__` entry, alphabetical, nothing reordered. It
+reads as two added lines in Sitanshu's diff.
+
+Two alternatives rejected, both recorded on the PR:
+
+- **A deep `from app.modules.extraction.category import propose_category`.** It reaches past
+  the module's public surface, so any reorganisation inside `extraction/` silently breaks
+  `pipeline/`.
+- **Also exporting `CategoryProposal` from `extraction`.** It is a `contracts` type, and a
+  second public name for it invites `from app.modules.extraction import CategoryProposal` —
+  the same class of defect as the `bck.*` path the third import-linter contract forbids. The
+  orchestrator takes it from `app.contracts`.
+
+### Gate
+
+Measured twice, because the base moved under this branch mid-session. Both with a clean
+tree and bytecode purged using the absolute-path `find`, asserting the surviving directory
+count is zero rather than trusting the exit code:
+
+| base | `origin/main` | this branch | delta |
+|---|---|---|---|
+| `2817c6b`, at the start | 772 / 32 | 777 / 32 | **+5** |
+| `acc0815`, after rebasing | **780 / 32** | **785 / 32** | **+5** |
+
+MEA-009 Part A (#73) and FNT-003 (#72) landed while this was in flight. The delta is the
+same five tests on either base — zero regressions, zero new skips. Ruff clean, `ruff format
+--check` clean, `lint-imports` 3 contracts kept / 0 broken over 112 files and 378
+dependencies, exit codes read directly and never through a pipe.
+
+**CLAUDE.md still says 707/32**, six merges stale now. Session 13 flagged it at two and
+Session 14 did not correct it either. Not corrected here — doc updates go in their own PR.
+
+### Not done, deliberately
+
+- **The proposal is not persisted.** It is on the POST response and `None` on a GET re-read:
+  the `scans` row has no column for it and `stored_detail` builds from that row. A column
+  plus a migration is its own ticket under the standing rule, so it is raised rather than
+  folded in. Stated in the field's own docstring rather than left for someone to discover.
+- **The catalogue path proposes nothing.** `propose_category` takes an `ExtractionResult`,
+  which a listing never builds — it goes through `normalise_declaration`, not `bind_spans` —
+  and `run_catalogue_scan` returns a bare `VerdictRecord` with nowhere to carry one. A
+  separate question, not a gap in this one.
+- **`ARCHITECTURE.md:247` and `:296` are now stale.** Both still say `propose_category` has
+  no caller. For the docs PR.
+
+### For Vineeth
+
+`ScanDetail` gained a field, so the OpenAPI schema moved. **#72 merged during this session**
+(`acc0815`), so `fnt/src/services/generated/schema.d.ts` is in the tree now and was generated
+from the schema as it stood before this branch. It goes stale the moment this merges and
+needs regenerating — `fnt/scripts/generate-api.mjs`, which #72 also added.

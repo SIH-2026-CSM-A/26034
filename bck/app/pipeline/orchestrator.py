@@ -25,6 +25,7 @@ import numpy as np
 
 from app.contracts import (
     CatalogueRecord,
+    CategoryProposal,
     CompetingReadings,
     ContractModel,
     DeclarationField,
@@ -35,7 +36,7 @@ from app.contracts import (
     VerdictRecord,
 )
 from app.core import CalibrationMethod, get_settings
-from app.modules.extraction import bind_spans
+from app.modules.extraction import bind_spans, propose_category
 from app.modules.measurement import (
     calculate_pdp_area,
     measure_ink_extent,
@@ -121,6 +122,23 @@ class ImageScanResult(ContractModel):
     """
 
     panel: PanelDetection
+
+    category_proposal: CategoryProposal | None = None
+    """A product category read off the label, offered to an officer and acted on by nothing.
+
+    **Not a confirmation, and it never becomes one.** The confirmed category reaches this
+    chain as :func:`run_image_scan`'s own ``product_category`` parameter, which comes from
+    the request boundary and from nowhere else; this field is a separate value that travels
+    beside it. Nothing downstream reads it — not the sector gate, not
+    :class:`~app.pipeline.rule_findings.EvidenceContext`, not the verdict — because an
+    obligation a sector override could move stays INSUFFICIENT_EVIDENCE until a person says
+    which Act governs the package, and a reading that routed itself would answer that
+    question on their behalf.
+
+    ``None`` where the evidence is missing, sparse, ambiguous or conflicting across
+    categories. That is :func:`~app.modules.extraction.propose_category` abstaining, which
+    is a reading in its own right and not a failure to produce one.
+    """
 
 
 @dataclass(frozen=True)
@@ -256,6 +274,14 @@ def run_image_scan(
     # normalisation stage. Every span handed in comes back either cited by a field or in
     # unclassified_spans — the binder conserves them, and so does this.
     extraction = bind_spans(spans)
+
+    # A proposal, and it stops here. It is deliberately not passed to EvidenceContext
+    # below: that field is the *confirmed* category the sector gate dispatches on, and
+    # handing it a reading would have the pipeline answer the question the architecture
+    # reserves for an officer — unmasking every sector-gated obligation at once, silently,
+    # on the strength of a regex over OCR text.
+    proposal = propose_category(extraction)
+
     declared = by_obligation(extraction.fields)
     contested = by_obligation(extraction.disagreements)
 
@@ -294,6 +320,7 @@ def run_image_scan(
         panel=PanelDetection(
             bbox=detection.bbox, area_px=detection.area, confidence=detection.confidence
         ),
+        category_proposal=proposal,
     )
 
 
