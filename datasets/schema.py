@@ -42,19 +42,24 @@ class DifficultyTag(str, Enum):
 
 
 class ReferenceObjectType(str, Enum):
-    """Known fiducial or reference object present in frame for calibration."""
+    """Reference object present in frame for calibration."""
 
+    # These values are measurement's vocabulary, not one of this schema's own: they are
+    # the keys of app.modules.measurement.services.REF_DIMS and the strings
+    # detect_reference_object dispatches on. A member exists only alongside its REF_DIMS
+    # entry and its detector branch; without both it is unreachable capability, because
+    # an annotation naming it falls through to a MeasurementRefusal.
+    # TestMeasurementCanConsumeEveryOfferedObject in tests/test_schema_guards.py is what
+    # holds the two sides together, and it carries the full account.
     NONE = "none"
-    # Rs10 is the ONLY coin with a sourced dimension on this project (27.0 mm,
-    # RBI-confirmed, SIH26034_TI.md s15). The Rs1/Rs2/Rs5 members were removed:
-    # their dimensions were written from memory, and coin_inr_5 at 25.0 mm is on
-    # the Hard Nos list. Do not re-add a coin without a corpus or RBI source.
-    COIN_INR_10 = "coin_inr_10"  # 27.0 mm bimetallic
-    CREDIT_CARD_ID1 = "credit_card_id1"  # ISO/IEC 7810 ID-1: 85.60 mm x 53.98 mm
+    # The Rs 10 coin is the ONLY coin with a sourced dimension on this project
+    # (27.0 mm, RBI-confirmed, SIH26034_TI.md s15). Members for the Rs 1, Rs 2 and
+    # Rs 5 coins were removed: their dimensions were written from memory, and the
+    # Rs 5 coin at 25.0 mm is on the Hard Nos list. Do not re-add a coin without a
+    # corpus or RBI source.
+    COIN_10 = "coin_10"  # 27.0 mm bimetallic
+    ID_CARD = "id_card"  # ISO/IEC 7810 ID-1: 85.60 mm x 53.98 mm
     EAN_13 = "ean_13"  # 37.29 mm nominal total width at 100% magnification
-    ARUCO_MARKER = "aruco_marker"
-    RULER_SCALE = "ruler_scale"
-    CHECKERBOARD = "checkerboard"
 
 
 class PDPShape(str, Enum):
