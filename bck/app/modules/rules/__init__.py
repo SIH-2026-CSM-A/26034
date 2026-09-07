@@ -62,6 +62,9 @@ from .results import (
     Rule8FreeSpaceEvaluation,
     ScopeDecision,
     SectorOverride,
+    SideClearance,
+    SideOverlap,
+    SideSpace,
 )
 from .scope import (
     chapter_ii_scope,
@@ -105,6 +108,9 @@ __all__ = [
     "SectorOverrideCondition",
     "SectorRoutedError",
     "Severity",
+    "SideClearance",
+    "SideOverlap",
+    "SideSpace",
     "Verdict",
     "WidthRatioResult",
     "calculate_cylindrical_pdp_area",
