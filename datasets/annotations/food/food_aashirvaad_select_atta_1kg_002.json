@@ -1,0 +1,205 @@
+{
+  "sample_id": "food_aashirvaad_select_atta_1kg_002",
+  "sku_id": "food_aashirvaad_select_atta_1kg",
+  "image_filename": "food_aashirvaad_select_atta_1kg_002.jpg",
+  "image_sha256": "438db4d01706a3c7cdcfb035a394e0bd9ee189983ff29b6d74798b66696350c1",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "flexible_pouch",
+    "crowded",
+    "low_contrast"
+  ],
+  "known_issues": [
+    "missing_month_year",
+    "missing_unit_sale_price"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MARKETED BY:\nITC LIMITED,\n37, J.L. NEHRU ROAD, KOLKATA - 700 071.\nLic. No. 10012031000312\nMANUFACTURED BY: (match the first character of the\nBatch No. with the corresponding letter below)\nA)  ITC LIMITED, FOODS DIVISION,\n     ICD BOLLARAM, DIST. SANGAREDDY, TELANGANA - 502 325.\n     Lic. No. 10014047000007\nB)  ITC LIMITED, FOODS DIVISION,\n     B-1, SECTOR 11, IIE, RANIPUR, HARIDWAR, UTTARAKHAND - 249 403.\n     Lic. No. 10012012000054",
+      "normalised_value": {
+        "marketed_by": {
+          "name": "ITC LIMITED",
+          "address": "37, J.L. NEHRU ROAD, KOLKATA - 700 071.",
+          "fssai_licence": "10012031000312"
+        },
+        "manufacturing_unit_key": "first character of the Batch No.",
+        "batch_no_first_character": "A",
+        "resolved_manufacturing_unit": "A) ITC LIMITED, FOODS DIVISION, ICD BOLLARAM, DIST. SANGAREDDY, TELANGANA - 502 325.",
+        "resolved": true,
+        "fssai_licences": [
+          "10012031000312",
+          "10014047000007",
+          "10012012000054"
+        ]
+      },
+      "bbox": [
+        0.54,
+        0.57,
+        0.906,
+        0.752
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "SELECT\nSHARBATI ATTA\nWHOLE WHEAT FLOUR",
+      "normalised_value": {
+        "generic_name": "Whole Wheat Flour",
+        "brand": "Aashirvaad Select",
+        "qualifier": "Sharbati Atta"
+      },
+      "bbox": [
+        0.185,
+        0.176,
+        0.358,
+        0.232
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "NET WT.\n1 kg",
+      "normalised_value": {
+        "value": 1.0,
+        "unit": "kg",
+        "basis": "weight"
+      },
+      "bbox": [
+        0.541,
+        0.768,
+        0.623,
+        0.815
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "Batch No.\nPkd.\nUse By.\n\nA1B3247\n12/07/2024\n11/04/2025\n14:32",
+      "normalised_value": {
+        "labels": [
+          "Batch No.",
+          "Pkd.",
+          "Use By."
+        ],
+        "printed_values": [
+          "A1B3247",
+          "12/07/2024",
+          "11/04/2025",
+          "14:32"
+        ],
+        "label_to_value_mapping_certain": false,
+        "month": null,
+        "year": null,
+        "resolvable": false
+      },
+      "bbox": [
+        0.54,
+        0.814,
+        0.803,
+        0.88
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(1)(d) requires the month and year. The pack prints a purely numeric date with no month word, so dd/mm and mm/dd cannot be distinguished from the image and the month is not resolvable. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(1)(d). Compounding that, this pack prints four value lines against three labels and the two columns are not vertically aligned, so which value is the packing date is not certain from the image either. The bbox frames both columns for that reason."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ₹ 65.00\n(incl. of all taxes)",
+      "normalised_value": {
+        "amount": 65.0,
+        "currency": "INR",
+        "inclusive_of_taxes": true
+      },
+      "bbox": [
+        0.688,
+        0.768,
+        0.81,
+        0.803
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(11) prescribes only the form of a unit sale price declaration -- 'The unit sale price shall be declared as' -- and the Rule 6(1) enumerated list (a), (aa), (b), (c), (d), (da), (e), (f), (g) carries no unit-sale-price item. The corpus therefore holds no obligation limb a deterministic rule could find in breach, so a missing declaration routes to human review rather than FAIL. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(11)."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "FOR FEEDBACK/COMPLAINT\nCONTACT:\nITC CARES AT P.O. BOX NO. 592,\nBENGALURU - 560 005.\nitccares@itc.in\n1800 425 444 444",
+      "normalised_value": {
+        "name": "ITC CARES",
+        "address": "P.O. BOX NO. 592, BENGALURU - 560 005.",
+        "telephone": "1800 425 444 444",
+        "email": "itccares@itc.in"
+      },
+      "bbox": [
+        0.105,
+        0.656,
+        0.358,
+        0.761
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(aa) requires the name of the country of origin or manufacture or assembly 'in case of imported products'. Every address legible on this face is Indian and nothing on it indicates an imported product, so the obligation does not arise. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(1)(aa)."
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Back face of the pouch. The batch and date block is printed in faint grey dot-matrix on white, hence low_contrast: every character is legible, but four value lines sit against three labels with the columns misaligned, so the label-to-value mapping is not certain from the image and is recorded as uncertain rather than resolved. The manufacturing address resolves by indirection -- Batch No. A1B3247 begins with A, giving unit A) at Bollaram. No unit sale price and no country-of-origin statement anywhere on the pack. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}

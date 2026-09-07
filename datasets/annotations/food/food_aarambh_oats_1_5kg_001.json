@@ -1,0 +1,197 @@
+{
+  "sample_id": "food_aarambh_oats_1_5kg_001",
+  "sku_id": "food_aarambh_oats_1_5kg",
+  "image_filename": "food_aarambh_oats_1_5kg_001.jpg",
+  "image_sha256": "24c8c9353d285ef9b5200819e44b3b215e41816a2e7986272c672fc2ecf8bdd4",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "flexible_pouch",
+    "crowded",
+    "glare"
+  ],
+  "known_issues": [
+    "missing_month_year",
+    "missing_unit_sale_price"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MANUFACTURED BY:\nAussee Oats Milling Pvt. Ltd.,\n28, BOI EPZ, Mirigama,\nSri Lanka 11200.",
+      "normalised_value": {
+        "role": "MANUFACTURED BY",
+        "name": "Aussee Oats Milling Pvt. Ltd.",
+        "address": "28, BOI EPZ, Mirigama, Sri Lanka 11200.",
+        "also_on_face": {
+          "MARKETED BY": "Future Consumer Limited, Knowledge House, Shyam Nagar, Off Jogeshwari Vikhroli Link Road, Jogeshwari (East), Mumbai - 400 060.",
+          "IMPORTED AND PACKED BY": "Aussee Oats India Ltd., 162 C Mittal Tower, Nariman Point, Mumbai - 400 021, Maharashtra, India."
+        },
+        "fssai_licence": "10014022003152"
+      },
+      "bbox": [
+        0.11,
+        0.665,
+        0.39,
+        0.722
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "OATS\n100% Natural Wholegrain",
+      "normalised_value": {
+        "generic_name": "Oats",
+        "brand": "Aarambh",
+        "qualifier": "100% Natural Wholegrain"
+      },
+      "bbox": [
+        0.253,
+        0.212,
+        0.458,
+        0.278
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Quantity:        1.5 kg",
+      "normalised_value": {
+        "value": 1.5,
+        "unit": "kg",
+        "basis": "weight"
+      },
+      "bbox": [
+        0.572,
+        0.529,
+        0.836,
+        0.555
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "Date of Packaging:        10/01/2023",
+      "normalised_value": {
+        "label": "Date of Packaging",
+        "printed": "10/01/2023",
+        "month": null,
+        "year": 2023,
+        "resolvable": false
+      },
+      "bbox": [
+        0.572,
+        0.663,
+        0.924,
+        0.687
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(1)(d) requires the month and year. The pack prints a purely numeric date with no month word, so dd/mm and mm/dd cannot be distinguished from the image and the month is not resolvable. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(1)(d)."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ₹\n(Incl. of all taxes)        415.00",
+      "normalised_value": {
+        "amount": 415.0,
+        "currency": "INR",
+        "inclusive_of_taxes": true
+      },
+      "bbox": [
+        0.572,
+        0.571,
+        0.836,
+        0.604
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(11) prescribes only the form of a unit sale price declaration -- 'The unit sale price shall be declared as' -- and the Rule 6(1) enumerated list (a), (aa), (b), (c), (d), (da), (e), (f), (g) carries no unit-sale-price item. The corpus therefore holds no obligation limb a deterministic rule could find in breach, so a missing declaration routes to human review rather than FAIL. Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Rule 6(11)."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "For feedback/complaints, write to our\nCustomer Care Manager at the marketed by address,\nemail: sharewithus@futureconsumer.in\nHelpline No.: 1800 210 0060",
+      "normalised_value": {
+        "name": "Customer Care Manager, Future Consumer Limited",
+        "address": "Knowledge House, Shyam Nagar, Off Jogeshwari Vikhroli Link Road, Jogeshwari (East), Mumbai - 400 060.",
+        "telephone": "1800 210 0060",
+        "email": "sharewithus@futureconsumer.in"
+      },
+      "bbox": [
+        0.11,
+        0.59,
+        0.518,
+        0.65
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "COUNTRY OF ORIGIN: SRI LANKA",
+      "normalised_value": {
+        "country": "Sri Lanka",
+        "imported": true
+      },
+      "bbox": [
+        0.11,
+        0.739,
+        0.362,
+        0.756
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "A flexible pouch photographed flat on a stone surface in ordinary indoor light. This is the face bearing the full statutory panel. The pack is an imported product -- 'COUNTRY OF ORIGIN: SRI LANKA', 'IMPORTED AND PACKED BY' and 'For sale in India only.' -- so Rule 6(1)(aa) is engaged and satisfied, the only PASS on that field in this corpus. Three party blocks appear on this face: MARKETED BY, MANUFACTURED BY and IMPORTED AND PACKED BY. The bbox and raw_text frame the MANUFACTURED BY block; the other two are recorded under normalised_value.also_on_face. No unit sale price anywhere on the pack. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}

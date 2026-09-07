@@ -1,0 +1,153 @@
+{
+  "sample_id": "food_mdh_chicken_masala_100g_001",
+  "sku_id": "food_mdh_chicken_masala_100g",
+  "image_filename": "food_mdh_chicken_masala_100g_001.jpg",
+  "image_sha256": "a9ab8c3e54c16bac4d57268aca4c1c57b3a4fa9686d17e7fda3aead0afaf466f",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "multiscript",
+    "glare"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_mdh_chicken_masala_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "CHICKEN MASALA\nचिकन मसाला",
+      "normalised_value": {
+        "generic_name": "Chicken Masala",
+        "scripts": [
+          "Latin",
+          "Devanagari"
+        ],
+        "devanagari": "चिकन मसाला"
+      },
+      "bbox": [
+        0.189,
+        0.397,
+        0.782,
+        0.494
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "NET WT. 100 g",
+      "normalised_value": {
+        "value": 100.0,
+        "unit": "g",
+        "basis": "weight"
+      },
+      "bbox": [
+        0.161,
+        0.863,
+        0.359,
+        0.896
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_mdh_chicken_masala_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "M.R.P. ₹ 115.00\n(INCL. OF ALL TAXES)",
+      "normalised_value": {
+        "amount": 115.0,
+        "currency": "INR",
+        "inclusive_of_taxes": true
+      },
+      "bbox": [
+        0.655,
+        0.853,
+        0.832,
+        0.893
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "This face carries no unit sale price, and it is not the face bearing the statutory declaration panel, so the image cannot establish whether the pack declares it."
+    },
+    "consumer_care_details": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on food_mdh_chicken_masala_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "No address and no origin statement is legible on this face, so the image cannot establish whether the pack is an imported product and therefore cannot establish whether Rule 6(1)(aa) is engaged."
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Front face of a printed carton, flat on a granite counter, camera overhead. The commodity name is printed in Latin and Devanagari, hence multiscript. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}

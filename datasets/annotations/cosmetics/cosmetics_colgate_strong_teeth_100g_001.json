@@ -1,0 +1,141 @@
+{
+  "sample_id": "cosmetics_colgate_strong_teeth_100g_001",
+  "sku_id": "cosmetics_colgate_strong_teeth_100g",
+  "image_filename": "cosmetics_colgate_strong_teeth_100g_001.jpg",
+  "image_sha256": "633e4e87421914d4795bd04d248d4eefbd1ecce6805682b7ac734cba421f421f",
+  "category": "cosmetics",
+  "difficulty_tags": [
+    "uncalibrated",
+    "glare",
+    "tilted"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Anticavity Toothpaste",
+      "normalised_value": {
+        "generic_name": "Toothpaste",
+        "brand": "Colgate Strong Teeth",
+        "qualifier": "Anticavity"
+      },
+      "bbox": [
+        0.348,
+        0.58,
+        0.486,
+        0.626
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "100 g",
+      "normalised_value": {
+        "value": 100.0,
+        "unit": "g",
+        "basis": "weight"
+      },
+      "bbox": [
+        0.112,
+        0.774,
+        0.152,
+        0.824
+      ],
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "retail_sale_price_mrp": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "consumer_care_details": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible in this image. The declaration is borne on cosmetics_colgate_strong_teeth_100g_002. declared is scoped to the photographed face; no value is carried across."
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Front face of a toothpaste carton lying on a granite counter, slightly rotated in frame, hence tilted. This face carries only the commodity name and the net quantity: six of the eight declarations are borne on cosmetics_colgate_strong_teeth_100g_002 and none of their values is carried across. Category is 'cosmetics' because that is the corpus directory this SKU sits in; Category in schema.py is a corpus-slicing label and not a legal classification of the product. No reference object of known size is in frame, so no millimetre letter or numeral height is measurable and no Rule 7 Table-I finding is supportable. pdp.is_measurable is false and every height field is null. The sample verdict is REVIEW for that reason alone, independently of what the declarations show."
+}
