@@ -1,25 +1,35 @@
 import logging
 from datetime import datetime, timedelta
 
-from app.contracts.enums import EvidenceAssetType, Verdict
+from app.contracts.enums import Verdict
 from app.contracts.records import VerdictRecord
 from app.core.config import get_settings
+from app.core.enums import ReviewAction
+from app.core.models import ReviewRow
 
 from .chain import append_purge_entry
-from .domain import EvidenceEntry
+from .domain import EvidenceEntry, EvidenceAssetType
 from .storage import EvidenceStorageClient
 
 logger = logging.getLogger(__name__)
 
 
-def is_legal_hold(record: VerdictRecord, is_confirmed: bool) -> bool:
+def is_legal_hold(record: VerdictRecord, review_row: ReviewRow | None) -> bool:
     """
     Determines if evidence should be exempt from purge due to a legal hold.
 
     Requirement: Evidence attached to a confirmed POTENTIAL_VIOLATION
-    under active review must not be purged.
+    under active review must not be purged. Confirmation is structural:
+    indicated by the existence of a ReviewRow with a final action.
     """
-    return record.verdict == Verdict.POTENTIAL_VIOLATION and is_confirmed
+    if record.verdict != Verdict.POTENTIAL_VIOLATION:
+        return False
+
+    return review_row is not None and review_row.action in (
+        ReviewAction.CONFIRM,
+        ReviewAction.REJECT,
+        ReviewAction.OVERRIDE,
+    )
 
 
 class RetentionManager:
@@ -59,7 +69,7 @@ class RetentionManager:
         entry: EvidenceEntry,
         prev_entry: EvidenceEntry,
         record: VerdictRecord,
-        is_confirmed: bool,
+        review_row: ReviewRow | None,
         current_time: datetime,
     ) -> tuple[bool, EvidenceEntry | None]:
         """
@@ -68,7 +78,7 @@ class RetentionManager:
         Workflow: Legal Hold -> Expiration -> Safety Guard -> Storage Purge -> Audit Entry.
         """
         # 1. Legal Hold check
-        if is_legal_hold(record, is_confirmed):
+        if is_legal_hold(record, review_row):
             logger.info(
                 f"Skipping purge for entry {entry.sequence}: "
                 "Active legal hold (POTENTIAL_VIOLATION)."

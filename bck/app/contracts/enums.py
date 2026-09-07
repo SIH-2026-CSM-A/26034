@@ -9,28 +9,6 @@ they are single-owner and changed only through a contracts pull request.
 from enum import StrEnum
 
 
-class EvidenceAssetType(StrEnum):
-    """The category of an evidence asset, determining its retention window.
-
-    Different assets have different legal/privacy requirements (e.g., DPDP Act 2023).
-    """
-
-    PRODUCT_IMAGE = "PRODUCT_IMAGE"
-    """The photograph of the package."""
-
-    FIELD_VERDICT = "FIELD_VERDICT"
-    """The result of evaluating a field against a rule."""
-
-    GEOLOCATION = "GEOLOCATION"
-    """The precise GPS coordinates of the scan."""
-
-    PERSONAL_IDENTIFIER = "PERSONAL_IDENTIFIER"
-    """PII such as officer ID or manufacturer contact details."""
-
-    AUDIT_LOG = "AUDIT_LOG"
-    """Records of the evidence chain itself."""
-
-
 class FieldState(StrEnum):
     """The outcome of evaluating one declaration field against one rule.
 

@@ -3,14 +3,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.contracts.enums import EvidenceAssetType, FieldState, Verdict
+from app.contracts.enums import FieldState, Verdict
 from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
 from app.modules.evidence.chain import (
     append_entry,
     create_genesis_entry,
     verify_chain,
 )
-from app.modules.evidence.domain import PurgeRecordPayload
+from app.modules.evidence.domain import PurgeRecordPayload, EvidenceAssetType
 from app.modules.evidence.retention import RetentionManager
 from app.modules.evidence.storage import AssetPurgedError, LocalStorageClient
 
@@ -129,7 +129,7 @@ def test_chain_verification_tampered_purge(retention_manager, storage_client, sa
     )
 
     success, audit_entry = retention_manager.purge_evidence(
-        expired_e0, e1, sample_record, False, now
+        expired_e0, e1, sample_record, None, now
     )
     assert success is True
     assert audit_entry is not None
@@ -162,8 +162,19 @@ def test_legal_hold_prevents_purge(
 
     # Run purge workflow
     now = datetime.now(UTC)
-    # confirmed=True triggers legal hold for POTENTIAL_VIOLATION
-    result = retention_manager.purge_evidence(e0, e0, record, True, now)
+    # Create a review row to trigger legal hold for POTENTIAL_VIOLATION
+    from app.core.models import ReviewRow
+    from app.core.enums import ReviewAction
+    from uuid import uuid4
+    review_row = ReviewRow(
+        scan_id=uuid4(),
+        verdict_id=uuid4(),
+        action=ReviewAction.CONFIRM,
+        officer_id="officer",
+        note="Confirming",
+        created_at=now,
+    )
+    result = retention_manager.purge_evidence(e0, e0, record, review_row, now)
 
     assert result[0] is False
     # Verify data still exists
@@ -237,7 +248,7 @@ def test_safety_flag(storage_client, sample_record, evidence_chain):
             update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
         )
 
-        result = rm.purge_evidence(e0, e0, sample_record, False, datetime.now(UTC))
+        result = rm.purge_evidence(e0, e0, sample_record, None, datetime.now(UTC))
 
         assert result[0] is False
         assert storage_client.get_image(f"evidence/{e0.payload_hash}") == (
@@ -265,7 +276,7 @@ def test_purge_creates_audit_record(storage_client, sample_record, evidence_chai
             update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
         )
 
-        result = rm.purge_evidence(e0, e0, sample_record, False, datetime.now(UTC))
+        result = rm.purge_evidence(e0, e0, sample_record, None, datetime.now(UTC))
 
         assert result[0] is True
         # Check that it's actually purged in storage
