@@ -440,37 +440,55 @@ def test_contested_type_unpaired_third_span_lands_in_unclassified():
 
 
 # -----------------------------------------------------------------------------
-# EXT-008: Additional Script Detection (Tamil & Bengali) Tests
+
+
+# -----------------------------------------------------------------------------
+# EXT-008: Additional Script Detection Tests (Refactored into 7 Independent Claim Tests)
 # -----------------------------------------------------------------------------
 
 
-def test_detect_script_ext_008_additional_scripts():
-    """EXT-008: Verify script classification, accented Latin, and unsupported script separation."""
-    # 1. Pure noise / punctuation / digits -> NEITHER
+def test_detect_script_ext_008_claim_1_noise():
+    """Claim 1: Punctuation, digits, and noise spans classify as NEITHER."""
     assert detect_script("12345 !!!") == ScriptType.NEITHER
     assert detect_script("!!! --- ...") == ScriptType.NEITHER
 
-    # 2. Handled Latin (including non-ASCII accents & decomposed combining marks)
+
+def test_detect_script_ext_008_claim_2_latin_accents():
+    """Claim 2: Plain/accented Latin letters (including NFD combining marks) classify as LATIN."""
     assert detect_script("Net Qty 500g") == ScriptType.LATIN
     assert detect_script("é") == ScriptType.LATIN
     assert detect_script("Café") == ScriptType.LATIN
     assert detect_script("Nestlé") == ScriptType.LATIN
     assert detect_script("München") == ScriptType.LATIN
-    assert detect_script("e\u0301") == ScriptType.LATIN
+    assert detect_script("é") == ScriptType.LATIN
 
-    # 3. Existing handled scripts remain unchanged
+
+def test_detect_script_ext_008_claim_3_devanagari():
+    """Claim 3: Devanagari text classifies as DEVANAGARI."""
     assert detect_script("निवल मात्रा ५०० ग्राम") == ScriptType.DEVANAGARI
+
+
+def test_detect_script_ext_008_claim_4_tamil():
+    """Claim 4: Tamil text classifies as TAMIL."""
     assert detect_script("தமிழ்") == ScriptType.TAMIL
+
+
+def test_detect_script_ext_008_claim_5_bengali():
+    """Claim 5: Bengali text classifies as BENGALI."""
     assert detect_script("বাংলা") == ScriptType.BENGALI
 
-    # 4. Unsupported script-bearing text remains distinguishable from noise
+
+def test_detect_script_ext_008_claim_6_unsupported():
+    """Claim 6: Non-handled script letters classify as UNSUPPORTED and differ from NEITHER noise."""
     assert detect_script("నికర పరిమాణం") == ScriptType.UNSUPPORTED
     assert detect_script("ಅನುಪಾತ") == ScriptType.UNSUPPORTED
     assert detect_script("中文") == ScriptType.UNSUPPORTED
     assert detect_script("العربية") == ScriptType.UNSUPPORTED
     assert detect_script("నికర పరిమాణం") != detect_script("12345 !!!")
 
-    # 5. Multi-script combinations -> MIXED
+
+def test_detect_script_ext_008_claim_7_mixed():
+    """Claim 7: Spans with letters from multiple recognized script categories evaluate to MIXED."""
     assert detect_script("நிகர அளவு 500g") == ScriptType.MIXED
     assert detect_script("বাংলা 500g") == ScriptType.MIXED
     assert detect_script("தமிழ் বাংলা") == ScriptType.MIXED
@@ -479,7 +497,7 @@ def test_detect_script_ext_008_additional_scripts():
 
 
 def test_additional_script_unclassified_span_conservation():
-    """Verify Tamil and Bengali spans are conserved in unclassified_spans."""
+    """Verify Tamil, Bengali, and unsupported script spans are conserved in unclassified_spans."""
     s_tam = _make_span(
         "tam1",
         "குளிர்ந்த மற்றும் உலர்ந்த இடத்தில் நேரடியாக சூரிய ஒளி படாதவாறு வைக்கவும்",
