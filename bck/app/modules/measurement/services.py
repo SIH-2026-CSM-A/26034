@@ -137,13 +137,9 @@ def detect_reference_object(
         v_forward = r_tilt @ np.array([0.0, 0.0, 1.0])
         dx = f_val * v_forward[0] / v_forward[2]
         dy = f_val * v_forward[1] / v_forward[2]
-        
+
         # Create an inverse translation to keep the coin centered and preserve exact scale
-        t_inv = np.array([
-            [1.0, 0.0, dx],
-            [0.0, 1.0, dy],
-            [0.0, 0.0, 1.0]
-        ])
+        t_inv = np.array([[1.0, 0.0, dx], [0.0, 1.0, dy], [0.0, 0.0, 1.0]])
 
         # Compute the true perspective homography: H = K @ R_inv @ K_inv @ T_inv
         h_matrix = k_mat @ r_inv @ k_inv @ t_inv
