@@ -17,12 +17,7 @@ from app.contracts import (
     ProductCategory,
 )
 from app.modules.extraction.binder import ExtractionResult
-from app.modules.extraction.category import (
-    CONFIDENCE_LEXICAL_SIGNAL,
-    CONFIDENCE_MUTUALLY_REINFORCING,
-    CONFIDENCE_STATUTORY_SIGNAL,
-    propose_category,
-)
+from app.modules.extraction.category import propose_category
 
 
 def _make_span(span_id: str, text: str) -> ExtractedSpan:
@@ -73,7 +68,7 @@ def test_clear_food_proposal_from_fssai_licence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+    assert proposal.confidence == 0.95
     assert proposal.span_refs == ("span_food_1",)
     assert "food" in proposal.reason
     assert "span_food_1" in proposal.reason
@@ -91,7 +86,7 @@ def test_clear_cosmetics_proposal_from_d_and_c_rules() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+    assert proposal.confidence == 0.95
     assert proposal.span_refs == ("span_cosm_1",)
     assert "cosmetics" in proposal.reason
 
@@ -108,7 +103,7 @@ def test_clear_medical_device_proposal_from_mdr_2017() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.MEDICAL_DEVICE
-    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+    assert proposal.confidence == 0.95
     assert proposal.span_refs == ("span_md_1",)
     assert "medical_device" in proposal.reason
 
@@ -125,7 +120,7 @@ def test_lexical_commodity_name_signal() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == CONFIDENCE_LEXICAL_SIGNAL
+    assert proposal.confidence == 0.80
     assert proposal.span_refs == ("span_lex_1",)
 
 
@@ -146,7 +141,7 @@ def test_reinforcing_statutory_and_lexical_evidence_boosts_confidence() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.COSMETICS
-    assert proposal.confidence == CONFIDENCE_MUTUALLY_REINFORCING
+    assert proposal.confidence == 0.98
     assert proposal.span_refs == ("span_shampoo", "span_lic")
 
 
@@ -273,7 +268,7 @@ def test_legitimate_mfg_md_license_triggers_medical_device() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.MEDICAL_DEVICE
-    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+    assert proposal.confidence == 0.95
 
 
 def test_arbitrary_14_digit_number_does_not_trigger_food() -> None:
@@ -300,7 +295,7 @@ def test_anchored_fssai_14_digit_licence_triggers_food() -> None:
     proposal = propose_category(result)
     assert proposal is not None
     assert proposal.category is ProductCategory.FOOD
-    assert proposal.confidence == CONFIDENCE_STATUTORY_SIGNAL
+    assert proposal.confidence == 0.95
 
 
 def test_competing_food_and_cosmetics_lexical_signals_safely_abstain() -> None:
@@ -327,5 +322,22 @@ def test_pan_masala_without_fssai_does_not_trigger_food_lexical_signal() -> None
         span_refs=("span_pan_masala",),
     )
     result = ExtractionResult(fields=[field], unclassified_spans=[])
+
+    assert propose_category(result) is None
+
+
+def test_equal_confidence_tie_returns_none() -> None:
+    """Test 19: Tie abstention when two active categories have equal non-zero confidence."""
+    field1 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Edible Oil",
+        span_refs=("span_oil",),
+    )
+    field2 = _make_field(
+        field_type=DeclarationField.COMMON_OR_GENERIC_NAME,
+        normalised_value="Shampoo",
+        span_refs=("span_shampoo",),
+    )
+    result = ExtractionResult(fields=[field1, field2], unclassified_spans=[])
 
     assert propose_category(result) is None

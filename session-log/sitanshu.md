@@ -276,3 +276,24 @@ uff check . -> clean (All checks passed!).
   - python -m py_compile passed cleanly on modified modules.
   - Rebased cleanly onto current origin/main (c4922ce2463cd4485969c3de09b1d5d9db2e7033).
   - No contracts, pipeline, or measurement files modified. Zero AI-attribution trailers.
+
+
+### 2026-09-08 — EXT-011 Product Categorisation Taxonomy (Sitanshu)
+
+**Done**
+- Verified Taxonomy Contracts & Boundaries:
+  - Confirmed `ProductCategory` enum in `bck/app/contracts/enums.py` retains exactly 3 gazette-anchored members (`food`, `cosmetics`, `medical_device`), matching `sector:` keys in `bck/app/modules/rules/data/rules.yaml`.
+  - Confirmed `CategoryProposal` remains a contract model defined in `bck/app/contracts/evidence.py` and exported strictly via `bck/app/contracts/__init__.py`. It is NOT exported from `bck/app/modules/extraction/__init__.py`.
+  - Confirmed `propose_category` in `bck/app/modules/extraction/category.py` remains a pure, deterministic inference function returning `CategoryProposal | None`.
+- Refactored Category Unit Tests (`bck/tests/modules/extraction/test_category.py`):
+  - Replaced imported confidence constants (`CONFIDENCE_STATUTORY_SIGNAL`, `CONFIDENCE_LEXICAL_SIGNAL`, `CONFIDENCE_MUTUALLY_REINFORCING`) with hardcoded literal float assertions (`0.95`, `0.80`, `0.98`) to adhere to strict literal test assertion contracts.
+  - Added `test_equal_confidence_tie_returns_none` verifying that when two active categories evaluate to equal non-zero confidence scores, `propose_category` deterministically abstains and returns `None`.
+- Falsification Verification:
+  - Purged bytecode (`__pycache__`) and verified surviving count was 0.
+  - Mutated conflict/tie abstention guard in `category.py` (`if second_score >= top_score:` replaced with `if False:`).
+  - Executed pytest without `-x` -> 3 tests failed RED (`test_conflicting_category_evidence_returns_none`, `test_competing_food_and_cosmetics_lexical_signals_safely_abstain`, `test_equal_confidence_tie_returns_none`).
+  - Restored `category.py` from scratchpad backup -> All 19 tests passed GREEN (100%).
+- Scope & Verification:
+  - All 327 extraction module unit tests passed (`327 passed`).
+  - Verified no contracts, pipeline, core model, or analytics files were touched.
+  - Checked `git diff --numstat origin/main -- session-log/sitanshu.md` confirming 0 deletions.
