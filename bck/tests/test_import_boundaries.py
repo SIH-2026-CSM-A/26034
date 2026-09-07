@@ -74,4 +74,5 @@ def test_independence_contract_lists_the_eight_modules() -> None:
         "app.modules.rules",
         "app.modules.tamper",
         "app.modules.evidence",
+        "app.modules.complaints",
     ]

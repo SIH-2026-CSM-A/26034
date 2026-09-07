@@ -93,6 +93,7 @@ modules = [
     "app.modules.rules",
     "app.modules.tamper",
     "app.modules.evidence",
+    "app.modules.complaints",
 ]
 
 [[tool.importlinter.contracts]]
