@@ -5,6 +5,12 @@ where it saw it. :class:`NormalisedField` is what that text resolved to as a dec
 Keeping them apart is what lets a finding cite the pixels behind a value rather than
 just the value.
 
+:class:`CompetingReadings` is what the second stage produces when it cannot produce one
+value: a package bearing the same declaration twice, in two scripts, saying two different
+things. It is a fourth shape rather than a flag on :class:`NormalisedField` because it is
+not a declaration — it is the absence of one, held together with the evidence that there
+should have been one.
+
 :class:`CategoryProposal` is a third shape and not a third stage: it is what a reader
 inferred about the package as a whole rather than about one declaration, and it stays a
 proposal until an officer confirms it.
@@ -12,10 +18,15 @@ proposal until an officer confirms it.
 
 from decimal import Decimal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.contracts.base import ContractModel
-from app.contracts.enums import DeclarationField, EvidenceProvider, ProductCategory
+from app.contracts.enums import (
+    DeclarationField,
+    DisagreementReason,
+    EvidenceProvider,
+    ProductCategory,
+)
 
 Point = tuple[float, float]
 """A single polygon vertex in image pixel coordinates, ``(x, y)``."""
@@ -95,6 +106,77 @@ class NormalisedField(ContractModel):
     characters were read correctly. Text can be read perfectly and still be parsed into
     the wrong declaration.
     """
+
+
+class CompetingReadings(ContractModel):
+    """Two or more readings of one declaration that do not agree, recorded as read.
+
+    Rule 9(4) lets a package bear its declarations in Hindi in Devanagari script or in
+    English, and packages frequently bear both. Where the two agree they are one
+    declaration read twice and merge into a single :class:`NormalisedField`. Where they
+    disagree — "500 g" against "२५० ग्राम" — no declaration has been resolved at all, and
+    which of them the package actually declares is a question about the package rather
+    than about our reading of it.
+
+    **This type arbitrates nothing.** There is no primary reading, no confidence ordering
+    that implies a winner and no first-is-best convention, because nothing in this
+    pipeline has grounds to prefer one script's reading over the other's. That is
+    ``ARCHITECTURE.md``'s data-flow step 5: providers that disagree surface both readings
+    rather than arbitrating. Every reading here sits on the same footing and an officer
+    is shown all of them.
+
+    **A field recorded here is not a satisfied declaration**, and a consumer that treats
+    it as one produces a PASS on a package that contradicts itself. It routes to
+    :attr:`~app.contracts.enums.FieldState.REVIEW_REQUIRED` — not
+    :attr:`~app.contracts.enums.FieldState.INSUFFICIENT_EVIDENCE`, because both readings
+    were read perfectly well and the failure is not in our reading; and not
+    :attr:`~app.contracts.enums.FieldState.FAIL`, because which reading is wrong is an
+    officer's call and asserting it here would be a finding we cannot support.
+    """
+
+    field_type: DeclarationField
+    """The obligation every reading here answers.
+
+    Carried on the container as well as on each reading so a consumer can ask which
+    obligation is unresolved without unpacking the tuple — the question every consumer
+    actually has. The two cannot drift: a reading of another obligation is refused at
+    construction.
+    """
+
+    readings: tuple[NormalisedField, ...] = Field(min_length=2)
+    """Every reading, in no significant order.
+
+    At least two, enforced at construction rather than discouraged by convention. A
+    :class:`CompetingReadings` holding one reading *is* a :class:`NormalisedField`, and
+    letting it construct would put a resolved declaration inside the collection whose
+    whole meaning is that no declaration was resolved.
+    """
+
+    reason: DisagreementReason
+    """What the reader distinguished.
+
+    An enum rather than free text. A prose reason is something no consumer can branch on,
+    and it drifts between call sites until two readers describe the same disagreement in
+    two ways and neither can be counted.
+    """
+
+    @model_validator(mode="after")
+    def _every_reading_answers_this_obligation(self) -> "CompetingReadings":
+        """Refuse readings of an obligation other than :attr:`field_type`.
+
+        Without this, :attr:`field_type` is a second copy of a fact the readings already
+        carry, and a second copy that can disagree with the first is worse than no copy:
+        every consumer keys on the container's value, so a mismatch routes a real
+        disagreement to the wrong obligation silently.
+        """
+        wrong = {reading.field_type for reading in self.readings} - {self.field_type}
+        if wrong:
+            raise ValueError(
+                f"readings of {sorted(field.value for field in wrong)} in a "
+                f"CompetingReadings for {self.field_type.value}. Every reading here "
+                f"answers the same obligation; two obligations are two disagreements."
+            )
+        return self
 
 
 class CategoryProposal(ContractModel):
