@@ -32,3 +32,13 @@
 - **Legal Hold**: Enforced hold on unreviewed `POTENTIAL_VIOLATION` records and `CONFIRM`/`OVERRIDE`; release gated strictly on `REJECT`.
 - **Quality Gates**: All local checks (`ruff format --check .`, `ruff check .`, `lint-imports`, `pytest`) passing green.
 - **Agent**: Claude Code.
+
+## 2026-09-07 - EVD-006 Report Export Migration
+- **What was done**: Migrated report export from mock structures to real Pydantic `VerdictRecord` and SQLAlchemy `ReviewRow` contracts.
+- **Human confirmation gate**: Enforced using finalising actions (`ReviewAction.CONFIRM`, `REJECT`, `OVERRIDE`) from `ReviewRow`.
+- **Test updates**: Updated fixtures in `tests/modules/evidence/test_report_export.py` with real contract instances and corrected enum members (`VERIFIED`, `RETAIL_SALE_PRICE`, `MANDATORY`, `PADDLEOCR`).
+- **Defect Falsifications**:
+  - Defect A (Confirmation Gate): Disabled gate check in `export.py`; verified `test_human_confirmation_gate` failed RED, restored.
+  - Defect B (Refusal Rendering): Replaced 'Measurement declined' in `docx_renderer.py`; verified `test_measurement_refusal_rendering` failed RED, restored.
+- **Verification**: All 8 report export tests passing green; evidence suite passing 45/45 runnable tests.
+- **Agent**: Claude Code.
