@@ -15,8 +15,11 @@ from app.contracts import (
 )
 from app.modules.extraction import bind_spans
 from app.modules.extraction.binder import (
+    BboxRefusal,
+    BboxRefusalReason,
     ScriptType,
     _preprocess_devanagari_text,
+    bbox_refusal_officer_reason,
     detect_script,
     get_declaration_bbox,
 )
@@ -648,7 +651,10 @@ def test_get_declaration_bbox_refusal_empty_span_refs():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, []) is None
+    result = get_declaration_bbox(field, [])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.NO_SPAN_REFS
+    assert result.span_id is None
 
 
 def test_get_declaration_bbox_refusal_missing_span_id():
@@ -658,7 +664,10 @@ def test_get_declaration_bbox_refusal_missing_span_id():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, []) is None
+    result = get_declaration_bbox(field, [])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.UNKNOWN_SPAN_ID
+    assert result.span_id is None
 
 
 def test_get_declaration_bbox_refusal_empty_polygon():
@@ -676,7 +685,10 @@ def test_get_declaration_bbox_refusal_empty_polygon():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, [span]) is None
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.EMPTY_POLYGON
+    assert result.span_id == "s1"
 
 
 def test_get_declaration_bbox_refusal_insufficient_vertices():
@@ -694,7 +706,10 @@ def test_get_declaration_bbox_refusal_insufficient_vertices():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, [span]) is None
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.INSUFFICIENT_VERTICES
+    assert result.span_id == "s1"
 
 
 def test_get_declaration_bbox_refusal_malformed_point():
@@ -712,7 +727,10 @@ def test_get_declaration_bbox_refusal_malformed_point():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, [span]) is None
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.MALFORMED_VERTEX
+    assert result.span_id == "s1"
 
 
 def test_get_declaration_bbox_refusal_non_finite_coordinate():
@@ -730,7 +748,10 @@ def test_get_declaration_bbox_refusal_non_finite_coordinate():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, [span]) is None
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.NON_FINITE_COORDINATE
+    assert result.span_id == "s1"
 
 
 def test_get_declaration_bbox_refusal_degenerate_geometry():
@@ -748,7 +769,10 @@ def test_get_declaration_bbox_refusal_degenerate_geometry():
         normalised_value="500 g",
         parse_confidence=0.95,
     )
-    assert get_declaration_bbox(field, [span]) is None
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.DEGENERATE_ENVELOPE
+    assert result.span_id is None
 
 
 def test_get_declaration_bbox_fractional_coordinates():
@@ -767,4 +791,244 @@ def test_get_declaration_bbox_fractional_coordinates():
         parse_confidence=0.95,
     )
     bbox = get_declaration_bbox(field, [span])
+    assert not isinstance(bbox, BboxRefusal)
     assert bbox == (10.35, 20.75, 100.25, 50.85)
+
+
+# ── Semantic distinction: Category A vs Category B ─────────────────────────
+
+
+def test_no_span_refs_and_unknown_span_id_have_distinct_reasons():
+    """NO_SPAN_REFS and UNKNOWN_SPAN_ID are distinct values — they cannot collapse."""
+    field_no_refs = NormalisedField.model_construct(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=(),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    field_missing = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("ghost_id",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    r1 = get_declaration_bbox(field_no_refs, [])
+    r2 = get_declaration_bbox(field_missing, [])
+    assert isinstance(r1, BboxRefusal)
+    assert isinstance(r2, BboxRefusal)
+    assert r1.reason == BboxRefusalReason.NO_SPAN_REFS
+    assert r2.reason == BboxRefusalReason.UNKNOWN_SPAN_ID
+    assert r1.reason != r2.reason
+
+
+def test_category_a_and_category_b_produce_distinct_officer_reasons():
+    """'Evidence not present' and 'geometry unusable' must not produce the same message."""
+    span_good = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (10.0, 20.0), (10.0, 50.0), (10.0, 50.0)),
+    )
+    field_no_refs = NormalisedField.model_construct(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=(),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    field_degenerate = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    refusal_a = get_declaration_bbox(field_no_refs, [])
+    refusal_b = get_declaration_bbox(field_degenerate, [span_good])
+
+    assert isinstance(refusal_a, BboxRefusal)
+    assert isinstance(refusal_b, BboxRefusal)
+    assert refusal_a.reason != refusal_b.reason
+    assert bbox_refusal_officer_reason(refusal_a) != bbox_refusal_officer_reason(refusal_b)
+
+
+def test_insufficient_vertices_and_malformed_vertex_have_distinct_reasons():
+    """A polygon with <3 elements (count defect) vs a polygon with a broken element
+    (shape defect) must not collapse to the same reason."""
+    # Cause: INSUFFICIENT_VERTICES — polygon exists, count < 3
+    span_two_pts = ExtractedSpan.model_construct(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (100.0, 20.0)),
+    )
+    # Cause: MALFORMED_VERTEX — 3 elements present, but first is a 1-tuple
+    span_malformed = ExtractedSpan.model_construct(
+        span_id="s2",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0,), (100.0, 20.0), (100.0, 50.0)),
+    )
+    field_s1 = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    field_s2 = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s2",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    r1 = get_declaration_bbox(field_s1, [span_two_pts])
+    r2 = get_declaration_bbox(field_s2, [span_malformed])
+
+    assert isinstance(r1, BboxRefusal)
+    assert isinstance(r2, BboxRefusal)
+    assert r1.reason == BboxRefusalReason.INSUFFICIENT_VERTICES
+    assert r2.reason == BboxRefusalReason.MALFORMED_VERTEX
+    assert r1.reason != r2.reason
+
+
+# ── bbox_refusal_officer_reason — category routing ──────────────────────────
+
+
+def test_category_a_reasons_produce_evidence_absent_message():
+    """Both Category A reasons must say something about evidence, not geometry."""
+    for reason in [BboxRefusalReason.NO_SPAN_REFS, BboxRefusalReason.UNKNOWN_SPAN_ID]:
+        msg = bbox_refusal_officer_reason(BboxRefusal(reason=reason))
+        assert len(msg) > 0
+        # Must NOT describe a geometry defect
+        assert "polygon" not in msg
+        assert "vertex" not in msg
+        assert "coordinate" not in msg
+        assert "envelope" not in msg
+
+
+def test_category_b_reasons_produce_geometry_defect_message():
+    """All five Category B reasons must describe a geometry defect, not an evidence gap."""
+    category_b = [
+        BboxRefusalReason.EMPTY_POLYGON,
+        BboxRefusalReason.INSUFFICIENT_VERTICES,
+        BboxRefusalReason.MALFORMED_VERTEX,
+        BboxRefusalReason.NON_FINITE_COORDINATE,
+        BboxRefusalReason.DEGENERATE_ENVELOPE,
+    ]
+    for reason in category_b:
+        msg = bbox_refusal_officer_reason(BboxRefusal(reason=reason))
+        assert len(msg) > 0
+
+
+def test_all_seven_reasons_produce_distinct_officer_messages():
+    """No two BboxRefusalReason values may produce the same officer-facing string."""
+    messages = [bbox_refusal_officer_reason(BboxRefusal(reason=r)) for r in BboxRefusalReason]
+    assert len(messages) == len(set(messages)), (
+        "Two BboxRefusalReason values produced the same officer message"
+    )
+
+
+# ── span_id traceability ─────────────────────────────────────────────────────
+
+
+def test_category_b_refusals_carry_span_id():
+    """Category B refusals must carry the span_id of the offending span."""
+    span = ExtractedSpan.model_construct(
+        span_id="offender",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0,), (100.0, 20.0), (100.0, 50.0)),  # malformed vertex
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("offender",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.span_id == "offender"
+
+
+def test_category_a_refusals_carry_no_span_id():
+    """Category A refusals carry span_id=None — no span was resolved."""
+    field = NormalisedField.model_construct(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=(),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    result = get_declaration_bbox(field, [])
+    assert isinstance(result, BboxRefusal)
+    assert result.span_id is None
+
+
+# ── Success path unchanged ───────────────────────────────────────────────────
+
+
+def test_valid_bbox_returns_tuple_not_refusal():
+    """A valid polygon must return a 4-tuple, never a BboxRefusal."""
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=((10.0, 20.0), (200.0, 20.0), (200.0, 50.0), (10.0, 50.0)),
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+    result = get_declaration_bbox(field, [span])
+    assert not isinstance(result, BboxRefusal)
+    assert result == (10.0, 20.0, 200.0, 50.0)
+
+
+def test_get_declaration_bbox_refuses_hasattr_point_objects():
+    """Objects providing .x and .y attributes (duck-typed points) without indexing must be refused.
+
+    `ExtractedSpan.polygon` is typed as tuple[tuple[float, float], ...]. If a malformed
+    runtime object with .x / .y attributes reaches get_declaration_bbox, it must NOT
+    be duck-typed into coordinates; it must trigger BboxRefusalReason.MALFORMED_VERTEX.
+    """
+
+    class PointWithXY:
+        def __init__(self, x: float, y: float):
+            self.x = x
+            self.y = y
+
+    polygon_with_xy_objects = (
+        PointWithXY(10.0, 20.0),
+        PointWithXY(100.0, 20.0),
+        PointWithXY(100.0, 50.0),
+        PointWithXY(10.0, 50.0),
+    )
+
+    span = ExtractedSpan.model_construct(
+        span_id="s1",
+        text="Net Qty 500g",
+        confidence=0.95,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="r1",
+        polygon=polygon_with_xy_objects,
+    )
+    field = NormalisedField(
+        field_type=DeclarationField.NET_QUANTITY,
+        span_refs=("s1",),
+        normalised_value="500 g",
+        parse_confidence=0.95,
+    )
+
+    result = get_declaration_bbox(field, [span])
+    assert isinstance(result, BboxRefusal)
+    assert result.reason == BboxRefusalReason.MALFORMED_VERTEX
+    assert result.span_id == "s1"

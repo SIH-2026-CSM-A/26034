@@ -30,6 +30,7 @@ import math
 import re
 import unicodedata
 from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
@@ -218,18 +219,140 @@ def _get_bbox(polygon: tuple[tuple[float, float], ...]) -> _BBox:
     return min(xs), min(ys), max(xs), max(ys)
 
 
+class BboxRefusalReason(StrEnum):
+    """The specific reason a declaration bounding box could not be computed.
+
+    Seven values across two semantic categories:
+
+    **Category A — declaration/evidence not present.**  The evidence chain upstream
+    of geometry did not resolve: either the field carries no span citations at all, or a
+    cited span ID is absent from the scan result.  An officer reading this should
+    understand that the declaration was not established for this observation — the failure
+    is in what was captured, not in how the pixel coordinates read.
+
+    **Category B — span present, geometry cannot be used.**  The declaration was
+    identified and its span was located in the scan; the bounding box could not be
+    computed because the span's reported polygon data is structurally or numerically
+    invalid.  An officer reading this should understand that the measurement could not be
+    taken from an otherwise-found declaration — the failure is in the geometry, not in
+    the evidence.
+    """
+
+    # -- Category A ----------------------------------------------------------
+    NO_SPAN_REFS = "NO_SPAN_REFS"
+    """The field carries no span_refs — no evidence was cited for this obligation."""
+
+    UNKNOWN_SPAN_ID = "UNKNOWN_SPAN_ID"
+    """A span_id cited by the field is not present in the supplied span sequence."""
+
+    # -- Category B ----------------------------------------------------------
+    EMPTY_POLYGON = "EMPTY_POLYGON"
+    """A span's polygon is an empty tuple: the provider located a text region but
+    emitted no vertices."""
+
+    INSUFFICIENT_VERTICES = "INSUFFICIENT_VERTICES"
+    """A span's polygon has fewer than 3 vertices and cannot bound a region."""
+
+    MALFORMED_VERTEX = "MALFORMED_VERTEX"
+    """A polygon has ≥3 elements, but one vertex cannot be unpacked to ``(x, y)`` —
+    the element is not a valid coordinate pair.
+
+    Distinct from :attr:`INSUFFICIENT_VERTICES`: the polygon's *count* is adequate,
+    but the *shape* of an individual element is wrong.  This preserves data-quality
+    provenance: a provider that emits the right number of vertices with one malformed
+    coordinate is a different kind of defect than a provider that emits too few."""
+
+    NON_FINITE_COORDINATE = "NON_FINITE_COORDINATE"
+    """A polygon vertex contains a non-finite coordinate (``NaN`` or ``Inf``)."""
+
+    DEGENERATE_ENVELOPE = "DEGENERATE_ENVELOPE"
+    """All x-coordinates or all y-coordinates in the polygon are equal, producing a
+    zero-area bounding envelope that carries no spatial information."""
+
+
+_BBOX_REFUSAL_CATEGORY_A: frozenset[BboxRefusalReason] = frozenset(
+    {BboxRefusalReason.NO_SPAN_REFS, BboxRefusalReason.UNKNOWN_SPAN_ID}
+)
+_BBOX_REFUSAL_CATEGORY_B: frozenset[BboxRefusalReason] = frozenset(
+    {
+        BboxRefusalReason.EMPTY_POLYGON,
+        BboxRefusalReason.INSUFFICIENT_VERTICES,
+        BboxRefusalReason.MALFORMED_VERTEX,
+        BboxRefusalReason.NON_FINITE_COORDINATE,
+        BboxRefusalReason.DEGENERATE_ENVELOPE,
+    }
+)
+
+
+@dataclass(frozen=True)
+class BboxRefusal:
+    """``get_declaration_bbox`` could not produce a bounding box.
+
+    The exact reason is recorded in :attr:`reason`.  Callers should not compare
+    against ``None``; use ``isinstance(result, BboxRefusal)`` to detect refusal.
+
+    :attr:`span_id` is set for Category B causes — it names the span whose polygon
+    triggered the refusal, aiding traceability.  It is ``None`` for Category A causes
+    because the failure precedes any span being resolved.
+    """
+
+    reason: BboxRefusalReason
+    span_id: str | None = None
+
+
+def bbox_refusal_officer_reason(refusal: BboxRefusal) -> str:
+    """Return a human-readable, officer-facing explanation for a bbox refusal.
+
+    Category A causes describe an evidence gap (the declaration was not established).
+    Category B causes describe a geometry defect (the declaration was found but its
+    pixel data cannot produce a measurement).
+
+    These two categories must produce distinct strings so that an officer's
+    INSUFFICIENT_EVIDENCE finding says the right thing about the observation.
+    """
+    match refusal.reason:
+        case BboxRefusalReason.NO_SPAN_REFS:
+            return (
+                "the declaration field has no cited spans — "
+                "no evidence was extracted for this obligation"
+            )
+        case BboxRefusalReason.UNKNOWN_SPAN_ID:
+            return "a span cited by this declaration field does not exist in the scan result"
+        case BboxRefusalReason.EMPTY_POLYGON:
+            return (
+                "a span's polygon is empty — "
+                "the provider located a text region but emitted no vertices"
+            )
+        case BboxRefusalReason.INSUFFICIENT_VERTICES:
+            return "a span's polygon has fewer than 3 vertices and cannot form a bounding box"
+        case BboxRefusalReason.MALFORMED_VERTEX:
+            return "a polygon vertex does not contain a valid (x, y) coordinate pair"
+        case BboxRefusalReason.NON_FINITE_COORDINATE:
+            return "a polygon vertex contains a non-finite coordinate (NaN or Inf)"
+        case BboxRefusalReason.DEGENERATE_ENVELOPE:
+            return (
+                "the polygon's bounding envelope is degenerate — "
+                "all x or all y coordinates are equal"
+            )
+
+
 def get_declaration_bbox(
     field: NormalisedField,
     spans: Sequence[ExtractedSpan],
-) -> tuple[float, float, float, float] | None:
-    """Calculate exact (min_x, min_y, max_x, max_y) enclosing bounding box
-    for a field's referenced spans.
+) -> tuple[float, float, float, float] | BboxRefusal:
+    """Calculate the exact ``(min_x, min_y, max_x, max_y)`` enclosing bounding box
+    for a field's referenced spans, or refuse with a typed reason.
 
-    Returns None (refusal) if geometry is undeterminable (missing refs, invalid/empty polygons,
-    fewer than 3 vertices, non-finite coordinates, or degenerate zero/negative area envelope).
+    Returns a :class:`BboxRefusal` — never ``None`` — when the bounding box cannot
+    be computed.  The refusal carries one of seven :class:`BboxRefusalReason` values
+    that callers must not collapse: two describe an evidence gap (the declaration was
+    not established in this scan), and five describe a geometry defect (the declaration
+    was located but its pixel data is unusable).
+
+    Callers: ``isinstance(result, BboxRefusal)`` to detect refusal.
     """
     if not field.span_refs:
-        return None
+        return BboxRefusal(reason=BboxRefusalReason.NO_SPAN_REFS)
 
     span_map = {s.span_id: s for s in spans}
     xs: list[float] = []
@@ -238,43 +361,37 @@ def get_declaration_bbox(
     for span_id in field.span_refs:
         span = span_map.get(span_id)
         if span is None:
-            return None
+            return BboxRefusal(reason=BboxRefusalReason.UNKNOWN_SPAN_ID)
 
         poly = span.polygon
-        if not poly or len(poly) < 3:
-            return None
+        if not poly:
+            return BboxRefusal(reason=BboxRefusalReason.EMPTY_POLYGON, span_id=span_id)
+        if len(poly) < 3:
+            return BboxRefusal(reason=BboxRefusalReason.INSUFFICIENT_VERTICES, span_id=span_id)
 
         for pt in poly:
             try:
-                if hasattr(pt, "x") and hasattr(pt, "y"):
-                    x, y = pt.x, pt.y
-                elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
-                    x, y = pt[0], pt[1]
-                else:
-                    return None
-            except (AttributeError, IndexError, TypeError):
-                return None
+                x, y = pt[0], pt[1]
+            except (IndexError, TypeError):
+                return BboxRefusal(reason=BboxRefusalReason.MALFORMED_VERTEX, span_id=span_id)
 
             try:
                 fx = float(x)
                 fy = float(y)
             except (ValueError, TypeError):
-                return None
+                return BboxRefusal(reason=BboxRefusalReason.MALFORMED_VERTEX, span_id=span_id)
 
             if not (math.isfinite(fx) and math.isfinite(fy)):
-                return None
+                return BboxRefusal(reason=BboxRefusalReason.NON_FINITE_COORDINATE, span_id=span_id)
 
             xs.append(fx)
             ys.append(fy)
-
-    if not xs or not ys:
-        return None
 
     min_x, min_y = min(xs), min(ys)
     max_x, max_y = max(xs), max(ys)
 
     if min_x >= max_x or min_y >= max_y:
-        return None
+        return BboxRefusal(reason=BboxRefusalReason.DEGENERATE_ENVELOPE)
 
     return (min_x, min_y, max_x, max_y)
 
