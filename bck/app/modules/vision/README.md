@@ -100,7 +100,7 @@ Set environment variable:
 export PDP_WEIGHTS_PATH=~/.cache/pccs/models/pdp_yolov8n.pt
 ```
 
-If `PDP_WEIGHTS_PATH` is missing, unset, or set to an empty/blank string, `detect_pdp` gracefully executes the empty-detection fallback branch returning full-image bounds `(0, 0, w, h)` with `confidence=0.0` without attempting network downloads or stock COCO weight fallbacks.
+If `PDP_WEIGHTS_PATH` is missing, unset, or blank, `detect_pdp` does not return a box. It refuses, raising `ValueError("No PDP detected in image.")`. The full-image-bounds fallback at `confidence=0.0` was removed by VIS-004 (#63): a whole-frame area overestimates the principal display panel, and that area feeds the Rule 7 Table-I band lookup, biasing it toward POTENTIAL VIOLATION. There is still no network download path and no stock COCO weight fallback, and stock weights must never be substituted — `detect_pdp` takes a box from whatever the detector returns, so COCO weights yield a confident wrong panel.
 
 ### 5. Environment Variables Configuration
 

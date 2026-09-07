@@ -1,7 +1,8 @@
 """The application refuses to start without the models it cannot run a scan without.
 
-The check exists because the alternative is worse in a specific way. ``detect_pdp`` and
-``extract_panel_text`` raise ``FileNotFoundError`` when their weights are absent, and
+The check exists because the alternative is worse in a specific way. ``extract_panel_text``
+raises ``FileNotFoundError`` and ``detect_pdp`` raises ``RuntimeError`` when their weights
+are absent, and
 without a startup gate that surfaces as a 500 on the first scan an officer submits — in
 front of whoever is watching, on a machine that had been "working" all morning. Weights
 are gitignored and pre-cached, so the case this guards is a fresh clone.

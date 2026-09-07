@@ -11,7 +11,7 @@ SIH 2026, problem statement 26034. Legal Metrology (Packaged Commodities) Rules 
 | Database | PostgreSQL 16 (self-hosted, Compose) + pgvector | Transactional integrity on the evidence chain; JSONB covers flexible fields; pgvector removes the need for a separate vector service. Rejected Supabase: free projects auto-pause after 7 days, and a DoCA deployment must land on MeitY GI Cloud / NIC MeghRaj. |
 | Object store | MinIO (S3-compatible) | Offline-capable, sovereign; swapping to a government bucket later is a config change. |
 | Queue | Redis + arq | Async-native and light. Rejected Celery (sync-first, heavy) and RabbitMQ (a broker for a workload peaking at tens of jobs). |
-| OCR | PaddleOCR PP-OCRv4 primary + character-whitelisted Tesseract re-OCR on MRP / net-quantity | Stronger on curved, glared, multi-script real-world labels. The constrained second pass exists because 8-for-B is tolerable on an address and not on a price. Cloud OCR is an opt-in escalation, never the default. |
+| OCR | PaddleOCR (bootstrap_weights.py resolves whatever paddleocr 3.7.0 defaults to; measured 2026-09-08 as PP-OCRv6_medium_det / PP-OCRv6_medium_rec, pinned nowhere) primary + character-whitelisted Tesseract re-OCR on MRP / net-quantity | Stronger on curved, glared, multi-script real-world labels. The constrained second pass exists because 8-for-B is tolerable on an address and not on a price. Cloud OCR is an opt-in escalation, never the default. |
 | Detection | YOLO (ultralytics) — PDP localisation and tamper field localisation | Same family serves both; one weights pipeline to cache offline. |
 | Rules | YAML rule store + deterministic Python evaluator | Must be inspectable by a domain expert who does not write code. Rejected a custom DSL, Drools and OPA as the most likely over-engineering trap in this project. |
 | Copilot | LangGraph + hybrid retrieval (pgvector + Postgres FTS) + cross-encoder rerank, generation on Featherless | Grounded answers with clause-level attribution bound at generation time. LangGraph is confined to the copilot and never touches the verdict path. |
@@ -47,6 +47,16 @@ bck/app/modules/rules/          base -> conditions -> models -> results, plus ev
                                 loader, sector dispatch, placement. Rule store in data/.
 bck/app/modules/tamper/         Field-localised forgery detection. Not started.
 bck/app/modules/evidence/       Hash chain, verification, object store, BSA 63(4) Part A.
+bck/app/modules/analytics/      Read-only aggregates over scans/verdicts/field_findings:
+                                by rule clause, category, time, jurisdiction density.
+bck/app/modules/vendor/         Vendor self-scan submission and officer routing by
+                                jurisdiction. A vendor scan is an ordinary scan with an
+                                attribution, never a second verdict path.
+bck/app/modules/complaints/     Manufacturer complaint lifecycle. Append-only: a reopened
+                                complaint is a new row naming the one it supersedes.
+bck/app/modules/reviews/        Anonymous SAFE/UNSAFE consumer reviews, held until a
+                                threshold of matching reviews publishes them. Consumer
+                                sentiment, never a compliance verdict.
 bck/alembic/                Migrations. One owner, no exceptions.
 fnt/                        React app. Officer and admin surfaces, separate route trees.
                             DESIGN.md holds the design system and its contrast findings.
