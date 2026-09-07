@@ -159,6 +159,11 @@ export interface components {
             /** Artwork Dpi */
             artwork_dpi?: number | null;
             product_category?: components["schemas"]["ProductCategory"] | null;
+            /**
+             * Institutional Or Industrial Confirmed
+             * @default false
+             */
+            institutional_or_industrial_confirmed: boolean;
         };
         /**
          * CalibrationMethod
@@ -212,6 +217,35 @@ export interface components {
         CatalogueScanRequest: {
             record: components["schemas"]["CatalogueRecord"];
             product_category?: components["schemas"]["ProductCategory"] | null;
+            /**
+             * Institutional Or Industrial Confirmed
+             * @default false
+             */
+            institutional_or_industrial_confirmed: boolean;
+        };
+        /**
+         * CategoryProposal
+         * @description A product category a reader inferred, with the evidence it inferred it from.
+         *
+         *     **A proposal is not a confirmation, and this type exists so the two cannot be
+         *     confused.** :class:`~app.contracts.enums.ProductCategory` on its own is the officer's
+         *     confirmed category — the thing the sector dispatch keys on, which moves obligations
+         *     to another Act. Nothing here may be passed where that is expected. An extraction
+         *     reader proposes; an officer confirms; only the confirmation routes.
+         *
+         *     Every field is required and every one is constrained, so a proposal that cites no
+         *     evidence cannot be constructed at all rather than being discouraged by convention. A
+         *     category assertion with nothing behind it is the input that would let a guess reach
+         *     routing by looking like a reading.
+         */
+        CategoryProposal: {
+            category: components["schemas"]["ProductCategory"];
+            /** Confidence */
+            confidence: number;
+            /** Span Refs */
+            span_refs: string[];
+            /** Reason */
+            reason: string;
         };
         /**
          * DeclarationField
@@ -459,6 +493,7 @@ export interface components {
              */
             findings: components["schemas"]["FieldFinding"][];
             quality?: components["schemas"]["QualityRejection"] | null;
+            category_proposal?: components["schemas"]["CategoryProposal"] | null;
         };
         /**
          * ScanSourceType

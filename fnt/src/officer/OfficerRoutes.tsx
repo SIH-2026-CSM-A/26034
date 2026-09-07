@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ReviewQueue } from './ReviewQueue'
+import { ScanSubmission } from './ScanSubmission'
 import { VerdictDetail } from './VerdictDetail'
 
 /**
@@ -18,11 +19,8 @@ export function OfficerRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="queue" replace />} />
       <Route path="queue" element={<ReviewQueue />} />
-      {/*
-       * One fixture record is wired up, so every subject_ref resolves to it.
-       * The parameter is real and is read by the route at PIP-002; nothing
-       * downstream of here has to change when it starts fetching.
-       */}
+      <Route path="new" element={<ScanSubmission />} />
+      <Route path="submit" element={<ScanSubmission />} />
       <Route path="verdicts/:subjectRef" element={<VerdictDetail />} />
     </Routes>
   )
