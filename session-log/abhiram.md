@@ -1283,3 +1283,80 @@ stale bytecode. Anything that used `&&` or `/usr/bin/find` is sound. The safe fo
 `rootdir: /home/runner/work/26034/26034`, `collected 28 items`, `26 passed, 2 skipped in
 0.71s`. CI-004 documented 27 (25 passed, 2 skipped), so the delta is exactly the one new
 guard, executing outside a laptop for the first time.
+
+## Session 10 — 2026-09-07, CORE-003 (Claude Code, Opus 5)
+
+**`asset_type` on the evidence entry, its column and its migration.** Split out of #46
+(EVD-005) because `alembic/` is single-owner and a migration cannot be edited after it
+merges. Shiva carries no `alembic/` file; the note to send him is in the PR body.
+
+**The enum had to move to `contracts/`, and that was not a style choice.** `core/models.py`
+needs the type for its column and `modules/evidence/domain.py` needs it for the entry model.
+The layer contract is `main > pipeline > modules > core > contracts`, so `core` may not
+import from `modules` — #46's definition inside `domain.py` could never have supported a
+column. It sits in `contracts/enums.py` next to `EvidenceProvider`, which is the same shape
+one question over: that records what *produced* evidence, this records what it *is*.
+
+**Three members, each with a consumer.** `FIELD_VERDICT` had zero usages anywhere in #46 and
+is gone. `GEOLOCATION` and `PERSONAL_IDENTIFIER` were one member wearing two names —
+`get_retention_days` routes both to `evidence_pii_retention_days` through a single `in (...)`
+and no branch tells them apart — merged as `PERSONAL_DATA`. `PRODUCT_IMAGE` and `AUDIT_LOG`
+keep Shiva's spelling so his branch needs no rename.
+
+**`DERIVED_ARTEFACT` is deliberately out, and this defers a migration.** Nothing in the repo
+consumes an original-capture-versus-derived-artefact distinction: no thumbnail, crop or
+re-render path, and no retention branch for one. Under the deletion rule it does not ship.
+The cost being accepted: when **EVD-006** lands the derived-artefact retention branch that
+consumes the member, adding it needs a hand-written
+`ALTER TYPE evidence_asset_type ADD VALUE 'DERIVED_ARTEFACT'`, which **cannot run inside a
+transaction** and which `alembic check` does not report as drift — it passes clean and then
+fails at the first insert with `invalid input value for enum`. **That migration is Abhiram's
+to write**, not EVD-006's author's, for the same single-owner reason this ticket exists.
+The three member docstrings state only the window or behaviour that consumes them and must
+not be softened to imply the set is complete.
+
+**Authorised ownership exception — this ticket only.** Four files under
+`bck/app/modules/evidence/` and `bck/tests/modules/evidence/` were edited by Abhiram and not
+by their owner: `domain.py`, `chain.py`, `test_hash_chain.py`, `test_chain_verification.py`.
+**Reason: Decision 2 puts `asset_type` inside `compute_entry_hash`, which lives in
+`chain.py`, and the field must be on the entry model to reach it.** Authorised by Abhiram
+for CORE-003 and **not precedent for editing another owner's module.** `retention.py`,
+`storage.py`, the purge functions and the legal-hold rule are untouched.
+
+**Two files broke that the ticket did not name**, both mine and both found by running rather
+than reading: `bck/tests/persistence/test_postgres.py:348` constructs an `EvidenceEntryRow`,
+and `bck/tests/pipeline/test_api.py` reconstructs an `EvidenceEntry` from a row in two
+places. The second pair only fails with a live database, so they were invisible in the
+skipped run and surfaced when the postgres-marked suite was enabled.
+
+**The CORE-002 drift guard does not extend itself.** `ENUM_TYPES` in `test_postgres.py` is a
+hand-written dict and the schema comparison at line 128 is `types >= ENUM_TYPE_NAMES`, a
+superset test — a new enum type absent from the dict is not caught in either direction.
+Added `"evidence_asset_type": EvidenceAssetType` by hand. That one line is what puts the new
+type into the label comparison, into the post-upgrade check, and into the post-downgrade
+`not types & ENUM_TYPE_NAMES` check, which is what proves the `DROP TYPE` actually runs.
+
+**Verified against the real database, not asserted.** Full cycle on `26034-db-1`:
+`downgrade base` → `upgrade head` → column present as `USER-DEFINED`/`evidence_asset_type`,
+`is_nullable=NO`, `column_default` empty, type carrying exactly three labels → `downgrade -1`
+→ column gone **and `select count(*) from pg_type where typname='evidence_asset_type'`
+returns 0** → `upgrade head` → `alembic check` clean.
+
+**Falsification.** Removed `asset_type` from the `compute_entry_hash` input string, leaving
+the original four fields. `test_relabelling_an_asset_type_breaks_the_entry_hash` went red in
+both parametrisations; reverted, green again, `git diff` clean. Every purge used
+`/usr/bin/find` with the surviving directory count asserted at zero rather than trusting an
+exit code.
+
+`740 passed, 2 skipped` with Postgres live (`710 passed, 32 skipped` without). Ruff clean,
+`ruff format --check` clean, `lint-imports` 3 contracts kept over 111 files analysed.
+
+**Open discrepancy, carried forward — not investigated in this lane.** `ARUCO_MARKER`,
+`RULER_SCALE` and `CHECKERBOARD` are still present in `datasets/schema.py` (lines 55-57) and
+have no corresponding entries in `REF_DIMS`, which holds only `id_card`, `coin_10` and
+`ean_13`. `ARCHITECTURE.md` and `HANDOFF.md` both state they were deleted. They were not.
+The members that were actually removed are the Rs1/Rs2/Rs5 coins, and the comment above them
+gives a different reason — their dimensions were written from memory and `coin_inr_5` is on
+the Hard Nos list — not absence of a consumer. Consequence: there is no enforced
+member-consumer guard anywhere in the repo, and the deletion rule applied in this ticket was
+applied fresh rather than inherited from that precedent.
