@@ -20,6 +20,7 @@ from app.contracts import (
     VerdictRecord,
 )
 from app.core import FieldFindingRow, Scan, VerdictRow
+from app.modules.extraction.category import DisplayCategoryTaxonomy
 from app.pipeline.capture import QualityRejection
 from app.pipeline.schemas import ScanDetail, ScanSummary
 
@@ -44,12 +45,18 @@ def scan_detail(
     finalised: bool,
     quality: QualityRejection | None = None,
     category_proposal: CategoryProposal | None = None,
+    display_category: DisplayCategoryTaxonomy | None = None,
 ) -> ScanDetail:
     """The response for a freshly submitted scan, verdict or capture instruction.
 
     ``category_proposal`` is passed through untouched and is not consulted for anything
     else on the way — in particular it never becomes ``product_category``, which is read
     off the stored scan row and is the officer's own answer.
+
+    ``display_category`` is passed through on the same terms and answers a different
+    question again: which shelf, not which Act. It never becomes ``product_category``
+    either, and it is not a coarser reading of ``category_proposal`` that could stand in
+    for one — ``packaged_food`` is not ``food``.
     """
     return ScanDetail(
         id=scan.id,
@@ -66,6 +73,7 @@ def scan_detail(
         findings=() if record is None else record.findings,
         quality=quality,
         category_proposal=category_proposal,
+        display_category=display_category,
     )
 
 
