@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.contracts import (
     MeasurementCalibrated,
     MeasurementExact,
+    MeasurementMarginExact,
     MeasurementRefusal,
 )
 from app.modules.measurement.schemas import PackageShape
@@ -236,7 +237,9 @@ def test_measure_width_to_height_ratio():
 
 
 def test_measure_margins():
-    """Assert measure_margins calculates distance to nearest ink independently."""
+    """Assert measure_margins calculates distance to nearest ink independently.
+    Proves margins come back as margin-typed results with exact values on the artwork path.
+    """
     from app.modules.measurement.services import measure_margins
 
     # 300x300 image
@@ -260,16 +263,16 @@ def test_measure_margins():
         artwork_dpi=25.4,  # mm_per_pixel = 1.0
     )
 
-    assert isinstance(results["above"], MeasurementExact)
+    assert isinstance(results["above"], MeasurementMarginExact)
     assert np.isclose(results["above"].value, 80.0)
 
-    assert isinstance(results["below"], MeasurementExact)
+    assert isinstance(results["below"], MeasurementMarginExact)
     assert np.isclose(results["below"].value, 100.0)
 
-    assert isinstance(results["left"], MeasurementExact)
+    assert isinstance(results["left"], MeasurementMarginExact)
     assert np.isclose(results["left"].value, 70.0)
 
-    assert isinstance(results["right"], MeasurementExact)
+    assert isinstance(results["right"], MeasurementMarginExact)
     assert np.isclose(results["right"].value, 100.0)
 
 
@@ -335,3 +338,82 @@ def test_rectification_failure_returns_refusal():
     res_ean = detect_reference_object(empty_img, "ean_13")
     assert isinstance(res_ean, MeasurementRefusal)
     assert "Rectification failed" in res_ean.reason
+
+
+def test_zero_margin_is_valid():
+    """Assert that a zero margin resolves to 0.0 without raising an error."""
+    import numpy as np
+
+    from app.contracts import MeasurementMarginExact
+    from app.modules.measurement.services import measure_margins
+
+    # 100x100 white image
+    image = np.ones((100, 100), dtype=np.uint8) * 255
+
+    # Active ink (black) in top-left quadrant (0:50, 0:50)
+    image[0:50, 0:50] = 0
+
+    # Declaration bbox flush against the ink boundary at (50, 50)
+    bbox = (50, 50, 20, 20)
+
+    results = measure_margins(
+        image,
+        bbox,
+        is_artwork=True,
+        artwork_dpi=25.4,
+    )
+
+    assert isinstance(results["above"], MeasurementMarginExact)
+    assert results["above"].value == 0.0
+    assert results["left"].value == 0.0
+
+
+def test_zero_margin_calibrated_path():
+    """Assert a flush margin yields a MeasurementMarginCalibrated with zero value and confidence."""
+    import cv2
+    import numpy as np
+
+    from app.contracts import MeasurementMarginCalibrated
+    from app.modules.measurement.services import measure_margins
+
+    image = np.ones((100, 100), dtype=np.uint8) * 255
+    image[0:50, 0:50] = 0
+    bbox = (50, 50, 20, 20)
+
+    ref_image = np.zeros((100, 100), dtype=np.uint8)
+    cv2.circle(ref_image, (50, 50), 30, 255, -1, cv2.LINE_AA)
+
+    results = measure_margins(
+        image,
+        bbox,
+        ref_image=ref_image,
+        ref_type="coin_10",
+        is_artwork=False,
+    )
+
+    assert isinstance(results["above"], MeasurementMarginCalibrated)
+    assert results["above"].value == 0.0
+    assert results["above"].confidence_interval > 0.0
+
+
+def test_margin_overlap_is_negative():
+    """Assert margins that overlap active ink return negative distances."""
+    import numpy as np
+
+    from app.contracts import MeasurementRefusal
+    from app.modules.measurement.services import measure_margins
+
+    image = np.ones((100, 100), dtype=np.uint8) * 255
+    image[0:60, 0:60] = 0
+
+    bbox = (50, 50, 20, 20)
+
+    results = measure_margins(
+        image,
+        bbox,
+        is_artwork=True,
+        artwork_dpi=25.4,
+    )
+
+    assert isinstance(results["above"], MeasurementRefusal)
+    assert "overlap" in results["above"].reason.lower()
