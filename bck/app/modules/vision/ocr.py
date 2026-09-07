@@ -91,12 +91,17 @@ def _parse_paddle_results(results: Any) -> list[ExtractedSpan]:
         if item is None:
             continue
 
-        # PaddleOCR 3.x dict format with parallel dt_polys, rec_texts, rec_scores
-        if isinstance(item, dict) and "dt_polys" in item:
-            polys = item.get("dt_polys", [])
-            texts = item.get("rec_texts", [])
-            scores = item.get("rec_scores", [])
-            for poly, text, score in zip(polys, texts, scores, strict=False):
+        if not isinstance(item, dict):
+            raise TypeError(f"Expected dict from PaddleOCR, got {type(item)}")
+
+        if "dt_polys" not in item or "rec_texts" not in item or "rec_scores" not in item:
+            raise KeyError("Malformed PaddleOCR result: missing required fields")
+
+        polys = item["dt_polys"]
+        texts = item["rec_texts"]
+        scores = item["rec_scores"]
+        if True:  # Restores outer indentation level for the loop and subsequent logic
+            for poly, text, score in zip(polys, texts, scores, strict=True):
                 pts = [(int(pt[0]), int(pt[1])) for pt in poly]
                 spans.append(
                     ExtractedSpan(

@@ -27,7 +27,7 @@ def detect_pdp(
     If weights_path is unset, missing, or empty, explicitly raises RuntimeError.
     """
     if image is None or image.size == 0:
-        return DetectionResult((0, 0, 0, 0), 0, 0.0)
+        raise ValueError("Invalid or empty image provided.")
 
     if weights_path is None:
         weights_path = os.getenv("PDP_WEIGHTS_PATH")
@@ -43,8 +43,7 @@ def detect_pdp(
     results = model(image, verbose=False)
 
     if not results or len(results[0].boxes) == 0:
-        h, w = image.shape[:2]
-        return DetectionResult((0, 0, w, h), w * h, 0.0)
+        raise ValueError("No PDP detected in image.")
 
     boxes = results[0].boxes
     best_idx = int(boxes.conf.argmax())

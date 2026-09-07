@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pytest
 
-from app.modules.vision.pdp import DetectionResult, detect_pdp
+from app.modules.vision.pdp import detect_pdp
 
 
 @pytest.fixture
@@ -42,10 +42,10 @@ def test_detect_pdp_unset_weights_raises_runtime_error(monkeypatch: pytest.Monke
 
 def test_detect_pdp_empty_image(mock_pdp_model_file: str):
     empty_img = np.array([])
-    res = detect_pdp(empty_img, weights_path=mock_pdp_model_file)
-    assert res.bbox == (0, 0, 0, 0)
-    assert res.area == 0
-    assert res.confidence == 0.0
+    import pytest
+
+    with pytest.raises(ValueError):
+        detect_pdp(empty_img, weights_path=mock_pdp_model_file)
 
 
 @patch("ultralytics.YOLO")
@@ -64,19 +64,14 @@ def test_detect_pdp_success(mock_yolo_cls: MagicMock, mock_pdp_model_file: str):
     mock_model_instance = MagicMock()
     mock_model_instance.return_value = mock_results
     mock_yolo_cls.return_value = mock_model_instance
-
     res = detect_pdp(img, weights_path=mock_pdp_model_file)
-
-    assert isinstance(res, DetectionResult)
     assert res.bbox == (20, 30, 100, 120)
     assert res.area == 12000
     assert res.confidence == 0.95
 
 
 @patch("ultralytics.YOLO")
-def test_detect_pdp_no_detection_falls_back_to_full_image(
-    mock_yolo_cls: MagicMock, mock_pdp_model_file: str
-):
+def test_detect_pdp_no_detection_refuses(mock_yolo_cls: MagicMock, mock_pdp_model_file: str):
     img = np.zeros((80, 120, 3), dtype=np.uint8)
 
     mock_boxes = MagicMock()
@@ -89,11 +84,10 @@ def test_detect_pdp_no_detection_falls_back_to_full_image(
     mock_model_instance.return_value = mock_results
     mock_yolo_cls.return_value = mock_model_instance
 
-    res = detect_pdp(img, weights_path=mock_pdp_model_file)
+    import pytest
 
-    assert res.bbox == (0, 0, 120, 80)
-    assert res.area == 9600
-    assert res.confidence == 0.0
+    with pytest.raises(ValueError):
+        detect_pdp(img, weights_path=mock_pdp_model_file)
 
 
 def test_pdp_detector_different_boxes(mock_pdp_model_file: str):
