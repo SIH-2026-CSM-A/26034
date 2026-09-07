@@ -516,3 +516,47 @@ def test_additional_script_unclassified_span_conservation():
     assert len(res.unclassified_spans) == 2
     unclassified_ids = {s.span_id for s in res.unclassified_spans}
     assert unclassified_ids == {"tam1", "ben1"}
+
+
+def test_recognized_additional_script_unnormalized_routes_to_review():
+    """Verify unnormalised additional script routes to INSUFFICIENT_EVIDENCE and REVIEW."""
+    from app.modules.rules import default_rule_set_version, load_rules
+    from app.pipeline.orchestrator import UNBOUND_DECLARATION_REASON
+    from app.pipeline.verdict import derive_verdict
+
+    s_tam = _make_span(
+        "tam1",
+        "குளிர்ந்த மற்றும் உலர்ந்த இடத்தில் நேரடியாக சூரிய ஒளி படாதவாறு வைக்கவும்",
+        y0=100.0,
+        y1=130.0,
+    )
+    res = bind_spans([s_tam])
+
+    assert len(res.fields) == 0
+    assert len(res.unclassified_spans) == 1
+    assert res.unclassified_spans[0].span_id == "tam1"
+
+    context = EvidenceContext(
+        rule_set_version=default_rule_set_version(),
+        evaluation_date=date(2026, 9, 6),
+        declared=by_obligation(res.fields),
+        contested=by_obligation(res.disagreements),
+        measurements={},
+        product_category=None,
+        source_is_listing=False,
+        unreadable_reason=UNBOUND_DECLARATION_REASON,
+    )
+
+    findings = build_findings(load_rules(), context)
+    assert len(findings) > 0
+    assert any(f.state == FieldState.INSUFFICIENT_EVIDENCE for f in findings)
+    assert all(
+        f.state in (FieldState.INSUFFICIENT_EVIDENCE, FieldState.NOT_APPLICABLE) for f in findings
+    )
+    assert not any(f.state == FieldState.FAIL for f in findings)
+    assert not any(f.state == FieldState.PASS for f in findings)
+
+    verdict = derive_verdict(findings)
+    assert verdict == Verdict.REVIEW
+    assert verdict != Verdict.POTENTIAL_VIOLATION
+    assert verdict != Verdict.PASS
