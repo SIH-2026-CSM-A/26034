@@ -54,3 +54,4 @@
 - **Verification**: Executed full verification suite (`ruff check .`, `ruff format --check .`, `lint-imports`, and `pytest` with 724 passed, 32 skipped cleanly).
 - 2026-09-07: Restored test_ocr.py bodies, deleted placeholder, and rewrote assertions to test PaddleOCR 3.7.0 API expectations per review comments. (Antigravity)
 - 2026-09-07: Fixed 4 failing unit tests in test_ocr.py by aligning test assertions with ocr.py implementation (dict parsing, numeric cleaning, and validation errors). (Antigravity)
+- 2026-09-08: Resolved VIS-005: removed dead 2.x parser block, removed use_angle_cls, fixed OCR confidence to 0.0, stopped MRP mangling, and replaced vis_004_proof.py with a real test.

@@ -190,7 +190,7 @@ def test_paddleocr_3x_parser_format():
 def test_extract_numeric_value_malformed():
     from app.modules.vision.ocr import _extract_numeric_value
 
-    assert _extract_numeric_value("150.00.5") == "150.005"
+    assert _extract_numeric_value("150.00.5") == ""
 
 
 def test_parse_paddle_results_invalid_type():
@@ -208,7 +208,7 @@ def test_parse_paddle_results_missing_score():
     data = {"dt_polys": [[[0, 0], [10, 0], [10, 10]]], "rec_texts": ["A"], "rec_scores": [None]}
     spans = _parse_paddle_results(data)
     assert len(spans) == 1
-    assert spans[0].confidence == 1.0
+    assert spans[0].confidence == 0.0
 
 
 def test_parse_paddle_results_missing_fields():
