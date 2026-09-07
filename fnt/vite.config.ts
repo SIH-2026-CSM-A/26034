@@ -1,13 +1,19 @@
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    host: true,
+  },
   plugins: [
     react(),
+    basicSsl(),
     VitePWA({
-      injectRegister: false,
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
       // The default glob omits woff2, which would leave the self-hosted
       // faces out of the precache — the one thing they exist to survive.
       workbox: {
@@ -20,7 +26,16 @@ export default defineConfig({
         theme_color: '#DCDFDB',
         background_color: '#DCDFDB',
         display: 'standalone',
-        icons: [],
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: '/favicon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any',
+          },
+        ],
       },
     }),
   ],

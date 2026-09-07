@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { CameraCapture } from './CameraCapture'
 import { ReviewQueue } from './ReviewQueue'
 import { ScanSubmission } from './ScanSubmission'
 import { VerdictDetail } from './VerdictDetail'
@@ -21,6 +22,8 @@ export function OfficerRoutes() {
       <Route path="queue" element={<ReviewQueue />} />
       <Route path="new" element={<ScanSubmission />} />
       <Route path="submit" element={<ScanSubmission />} />
+      <Route path="capture" element={<CameraCapture />} />
+      <Route path="camera" element={<CameraCapture />} />
       <Route path="verdicts/:subjectRef" element={<VerdictDetail />} />
     </Routes>
   )
