@@ -92,3 +92,20 @@
 **Incomplete**
 - None
 
+### 2026-09-08 — audit API schema for live vendor and complaint endpoints (FNT-010) — Antigravity
+
+**Done**
+- Regenerated API schema via `npm run generate:api` against backend FastAPI application
+- Inspected generated `fnt/src/services/generated/schema.d.ts` for live endpoints required for VND-002 and CMP-002 migration
+- Verified schema only defines `/auth/token`, `/scans`, `/scans/image`, `/scans/{scan_id}`, and `/scans/{scan_id}/review`
+- Audited missing endpoints: `GET /vendors`, `GET /vendors/{vendor_id}`, `GET /complaints`, `POST /complaints`, and `GET /complaints/{complaint_id}` are unserved
+- Triggered stop rule: halted migration to prevent inventing unserved client endpoints or breaking local fixture functionality
+- Preserved existing local fixtures `fnt/src/fixtures/vendor-submissions.fixture.ts` and `fnt/src/fixtures/complaints.fixture.ts`
+
+**Decided**
+- Await backend delivery and routing of VND-002 and CMP-002 before completing live endpoint migration
+
+**Incomplete**
+- Live endpoint migration deferred pending backend router implementation
+
+
