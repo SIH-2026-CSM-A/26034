@@ -189,6 +189,33 @@ class EcommerceFilterCondition(StrictRuleModel):
     sortable: Literal[True]
 
 
+class ChapterScopeCondition(StrictRuleModel):
+    """Describe Rule 3 — the packages Chapter II does not reach.
+
+    The one condition that speaks to whether the other rules apply at all rather than to
+    what a package must bear. It is stated negatively in the gazette and is encoded
+    negatively here: these are thresholds *above which* the chapter stops applying.
+
+    ``_inclusive_`` in each name is the boundary, and it is load-bearing. Rule 3(a)
+    excludes a quantity of "more than 25 kilogram or 25 litre", so 25 kilogram exactly is
+    still inside Chapter II. The same convention as
+    :attr:`TableBand.maximum_area_inclusive_cm2`.
+
+    ``not_for_retail_sale_marker`` is the phrase Rule 2(bb) and Rule 2(bc) *as substituted*
+    require an industrial or institutional package to bear. It is carried here, on the
+    scope condition, because it is the only limb of Rule 3(c) that a label can evidence —
+    but it belongs textually to clause 2(bb)/2(bc) and not to Rule 3, and the rule
+    carrying this condition says so in its ``clause_ref``.
+    """
+
+    kind: Literal["chapter_ii_scope"]
+    maximum_weight_inclusive_kg: PositiveDecimal
+    maximum_volume_inclusive_l: PositiveDecimal
+    bagged_commodities: tuple[NonEmptyText, ...] = Field(min_length=1)
+    bagged_maximum_inclusive_kg: PositiveDecimal
+    not_for_retail_sale_marker: NonEmptyText
+
+
 class NumericConstraint(StrictRuleModel):
     """Keep rounding-increment and tolerance semantics explicitly separate."""
 
@@ -218,6 +245,7 @@ RuleCondition = Annotated[
     | PackageDefinitionCondition
     | SectorOverrideCondition
     | EcommerceFilterCondition
+    | ChapterScopeCondition
     | NumericConstraint,
     Field(discriminator="kind"),
 ]

@@ -41,7 +41,12 @@ from app.modules.measurement import (
     measure_ink_extent,
     measure_width_to_height_ratio,
 )
-from app.modules.rules import ProductCategory, default_rule_set_version, load_rules
+from app.modules.rules import (
+    ProductCategory,
+    default_rule_set_version,
+    load_rules,
+    not_for_retail_sale_declared,
+)
 from app.modules.vision.ocr import extract_panel_text
 from app.modules.vision.pdp import detect_pdp
 from app.modules.vision.preprocess import quality_gate
@@ -195,6 +200,7 @@ def run_image_scan(
     product_category: ProductCategory | None,
     evaluated_at: datetime,
     subject_ref: str,
+    institutional_or_industrial_confirmed: bool = False,
 ) -> QualityRejection | ImageScanResult:
     """Evaluate a photographed package, or refuse the capture and say why.
 
@@ -261,6 +267,14 @@ def run_image_scan(
         measurements=_measurements(image, calibration),
         product_category=product_category,
         source_is_listing=False,
+        # Read across every span, not only the bound ones. Whether the binder places the
+        # marker is incidental and was measured, not assumed: on its own line it currently
+        # binds to COMMON_OR_GENERIC_NAME, and printed beside a batch code — the way packs
+        # actually carry it — it binds to nothing and survives only here. The binder is not
+        # designed around Rule 3 and owes this nothing, so reading the spans keeps the scope
+        # decision independent of a classification that may change for its own reasons.
+        not_for_retail_sale_observed=not_for_retail_sale_declared(span.text for span in spans),
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=UNBOUND_DECLARATION_REASON,
     )
     findings = build_findings(load_rules(), context)
@@ -289,6 +303,7 @@ def run_catalogue_scan(
     product_category: ProductCategory | None,
     evaluated_at: datetime,
     subject_ref: str,
+    institutional_or_industrial_confirmed: bool = False,
 ) -> VerdictRecord:
     """Evaluate a structured listing.
 
@@ -325,6 +340,11 @@ def run_catalogue_scan(
         measurements={},
         product_category=product_category,
         source_is_listing=True,
+        # A listing supplies declarations keyed by obligation and carries no free text to
+        # read a marker off. Not observed, which is not the same as absent from the pack —
+        # and since nothing is inferred from False, the distinction costs nothing here.
+        not_for_retail_sale_observed=False,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=None,
     )
     findings = build_findings(load_rules(), context)

@@ -140,12 +140,14 @@ def test_rule_store_contains_only_ticket_authorized_scopes() -> None:
         "electronic_products_spare_parts_and_accessories",
         "medical_device_packages",
         "ecommerce_imported_product_listings",
+        "chapter_ii_packages",
     }
 
     assert {scope for rule in rules for scope in rule.applies_to} <= allowed_scopes
 
 
 EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
+    "R3-CHAPTER-II-SCOPE": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
     "R6-1-A": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
     "R6-1-AA": "GSR-629E__2017-06-23__amendment-rules-2017.pdf",
     "R6-1-B": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",

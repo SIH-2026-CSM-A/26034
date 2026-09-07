@@ -10,6 +10,7 @@ The derivation is deliberately four separate passes rather than one classificati
     any FAIL                                  -> POTENTIAL_VIOLATION
     else any REVIEW_REQUIRED                  -> REVIEW
     else any INSUFFICIENT_EVIDENCE            -> REVIEW
+    else all NOT_APPLICABLE                   -> REVIEW
     else                                      -> PASS
 
 REVIEW_REQUIRED and INSUFFICIENT_EVIDENCE reach the same verdict, and they are still
@@ -19,9 +20,16 @@ system report "we could not read the label" as "the label is wrong". FAIL is a s
 about the package; INSUFFICIENT_EVIDENCE is a statement about our reading of it. Only the
 first can support enforcement, so the two never share an expression here.
 
-NOT_APPLICABLE matches no branch and falls through to PASS. A statutory carve-out means
-the obligation does not exist for this package, which is not a lesser PASS and not a
-softened FAIL.
+A NOT_APPLICABLE finding alongside others matches no branch and falls through. A statutory
+carve-out means the obligation does not exist for this package, which is not a lesser PASS
+and not a softened FAIL, and the obligations that *do* exist decide the verdict.
+
+**Every** finding NOT_APPLICABLE is a different case and gets its own pass. A sector
+override carves out some obligations and leaves the rest, so this was unreachable until
+Rule 3 arrived — a package outside Chapter II owes nothing in the store, and falling
+through would report PASS on a package this system did not evaluate. That is the same
+error the empty case guards against, and the reasoning in :func:`derive_verdict` applies
+unchanged: nothing was examined, so nothing may be asserted.
 """
 
 from collections.abc import Mapping, Sequence
@@ -56,6 +64,8 @@ def derive_verdict(findings: Sequence[FieldFinding]) -> Verdict:
     if any(finding.state is FieldState.REVIEW_REQUIRED for finding in findings):
         return Verdict.REVIEW
     if any(finding.state is FieldState.INSUFFICIENT_EVIDENCE for finding in findings):
+        return Verdict.REVIEW
+    if all(finding.state is FieldState.NOT_APPLICABLE for finding in findings):
         return Verdict.REVIEW
     return Verdict.PASS
 

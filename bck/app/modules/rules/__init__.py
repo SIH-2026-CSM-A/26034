@@ -13,11 +13,13 @@ from .base import (
     ProductCategory,
     Rule7Route,
     RuleStatus,
+    ScopeStatus,
     Severity,
     Verdict,
     WidthRatioResult,
 )
 from .conditions import (
+    ChapterScopeCondition,
     DeclarationMannerCondition,
     DeclarationRequiredCondition,
     FreeSpaceCondition,
@@ -58,7 +60,13 @@ from .results import (
     Rule7HeightEvaluation,
     Rule7WidthEvaluation,
     Rule8FreeSpaceEvaluation,
+    ScopeDecision,
     SectorOverride,
+)
+from .scope import (
+    chapter_ii_scope,
+    not_for_retail_sale_declared,
+    rule_3b_is_subsumed_by_rule_3a,
 )
 from .sector import (
     SectorRoutedError,
@@ -69,6 +77,7 @@ from .sector import (
 )
 
 __all__ = [
+    "ChapterScopeCondition",
     "ConstituentSimilarity",
     "DeclarationMannerCondition",
     "DeclarationRequiredCondition",
@@ -90,6 +99,8 @@ __all__ = [
     "RuleLoadError",
     "RuleStatus",
     "RuleStoreDocument",
+    "ScopeDecision",
+    "ScopeStatus",
     "SectorOverride",
     "SectorOverrideCondition",
     "SectorRoutedError",
@@ -99,6 +110,7 @@ __all__ = [
     "calculate_cylindrical_pdp_area",
     "calculate_other_shape_pdp_area",
     "calculate_rectangular_pdp_area",
+    "chapter_ii_scope",
     "controlling_framework",
     "declarations_governed_by_rule",
     "default_rule_set_version",
@@ -111,10 +123,12 @@ __all__ = [
     "load_rules",
     "load_store",
     "minimum_character_height",
+    "not_for_retail_sale_declared",
     "pdp_declaration_mandatory",
     "required_declaration_location",
     "rule7_requirements_apply",
     "rule_33_relaxation_applies",
+    "rule_3b_is_subsumed_by_rule_3a",
     "rule_by_id",
     "rule_governs_declaration",
     "sector_overrides",

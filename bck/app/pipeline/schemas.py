@@ -54,6 +54,15 @@ class CatalogueScanRequest(ScanDTO):
     every obligation a sector could carve out INSUFFICIENT_EVIDENCE instead of evaluated.
     """
 
+    institutional_or_industrial_confirmed: bool = False
+    """Whether the officer has confirmed this package is supplied to an industrial or
+    institutional consumer, which Rule 3(c) places outside Chapter II.
+
+    Defaults to ``False``, which confirms nothing and changes nothing. A ``True`` makes
+    every Chapter II obligation NOT_APPLICABLE — the duty does not arise — so it is an
+    officer's assertion and never an inference from the listing.
+    """
+
 
 class ScanSummary(RuleSetStamped):
     """One scan as it appears in a list. No findings — those are on the detail route."""

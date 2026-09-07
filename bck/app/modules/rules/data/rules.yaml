@@ -2,8 +2,63 @@ schema_version: 1
 # The published identity of this rule set. Copied by value onto every finding, so a
 # verdict issued today still names the set that produced it after the store is amended.
 # Bump on any change to the rules below; never reissue a version that has been used.
-rule_set_version: '2026.09.1'
+rule_set_version: '2026.09.2'
 rules:
+  # Rule 3 comes first because it is prior to everything below it: it says which packages
+  # Chapter II reaches at all. Every other rule in this store states an obligation inside
+  # that chapter, so a package Rule 3 excludes owes none of them and the correct field
+  # state is NOT_APPLICABLE. That is not Rule 26, which exempts a package still inside the
+  # chapter, and not a sector override, which moves one obligation while the rest stay.
+  #
+  # THREE LIMBS, TWO OF WHICH ARE ENCODED AS DECIDING ANYTHING.
+  # 3(a) is deterministic from the declared net quantity. 3(b) is subsumed by 3(a) — every
+  # package it names is in bags above 50 kg and therefore already beyond 3(a)'s 25 kg — so
+  # its parameters are recorded here for completeness and for the guard that watches the
+  # relationship, and no branch consults them. See rules.scope.rule_3b_is_subsumed_by_rule_3a.
+  # 3(c) has one observable limb, the 'not for retail sale' marker, which routes to an
+  # officer and never decides on its own.
+  #
+  # SOURCE PROVENANCE, STATED NOT LAUNDERED.
+  # not_for_retail_sale_marker is the phrase required by clauses 2(bb) and 2(bc) *as
+  # substituted*, not by Rule 3. The compilation prints the substitution as "(i) for
+  # clauses (bb) and (bc), the following clauses shall be substituted, namely" and DOES
+  # NOT NAME THE NOTIFICATION that made it. This compilation is semi-official. The clause
+  # text is verbatim from the cited PDF; the instrument behind it is not in the corpus.
+  #
+  # The Rules name no institutions. Hotels, hospitals, airlines and railways are canonical
+  # in secondary commentary and appear nowhere in this corpus — do not list them here.
+  #
+  # effective_from is Rule 3's own commencement, 01.04.2011. The marker phrase derives from
+  # the substituted 2(bb)/2(bc), effective 01.04.2022; dating the whole rule to 2022 would
+  # silently disable limb 3(a), law since 2011, for a scan dated before it. That is the
+  # worse error of the two, so the narrower point is stated here rather than encoded.
+  - rule_id: R3-CHAPTER-II-SCOPE
+    clause_ref: Rule 3, with the marker phrase from Rule 2(bb) and Rule 2(bc) as substituted
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      3. Applicability of the Chapter- The provisions of this chapter shall not apply to-
+      (a) packages of commodities containing quantity of more than 25 kilogram or 25 litre;
+      (b) cement, fertilizer and agricultural farm produce sold in bags above 50 kilogram;
+      and (c) packaged commodities meant for industrial consumers or institutional consumers
+    status: VERIFIED
+    effective_from: 2011-04-01
+    effective_to: null
+    applies_to: [chapter_ii_packages]
+    conditions:
+      kind: chapter_ii_scope
+      # Inclusive: Rule 3(a) excludes "more than" 25, so 25 exactly is still in scope.
+      maximum_weight_inclusive_kg: 25
+      maximum_volume_inclusive_l: 25
+      bagged_commodities: [cement, fertilizer, agricultural_farm_produce]
+      bagged_maximum_inclusive_kg: 50
+      not_for_retail_sale_marker: not for retail sale
+    evidence_requirement: declared_net_quantity_or_confirmed_institutional_or_industrial_supply
+    severity: REVIEW
+    # Rule 3 states no duty of its own — it decides whether the duties below arise. As
+    # applicability metadata it governs no single declaration (null), and its disposition
+    # is NOT_AN_OBLIGATION, so it emits no finding in its own name.
+    governs_declarations: null
+
   - rule_id: R6-1-A
     clause_ref: Rule 6(1)(a)
     gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf

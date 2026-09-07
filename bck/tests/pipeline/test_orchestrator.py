@@ -352,3 +352,91 @@ def test_two_addresses_against_one_obligation_are_both_kept() -> None:
     )
     grouped = by_obligation([manufactured, marketed])
     assert grouped[DeclarationField.NAME_AND_ADDRESS] == (manufactured, marketed)
+
+
+# --- Rule 3 reaches the chain from the spans vision actually returned ---------------------
+
+
+def replacing(span_id: str, text: str):
+    """``PANEL_SPANS`` with one line's text changed, positions untouched."""
+    return tuple(
+        a_span(text, s.span_id, int(s.polygon[0][1])) if s.span_id == span_id else s
+        for s in PANEL_SPANS
+    )
+
+
+def test_a_thirty_kilogram_declaration_takes_the_package_out_of_chapter_ii() -> None:
+    """The whole Rule 3(a) chain, from OCR text to verdict, with nothing hand-fed.
+
+    The quantity is read off a span, normalised to a figure and a canonical unit, and
+    compared against the stored threshold. Setting the scope inputs on the context directly
+    — which the ``test_findings`` cases do — would leave every link between them untested.
+    """
+    result = scan_panel(spans=replacing("s-quantity", "Net Quantity: 30 kg"))
+
+    assert isinstance(result, ImageScanResult)
+    assert {f.state for f in result.verdict.findings} == {FieldState.NOT_APPLICABLE}
+    assert result.verdict.verdict is Verdict.REVIEW
+    assert result.verdict.verdict is not Verdict.PASS
+
+
+def test_a_marker_printed_on_the_panel_reaches_the_scope_decision() -> None:
+    """The orchestrator reads the marker off the spans vision returned.
+
+    Says only what it proves. The marker on its own line happens to bind to
+    COMMON_OR_GENERIC_NAME today, so this case alone does not establish that reading the
+    raw spans rather than the bound declarations is necessary — the case that does is
+    :func:`test_a_marker_the_binder_did_not_place_still_reaches_the_scope_decision`.
+    """
+    result = scan_panel(spans=(*PANEL_SPANS, a_span("NOT FOR RETAIL SALE", "s-marker", 330)))
+
+    assert isinstance(result, ImageScanResult)
+    assert {f.state for f in result.verdict.findings} == {FieldState.REVIEW_REQUIRED}
+    assert all("Rule 3(c)" in f.reason for f in result.verdict.findings)
+    assert not any(f.state is FieldState.FAIL for f in result.verdict.findings)
+
+
+def test_an_ordinary_panel_triggers_no_scope_suspension() -> None:
+    """The flag is computed, not stuck on. A 100 g retail pack keeps its ordinary findings.
+
+    Paired with the test above: together they fail if the orchestrator hardcodes the marker
+    flag either way, which one of them alone would not catch.
+    """
+    result = scan_panel()
+
+    assert isinstance(result, ImageScanResult)
+    assert not any("Rule 3" in f.reason for f in result.verdict.findings)
+    assert any(f.state is FieldState.PASS for f in result.verdict.findings)
+
+
+def test_an_officer_confirmation_reaches_the_image_path() -> None:
+    """The Rule 3(c) confirmation travels the same route the confirmed category does."""
+    result = scan_panel(institutional_or_industrial_confirmed=True)
+
+    assert isinstance(result, ImageScanResult)
+    assert {f.state for f in result.verdict.findings} == {FieldState.NOT_APPLICABLE}
+    assert all("Rule 3(c)" in f.reason for f in result.verdict.findings)
+
+
+def test_a_marker_the_binder_did_not_place_still_reaches_the_scope_decision() -> None:
+    """Why the flag is computed from the spans and not from the bound declarations.
+
+    Printed beside a batch code — which is how packs actually carry it — the marker binds
+    to no obligation and appears in no ``NormalisedField``. Reading the flag off
+    ``declared`` would miss it entirely and evaluate a bulk supply pack as a retail one,
+    which is the failure this whole ticket exists to stop.
+
+    The binder's placement was measured rather than assumed, and it owes Rule 3 nothing:
+    it may classify this text differently tomorrow for reasons of its own, and the scope
+    decision must not move when it does.
+    """
+    marker_line = "Batch XY-7741 / not for retail sale"
+    result = scan_panel(spans=replacing("s-batch", marker_line))
+
+    assert isinstance(result, ImageScanResult)
+    assert marker_line in {s.text for s in result.unclassified_spans}
+    assert all(
+        marker_line.lower() not in (f.observed_value or "").lower() for f in result.verdict.findings
+    )
+    assert {f.state for f in result.verdict.findings} == {FieldState.REVIEW_REQUIRED}
+    assert all("Rule 3(c)" in f.reason for f in result.verdict.findings)

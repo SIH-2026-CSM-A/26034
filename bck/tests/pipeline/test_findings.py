@@ -363,3 +363,166 @@ def test_a_contested_declaration_outranks_a_resolved_one() -> None:
         "a resolved reading beat a contested one: the contested branch has been moved "
         "below `if values:`, and a self-contradicting package now passes"
     )
+
+
+# --- Rule 3: whether Chapter II reaches the package at all --------------------------------
+
+
+def quantity_declared(value: str, unit: str) -> dict:
+    """A ``declared`` mapping carrying one canonicalised net quantity."""
+    return {
+        DeclarationField.NET_QUANTITY: (
+            NormalisedField(
+                field_type=DeclarationField.NET_QUANTITY,
+                span_refs=("span-1",),
+                normalised_value=f"{value} {unit}",
+                numeric_value=Decimal(value),
+                unit=unit,
+                parse_confidence=1.0,
+            ),
+        )
+    }
+
+
+def test_a_package_beyond_rule_3a_owes_nothing_and_never_fails() -> None:
+    """The ticket's case, in the shape that actually fires on real packages.
+
+    A 30 kilogram sack is outside Chapter II by Rule 3(a). Every obligation in the store
+    sits inside that chapter, so the correct state is NOT_APPLICABLE throughout — the duty
+    does not exist for this package. FAIL would assert a shortfall against a rule that does
+    not reach it.
+    """
+    findings = findings_for(declared=quantity_declared("30", "kg"), unreadable_reason=None)
+
+    assert findings
+    assert {f.state for f in findings} == {FieldState.NOT_APPLICABLE}
+    assert not any(f.state is FieldState.FAIL for f in findings)
+    assert all("Rule 3(a)" in f.reason for f in findings)
+
+
+def test_an_excluded_package_is_reviewed_and_never_passes() -> None:
+    """PASS on a package this system did not evaluate is the error the scope gate creates
+    if the verdict layer is left alone. Nothing was examined, so nothing may be asserted."""
+    findings = findings_for(declared=quantity_declared("30", "kg"), unreadable_reason=None)
+    record = assemble_verdict(
+        subject_ref="scan-scope",
+        findings=findings,
+        rule_set_version=default_rule_set_version(),
+        evaluated_at=datetime(2026, 9, 6, tzinfo=UTC),
+    )
+
+    assert record.verdict is Verdict.REVIEW
+    assert record.verdict is not Verdict.PASS
+
+
+def test_the_marker_suspends_chapter_ii_to_review_and_nothing_else() -> None:
+    """A printed 'not for retail sale' routes to an officer.
+
+    Not NOT_APPLICABLE — that would drop the obligations on a packer's say-so. Not FAIL —
+    nothing about the package fell short. Not INSUFFICIENT_EVIDENCE — we looked and we
+    found something; what is missing is the officer's confirmation, not our reading.
+    """
+    findings = findings_for(not_for_retail_sale_observed=True, unreadable_reason=None)
+
+    assert findings
+    assert {f.state for f in findings} == {FieldState.REVIEW_REQUIRED}
+    assert not any(f.state is FieldState.FAIL for f in findings)
+    assert not any(f.state is FieldState.NOT_APPLICABLE for f in findings)
+    assert not any(f.state is FieldState.INSUFFICIENT_EVIDENCE for f in findings)
+    assert all("Rule 3(c)" in f.reason for f in findings)
+
+
+def test_a_confirmed_institutional_supply_never_produces_fail() -> None:
+    """An officer's confirmation removes the duty; it does not soften a breach of it."""
+    findings = findings_for(institutional_or_industrial_confirmed=True, unreadable_reason=None)
+
+    assert findings
+    assert {f.state for f in findings} == {FieldState.NOT_APPLICABLE}
+    assert all("Rule 3(c)" in f.reason for f in findings)
+
+
+def test_an_ordinary_retail_pack_is_untouched_by_the_scope_gate() -> None:
+    """Nothing is inferred from an absence, and this is the assertion that proves it.
+
+    A 500 g pack with no marker and no confirmation must still reach its ordinary FAIL
+    findings for the declarations it does not bear. Defaulting the scope decision to
+    UNCERTAIN turns every one of them into REVIEW_REQUIRED and takes this red.
+    """
+    findings = findings_for(declared=quantity_declared("500", "g"), unreadable_reason=None)
+
+    assert any(f.state is FieldState.FAIL for f in findings)
+    assert not any("Rule 3" in f.reason for f in findings)
+
+
+def test_scope_is_settled_before_the_sector_question() -> None:
+    """Two applicability questions, widest first.
+
+    A medical device weighing 30 kilogram is outside Chapter II entirely. Answering the
+    sector question first would attribute it to the Medical Devices Rules, 2017 — a
+    framework that governs it no more than Table-I does, because the chapter carrying the
+    obligation does not reach the package.
+    """
+    findings = findings_for(
+        declared=quantity_declared("30", "kg"),
+        product_category=ProductCategory.MEDICAL_DEVICE,
+        unreadable_reason=None,
+    )
+    height = findings_for_rule(findings, "R7-2-TABLE-I")
+
+    assert height
+    assert all("Rule 3(a)" in f.reason for f in height)
+    assert not any("Medical Devices Rules" in f.reason for f in height)
+
+
+def test_scope_settles_before_the_contested_branch() -> None:
+    """The ordering the RUL-005 rebase onto PIP-004 had to preserve.
+
+    PIP-004 put a REVIEW_REQUIRED branch at the top of ``_one_declaration``, above
+    ``if values:``. That branch lives inside a *builder*, and ``scope_findings`` settles a
+    rule before any builder runs, so scope precedes it structurally rather than by
+    arrangement. This pins it, because "structurally" is exactly the kind of claim that
+    stops being true after somebody moves a call.
+
+    The discriminator is the reason, not the state: a confirmed Rule 3(c) exclusion is
+    NOT_APPLICABLE and a contested reading is REVIEW_REQUIRED, so this one separates them
+    on both. A package outside Chapter II owes nothing, so it must not be told that a
+    declaration it never owed was read twice and disagreed.
+    """
+    findings = findings_for_rule(
+        findings_for(
+            contested=CONTESTED_NET_QUANTITY,
+            institutional_or_industrial_confirmed=True,
+            unreadable_reason=None,
+        ),
+        "R6-1-C",
+    )
+
+    assert findings, "R6-1-C produced no finding at all"
+    assert {f.state for f in findings} == {FieldState.NOT_APPLICABLE}
+    assert all("Rule 3(c)" in f.reason for f in findings)
+    assert not any("do not agree" in f.reason for f in findings), (
+        "the contested branch answered for a package Rule 3 excludes: scope has been "
+        "moved below the declaration builder"
+    )
+
+
+def test_scope_settles_before_the_contested_branch_where_both_are_review() -> None:
+    """The same ordering where the two produce the *same* state, so only the reason differs.
+
+    A marker-bearing package is REVIEW_REQUIRED and so is a contested declaration. If scope
+    ran second, the state would be identical and every state assertion in this file would
+    still pass while the officer was told the wrong thing about why.
+    """
+    findings = findings_for_rule(
+        findings_for(
+            contested=CONTESTED_NET_QUANTITY,
+            not_for_retail_sale_observed=True,
+            unreadable_reason=None,
+        ),
+        "R6-1-C",
+    )
+
+    assert findings
+    assert {f.state for f in findings} == {FieldState.REVIEW_REQUIRED}
+    assert all("Rule 3(c)" in f.reason for f in findings)
+    assert not any("do not agree" in f.reason for f in findings)

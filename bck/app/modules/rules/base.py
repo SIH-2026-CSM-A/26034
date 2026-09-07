@@ -119,3 +119,30 @@ class WidthRatioResult(StrEnum):
     MEETS = "MEETS"
     DOES_NOT_MEET = "DOES_NOT_MEET"
     EXEMPT = "EXEMPT"
+
+
+class ScopeStatus(StrEnum):
+    """Whether Chapter II reaches this package at all, under Rule 3.
+
+    Prior to every other question the rule store asks. Rule 3 disapplies the whole of
+    Chapter II — every Rule 6 declaration, every Rule 7 dimension, Rule 8 placement and
+    Rule 9 manner — for the packages it names, so evaluating one of those obligations
+    against an excluded package states a duty the chapter does not impose on it.
+
+    Three values because there are three honest answers, and ``UNCERTAIN`` is the one
+    that must not be collapsed into either neighbour. A package bearing a ``not for
+    retail sale`` mark has given us affirmative evidence pointing at an exclusion we
+    cannot confirm from a photograph; that is neither "the chapter applies" nor "the
+    chapter does not", and resolving it either way would be deciding on the officer's
+    behalf.
+    """
+
+    GOVERNED = "GOVERNED"
+    """Chapter II applies. Nothing is suspended and evaluation proceeds unchanged."""
+
+    EXCLUDED = "EXCLUDED"
+    """Rule 3 excludes this package. Every Chapter II obligation is NOT_APPLICABLE."""
+
+    UNCERTAIN = "UNCERTAIN"
+    """An exclusion is indicated but not established. Routes to an officer, never to a
+    finding about the package."""

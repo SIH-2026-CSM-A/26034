@@ -89,6 +89,7 @@ async def submit_catalogue_scan(
             product_category=body.product_category,
             evaluated_at=datetime.now(UTC),
             subject_ref=str(scan.id),
+            institutional_or_industrial_confirmed=body.institutional_or_industrial_confirmed,
         )
     except Exception:
         await repository.mark_failed(session, scan)
@@ -108,6 +109,7 @@ async def submit_image_scan(
     reference_type: Annotated[str | None, Form()] = None,
     artwork_dpi: Annotated[float | None, Form()] = None,
     product_category: Annotated[ProductCategory | None, Form()] = None,
+    institutional_or_industrial_confirmed: Annotated[bool, Form()] = False,
 ) -> ScanDetail:
     """Evaluate a photographed package, or return a capture instruction.
 
@@ -136,6 +138,7 @@ async def submit_image_scan(
             product_category=product_category,
             evaluated_at=datetime.now(UTC),
             subject_ref=str(scan.id),
+            institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         )
     except Exception:
         await repository.mark_failed(session, scan)
