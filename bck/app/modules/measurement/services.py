@@ -12,7 +12,7 @@ from app.contracts import (
     MeasurementResult,
 )
 
-from .schemas import PackageShape
+from .schemas import MeasurementMarginSet, PackageShape
 
 # If a measurement has zero variance (e.g. flush margins), we cannot claim perfect
 # physical certainty. We document an uncalibrated prior based on pixel quantisation:
@@ -528,14 +528,16 @@ def measure_margins(
     ref_type: str | None = None,
     is_artwork: bool = False,
     artwork_dpi: float | None = None,
-) -> dict[str, MeasurementResult]:
+) -> MeasurementMarginSet:
     """Measure the margins around a declaration bounding box."""
 
-    def make_refusals(reason: str) -> dict[str, MeasurementResult]:
-        return {
-            direction: MeasurementRefusal(reason=reason)
-            for direction in ("above", "below", "left", "right")
-        }
+    def make_refusals(reason: str) -> MeasurementMarginSet:
+        return MeasurementMarginSet(
+            **{
+                direction: MeasurementRefusal(reason=reason)
+                for direction in ("above", "below", "left", "right")
+            }
+        )
 
     if is_artwork:
         if artwork_dpi is None or artwork_dpi <= 0:
@@ -651,4 +653,4 @@ def measure_margins(
                 reference_object=ref_type,
             )
 
-    return results
+    return MeasurementMarginSet(**results)
