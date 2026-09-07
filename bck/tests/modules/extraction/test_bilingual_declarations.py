@@ -35,6 +35,14 @@ def test_detect_script():
     assert detect_script("12345 !!!") == ScriptType.NEITHER
 
 
+def test_bare_mulya_does_not_cause_false_mrp():
+    """Verify bare मूल्य without MRP prefix/context is not mapped to RETAIL_SALE_PRICE."""
+    span = _make_span("s1", "मूल्य ५० N", y0=100.0, y1=130.0)
+    res = bind_spans([span])
+    mrp_fields = [f for f in res.fields if f.field_type == DeclarationField.RETAIL_SALE_PRICE]
+    assert len(mrp_fields) == 0
+
+
 def test_bare_matra_does_not_cause_false_net_quantity():
     """Verify bare मात्रा without compound context is not mapped to NET_QUANTITY."""
     span = _make_span("s1", "मात्रा ५० N", y0=100.0, y1=130.0)

@@ -139,3 +139,27 @@
 - Regression Testing & Quality Gates:
   - Added regression test `test_bare_mulya_does_not_cause_false_mrp` in `bck/tests/modules/extraction/test_bilingual_declarations.py` proving bare "मूल्य" is not classified as `RETAIL_SALE_PRICE`.
   - Verified `pytest tests/modules/extraction/test_bilingual_declarations.py`, `ruff check`, `ruff format --check`, `lint-imports`, and `git diff --check`.
+
+
+### 2026-09-07 — EXT-006 Reviewer Blocker Hardening (Sitanshu)
+
+**Done**
+- Codebase & Lexicon Hardening in `bck/app/modules/extraction/binder.py`:
+  - Empirically verified and removed unsupported lexicon mappings `("मूल्य", "MRP")` and `("अधिकतम राशी", "MRP")` from `_DEVANAGARI_TOKEN_MAP`.
+  - Retained corpus-supported Devanagari mappings: `("शुद्ध मात्रा", "Net Qty")`, `("निवल मात्रा", "Net Qty")`, `("एमआरपी", "MRP")`, `("रुपये", "Rs.")`, `("रु.", "Rs.")`, and unit abbreviations.
+  - Deduplicated header comments in `binder.py` to preserve exactly one Statutory Corpus Citation block and one Engineering Priors & Calibration Note block.
+  - Documented `detect_script` limitation regarding `NEITHER` classification (non-Devanagari/Latin scripts, pure digits, punctuation-only spans).
+- Test Hardening in `bck/tests/modules/extraction/test_bilingual_declarations.py`:
+  - Added regression test `test_bare_mulya_does_not_cause_false_mrp` executing `bind_spans` on `"मूल्य ५० N"` and asserting no `RETAIL_SALE_PRICE` field is created.
+  - Retained `test_bare_matra_does_not_cause_false_net_quantity` proving bare `"मात्रा"` is not mapped to `NET_QUANTITY`.
+  - Verified 18 targeted test functions passing in `test_bilingual_declarations.py`.
+
+**Verification**
+- `grep -n 'मूल्य'` in `binder.py` -> 0 token map matches.
+- `grep -n 'अधिकतम राशी'` in `binder.py` -> 0 token map matches.
+- `grep -n 'test_bare_mulya'` in `test_bilingual_declarations.py` -> line 38.
+- Cleared `__pycache__` via `/usr/bin/find`.
+- Executed controlled mutation test (proves RED on defect with 5 failures, GREEN on restore with 18 passed).
+- All 18 tests in `test_bilingual_declarations.py` PASSED (`0.17s`).
+- Full suite executed via `/snap/bin/uv run pytest`: 704 passed, 32 skipped in 33.89s.
+- `ruff check`, `ruff format --check`, `lint-imports`, `git diff --check` all clean (PASS).

@@ -22,37 +22,6 @@ Engineering Priors & Calibration Note:
      This represents a conservative lower-bound confidence estimate for combined
      bilingual extraction fields.
 
-
-Statutory Corpus Citation:
-  Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31):
-  Compilation for Maharashtra State Metrology Department.
-  Source: rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
-  Page 9, Rule 9(4):
-    "(4) The particulars of the declarations required to be specified under this
-    rule on a package shall either be in Hindi in Devanagiri script or in English:
-    Provided that nothing contained in this sub-rule shall prevent the use of any
-    other language in addition to Hindi or English language."
-
-Engineering Priors & Calibration Note:
-  1. Spatial Bounding Multipliers:
-     - MAX_VERTICAL_GAP_MULTIPLIER = 3.0
-     - MAX_HORIZONTAL_OFFSET_MULTIPLIER = 3.0
-     These multipliers define spatial proximity boundaries for pairing Devanagari
-     and Latin declaration spans. They are empirical engineering heuristics (priors)
-     and NOT statutory thresholds specified in LMPC Rule 9(4).
-  2. Confidence Prior:
-     - Paired parse_confidence = min(f1.parse_confidence, f2.parse_confidence)
-     This represents a conservative lower-bound confidence estimate for combined
-     bilingual extraction fields.
-
-
-Rule 9(4) of the Legal Metrology (Packaged Commodities) Rules, 2011
-(rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf, Page 9):
-"The particulars of the declarations required to be specified under this rule on a package
-shall either be in Hindi in Devanagiri script or in English: Provided that nothing contained
-in this sub-rule shall prevent the use of any other language in addition to Hindi or
-English language."
-
 Bilingual declarations in Hindi (Devanagari) and English (Latin) representing the same
 declaration field are spatially paired into single NormalisedField records with plural span_refs.
 """
@@ -107,9 +76,7 @@ _DEVANAGARI_TOKEN_MAP: Final[list[tuple[re.Pattern[str], str]]] = [
     for k, v in [
         ("शुद्ध मात्रा", "Net Qty"),
         ("निवल मात्रा", "Net Qty"),
-        ("अधिकतम राशी", "MRP"),
         ("एमआरपी", "MRP"),
-        ("मूल्य", "MRP"),
         ("रुपये", "Rs."),
         ("रु.", "Rs."),
         ("किलोग्राम", "kg"),
@@ -137,7 +104,12 @@ class ScriptType(StrEnum):
 
 
 def detect_script(text: str) -> ScriptType:
-    """Detect whether text is Devanagari, Latin, Mixed, or Neither script."""
+    """Detect whether text is Devanagari, Latin, Mixed, or Neither script.
+
+    Note: NEITHER indicates the span contains neither Devanagari nor Latin characters.
+    Non-Devanagari scripts (e.g. Tamil, Bengali), pure numbers, and punctuation-only
+    spans will be classified as NEITHER. This is a known limitation.
+    """
     has_dev = bool(_DEVANAGARI_RE.search(text))
     has_lat = bool(_LATIN_RE.search(text))
 
