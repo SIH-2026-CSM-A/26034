@@ -128,12 +128,20 @@ export function ReviewQueue() {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <header className="border-b-2 border-ink">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3">
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3">
           <span className="text-label text-mute">PCCS</span>
           <span className="text-label text-mute">Review queue</span>
-          <span className="ml-auto font-mono text-label">
-            {rows.length} of {scans.length} inspections
-          </span>
+          <div className="ml-auto flex items-center gap-4">
+            <Link
+              to="/officer/new"
+              className="flex min-h-target items-center border border-ink bg-ink px-3 py-1 text-label text-paper hover:bg-ink/90"
+            >
+              + New scan
+            </Link>
+            <span className="font-mono text-label">
+              {rows.length} of {scans.length} inspections
+            </span>
+          </div>
         </div>
       </header>
 
