@@ -1981,3 +1981,148 @@ entry was renumbered from 15 after PIP-003 landed mid-review.
   picked the branch up. I ran the restore anyway; it was a no-op.
   `git diff --numstat origin/main -- session-log/yashashvi.md` is empty. Nothing appended to it —
   it is her log.
+
+## Session 17 — 2026-09-07, RUL-006 (Claude Code, Opus 5)
+
+Retired `applies_to` from the rule store. Branch `rul-006-applies-to-scope-guard`, cut off
+`2817c6b`, then rebased three times as review-window merges landed: onto `acc0815` to open,
+onto `9a96b34` when EXT-007 (#71) and PIP-003 (#74) landed, onto `2f915f4` when MEA-005 (#43)
+landed.
+
+**The claim, established by grep rather than assumed.** `git grep applies_to` over the whole
+repo: two declarations (`modules/rules/models.py`, `contracts/rules.py`), 28 values in
+`rules.yaml`, one write in `pipeline/rule_snapshot.py`, two docstring mentions. Zero reads.
+Grepping the six scope tokens themselves — `retail_packages`, `chapter_ii_packages`,
+`imported_packages`, `medical_device_packages`, `ecommerce_imported_product_listings`,
+`electronic_products_spare_parts_and_accessories` — across `bck/app/` returns only
+`rules.yaml`. No evaluator, condition, dispatch or builder matches a token. The ticket did
+not change shape.
+
+**One correction to the ticket.** It says fourteen rules carry it. It is **28** — every rule
+in the store, because `applies_to` was `Field(min_length=1)`. 29 tokens, 6 distinct, 22 of
+them the single token `retail_packages`.
+
+**Why removal rather than deprecation.** The store has three real answers to "which packages
+does this rule reach": `chapter_ii_scope` (RUL-005), the sector `OverrideTarget`, and
+`governs_declarations`. `applies_to` was a fourth, unenforced, string-typed answer written on
+the rule itself and sitting beside the real gate — and it disagreed with them. Twenty-two
+rules asserted `retail_packages` while the thing that decides retail-vs-not is
+`chapter_ii_scope`; `medical_device_packages` restated a sector override that is executable
+code. Not merely unread: a drifting second statement of something already decided elsewhere.
+A field documented as decorative would be worse than none — `min_length=1` still taxed every
+future rule author, it still travelled into every snapshot, and it still read as a guard.
+
+**The replay hazard was checked, not reasoned about, and it does not exist.** `applies_to`
+was never a field on `RuleParameterSnapshot`. It was a key *inside* `parameters`, typed
+`dict[str, JsonValue]`. `ContractModel`'s `extra="forbid"` governs the model's own fields and
+does not reach inside a dict. Ran the actual read-back — `RuleParameterSnapshot.model_validate`,
+the call `pipeline/responses.py:27` makes on replay — against a historical-shaped row carrying
+`applies_to` plus a junk key no writer ever emitted:
+
+```
+validated OK; parameters keys kept: ['a_key_no_writer_ever_emitted', 'applies_to',
+                                     'conditions', 'declaration_fields', 'evidence_requirement']
+model extra policy: forbid
+top-level extra REJECTED as expected: ValidationError
+```
+
+Rows in `field_findings.rule_snapshot` written before this change replay unchanged after it.
+**No migration, no backfill, no deprecation shim.** Deprecating rather than deleting would
+have been correct if replay broke; it does not.
+
+**A sixth unfalsifiable test, found and deleted rather than adapted.**
+`test_rule_store_contains_only_ticket_authorized_scopes` asserted
+`{scopes} <= allowed_scopes`. It pinned its literals, but a subset assertion is green against
+the empty set — it constrained addition only and could not fail on the removal it appears to
+guard. Measured, not argued: it stayed green while a whole rule was deleted from `rules.yaml`
+during the store-pin falsification below. With the field gone there was no true claim left to
+rename it to, so it is deleted.
+
+**The rule store was already pinned; extended nothing.** `test_explicit_rule_id_gazette_provenance_mapping`
+in `test_loader.py` asserts `actual_mapping == EXPECTED_RULE_GAZETTE_MAPPING` — dict equality
+against 28 literals written in the test. Deleting one rule block from `rules.yaml` turns it red
+and **names the missing id** (`R6-10A-GSR-312E`), so an indentation slip that drops or folds a
+rule during a 28-line deletion cannot pass. A separate count assertion would be redundant:
+the loader already rejects duplicate `rule_id`s, so dict equality pins the set exactly. No
+second test added. Store measured before and after: **28 rules, 28 unique ids, unchanged.**
+
+### Falsifications — every one run without `-x`, bytecode purged with the absolute path and the surviving directory count asserted zero first
+
+| Defect injected | Expected red | Result |
+|---|---|---|
+| Delete one rule block from `rules.yaml` | `test_explicit_rule_id_gazette_provenance_mapping` | red, names `R6-10A-GSR-312E`. 1 failed / 18 passed |
+| Re-add `"applies_to"` to `_parameters` | `test_the_snapshot_emits_exactly_these_parameter_keys` | red on `R3-CHAPTER-II-SCOPE`. **1** failed / 772 passed |
+| Reject `applies_to` inside `parameters` (a future tightening) | `test_a_stored_row_naming_a_retired_parameter_still_replays` | red on the `model_validate` line. **1** failed / 772 passed |
+| Share parameter containers across snapshots | independence guard | **passed** — see below |
+| Share containers **and** widen `parameters` to `dict[str, object]` | `test_editing_one_snapshots_parameters_cannot_reach_the_next` | red |
+| Same-length corpus edit to R6-1-A `evidence_requirement` | both pinned round-trip assertions | red |
+| Same-length corpus edit to R6-1-A's declaration | site 2's `declaration_fields` pin | red |
+
+**Two things `-x` would have hidden, and one thing a careless read would have.**
+
+1. Sharing the parameter containers alone left the suite fully green. The isolation does not
+   come from `deepcopy` or from `_parameters` building fresh containers — it comes from the
+   `dict[str, JsonValue]` annotation, which rebuilds every container on validation. That is
+   what `snapshot_from_rule`'s docstring already says, and it is the same family as the
+   documented non-load-bearing `deepcopy`. Only widening the annotation *and* sharing the
+   containers turns the test red, which is precisely the combination the docstring warns
+   about. Reported rather than papered over.
+2. Under that defect the test first reported on the `conditions` assertion, which precedes
+   the retargeted `declaration_fields` one. Swapping the two lines to isolate it confirmed
+   the retargeted assertion fails on its own — `['NAME_AND_ADDRESS', 'MUTATED'] !=
+   ['NAME_AND_ADDRESS']` — then the order was restored. Without that step this would have
+   been a false confirmation of exactly the shape MEA-009's session hit.
+3. Four assertions compared the snapshot against the rule it came from
+   (`== rule.evidence_requirement`, `== original`). Those are now pinned literals. **Measured
+   counterfactual:** with a same-length corpus edit in place, the old self-comparison form
+   passes 19/19 while the pinned form goes red. That is the RUL-005 self-comparison failure
+   mode, closed in these two tests.
+
+### Numbers, measured in-session, not predicted
+
+`origin/main` at **`2f915f4`**: **800 passed / 32 skipped**. This branch: **801 / 32**.
+Net **+1** — two guards added, one unfalsifiable test deleted. Zero regressions, zero new
+skips. CI reports roughly 45 higher, because the runner provides Postgres and un-skips the
+30 postgres-marked tests. `ruff check` exit 0, `ruff format --check` exit 0 over 148 files, `lint-imports` exit 0
+over 112 files and 377 dependencies, 3 contracts kept / 0 broken. Every exit code read
+directly, never through a pipe.
+
+The `origin/main` baseline moved four times while this branch was open, and every one was
+measured here rather than carried forward: **772/32** at `2817c6b` when the branch was cut,
+**780/32** at `acc0815` after #72 and #73, **795/32** at `9a96b34` after #71 and #74,
+**800/32** at `2f915f4` after #43. The delta held at **+1** across all four. MEA-005 also
+added a dependency, so `uv sync` ran before the last measurement — a baseline taken against a
+stale venv is not a baseline.
+
+### Not done, deliberately
+
+- **`contracts.RuleDefinition.applies_to` (`contracts/rules.py:60`) is left in place.** A
+  second, separately decorative copy — but it defaults to `()`, so unlike the store's
+  `min_length=1` it taxes no rule author, and it is reachable only through
+  `RuleParameterSnapshot.from_rule`, which nothing in `bck/app/` calls (the pipeline goes
+  through `snapshot_from_rule`). Removing it would widen a rules ticket into a contracts one
+  on the single-owner surface that lands in everyone's rebase, alongside the open #73.
+  **Follow-up, not oversight.**
+- **`modules/rules/results.py` and `placement.py` untouched** — RUL-007, blocked on another
+  branch.
+- **The HTTP surface was not exercised.** `app.main` still refuses to boot without four model
+  weight paths absent from this machine. The replay path is covered through
+  `RuleParameterSnapshot.model_validate` directly, which is the call `finding_from_row` makes.
+- **Docs are on a separate branch and its PR is not opened** — see below.
+
+### Docs
+
+`ARCHITECTURE.md` and `TICKETS.md` changes are prepared on **`docs-003-rul-006-applies-to`**,
+rebased onto `2f915f4`, committed and left unopened so four other queued doc corrections can
+ride the same PR.
+
+**Two rebase conflicts, both resolved by reconstruction.** PIP-003 (#74) and then MEA-005
+(#43) each appended their own block to `session-log/abhiram.md` while this branch was open.
+Both times `origin/main`'s file was taken verbatim and this block appended below theirs — no
+conflict marker was edited either time. `git diff --numstat origin/main --
+session-log/abhiram.md` shows **140 added, 0 deleted**. Session numbering was re-read from the
+file after every rebase rather than assumed, and moved twice: 14 went to MEA-009, 15 to
+PIP-003, 16 to MEA-005, so this is **17**.
+`pipeline/responses.py` also changed in that window; `finding_from_row` still makes the
+`RuleParameterSnapshot.model_validate` call the replay guard cites, checked rather than
+assumed.
