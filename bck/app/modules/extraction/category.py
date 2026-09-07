@@ -11,6 +11,8 @@ recalibrated once an evaluation dataset exists.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Final
 
 from app.contracts import (
@@ -47,7 +49,7 @@ _FOOD_STATUTORY_RE: Final[re.Pattern[str]] = re.compile(
 # were removed as they represent Category B/C scope rules/illustrations rather than
 # Category A statutory category definitions. "TEA" and "COFFEE" remain removed as unsourced.
 _FOOD_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER)\b",
+    r"\b(?:BISCUITS?|EDIBLE\s+OIL|VANASPATI|GHEE|BUTTER)\b",
     re.IGNORECASE,
 )
 
@@ -247,6 +249,166 @@ def propose_category(result: ExtractionResult) -> CategoryProposal | None:
 
     return CategoryProposal(
         category=top_cat,
+        confidence=top_score,
+        span_refs=unique_spans,
+        reason=reason,
+    )
+
+
+class DisplayCategory(StrEnum):
+    PACKAGED_FOOD = "packaged_food"
+    COSMETICS = "cosmetics"
+    NON_FOOD_PACKAGED_GOODS = "non_food_packaged_goods"
+    ELECTRONICS = "electronics"
+    HOUSEHOLD = "household"
+
+
+@dataclass(frozen=True)
+class DisplayCategoryTaxonomy:
+    category: DisplayCategory
+    parent_category: DisplayCategory | None
+    path: tuple[str, ...]
+    confidence: float
+    span_refs: tuple[str, ...]
+    reason: str
+
+
+# Electronics Lexical Commodities: Non-food packaged goods branch
+_ELECTRONICS_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:SMARTPHONE|MOBILE\s+PHONE|PHONE|CHARGER|HEADPHONES|EARBUDS|ELECTRONICS)\b",
+    re.IGNORECASE,
+)
+
+# Household Lexical Commodities: Non-food packaged goods branch
+_HOUSEHOLD_LEXICAL_RE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:DETERGENT|CLEANER|DISINFECTANT|DISHWASH(?:ING)?)\b",
+    re.IGNORECASE,
+)
+
+
+def classify_display_category(result: ExtractionResult) -> DisplayCategoryTaxonomy | None:
+    """Classify product into visual display taxonomy hierarchy.
+
+    Hierarchical display taxonomy:
+    packaged_goods
+    ├── packaged_food
+    ├── cosmetics
+    └── non_food_packaged_goods
+        ├── electronics
+        └── household
+
+    Note: This is strictly a display taxonomy classification and does NOT alter
+    legal sector ProductCategory or CategoryProposal semantics.
+    """
+    if not result.fields and not result.unclassified_spans:
+        return None
+
+    cat_spans: dict[DisplayCategory, list[str]] = {
+        DisplayCategory.PACKAGED_FOOD: [],
+        DisplayCategory.COSMETICS: [],
+        DisplayCategory.ELECTRONICS: [],
+        DisplayCategory.HOUSEHOLD: [],
+    }
+
+    def _eval_display_text(
+        text: str,
+        span_ids: tuple[str, ...],
+        field_type: DeclarationField | None = None,
+    ) -> None:
+        if not text or not span_ids:
+            return
+
+        if _FOOD_STATUTORY_RE.search(text) or (
+            _FOOD_LEXICAL_RE.search(text)
+            and (field_type is None or field_type == DeclarationField.COMMON_OR_GENERIC_NAME)
+        ):
+            cat_spans[DisplayCategory.PACKAGED_FOOD].extend(span_ids)
+
+        if _COSMETICS_STATUTORY_RE.search(text) or (
+            _COSMETICS_LEXICAL_RE.search(text)
+            and (field_type is None or field_type == DeclarationField.COMMON_OR_GENERIC_NAME)
+        ):
+            cat_spans[DisplayCategory.COSMETICS].extend(span_ids)
+
+        if _ELECTRONICS_LEXICAL_RE.search(text) and (
+            field_type is None or field_type == DeclarationField.COMMON_OR_GENERIC_NAME
+        ):
+            cat_spans[DisplayCategory.ELECTRONICS].extend(span_ids)
+
+        if _HOUSEHOLD_LEXICAL_RE.search(text) and (
+            field_type is None or field_type == DeclarationField.COMMON_OR_GENERIC_NAME
+        ):
+            cat_spans[DisplayCategory.HOUSEHOLD].extend(span_ids)
+
+    for norm_field in result.fields:
+        _eval_display_text(norm_field.normalised_value, norm_field.span_refs, norm_field.field_type)
+
+    for unclass_span in result.unclassified_spans:
+        _eval_display_text(unclass_span.text, (unclass_span.span_id,), None)
+
+    scores: dict[DisplayCategory, float] = {}
+    for cat in (
+        DisplayCategory.PACKAGED_FOOD,
+        DisplayCategory.COSMETICS,
+        DisplayCategory.ELECTRONICS,
+        DisplayCategory.HOUSEHOLD,
+    ):
+        if cat_spans[cat]:
+            scores[cat] = CONFIDENCE_LEXICAL_SIGNAL
+        else:
+            scores[cat] = 0.0
+
+    active = [c for c, score in scores.items() if score > 0.0]
+    if not active:
+        return None
+
+    active.sort(key=lambda c: (scores[c], c.value), reverse=True)
+    top_cat = active[0]
+    top_score = scores[top_cat]
+
+    if len(active) > 1 and scores[active[1]] >= top_score:
+        return None
+
+    raw_spans = cat_spans[top_cat]
+    unique_spans = tuple(dict.fromkeys(raw_spans))
+    if not unique_spans:
+        return None
+
+    parent_map: dict[DisplayCategory, DisplayCategory | None] = {
+        DisplayCategory.PACKAGED_FOOD: None,
+        DisplayCategory.COSMETICS: None,
+        DisplayCategory.ELECTRONICS: DisplayCategory.NON_FOOD_PACKAGED_GOODS,
+        DisplayCategory.HOUSEHOLD: DisplayCategory.NON_FOOD_PACKAGED_GOODS,
+    }
+    path_map: dict[DisplayCategory, tuple[str, ...]] = {
+        DisplayCategory.PACKAGED_FOOD: ("packaged_goods", "packaged_food"),
+        DisplayCategory.COSMETICS: ("packaged_goods", "cosmetics"),
+        DisplayCategory.ELECTRONICS: (
+            "packaged_goods",
+            "non_food_packaged_goods",
+            "electronics",
+        ),
+        DisplayCategory.HOUSEHOLD: (
+            "packaged_goods",
+            "non_food_packaged_goods",
+            "household",
+        ),
+    }
+
+    parent = parent_map[top_cat]
+    path = path_map[top_cat]
+
+    path_str = "/".join(path)
+    spans_str = ", ".join(unique_spans)
+    reason = (
+        f"Display category classified as '{top_cat.value}' (path: {path_str}) "
+        f"with confidence {top_score:.2f} (evidence spans: {spans_str})."
+    )
+
+    return DisplayCategoryTaxonomy(
+        category=top_cat,
+        parent_category=parent,
+        path=path,
         confidence=top_score,
         span_refs=unique_spans,
         reason=reason,
