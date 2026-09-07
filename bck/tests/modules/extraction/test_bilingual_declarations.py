@@ -392,3 +392,51 @@ def test_span_conservation_assertion():
         output_span_ids.add(span.span_id)
 
     assert input_span_ids == output_span_ids
+
+
+def test_same_field_type_agreeing_and_disagreeing_pairs():
+    """Reviewer Fix: Disagreeing and agreeing bilingual pairs of same type
+    must not cause CTR-006 validation error.
+    """
+    s_lat_a = _make_span("lat1", "Net Qty 500g", region_id="r1", y0=100.0, y1=130.0)
+    s_dev_a = _make_span("dev1", "निवल मात्रा २५० ग्राम", region_id="r1", y0=140.0, y1=170.0)
+
+    s_lat_b = _make_span("lat2", "Net Qty 500g", region_id="r1", y0=200.0, y1=230.0)
+    s_dev_b = _make_span("dev2", "निवल मात्रा ५०० ग्राम", region_id="r1", y0=240.0, y1=270.0)
+
+    res = bind_spans([s_lat_a, s_dev_a, s_lat_b, s_dev_b])
+
+    assert len(res.disagreements) == 1
+    dis = res.disagreements[0]
+    assert dis.field_type == DeclarationField.NET_QUANTITY
+    assert dis.reason == DisagreementReason.BILINGUAL_VALUE_MISMATCH
+    assert len(dis.readings) == 2
+    assert all(
+        field.field_type != DeclarationField.NET_QUANTITY
+        for field in res.fields
+    )
+
+    # Both competing readings preserved
+    span_refs_in_readings = set()
+    for r in dis.readings:
+        span_refs_in_readings.update(r.span_refs)
+    assert span_refs_in_readings == {"lat1", "dev1"}
+
+
+def test_contested_type_unpaired_third_span_lands_in_unclassified():
+    """Phase 4: An unpaired single span of a contested field_type lands in unclassified_spans."""
+    s_lat_a = _make_span("lat1", "Net Qty 500g", region_id="r1", y0=100.0, y1=130.0)
+    s_dev_a = _make_span("dev1", "निवल मात्रा २५० ग्राम", region_id="r1", y0=140.0, y1=170.0)
+
+    s_lat_b = _make_span("lat2", "Net Qty 500g", region_id="r1", y0=200.0, y1=230.0)
+    s_dev_b = _make_span("dev2", "निवल मात्रा ५०० ग्राम", region_id="r1", y0=240.0, y1=270.0)
+
+    # Third span: Latin NET_QUANTITY, unpaired, distant (y0=700.0) so not spatially adjacent
+    s_unpaired = _make_span("lat3", "Net Qty 100g", region_id="r1", y0=700.0, y1=730.0)
+
+    res = bind_spans([s_lat_a, s_dev_a, s_lat_b, s_dev_b, s_unpaired])
+
+    assert len(res.disagreements) == 1
+    assert all(field.field_type != DeclarationField.NET_QUANTITY for field in res.fields)
+    unclassified_ids = {span.span_id for span in res.unclassified_spans}
+    assert "lat3" in unclassified_ids

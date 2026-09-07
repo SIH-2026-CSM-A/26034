@@ -707,10 +707,13 @@ def bind_spans(spans: Sequence[ExtractedSpan]) -> ExtractionResult:
     bilingual_fields, bilingual_disagreements, bilingual_consumed = _pair_bilingual_fields(
         spans, consumed_span_ids
     )
-    fields.extend(bilingual_fields)
-    consumed_span_ids.update(bilingual_consumed)
-
     contested_field_types = {d.field_type for d in bilingual_disagreements}
+
+    uncontested_bilingual_fields = [
+        f for f in bilingual_fields if f.field_type not in contested_field_types
+    ]
+    fields.extend(uncontested_bilingual_fields)
+    consumed_span_ids.update(bilingual_consumed)
 
     unclassified_spans: list[ExtractedSpan] = []
     for span in spans:

@@ -194,3 +194,29 @@
 - `__pycache__` count: 0 (after `/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +`).
 - No contracts files modified (`bck/app/contracts/**` untouched).
 - No AI-attribution trailer.
+
+### 2026-09-07 — EXT-007 Reviewer Blocker Fix: Same-Field-Type Agreeing & Disagreeing Pairs (Sitanshu)
+
+**Done**
+- Resolved Reviewer Blocker Defect: Fixed ordering and filtering in ind_spans() in ck/app/modules/extraction/binder.py where ields.extend(bilingual_fields) was executing before computing contested_field_types.
+- Fix Implementation:
+  - Computed contested_field_types = {d.field_type for d in bilingual_disagreements} from ilingual_disagreements.
+  - Filtered ilingual_fields to construct uncontested_bilingual_fields excluding any field whose ield_type is in contested_field_types.
+  - Extended only uncontested_bilingual_fields into ields.
+  - Guaranteed invariant: If a ield_type appears in disagreements, that ield_type MUST NOT appear in ields, preventing Pydantic ExtractionResult disjointness validation failures when multiple bilingual pairs of the same obligation exist on a package.
+- Regression Tests Added (ck/tests/modules/extraction/test_bilingual_declarations.py):
+  - 	est_same_field_type_agreeing_and_disagreeing_pairs: Verifies 4 spans forming 2 bilingual NET_QUANTITY pairs (Pair A disagreeing 500g vs 250g, Pair B agreeing 500g vs 500g). Asserts ind_spans() constructs without ValueError, NET_QUANTITY appears in disagreements, NET_QUANTITY does NOT appear in ields, len(disagreements) == 1, and both competing readings are preserved.
+  - 	est_contested_type_unpaired_third_span_lands_in_unclassified: Verifies an unpaired single span of a contested ield_type lands in unclassified_spans.
+- Falsification:
+  - Temporarily bypassed uncontested_bilingual_fields filtering (restored unconditional ields.extend(bilingual_fields)).
+  - Executed pytest -> Failed RED with expected Pydantic ValidationError: field_types ['NET_QUANTITY'] appear in both fields and disagreements.
+  - Restored uncontested_bilingual_fields filter -> Passed GREEN.
+- Quality Gates:
+  - pytest tests/modules/extraction/test_bilingual_declarations.py -> 28 passed in 0.86s.
+  - Full pytest -> 782 passed, 32 skipped in 16.18s.
+  -
+uff format --check . -> clean (148 files formatted).
+  -
+uff check . -> clean (All checks passed!).
+  - lint-imports -> clean (3 contracts kept, 0 broken).
+  - __pycache__ count: 0 (excluding .venv).
