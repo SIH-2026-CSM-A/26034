@@ -6,6 +6,8 @@ from app.contracts import (
     MeasurementExact,
     MeasurementMarginCalibrated,
     MeasurementMarginExact,
+    MeasurementMarginOverlapCalibrated,
+    MeasurementMarginOverlapExact,
     MeasurementRefusal,
     MeasurementResult,
 )
@@ -618,7 +620,17 @@ def measure_margins(
     for direction, dist_px in distances_px.items():
         dist_mm = dist_px * mm_per_pixel
         if dist_mm < 0:
-            results[direction] = MeasurementRefusal(reason="Margin overlaps active ink region.")
+            if is_artwork:
+                results[direction] = MeasurementMarginOverlapExact(overlap=abs(dist_mm), unit="mm")
+            else:
+                confidence_floor = UNCALIBRATED_QUANTISATION_PRIOR_PX * mm_per_pixel
+                confidence = max(abs(dist_px) * conf_interval, confidence_floor)
+                results[direction] = MeasurementMarginOverlapCalibrated(
+                    overlap=abs(dist_mm),
+                    confidence_interval=confidence,
+                    unit="mm",
+                    reference_object=ref_type,
+                )
             continue
 
         if is_artwork:

@@ -52,3 +52,9 @@
 - Resolved E501 formatting lint errors by structuring MeasurementRefusal strings.
 - Fixed synthetic test focal length to correctly match application's image-diagonal assumption.
 - Corrected homography math in services.py to properly compute the optical center shift (dx, dy) and apply an inverse translation matrix, achieving true perspective scale recovery.
+
+## 2026-09-08 — MEA-011
+- Replaced MeasurementRefusal with MeasurementMarginOverlapExact and MeasurementMarginOverlapCalibrated for negative clearances in measure_margins.
+- Used Antigravity to safely inject and revert defects to falsify test boundaries (flush limits, type dispatch, and magnitude constraints).
+- Refactored test_margin_overlap_is_negative to verify both artwork and calibrated paths using literal expected values.
+- Verified all tests pass cleanly.

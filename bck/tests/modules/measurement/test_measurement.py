@@ -397,10 +397,15 @@ def test_zero_margin_calibrated_path():
 
 
 def test_margin_overlap_is_negative():
-    """Assert margins that overlap active ink return negative distances."""
+    """Assert margins that overlap active ink return overlap measurements."""
+    import cv2
     import numpy as np
 
-    from app.contracts import MeasurementRefusal
+    from app.contracts import (
+        MeasurementMarginOverlapCalibrated,
+        MeasurementMarginOverlapExact,
+        MeasurementRefusal,
+    )
     from app.modules.measurement.services import measure_margins
 
     image = np.ones((100, 100), dtype=np.uint8) * 255
@@ -408,15 +413,34 @@ def test_margin_overlap_is_negative():
 
     bbox = (50, 50, 20, 20)
 
-    results = measure_margins(
+    # 1. Artwork Path
+    results_artwork = measure_margins(
         image,
         bbox,
         is_artwork=True,
         artwork_dpi=25.4,
     )
 
-    assert isinstance(results["above"], MeasurementRefusal)
-    assert "overlap" in results["above"].reason.lower()
+    assert not isinstance(results_artwork["above"], MeasurementRefusal)
+    assert isinstance(results_artwork["above"], MeasurementMarginOverlapExact)
+    assert results_artwork["above"].overlap == 10.0
+
+    # 2. Calibrated Path
+    ref_image = np.zeros((100, 100), dtype=np.uint8)
+    cv2.circle(ref_image, (50, 50), 30, 255, -1, cv2.LINE_AA)
+
+    results_calib = measure_margins(
+        image,
+        bbox,
+        ref_image=ref_image,
+        ref_type="coin_10",
+        is_artwork=False,
+    )
+
+    assert not isinstance(results_calib["above"], MeasurementRefusal)
+    assert isinstance(results_calib["above"], MeasurementMarginOverlapCalibrated)
+    assert results_calib["above"].overlap > 0.0
+    assert results_calib["above"].confidence_interval > 0.0
 
 
 def test_coin_oblique_synthetic_geometry():
