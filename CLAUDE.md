@@ -39,9 +39,10 @@ session. Measure on `origin/main` in your own session, with a clean tree and byt
 purged, before claiming a delta. CI reports roughly 30 higher because it un-skips the
 postgres-marked tests.
 
-`origin/main` at `d9c44fa` measured **801 passed / 32 skipped** locally on 2026-09-07. That
-figure is recorded as a worked example of the measurement, not as a baseline to quote — it was
-already wrong once before this line was written.
+`origin/main` measured **801 passed / 32 skipped** at `d9c44fa` and **820 / 32** at `a4e462c`
+on 2026-09-07 — three merges apart, an hour apart. Both figures are recorded as worked examples
+of the measurement, not as baselines to quote. That is the point: the number moved while the
+sentence describing it was being written.
 
 **Derive the CI delta; never carry it.** CI reports **+30 passed and -30 skipped**, and it is 30
 because exactly thirty tests are postgres-marked and the runner provides a Postgres service. Read

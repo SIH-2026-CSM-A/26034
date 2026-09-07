@@ -208,12 +208,19 @@ where this one was wrong.
 - **`main` is at `d9c44fa`** (RUL-006, #75). Verify the SHA rather than trusting this line.
 - **The local `main` branch in `~/NewProjects/26034` is at `49a6a87` and is behind
   `origin/main`.** A branch cut from local `main` starts stale. Cut from `origin/main`.
-- **Baseline: measure it, do not read it.** `origin/main` at `d9c44fa` measured **801 passed /
-  32 skipped** locally in Session 14, with a clean tree and bytecode purged. That number will
-  be wrong by the next merge. **The CI delta is +30 passed and −30 skipped, and it is 30
-  because there are exactly thirty postgres-marked tests the runner un-skips because it
-  provides a Postgres service.** Derive it from the skip count; do not carry the figure. CI on
-  the `rul-007` branch reported 835/2 against a local 801/32 plus RUL-007's four new tests.
+- **Baseline: measure it, do not read it.** `origin/main` measured **801 passed / 32 skipped**
+  at `d9c44fa` and **820 / 32** at `a4e462c` on the same afternoon, clean tree, bytecode
+  purged. Three merges apart, one hour apart. **That number will be wrong by the next merge and
+  it went stale between two runs in the same session.** The CI delta is **+30 passed and −30
+  skipped, and it is 30 because there are exactly thirty postgres-marked tests the runner
+  un-skips because it provides a Postgres service.** Derive it from the skip count; do not carry
+  the figure. CI on the `rul-007` branch reported 835/2 against a local 801/32 plus RUL-007's
+  four new tests, which is the derivation checking out.
+- **One test in the suite asserts against a wall clock and flakes under load.**
+  `tests/modules/vision/test_preprocess.py:147` asserts `elapsed < 0.5` for a 3000x4000
+  `remap_curvature`. It takes 0.16 s in isolation and measured 1.26 s during a full run on a
+  loaded machine, failing the build. If a run goes red on that test alone, re-run it in
+  isolation before believing your diff caused it.
 - **Do not write a CI count into a file that ships in the same commit.** It is stale on the
   next merge. Write the mechanism, not the number.
 - **`uv sync` before measuring a baseline.** MEA-005 added `pdfplumber`. A baseline against a
@@ -507,18 +514,28 @@ element and paints nothing. Scope with `useId`. Only a real browser at two width
 
 ## Where the board stands, dated 2026-09-07
 
+**`main` is at `a4e462c`, and it moved three times in nine minutes while this file was being
+written.** #76 RUL-007, #46 EVD-005 and #78 FNT-004 all merged; #77 DAT-005 opened. Every OID
+below is a timestamp, not a fact — re-read before acting.
+
 **Merged 2026-09-07:** #62 CORE-003 · #56 EXT-006 · #64 DAT-003 docs · #47 MEA-006 · #65 CTR-006
 · #67 PIP-004 · #68 RUL-005 · #69 docs · #70 docs · #71 EXT-007 · #73 MEA-009 Part A ·
-#72 FNT-003 · #74 PIP-003 · #43 MEA-005 · #75 RUL-006.
+#72 FNT-003 · #74 PIP-003 · #43 MEA-005 · #75 RUL-006 · #76 RUL-007 · #46 EVD-005 · #78 FNT-004.
 
 **Open PRs:**
 
 | PR | Owner | Ticket | Head | Base | State |
 |---|---|---|---|---|---|
-| #76 | Abhiram | RUL-007 | — | current | Open, three checks green. Free space is a clearance or an overlap. |
+| #77 | Abhiram | DAT-005 | `2095971` | `d9c44fa` | Open, three checks green. Twelve annotated captures, uncalibrated throughout, and a populated manifest. **The highest-value item on the board.** Read it against `ingest_images.py` first — the manifest uses `records`, the writer writes `samples`. |
 | #63 | Akshaya | VIS-004 | `7bc6307` | `9a96b34` | **Blocked, and worse than previously reported.** `test_ocr.py` is 27 lines: five `pass` bodies and a `test_placeholder_ocr`. Three checks green over a hollow suite. |
-| #66 | Sitanshu | EXT-008 | `b5767fb` | `d9c44fa` | **One item left.** Page-9 citation removed, `UNSUPPORTED` separates script-bearing text from noise, session log fixed, the 20-assertion test split into seven. `MIXED` now means any two of five. |
-| #46 | Shiva | EVD-005 | `981eb73` | `a95e8fb` | Format fixed, three checks green — **on a base eleven merges stale.** CORE-003 rebase and the `storage_key` false attestation still owed. |
+| #66 | Sitanshu | EXT-008 | `28f90c0` | `d9c44fa` | **One item left.** Page-9 citation removed, `UNSUPPORTED` separates script-bearing text from noise, session log fixed, the tests split into named claims. `binder.py` is unchanged since `b5767fb`, so `MIXED` still means any two of five. |
+
+**#46 merged with half its blocker fixed.** The false attestation is closed —
+`retention.py:106` aborts on a storage miss instead of writing an audit entry. The key
+derivation still differs from the CAS write path (`payload_hash` vs `sha256(image_bytes)`), and
+whether they coincide depends on what a caller passes as `payload` — **and retention has no
+caller**. Undetermined at runtime, untestable today, and it will be settled by whoever wires it.
+Tracked as EVD-007. Do not write it into the `done` EVD-005 ticket.
 
 **Sessions running at handoff — ask Abhiram for both outputs before acting:**
 `DAT-005` in `~/26034-dat` on `dat-005-annotate-staged-captures`, annotating the staged captures;

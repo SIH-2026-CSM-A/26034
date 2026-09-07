@@ -3,10 +3,14 @@
 ClickUp is the source of truth. This file mirrors it. `done` is terminal; nothing moves to
 `complete`.
 
-`main` is at `d9c44fa`. Every head OID, base OID and check result below was read from
+`main` is at `a4e462c`. Every head OID, base OID and check result below was read from
 `gh pr view` in this session, not carried from a previous handoff. **Two of the three open PRs
 had moved since they were last reviewed, and in both cases the previous item list was wrong in
 both directions.** Re-read the head before acting on anything here.
+
+**`main` moved three times while this file was being written** — #76 RUL-007, #46 EVD-005 and
+#78 FNT-004 all merged within nine minutes, and #77 DAT-005 opened. That is the ordinary rate on
+this board. Treat every OID here as a timestamp, not a fact.
 
 **Connector note:** ClickUp MCP works, but **custom-field writes are capped on this plan** —
 `clickup_update_task` with `custom_fields` returns *"Custom field usages exceeded for your
@@ -24,6 +28,9 @@ plan"*. Name and status updates work.
 | PIP-003 | #74 | Abhiram | `propose_category` wired into `pipeline/orchestrator.py:283` as a proposal that never writes itself into the confirmed category. |
 | MEA-005 | #43 | Yashashvi | Artwork vector ingest. Taken over on her branch with commits on top and `--force-with-lease` — her authorship and commit messages are intact. `pdfplumber` added. |
 | RUL-006 | #75 | Abhiram | `applies_to` retired from the rule store. |
+| RUL-007 | #76 | Abhiram | Free space is a clearance or an overlap. `SideClearance` / `SideOverlap` discriminated union; `Rule8FreeSpaceEvaluation.overlapping_sides`. Merged 15:02. |
+| EVD-005 | #46 | Shiva Kumar | Retention and purge. Merged 15:06 — **see the note below; it merged with the storage-key defect open.** |
+| FNT-004 | #78 | Vineeth | Scan detail and submission screens on the live client. `ScanSubmission.tsx` new, `VerdictDetail.tsx` migrated. Merged 15:11. |
 | — | #70 | Abhiram | Docs: Session 13 handoff. Merged 09:13 and recorded in no board file until now. |
 
 Also merged earlier the same day, recorded in the Session 13 board: #62 CORE-003, #56 EXT-006,
@@ -49,19 +56,32 @@ Also merged earlier the same day, recorded in the Session 13 board: #62 CORE-003
 
 ## Open PRs — exact remaining items
 
-### PR #76 — RUL-007 free-space overlap states · Abhiram · `rul-007-free-space-overlap-states`
+### PR #77 — DAT-005 annotate the real captures · Abhiram · `dat-005-annotate-staged-captures`
 
-Head `6526b51`, base `d9c44fa` (current main), three checks green. Ready.
+Head `2095971`, base `d9c44fa`, three checks green. **The highest-value item on the board.**
 
-`SideClearance` (`distance_mm`, `NonNegativeDecimal`, `0.0` == flush) and `SideOverlap`
-(`overlap_mm`, `PositiveDecimal`) as a discriminated union; `Rule8FreeSpaceEvaluation` gains
-`overlapping_sides` separate from `deficient_sides`. This closes the `FreeSpaceMeasurement`
-bug where `modules/rules/results.py:82` typed all four clearances as `PositiveDecimal`, so
-`evaluate_rule8_free_space` rejected `0.0` as well as any intrusion.
+Twelve annotation files across six SKUs (two captures each: colgate 100 g, aarambh oats 1.5 kg,
+aashirvaad atta 1 kg, dhara oil 1 L, mdh masala 100 g, parle-g 82.5 g), **uncalibrated
+throughout**, plus a populated `datasets/manifest.json` — twelve `records`, each with a
+`sha256`, a `relative_image_path` and an `annotation_path`.
 
-**It touches `TODO.md +15/-2`, and so does this docs PR.** Whichever lands second resolves the
-conflict by reconstruction, not by editing markers. Merge order is a choice, not an accident —
-pick one.
+**Two things to read before merging.**
+
+1. **`datasets/manifest.json` is hand-written and uses the key the tests read, not the key the
+   writer writes.** The new manifest has a top-level `records` array;
+   `bck/tests/contracts/test_manifest_integrity.py:16,41` loops `records`, so those two tests
+   stop being vacuous the moment this merges — good. But `datasets/ingest_images.py:47-52`
+   writes `samples`. **Running the ingest script would replace this manifest with one the tests
+   silently skip.** The divergence has changed shape, not closed: it was two vacuous tests over
+   an empty stub, and becomes two real tests over a hand-maintained file that the project's own
+   tool would destroy. Fix the writer, or delete it.
+2. Check Rule 26 against the corpus for anything at or under 10 g / 10 ml. None of these six is,
+   so the exemption should not appear — confirm it does not.
+
+This PR also edits `TODO.md +43/-5` and `session-log/abhiram.md +215/-0`, and so does the
+Session 14 docs PR. **Whichever lands second resolves by reconstruction** — take main's file
+verbatim, append, prove it with `git diff --numstat` showing zero deletions. Merge order is a
+choice; pick one.
 
 ### PR #63 — VIS-004 model weights · Akshaya · `vis-004-model-weights-bootstrap`
 
@@ -173,35 +193,30 @@ docstring what it now means. Add the test that pins whichever you choose.
 
 **Also owed:** the falsification. No defect injection is reported for the seven new claim tests.
 
-### PR #46 — EVD-005 retention and purge · Shiva Kumar · `evd-005-retention-purge`
+### EVD-005 merged as #46 — one item followed it onto `main`
 
-Head `981eb73`, base `a95e8fb`, **three checks green**.
+Merged 15:06. The false-attestation half of the blocker **is closed**, and this is worth stating
+precisely because the previous review overstated what remained.
 
-**The green ticks are real and they verified a tree eleven merges behind `main`.** "Require
-branches to be up to date before merging" is deliberately off, so this passes the gate while
-having been tested against a repository that predates CORE-003. Read the base OID, not the
-colour.
+`modules/evidence/retention.py:106-111` now aborts on a storage miss —
+`if not purged: return "asset_not_found", None` — so a key that finds nothing produces no audit
+entry. The chain can no longer attest a destruction that did not happen. That was the item that
+made the feature dishonest, and it is fixed.
 
-- ✅ **The Format check is fixed.** `ruff format` was the blocker; it runs before Lint, Import
-  boundaries and Tests, so nothing in the PR had been CI-verified. It has been now — against
-  `a95e8fb`.
-- ✅ Scope is clean: six files, all his module plus his session log. `config.py`,
-  `repository.py` and `test_persistence.py` are out of the diff; the ownership escalation is
-  cleared.
+**What followed it onto `main`:** the key derivation still differs from the write path.
+`retention.py:105` derives `f"evidence/{entry.payload_hash}"`; `storage.py:52` and `:107` key on
+`hashlib.sha256(image_bytes)`. Whether those coincide depends entirely on what a caller passes
+as `payload` to `create_genesis_entry(payload: dict | str, …)` — **and there is no caller**.
+`grep -rn "retention\|purge_evidence" bck/app/pipeline/ bck/app/main.py` is empty. So the
+question is undetermined at runtime and untestable today, and it will be settled by whoever
+wires it. If they do not coincide, destructive purge reports `asset_not_found` forever and
+retention is inoperative — quietly, and honestly, but inoperative.
 
-**Blockers:**
-
-1. **Rebase onto `main`.** `asset_type` is required with no default and inside
-   `compute_entry_hash`. `create_genesis_entry` and `append_entry` must take it as a **required
-   parameter** — a constructor default reintroduces at the call site exactly what the
-   no-default column prevents. Member set is **three**, not five. `EvidenceAssetType` lives in
-   `app.contracts`; delete any local definition and import it.
-2. **The `storage_key` false attestation is the blocker of substance.** It keys on
-   `payload_hash` while the CAS client keys on image bytes, so `purge_evidence` returns `True`
-   and writes an immutable chain entry attesting a destruction that never happened. CORE-003
-   did not touch it. This is the one item that makes the feature actively wrong rather than
-   incomplete.
-3. The remaining review items from the first pass stand.
+**Follow-up ticket, EVD-007: make the key derivation single-sourced.**
+`modules/evidence/domain.py:36` already exposes `f"evidence/{self.payload_hash}"` as a property;
+`storage.py` computes its own. One of them should be the only place the key is formed, and the
+wiring ticket should assert they agree rather than assuming it. Do **not** write this into the
+already-`done` EVD-005 ticket — open EVD-007.
 
 ---
 
@@ -260,16 +275,15 @@ on this project. An uncalled function is invisible to CI and to review.
 **needs a rebase — `services.py` changed under it in #43.** MEA-008 may legitimately close as a
 finding that the artefact does not exist.
 
-**FNT-004 — Vineeth. Unblocked by #72. New.** Move the next officer screen off
-`fnt/src/fixtures/` and onto the generated client. **Run `npm run generate:api` first** —
-PIP-003 (#74) changed the OpenAPI schema and the checked-in
-`fnt/src/services/generated/schema.d.ts` predates it. Do not hand-edit anything under
-`generated/`. Tailwind only, no CSS-in-JS. Verify at two widths in a real browser before
-claiming it works — a duplicate SVG pattern `id` across breakpoint variants resolves `url(#…)`
+**FNT-004 landed as #78** — scan detail and submission screens on the live client.
+`ScanSubmission.tsx` is new (347 lines), `VerdictDetail.tsx` migrated (+220/-154),
+`schema.d.ts` regenerated (+35). **Nobody has watched these screens against a running backend**,
+because the backend does not boot without model weights. Verify at two widths in a real browser
+before it is demoed — a duplicate SVG pattern `id` across breakpoint variants resolves `url(#…)`
 to the hidden element and paints nothing, and only a browser catches it.
 
-**EVD-006 — Shiva.** The report export takes mock shapes and needs a real `VerdictRecord`.
-Unblocked; he should be on it rather than idle while #46 is in review.
+**EVD-006 — Shiva. Unblocked and he is now free.** The report export takes mock shapes and needs
+a real `VerdictRecord`. EVD-007 (above) is his too.
 
 **TAM-002 — Akshaya. Genuinely blocked on DAT-005 landing.** Wiring plus false-positive rate on
 real labels. **Tamper detection must not be described as working until it has run against

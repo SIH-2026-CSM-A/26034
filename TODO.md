@@ -32,7 +32,7 @@ them, read the file.
    `FreeSpaceMeasurement`, so an overlap now has somewhere to go the moment this returns one.
    No adapter exists between them yet — see item 4a.
 
-4a. **Wire Rule 8(1)'s proviso into the pipeline — a new ticket, blocked twice.** RUL-007
+4a. **Wire Rule 8(1)'s proviso into the pipeline — a new ticket, blocked twice.** RUL-007 (#76)
    left `evaluate_rule8_free_space` correct and unreached. It needs (i) EXT-004's declaration
    bounding box, so `orchestrator.py` can call `measure_margins` at all, and (ii) MEA-011, so
    an overlap arrives as an overlap rather than a refusal. Two further things the writer needs
@@ -44,37 +44,40 @@ them, read the file.
 
 ## Next
 
-7. **Write the seven tickets below.** They are specified, not vague; each has a file, a defect
+5. **Write the seven tickets below.** They are specified, not vague; each has a file, a defect
    and a consequence. Until they are on the board they are invisible.
-8. **Create MEA-010, MEA-011 and FNT-004 on the board.** All three are unblocked and all three
-   have owners idle or nearly idle.
-9. **Persist the Rule 3(c) officer confirmation, or decide not to.** RUL-005 passes it as a
+6. **Create MEA-010, MEA-011 and EVD-007 on the board.** MEA-010 and MEA-011 are unblocked and
+   Yashashvi is idle; EVD-007 is Shiva's and follows #46 onto `main`. FNT-004 landed as #78 —
+   do not create it.
+7. **Persist the Rule 3(c) officer confirmation, or decide not to.** RUL-005 passes it as a
    plain `bool` down to `EvidenceContext` and deliberately does not store it: that would need a
    `contracts` enum, a `scans` column, a migration and a `ScanSummary` field, and `contracts/`
    is single-owner. It is auditable today only through the `reason` text on the findings it
    produced. Decide whether an officer needs to filter scans by it.
-10. **Persist the category proposal, or decide not to.** PIP-003 (#74) leaves it present on the
-    POST response and `None` on a GET re-read, because the `scans` row has no column for it. A
-    column plus its migration is a ticket of its own, and it is the thing that decides whether
-    an officer can act on a proposal after reloading the page. Separately: the catalogue path
-    proposes nothing, because `propose_category` takes an `ExtractionResult` that a listing
-    never builds. Decide whether a listing should propose.
-11. **Resolve `/fnt/` ownership.** Three sources give three answers — `.github/CODEOWNERS:29`
-    assigns all of `/fnt/` to `@vineethsimha2151`; `HANDOFF.md` says the officer surface stays
-    with Abhiram because it is on the demo path; `AGENTS.md:120` says Abhiram *"(Vineeth's
-    module, he is unavailable)"* and he is demonstrably available, having shipped #72. This was
-    deliberately **not** decided by the Session 14 CODEOWNERS edit. Decide it on purpose.
+8. **Persist the category proposal, or decide not to.** PIP-003 (#74) leaves it present on the
+   POST response and `None` on a GET re-read, because the `scans` row has no column for it. A
+   column plus its migration is a ticket of its own, and it is the thing that decides whether
+   an officer can act on a proposal after reloading the page. Separately: the catalogue path
+   proposes nothing, because `propose_category` takes an `ExtractionResult` that a listing
+   never builds. Decide whether a listing should propose.
+9. **Resolve `/fnt/` ownership.** Three sources give three answers — `.github/CODEOWNERS:29`
+   assigns all of `/fnt/` to `@vineethsimha2151`; `HANDOFF.md` says the officer surface stays
+   with Abhiram because it is on the demo path; `AGENTS.md:120` says Abhiram *"(Vineeth's
+   module, he is unavailable)"* and he is demonstrably available, having shipped #72. This was
+   deliberately **not** decided by the Session 14 CODEOWNERS edit. Decide it on purpose.
 
 ## Later
 
-12. **TAM-002** once DAT-005 exists — wiring plus the false-positive rate on real labels.
-13. **EVD-004 / EVD-006** — the report export takes mock shapes and needs a real
-    `VerdictRecord`. Shiva's, and unblocked; he should be on it rather than idle.
-14. **MEA-007, MEA-008.** MEA-007 needs a rebase — `services.py` changed under it in #43.
+10. **TAM-002** once #77 merges — wiring plus the false-positive rate on real labels. This is
+    the first ticket on the board that can be run against annotated images.
+11. **EVD-004 / EVD-006 / EVD-007** — the report export takes mock shapes and needs a real
+    `VerdictRecord`; EVD-007 single-sources the evidence storage key. All three are Shiva's and
+    all three are unblocked now that #46 has merged.
+12. **MEA-007, MEA-008.** MEA-007 needs a rebase — `services.py` changed under it in #43.
     MEA-008 may legitimately close as a finding that the 50 mm card does not exist.
-15. **The seven UP042 findings in `datasets/schema.py`.** Converting a schema that serialises to
+13. **The seven UP042 findings in `datasets/schema.py`.** Converting a schema that serialises to
     JSON is its own change, and until it happens the datasets job cannot gain a ruff step.
-16. **The officer surface's presentation of 65 findings per scan.** RUL-004 established this is
+14. **The officer surface's presentation of 65 findings per scan.** RUL-004 established this is
     a presentation problem, not a rule-store one.
 
 ---
@@ -97,15 +100,25 @@ It also contradicts `datasets/README.md`. Needs a `NOT_IN_FRAME` state or a `vis
 bool, and a decision about which — a state changes the enum and therefore needs an
 `ALTER TYPE ... ADD VALUE` if it ever reaches Postgres.
 
-**2. `test_manifest_integrity` guards nothing, and the manifest it guards is a stub.**
-`bck/tests/contracts/test_manifest_integrity.py:16` and `:41` both loop
-`manifest.get("records", [])`. `datasets/ingest_images.py:47-52` writes a `"samples"` key. The
-committed `datasets/manifest.json` is nineteen bytes — `{"records": []}` — and was not produced
-by that writer at all: it has no `manifest_version` and no `total_samples`. So both loops get
-`[]` twice over. Worse, `test_annotation_image_sha256_matches_manifest` has **no assertion
-outside its loop**, so it passes against any JSON object whatsoever. **Why it matters:** two
-green tests claim the annotation hashes match the images. Nothing is compared. This is the
-eighth unfalsifiable test on this project and the first where the fixture is also fake.
+**2. `ingest_images.py` writes a manifest key the tests do not read, and #77 makes that worse
+rather than better.** `bck/tests/contracts/test_manifest_integrity.py:16` and `:41` both loop
+`manifest.get("records", [])`. `datasets/ingest_images.py:47-52` writes a `"samples"` key.
+
+On `main` today the committed `datasets/manifest.json` is nineteen bytes — `{"records": []}` —
+and was not produced by that writer at all: it has no `manifest_version` and no `total_samples`.
+So both loops get `[]` twice over, and `test_annotation_image_sha256_matches_manifest` has **no
+assertion outside its loop**, so it passes against any JSON object whatsoever. Two green tests
+claim the annotation hashes match the images and nothing is compared.
+
+**#77 changes the shape of the defect, not its existence.** It lands a real hand-written
+manifest with twelve `records`, so both tests stop being vacuous — good. But the writer still
+emits `samples`, so **running the project's own ingest script would replace that manifest with
+one the tests silently skip**, and the suite would go green on nothing again with no diff to
+explain it. **Why it matters:** the corpus integrity guard is the only thing standing between a
+fabricated annotation and a quoted accuracy figure, and this project has already lost a corpus
+to fabrication once. Fix the writer to emit `records`, or delete the writer and say the manifest
+is maintained by hand. Do not fix the tests to read `samples` — the checked-in manifest is the
+artefact that matters.
 
 **3. `ingest_images.py` demands a Google Drive ID the design explicitly forbids.**
 `datasets/ingest_images.py:18-19` raises `ValueError("A valid Google Drive folder ID must be
@@ -117,12 +130,17 @@ in the file. **Why it matters:** the script cannot be run at the venue, or by an
 not have the folder id, to produce a manifest it does not need the id for. Either the guard goes
 or the README does; they cannot both be right.
 
-**4. `ingest_images.py` silently skips twelve of the fifteen staged captures.**
+**4. `ingest_images.py` silently skips every `.png` capture.**
 `datasets/ingest_images.py:24` is `RAW_DIR.glob("**/*.[jJ][pP][gG]")`. The character class
 already handles `.JPG`, so that is not the problem. `.png` is. Twelve of the fifteen files in
-`~/26034-dat/datasets/raw/_staging/` are `.png` — every capture numbered 01 to 05. **Why it
-matters:** this is the input to DAT-005. A run against the staged set would produce a manifest
-of three files and report success, and nothing anywhere would say twelve were dropped.
+`~/26034-dat/datasets/raw/_staging/` are `.png` — every capture numbered 01 to 05. The twelve
+captures #77 annotates are `.jpg` under `datasets/raw/{category}/{sku}/`, so they are not
+affected, and the earlier `_staging` set appears to have been superseded rather than ingested.
+**Why it matters:** the skip is silent. A run over a directory holding `.png` captures produces
+a short manifest and reports success, and nothing anywhere says how many files were dropped.
+Either widen the glob and fail loudly on an unreadable image, or make the script assert that the
+file count it wrote equals the image count it found. Combine with item 2 — this is the same
+script and it should be one ticket.
 
 **5. Per-ticket session logs.** `session-log/abhiram.md` is 137 KB and every PR appends to it,
 so every PR conflicts with every other PR. It forced a rebase on **every** PR merged on
@@ -192,31 +210,53 @@ gone, not outstanding.
   member passes clean and then fails at the first insert with `invalid input value for enum`.
   Needs a hand-written `ALTER TYPE ... ADD VALUE`, which cannot run inside a transaction.
 
+- **`test_remap_curvature_performance_at_realistic_resolution` is a wall-clock assertion and it
+  flakes under load.** `bck/tests/modules/vision/test_preprocess.py:147` asserts
+  `elapsed < 0.5` for a 3000x4000 `remap_curvature`. In isolation it takes 0.16 s, three runs
+  out of three. During a full suite run on a loaded machine it measured 1.26 s and failed the
+  build. **Why it matters:** a timing assertion turns an unrelated background process into a red
+  CI run, and the next person to see it red will assume their diff caused it. The intent — catch
+  a per-pixel Python loop, which would take 10 s+ — is served just as well by a budget an order
+  of magnitude above the vectorised time and well below the naive one. Raise it, or assert
+  against a shape-scaling ratio instead of a clock.
+- **The officer screens have never been watched against a running backend.** #72 and #78 moved
+  `ReviewQueue`, `VerdictDetail` and the new `ScanSubmission` onto the generated client, and
+  `main.py` does not boot without model weights. Verify at two widths in a real browser before
+  any demo.
+
 **Closed since the last revision of this file:**
 
 - ~~`measure_margins` raises on a flush declaration on both paths.~~ Fixed by MEA-006 (#47).
 - ~~An overlap is reported as a refusal.~~ Part A landed the types (#73); Part B returns them.
 - ~~`FreeSpaceMeasurement` cannot carry an overlap or a flush margin~~ —
-  `modules/rules/results.py:82` typed all four clearances as `PositiveDecimal`. RUL-007 (#76)
-  fixes it and is in review.
+  `modules/rules/results.py:82` typed all four clearances as `PositiveDecimal`. Fixed by
+  RUL-007 (#76, merged).
+- ~~`purge_evidence` writes an immutable chain entry attesting a destruction that never
+  happened.~~ Fixed by EVD-005 (#46, merged): `retention.py:106` aborts on a storage miss. The
+  key derivation still differs from the write path — that is EVD-007, and it is a different
+  defect.
 
 ---
 
 ## Blocked
 
-- **TAM-002** on DAT-005 landing. Genuinely blocked; Akshaya has #63 in the meantime.
-- **`measure_margins` orchestrator wiring** on EXT-004's declaration bounding box.
+- **TAM-002** on #77 landing. Genuinely blocked; Akshaya has #63 in the meantime.
+- **`measure_margins` orchestrator wiring** (item 4a) on EXT-004's declaration bounding box
+  *and* on MEA-011. Blocked twice.
 - **PIP-002** on EXT-004.
 
 **No longer blocked** — these came off the list and the reason is recorded so nobody re-adds
 them: #43 MEA-005 (`pdfplumber` approved, merged), #47 MEA-006 (#58 merged), EXT-007 (#65 and
 #67 landed the contract and the pipeline; merged as #71), PIP-004 (merged), MEA-010 and MEA-011
-(unblocked by #43), FNT-004 (unblocked by #72), #46 EVD-005 (CORE-003 merged as #62 — Shiva
-owes the rebase, he is not blocked on anyone).
+(unblocked by #43), FNT-004 (merged as #78), EVD-005 (merged as #46), RUL-007 (merged as #76),
+EVD-006 and EVD-007 (Shiva is free).
 
 ---
 
 ## Done — with dates
+
+**2026-09-07, later** — #76 RUL-007 (15:02) · #46 EVD-005 (15:06) · #78 FNT-004 (15:11).
+Three merges in nine minutes, all while this file was being rewritten.
 
 **2026-09-07, Session 14** — #71 EXT-007 · #72 FNT-003 · #73 MEA-009 Part A · #74 PIP-003 ·
 #43 MEA-005 · #75 RUL-006 · #70 docs.
