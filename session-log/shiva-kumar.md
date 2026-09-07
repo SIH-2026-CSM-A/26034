@@ -22,3 +22,13 @@
 
 ## 2026-09-06 (Continued)
 - **What was done**: Fixed vocabulary alignment on PR #41. Replaced internal string states with `Verdict` and `FieldState` enums from `app.contracts`. Expanded `test_forbidden_vocabulary` to block `non_compliant` and `noncompliant`.
+
+## 2026-09-07 - PR #46 (EVD-005) Review Fixes & Rebase
+- **Rebase**: Rebased `evd-005-retention-purge` onto `origin/main`.
+- **Enum Alignment**: Adopted `EvidenceAssetType` (`PRODUCT_IMAGE`, `AUDIT_LOG`, `PERSONAL_DATA`) from `app.contracts`. Deleted local enum definition in `domain.py`.
+- **Hash Integrity**: Integrated `asset_type` as the fifth field in `compute_entry_hash`.
+- **Zero Defaults**: Removed default arguments from `create_genesis_entry` and `append_entry`, making `asset_type` mandatory across all call sites.
+- **Storage & False Attestation**: Purge verifies CAS object existence before deleting; returns `(False, "asset_not_found")` and writes zero audit records to the chain if missing. Catches specific `ClientError` 404/NoSuchKey.
+- **Legal Hold**: Enforced hold on unreviewed `POTENTIAL_VIOLATION` records and `CONFIRM`/`OVERRIDE`; release gated strictly on `REJECT`.
+- **Quality Gates**: All local checks (`ruff format --check .`, `ruff check .`, `lint-imports`, `pytest`) passing green.
+- **Agent**: Claude Code.

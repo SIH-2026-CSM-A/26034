@@ -5,6 +5,12 @@ from pathlib import Path
 import boto3
 
 
+class AssetPurgedError(Exception):
+    """Raised when an asset has been purged for retention/privacy."""
+
+    pass
+
+
 class EvidenceStorageClient(ABC):
     """Abstract base class for evidence storage."""
 
@@ -19,6 +25,16 @@ class EvidenceStorageClient(ABC):
     def get_image(self, storage_key: str) -> bytes:
         """
         Retrieves image bytes by its storage key.
+        """
+        pass
+
+    @abstractmethod
+    def purge_image(self, storage_key: str) -> bool:
+        """
+        Permanently deletes the asset bytes and replaces them with a tombstone.
+        Must be idempotent.
+
+        Returns True if the object existed and was deleted, False if not found.
         """
         pass
 
@@ -49,7 +65,22 @@ class LocalStorageClient(EvidenceStorageClient):
         if not file_path.exists():
             raise FileNotFoundError(f"Object not found: {storage_key}")
 
-        return file_path.read_bytes()
+        data = file_path.read_bytes()
+        if data == b"TOMBSTONE":
+            raise AssetPurgedError(f"Asset purged: {storage_key}")
+
+        return data
+
+    def purge_image(self, storage_key: str) -> bool:
+        file_path = self.base_path / storage_key
+        if not file_path.exists():
+            return False  # Not found
+
+        if file_path.read_bytes() == b"TOMBSTONE":
+            return True  # Idempotent: already purged, but existed
+
+        file_path.write_bytes(b"TOMBSTONE")
+        return True
 
 
 class S3ContentAddressedStorageClient(EvidenceStorageClient):
@@ -98,4 +129,34 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
 
     def get_image(self, storage_key: str) -> bytes:
         response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
-        return response["Body"].read()
+        data = response["Body"].read()
+        if data == b"TOMBSTONE":
+            raise AssetPurgedError(f"Asset purged: {storage_key}")
+        return data
+
+    def purge_image(self, storage_key: str) -> bool:
+        try:
+            from botocore.exceptions import ClientError
+
+            response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
+            if response["Body"].read() == b"TOMBSTONE":
+                return True  # Idempotent
+        except ClientError as e:
+            # Check for 404 / NoSuchKey specifically
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code in ("404", "NoSuchKey"):
+                return False
+            raise
+        except Exception:
+            # For non-client errors, we can't be sure if it's a 404, but usually
+            # we should not swallow these unless they are clearly 404s.
+            # Re-raise to let the caller handle system failures.
+            raise
+
+        self.s3.put_object(
+            Bucket=self.bucket_name,
+            Key=storage_key,
+            Body=b"TOMBSTONE",
+            ContentType="text/plain",
+        )
+        return True
