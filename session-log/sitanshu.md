@@ -339,3 +339,23 @@ uff check . -> clean (All checks passed!).
   - Full backend pytest suite: 918 passed, 51 skipped, 1 pre-existing MEA-007 synthetic geometry failure (`test_coin_oblique_synthetic_geometry`).
   - Bytecode purge: 0 surviving `__pycache__` directories.
   - Ownership integrity: No changes to `repository.py` (Part B deferred), `contracts/**`, `core/**`, `pipeline/**`, `persistence/**`, `migrations/**`, `analytics/**`, `frontend/**`, `rules/**`, `measurement/**`, `evidence/**`.
+
+- CMP-001 Manufacturer Complaint Loop (Part B - Persistence Repository):
+  - Created `bck/app/modules/complaints/repository.py` and exported repository API in `bck/app/modules/complaints/__init__.py`.
+  - Implemented pure domain <-> SQLAlchemy ORM mappings (`_record_to_row`, `_row_to_record`) between `ComplaintRecord` and `ComplaintRow` (`app.core.complaints.ComplaintRow`).
+  - Implemented async persistence repository functions: `add_complaint()`, `get_complaint()`, `get_complaints_for_scan()`, and `get_latest_complaint_for_scan()`.
+  - Enforced append-only thread integrity: status escalation rows reference previous complaint IDs via `supersedes_id` without executing any SQL `UPDATE` queries.
+  - Implemented unit test suite in `bck/tests/modules/complaints/test_complaints_repository.py`.
+- Falsification Verification:
+  - Mutated `_record_to_row` in `repository.py` to drop `supersedes_id` mapping (setting `supersedes_id=None`).
+  - Executed pytest without `-x` -> Test suite failed RED (`FAILED tests/modules/complaints/test_complaints_repository.py::test_get_complaints_for_scan` - `AssertionError: Differing attributes: ['supersedes_id']`).
+  - Restored clean `repository.py` -> Test suite returned 100% GREEN (21 passed across `test_complaints_domain.py` and `test_complaints_repository.py`).
+- Quality Gates & Scope Compliance:
+  - `pytest tests/modules/complaints/`: 21 passed.
+  - `ruff check .`: 0 errors.
+  - `ruff format --check .`: 179 files formatted.
+  - `lint-imports`: 3 contracts kept (Layers, Module independence, No bck.* import path).
+  - `compileall -q app`: 0 errors.
+  - Full backend pytest suite: verified.
+  - Bytecode purge: 0 surviving `__pycache__` directories.
+  - Ownership integrity: Modified ONLY allowed files (`repository.py`, `__init__.py`, `test_complaints_repository.py`, `session-log/sitanshu.md`). No modifications to `contracts`, `pipeline`, `frontend`, `analytics`, `measurement`, `evidence`, `rules`, `core`, `persistence`, `migrations`. No git commits or pushes made.
