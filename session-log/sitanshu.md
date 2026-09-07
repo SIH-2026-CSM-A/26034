@@ -223,7 +223,7 @@
 
 **Done**
 - Corpus Grounding (LMPC 2011 Rule 9(4)):
-  - Verified Rule 9(4) from Maharashtra compilation (Page 9): Declarations shall be in Hindi (Devanagari) or English (Latin). Recognised additional scripts (Tamil, Bengali) are permitted under proviso and distinguished from unidentified non-text noise.
+  - Verified Rule 9(4) from Maharashtra compilation (Page 9): Rule 9(4) permits the use of other languages in addition to Hindi or English. EXT-008 distinguishes recognized additional scripts such as Tamil and Bengali from unidentified/noise spans.
 - Extended Script Classification in `bck/app/modules/extraction/binder.py`:
   - Added `TAMIL = "TAMIL"` and `BENGALI = "BENGALI"` to `ScriptType` enum.
   - Added deterministic Unicode script regex patterns: `_TAMIL_RE = r"[஀-௿]"` and `_BENGALI_RE = r"[ঀ-৿]"`.

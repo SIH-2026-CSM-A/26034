@@ -146,8 +146,9 @@ def detect_script(text: str) -> ScriptType:
 
     Statutory Corpus Citation:
       Legal Metrology (Packaged Commodities) Rules, 2011 (as amended up to 2021-10-31),
-      Page 9, Rule 9(4): Declarations shall be in Hindi (Devanagari) or English (Latin).
-      Recognised additional scripts (Tamil, Bengali) are distinguished from non-text noise.
+      Page 9, Rule 9(4): Rule 9(4) permits the use of other languages in addition to
+      Hindi or English. EXT-008 distinguishes recognized additional scripts such as Tamil
+      and Bengali from unidentified/noise spans.
     """
     has_dev = bool(_DEVANAGARI_RE.search(text))
     has_lat = bool(_LATIN_RE.search(text))

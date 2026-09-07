@@ -452,6 +452,8 @@ def test_detect_script_ext_008_additional_scripts():
     # Bengali script span vs NEITHER punctuation/digits
     assert detect_script("নীট পরিমাণ") == ScriptType.BENGALI
     assert detect_script("নীট পরিমাণ 500g") == ScriptType.MIXED
+    # Tamil + Bengali multi-script span returns MIXED
+    assert detect_script("நிகர அளவு নীট পরিমাণ") == ScriptType.MIXED
     # Noise/punctuation remains NEITHER
     assert detect_script("!!! --- ...") == ScriptType.NEITHER
     assert detect_script("12345 !!!") == ScriptType.NEITHER
