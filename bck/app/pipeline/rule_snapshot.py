@@ -13,10 +13,13 @@ only package permitted to import from ``app.modules``; the rules module knows no
 about contracts and must not learn.
 
 Everything a reviewer needs to re-derive a finding is copied by value. A verdict may be
-read years after the rule set that produced it was republished, so ``applies_to`` and
-``evidence_requirement`` travel into ``parameters`` alongside the condition dump — a
-record that cannot be re-derived from itself is the failure snapshotting exists to
-prevent.
+read years after the rule set that produced it was republished, so ``evidence_requirement``
+travels into ``parameters`` alongside the condition dump — a record that cannot be
+re-derived from itself is the failure snapshotting exists to prevent.
+
+``parameters`` is typed ``dict[str, JsonValue]``, so it is an open mapping: a stored row
+carrying a key this adapter no longer writes still re-validates on the way back in. That is
+what lets a retired parameter be dropped without stranding the verdicts that recorded it.
 """
 
 from copy import deepcopy
@@ -168,7 +171,6 @@ def _parameters(rule: RuleDefinition, fields: tuple[DeclarationField, ...]) -> d
     """
     return {
         "conditions": rule.conditions.model_dump(mode="json"),
-        "applies_to": list(rule.applies_to),
         "evidence_requirement": rule.evidence_requirement,
         "declaration_fields": [field.value for field in fields],
     }
@@ -185,9 +187,9 @@ def snapshot_from_rule(rule: RuleDefinition, rule_set_version: str) -> RuleParam
     recorded as having found.
 
     Today that holds for two independent reasons: a rules ``RuleDefinition`` is frozen all
-    the way down — its ``applies_to`` and every condition's collections are tuples — so it
-    cannot be mutated in place at all, and ``_parameters`` builds fresh containers rather
-    than handing back anything the rule holds. The ``deepcopy`` below is therefore
+    the way down — every condition's collections are tuples — so it cannot be mutated in
+    place at all, and ``_parameters`` builds fresh containers rather than handing back
+    anything the rule holds. The ``deepcopy`` below is therefore
     belt-and-braces rather than load-bearing, and no test can currently be made to fail by
     removing it. It stays because ``parameters`` is typed ``dict[str, JsonValue]``, which
     permits nested mutable containers, and the guarantee should not quietly depend on

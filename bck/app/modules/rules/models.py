@@ -29,7 +29,6 @@ class RuleDefinition(StrictRuleModel):
     status: RuleStatus
     effective_from: date
     effective_to: date | None
-    applies_to: tuple[NonEmptyText, ...] = Field(min_length=1)
     conditions: RuleCondition
     evidence_requirement: NonEmptyText
     severity: Severity

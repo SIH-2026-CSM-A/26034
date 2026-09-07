@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.contracts import DeclarationField, RuleSeverity, RuleStatus
+from app.contracts import DeclarationField, RuleParameterSnapshot, RuleSeverity, RuleStatus
 from app.modules.rules import RuleDefinition, load_rules
 from app.modules.rules import RuleStatus as RulesRuleStatus
 from app.modules.rules.models import Severity
@@ -39,7 +39,6 @@ def _rule(**overrides: object) -> RuleDefinition:
         "status": "VERIFIED",
         "effective_from": date(2020, 1, 1),
         "effective_to": None,
-        "applies_to": ("retail_packages",),
         "conditions": {
             "kind": "declaration_required",
             "declarations": ["net_quantity_or_count"],
@@ -185,8 +184,7 @@ def test_a_shipped_declaration_rule_round_trips_with_its_gazette() -> None:
     assert snapshot.status is RuleStatus.VERIFIED
     assert snapshot.severity is RuleSeverity.MANDATORY
     assert snapshot.parameters["conditions"]["kind"] == "declaration_required"
-    assert snapshot.parameters["applies_to"] == list(rule.applies_to)
-    assert snapshot.parameters["evidence_requirement"] == rule.evidence_requirement
+    assert snapshot.parameters["evidence_requirement"] == "declaration_text_and_role_binding"
     assert snapshot.parameters["declaration_fields"] == ["NAME_AND_ADDRESS"]
 
 
@@ -232,21 +230,22 @@ def test_amending_the_source_rule_cannot_reach_a_snapshot() -> None:
     """
     rule = _shipped_rule("R6-1-A")
     snapshot = snapshot_from_rule(rule, RULE_SET_VERSION)
-    original = snapshot.parameters["conditions"]["declarations"][0]
 
     amended = rule.model_copy(
         update={
             "source_text": "amended text",
             "evidence_requirement": "something_else",
-            "applies_to": ("nothing_at_all",),
+            "conditions": rule.conditions.model_copy(
+                update={"declarations": ("retail_sale_price",)}
+            ),
         }
     )
 
     assert amended.source_text == "amended text"
     assert snapshot.source_text == rule.source_text
-    assert snapshot.parameters["evidence_requirement"] == rule.evidence_requirement
-    assert snapshot.parameters["applies_to"] == list(rule.applies_to)
-    assert snapshot.parameters["conditions"]["declarations"][0] == original
+    assert snapshot.parameters["evidence_requirement"] == "declaration_text_and_role_binding"
+    assert snapshot.parameters["conditions"]["declarations"][0] == "manufacturer_name_and_address"
+    assert snapshot.parameters["declaration_fields"] == ["NAME_AND_ADDRESS"]
 
 
 def test_editing_one_snapshots_parameters_cannot_reach_the_next() -> None:
@@ -259,12 +258,12 @@ def test_editing_one_snapshots_parameters_cannot_reach_the_next() -> None:
     first = snapshot_from_rule(rule, RULE_SET_VERSION)
 
     first.parameters["conditions"]["declarations"][0] = "mutated in place"
-    first.parameters["applies_to"].append("mutated")
+    first.parameters["declaration_fields"].append("MUTATED")
     first.parameters["injected"] = "mutated"
 
     second = snapshot_from_rule(rule, RULE_SET_VERSION)
     assert second.parameters["conditions"]["declarations"][0] == "manufacturer_name_and_address"
-    assert second.parameters["applies_to"] == list(rule.applies_to)
+    assert second.parameters["declaration_fields"] == ["NAME_AND_ADDRESS"]
     assert "injected" not in second.parameters
 
 
@@ -278,3 +277,74 @@ def test_the_map_covers_only_strings_the_rule_store_uses() -> None:
     }
     assert encoded <= set(DECLARATION_FIELDS)
     assert set(DECLARATION_FIELDS) == encoded
+
+
+# --- what parameters may hold, and what a stored row may still hold ---------------------------
+
+
+EXPECTED_PARAMETER_KEYS = {"conditions", "evidence_requirement", "declaration_fields"}
+"""Every key :func:`snapshot_from_rule` writes into ``parameters``, pinned here.
+
+Written out rather than read back off the adapter. ``parameters`` is persisted as jsonb on
+``field_findings.rule_snapshot`` and is the evidence a verdict is re-derived from, so a key
+arriving in it or leaving it is a reviewed change, not a side effect.
+"""
+
+
+def test_the_snapshot_emits_exactly_these_parameter_keys() -> None:
+    """RUL-006: ``applies_to`` was retired from the store and must not come back here.
+
+    Equality, not containment. A key added silently is as much a change to stored evidence
+    as a key removed silently.
+    """
+    for rule in load_rules():
+        snapshot = snapshot_from_rule(rule, RULE_SET_VERSION)
+        assert set(snapshot.parameters) == EXPECTED_PARAMETER_KEYS, rule.rule_id
+
+
+def test_a_stored_row_naming_a_retired_parameter_still_replays() -> None:
+    """A verdict written before RUL-006 must still read back after it.
+
+    Rules are versioned data and their parameters are snapshotted per verdict precisely so
+    a finding from six months ago stays reproducible. Dropping ``applies_to`` from the
+    adapter must therefore not strand the rows that recorded it.
+
+    It does not, because ``RuleParameterSnapshot.parameters`` is typed
+    ``dict[str, JsonValue]`` — an open mapping. ``extra="forbid"`` on ``ContractModel``
+    governs the model's own fields and does not reach inside a dict, so an unrecognised
+    parameter key is carried rather than rejected.
+
+    The row below is written as a literal, the way a pre-RUL-006 writer would have emitted
+    it, and goes through the same ``model_validate`` call
+    :func:`app.pipeline.responses.finding_from_row` makes on replay. It is not dumped from
+    today's adapter, which would only ever produce keys today's adapter still writes.
+    """
+    stored_row = {
+        "rule_id": "R6-1-A",
+        "clause_ref": "Rule 6(1)(a)",
+        "gazette_ref": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
+        "source_text": "Every package shall bear the name and address of the manufacturer.",
+        "status": "VERIFIED",
+        "severity": "MANDATORY",
+        "rule_set_version": "2026.09.1",
+        "parameters": {
+            "conditions": {
+                "kind": "declaration_required",
+                "declarations": ["manufacturer_name_and_address"],
+                "exceptions": [],
+            },
+            "applies_to": ["retail_packages"],
+            "evidence_requirement": "declaration_text_and_role_binding",
+            "declaration_fields": ["NAME_AND_ADDRESS"],
+        },
+        "rounding_increment": None,
+        "tolerance": None,
+        "tolerance_basis": None,
+    }
+
+    replayed = RuleParameterSnapshot.model_validate(stored_row)
+
+    assert replayed.rule_id == "R6-1-A"
+    assert replayed.severity is RuleSeverity.MANDATORY
+    assert replayed.parameters["applies_to"] == ["retail_packages"]
+    assert replayed.parameters["declaration_fields"] == ["NAME_AND_ADDRESS"]

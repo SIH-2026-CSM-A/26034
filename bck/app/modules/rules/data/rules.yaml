@@ -43,7 +43,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [chapter_ii_packages]
     conditions:
       kind: chapter_ii_scope
       # Inclusive: Rule 3(a) excludes "more than" 25, so 25 exactly is still in scope.
@@ -69,7 +68,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages, imported_packages]
     conditions:
       kind: declaration_required
       declarations:
@@ -91,7 +89,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [imported_packages]
     conditions:
       kind: declaration_required
       declarations: [country_of_origin_or_manufacture_or_assembly]
@@ -110,7 +107,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations:
@@ -131,7 +127,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [net_quantity_or_count]
@@ -155,7 +150,6 @@ rules:
     status: VERIFIED
     effective_from: 2022-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [month_and_year_of_manufacture]
@@ -179,7 +173,6 @@ rules:
     status: VERIFIED
     effective_from: 2024-04-01
     effective_to: null
-    applies_to: [electronic_products_spare_parts_and_accessories]
     conditions:
       kind: declaration_required
       declarations: [visible_and_clearly_legible_month_and_year_of_manufacture]
@@ -200,7 +193,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [best_before_or_use_by_date_month_and_year]
@@ -217,7 +209,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [retail_sale_price]
@@ -238,7 +229,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [relevant_dimensions]
@@ -254,7 +244,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_required
       declarations: [other_matter_specified_in_these_rules]
@@ -272,7 +261,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: table_height
       bands:
@@ -313,7 +301,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: width_ratio
       minimum_width_to_height_ratio: 0.3333333333333333333333333333
@@ -341,7 +328,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: pdp_area
       cylindrical_multiplier: 0.40
@@ -367,7 +353,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: other_law_carve_out
       preserved_declarations: [net_weight, retail_sale_price, expiry_best_before_use_by, consumer_care_details]
@@ -406,7 +391,6 @@ rules:
     # In force on the date of publication in the official gazette, which is 24.10.2025.
     effective_from: 2025-10-24
     effective_to: null
-    applies_to: [medical_device_packages]
     conditions:
       kind: sector_override
       sector: medical_device
@@ -437,7 +421,6 @@ rules:
     status: VERIFIED
     effective_from: 2018-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: sector_override
       sector: food
@@ -461,7 +444,6 @@ rules:
     status: VERIFIED
     effective_from: 2022-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: sector_override
       sector: cosmetics
@@ -482,7 +464,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: placement
       required_location: principal_display_panel
@@ -508,7 +489,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: free_space
       above_below_multiple_of_numeral_height: 1
@@ -532,7 +512,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: declaration_manner
       legible_and_prominent: true
@@ -558,7 +537,6 @@ rules:
     status: VERIFIED
     effective_from: 2011-04-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: outer_container
       outer_must_carry_all_declarations: true
@@ -586,7 +564,6 @@ rules:
     status: VERIFIED
     effective_from: 2024-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: package_definition
       package_type: combination_package
@@ -616,7 +593,6 @@ rules:
     status: VERIFIED
     effective_from: 2024-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: package_definition
       package_type: group_package
@@ -660,7 +636,6 @@ rules:
     status: VERIFIED
     effective_from: 2024-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: package_definition
       package_type: multi_piece_package
@@ -692,7 +667,6 @@ rules:
     status: VERIFIED
     effective_from: 2024-01-01
     effective_to: null
-    applies_to: [retail_packages]
     conditions:
       kind: sector_override
       sector: food
@@ -714,7 +688,6 @@ rules:
     status: VERIFIED
     effective_from: 2026-07-01
     effective_to: 2027-06-30
-    applies_to: [ecommerce_imported_product_listings]
     conditions:
       kind: ecommerce_country_of_origin_filter
       imported_products_only: true
@@ -735,7 +708,6 @@ rules:
     status: VERIFIED
     effective_from: 2027-07-01
     effective_to: null
-    applies_to: [ecommerce_imported_product_listings]
     conditions:
       kind: ecommerce_country_of_origin_filter
       imported_products_only: true

@@ -33,7 +33,6 @@ def _valid_rule_payload() -> dict[str, object]:
         "status": "VERIFIED",
         "effective_from": "2020-01-01",
         "effective_to": None,
-        "applies_to": ["test_input"],
         "conditions": {
             "kind": "declaration_required",
             "declarations": ["test_declaration"],
@@ -129,21 +128,6 @@ def test_rule_store_excludes_f18_and_rule_6_11() -> None:
     searchable = " ".join(f"{rule.rule_id} {rule.clause_ref}" for rule in rules).lower()
     assert "f18" not in searchable
     assert "6(11)" not in searchable
-
-
-def test_rule_store_contains_only_ticket_authorized_scopes() -> None:
-    """The store must not grow unrelated commodity-category rules."""
-    rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
-    allowed_scopes = {
-        "retail_packages",
-        "imported_packages",
-        "electronic_products_spare_parts_and_accessories",
-        "medical_device_packages",
-        "ecommerce_imported_product_listings",
-        "chapter_ii_packages",
-    }
-
-    assert {scope for rule in rules for scope in rule.applies_to} <= allowed_scopes
 
 
 EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
