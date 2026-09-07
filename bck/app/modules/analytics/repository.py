@@ -2,7 +2,9 @@
 
 Each query counts distinct scan identities and applies the privacy floor in SQL. This
 keeps suppressed cohorts inside the repository boundary rather than returning them for a
-later layer to discard.
+later layer to discard. Verdict rows are append-only, and these endpoints intentionally
+aggregate evaluation activity across those rows; the distinct scan count prevents joined
+duplicates from inflating any one aggregate cell.
 """
 
 from datetime import date

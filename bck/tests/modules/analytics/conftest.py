@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
 from app.core.config import Settings, get_settings
 from app.core.db import dispose_engine, get_engine, get_session_factory
@@ -42,6 +43,13 @@ def configured(monkeypatch: pytest.MonkeyPatch) -> str:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         pytest.skip("DATABASE_URL is not set; analytics queries need PostgreSQL")
+    database_config = make_url(database_url)
+    if database_config.drivername != "postgresql+psycopg" or database_config.host not in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    }:
+        pytest.fail("analytics tests require a local postgresql+psycopg DATABASE_URL")
     monkeypatch.setenv("DATABASE_URL", database_url)
     get_settings.cache_clear()
     return database_url
