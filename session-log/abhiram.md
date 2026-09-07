@@ -2303,3 +2303,230 @@ rather than trusted from the first.
 - **`measurement/services.py` is untouched.** MEA-011 is Yashashvi's, and `measure_margins`
   still reports an overlap as a refusal. Until it lands, `SideOverlap` has no producer outside
   tests — the type is ready for it, which is the same shape MEA-009 Part A shipped in.
+
+## Session 19 — 2026-09-07, DAT-005 (Claude Code, Opus 5)
+
+**Ticket:** DAT-005 — annotate the twelve new captures. Branch `dat-005-annotate-staged-captures`,
+worktree `~/26034-dat`, rebased onto `origin/main` @ `d9c44fa` at the start of the session and
+onto `755d22f` after RUL-007 landed mid-review.
+
+Session numbering read out of the file rather than assumed, and it **moved twice**.
+`git show origin/main:session-log/abhiram.md | grep '^## Session' | tail -3` gave 15 = PIP-003,
+16 = MEA-005, 17 = RUL-006 at the start of the session, so this was written as 18. MEA-005 (#43)
+and RUL-006 (#75) had both merged while the plan was being written. **RUL-007 (#76) then merged
+during review and took 18**, so this renumbered to **19** — the same mid-review collision
+Session 16 hit. Read the number again after every rebase; a merge landing under an open PR moves
+it, and two PRs on this project have already destroyed history in this file.
+
+`datasets/` had no ground truth at all. DAT-002 deleted four fabricated annotations, and
+DAT-005 was then parked (`TICKETS.md:115`) because all fifteen `_staging/` files carry a ₹10
+coin — the uncalibrated half of the corpus, the refusal path, had no sample. Twelve real
+captures now exist, six SKUs front and back, deliberately with no reference object. That is
+the parked precondition met. `_staging/` was not touched.
+
+### What the corpus is
+
+Twelve annotations under `datasets/annotations/{food,cosmetics}/`, one per image, plus a
+`datasets/manifest.json` of twelve records. Parle-G 82.5 g, MDH Chicken Masala 100 g, Dhara
+Refined Sunflower Oil 1 L, Aarambh Oats 1.5 kg, Aashirvaad Select Atta 1 kg, Colgate Strong
+Teeth 100 g.
+
+`reference_object` is `{present: false, object_type: "none"}` on all twelve, `pdp.is_measurable`
+is `false` on all twelve, `area_cm2` / `rule7_band` / `rule7_min_height_mm` are null, every
+`numeral_height_mm` and `letter_height_mm` is null, `uncalibrated` is on every sample and
+`calibrated` on none, and `ground_truth_verdict` is `REVIEW` on all twelve. No millimetre
+figure appears anywhere in the corpus.
+
+Two schema defaults are traps and nothing here relies on either: `DeclarationField.expected_field_state`
+defaults to `PASS` and `PDPInfo.is_measurable` defaults to `True`. Both are written explicitly
+on all 96 field entries and all twelve panels.
+
+### `declared` means what the photographed face shows
+
+Decided with Abhiram before any annotation was written. A declaration borne elsewhere on the
+pack but not in this frame is `declared: false` with `expected_field_state: INSUFFICIENT_EVIDENCE`
+and a `non_compliance_reason` naming the sibling `sample_id` that carries it. Nothing is carried
+across between the two images of a pack.
+
+The reason is the harness. `ComplianceEvaluator.evaluate` scores `declared` and nothing else
+(`datasets/eval/harness.py:214-224`). Recording a pack-level fact read off the *other*
+photograph would assert evidence the system never had, and score a correct per-image refusal
+as a false negative — the overclaim penalty `datasets/README.md` warns against in the same
+breath as it defines the field.
+
+**This is raised, not fixed.** `declared: false` now carries two meanings — absent from the
+pack, and present on the pack but not in frame. `expected_field_state` distinguishes them
+today; the bool alone does not, and `datasets/README.md:66-68` states the opposite intent
+("`declared: false` means the declaration is absent from the pack, not that the photograph
+failed to show it"). **The schema and the README disagree.** A `NOT_IN_FRAME` third state or
+a separate `visible_in_image` bool is a schema change and its own ticket. Affected entries:
+`manufacturer_or_packer`, `date_of_manufacture_or_packing`, `consumer_care_details` and
+`country_of_origin` on all six `_001` faces; `retail_sale_price_mrp`, `unit_sale_price` and
+`commodity_name` on `cosmetics_colgate_strong_teeth_100g_002` and `_001` respectively; and
+`net_quantity`, `retail_sale_price_mrp` and `date_of_manufacture_or_packing` on
+`food_aarambh_oats_1_5kg_002`, the one back face that omits them.
+
+### Two field states were read out of the gazette, not the README
+
+`pdftotext -layout` over `rules-corpus/LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf`.
+Line numbers are into that extraction.
+
+**Rule 6(11), page 10, lines 479–493.** Limb (vii) verbatim: `"Rs._ per litre" for
+pre-packaged commodities with net volume of the commodity more or equal to one litre.`
+Matches the table at `rules-corpus/README.md:95-103`.
+
+- **Dhara is `FAIL` on `unit_sale_price`, both faces.** Declared net quantity is 1 L, so limb
+  (vii) fixes the basis at per litre; the pack declares `USP ₹ 0.20 per g`. The parenthesised
+  `(910 g)` does not rescue it — the rule keys on the declared net volume. Rule 6(11) is a
+  format rule and states no tolerance. **No arithmetic**: 195 ÷ 910 and 195 ÷ 1 are not
+  computed and no derived number is in the annotation. This is the first
+  `non_compliant_usp_unit` instance in the corpus, one of the seven defect cases
+  `datasets/README.md` names as worth capturing deliberately.
+- **The four packs printing no unit sale price are `REVIEW_REQUIRED`, not `FAIL`.**
+  `unit sale price` occurs **exactly once** in the whole compilation, at 6(11), which
+  prescribes only the form — "shall be declared **as**". The Rule 6(1) enumerated list is
+  (a), (aa), (b), (c), (d), (da), (e), (f), (g) and has no unit-sale-price item. No obligation
+  limb, so nothing deterministic can find a breach. `datasets/README.md` separately records the
+  G.S.R. 722(E) ¶4 exemption as deliberately not encoded; both point the same way.
+
+**Rule 6(1)(aa), page 4, lines 177–178**, single occurrence: `The name of the country of origin
+or manufacture or assembly in case of imported products shall be mentioned on the package;`
+The obligation arises only for imported products.
+
+- Aarambh is imported (`COUNTRY OF ORIGIN: SRI LANKA`, `IMPORTED AND PACKED BY`, `For sale in
+  India only.`) → `PASS`, the only one in the corpus.
+- MDH (`Product of India / भारत में निर्मित`) and Colgate (`Made in India.`) declare it on
+  domestic packs → **`NOT_APPLICABLE`**, with the text recorded. This follows the DAT-005
+  ticket's own rule in its Rule 26 form (`TICKETS.md:120-121`): an exempt obligation the label
+  happens to satisfy is still `NOT_APPLICABLE`, not `PASS`.
+- Parle-G, Aashirvaad and Dhara carry no country statement and no indication of import →
+  `NOT_APPLICABLE`. Never `FAIL`.
+- On front faces showing no address at all, the image cannot establish import status either
+  way → `INSUFFICIENT_EVIDENCE`, not `NOT_APPLICABLE`.
+
+### Bounding boxes were read back onto their own images
+
+Eight identical boxes across four files is what exposed the last corpus. **59 boxes, all
+distinct**, asserted across the whole corpus in the validator.
+
+Each box was derived by cropping at native resolution, then **drawn back onto its own image
+and looked at** — a box that does not frame its declaration and exclude its neighbour is
+wrong, not close enough. Several rounds of that moved boxes that had looked right on paper;
+the Dhara back label needed a 5× zoom read-back because the bottle's curvature slopes every
+text row and axis-aligned boxes cannot fit tightly.
+
+### Three declarations that are worth knowing about
+
+- **`cosmetics_colgate_strong_teeth_100g_002` — `manufacturer_or_packer` is `REVIEW_REQUIRED`.**
+  The pack names Hindustan Unilever Limited with a complete Mumbai address, then directs the
+  reader to "the first character(s) of the code" for the manufacturing unit and offers keys
+  **P)** and **Z)**. The only code on the face is `Batch No. B240613A3`, which begins with **B**
+  and matches neither, and the pack does not say which code is meant. Not resolvable from the
+  image — the `incomplete_address` case in this corpus. `REVIEW_REQUIRED` not `FAIL`: an
+  unresolvable indirection is a gap in the evidence, not proof of an incomplete address.
+  The same indirection **does** resolve on MDH (Lot `B244` → unit B, Baddi) and Aashirvaad
+  (Batch `A1B3247` → unit A, Bollaram), which is the contrast worth having in an eval set.
+- **The same Colgate pack is Colgate-branded and names Hindustan Unilever Limited** as
+  manufacturer, marketer and consumer-care contact. Transcribed verbatim into `raw_text` and
+  noted as an observation. Nothing is inferred from it and no field state turns on it. Flagged
+  to Abhiram, who holds the physical pack.
+- **`food_aashirvaad_select_atta_1kg_002` — the date block prints four value lines against
+  three labels** (`A1B3247`, `12/07/2024`, `11/04/2025`, `14:32` against `Batch No.` / `Pkd.` /
+  `Use By.`) with the columns not vertically aligned. Every character is legible; which value
+  is the packing date is not. Recorded as uncertain rather than resolved, with
+  `label_to_value_mapping_certain: false`, and the bbox frames both columns for that reason.
+  Parle-G `12/07/24` and Aarambh `10/01/2023` are numeric with no month word, so the month is
+  not resolvable there either — three `missing_month_year` samples, which
+  `datasets/README.md` defines as "date absent **or ambiguous**".
+
+Independent corroboration that the readings are right: the Parle-G consumer-care number reads
+`022-6691 6929`, which is exactly the value `datasets/README.md` records as the one the deleted
+DAT-002 annotation got wrong.
+
+### Gate
+
+**Measured twice, because the base moved three times under this branch.** Both with a clean
+tree, bytecode purged with the absolute-path `find` asserting the surviving directory count is
+zero, and **after `uv sync`** — a baseline against a stale venv is not one. MEA-005 added
+`pdfplumber` and `pdfminer-six`, which is what made that step load-bearing. Not quoted from
+`CLAUDE.md`, which is still stale.
+
+| base | suite | `origin/main` | this branch | delta |
+|---|---|---|---|---|
+| `d9c44fa`, at the start | `bck` | 801 / 32 | 801 / 32 | 0 |
+| | `datasets` | 26 passed / **2 skipped** | **28 / 0** | **+2 un-skipped** |
+| `a4e462c`, after rebasing | `bck` | **820 / 32** | **820 / 32** | **0** |
+| | `datasets` | 26 passed / **2 skipped** | **28 / 0** | **+2 un-skipped** |
+
+RUL-007 (#76), EVD-005 (#46) and FNT (#78) landed while this was in review, taking `bck` from
+801 to 820. The delta is the same on either base — zero regressions on the backend, and the
+same two `datasets` tests un-skipping.
+
+The two are `TestCommittedAnnotationsLoad::test_every_annotation_validates` and
+`::test_no_annotation_claims_a_millimetre_height`, which skipped on an empty corpus and have
+now run for the first time. No test was added; two started doing their job.
+
+`ruff check` clean, `ruff format --check` 151 files clean, `lint-imports` 3 contracts kept /
+0 broken over 114 files and 383 dependencies. Exit codes read directly, never through a pipe.
+
+Validation is a standalone loop calling `LabelledSample.model_validate` and exiting non-zero
+on the first failure — **deliberately not the harness**, whose `load_ground_truth` catches
+`ValidationError`, prints a warning and continues, so a corpus of twelve invalid files would
+still "run". Exit 0, 12 validated.
+
+`python -m datasets.eval.harness --annotations datasets/annotations --test-run` loads all 12,
+slices by category and by all nine difficulty tags, and reports 1.0000 across the board with
+59 supports — matching the 59 bounding boxes exactly. It is an **oracle self-test**:
+`generate_self_test_predictions` copies predictions out of ground truth, so a perfect score
+proves the corpus loads and slices, and nothing about detection. It must be invoked from the
+repo root with the repo root on `sys.path`; `cd bck && uv run python -m datasets.eval.harness`
+fails with `ModuleNotFoundError: No module named 'datasets'`.
+
+### Prove your tests can fail
+
+Bytecode purged with `/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +` on its own
+line before every round, surviving directory count asserted zero rather than trusting an exit
+code. Run without `-x`, and each defect confirmed to turn red the assertion it was aimed at.
+
+| defect injected | what went red |
+|---|---|
+| `letter_height_mm: 2.5` on one field | `test_no_annotation_claims_a_millimetre_height`, on the `letter_height_mm` assert — not the `numeral_height_mm` one above it |
+| `reference_object.present: true` with `object_type: "none"` | validation, `reference_object.present is True but object_type is 'none'` |
+| one character changed in one `image_sha256` | **both** manifest integrity tests |
+| `export_pack` appended to `difficulty_tags` | validation, enum rejection — the exact non-member tag the deleted corpus used |
+| one bbox copied from another file | cross-corpus uniqueness assertion, naming both samples |
+
+All five reverted, green reconfirmed: 30 passed across `../datasets` and
+`tests/contracts/test_manifest_integrity.py`.
+
+### Raised, not fixed — three defects, all outside this ticket
+
+1. **`bck/tests/contracts/test_manifest_integrity.py` was unfalsifiable, and it guards the
+   corpus.** Both `test_manifest_annotation_hash_integrity` and
+   `test_annotation_image_sha256_matches_manifest` iterate `manifest.get("records", [])`
+   (`:16`, `:41`). A manifest produced by `datasets/ingest_images.py` has a **`samples`** key,
+   not `records` (`ingest_images.py:47-52`), so both tests loop over an empty list and pass
+   green against any manifest at all. The seventh unfalsifiable test on this project and the
+   first guarding the corpus itself. This session's manifest uses `records`, which is why the
+   sha256 falsification above could turn them red — they now assert something for the first
+   time. **Not fixed here**: it is a test file outside this ticket's scope.
+2. **`ingest_images.py` demands a Google Drive folder ID** and raises without one (`:18-19`),
+   while `datasets/README.md:72` says the manifest is built by walking `datasets/raw/` and is
+   deliberately not synced from Drive — "the demo has to survive the venue network failing".
+   The script cannot do what the README says it does. The manifest here was built by walking
+   the directory, as the README describes.
+3. **`ingest_images.py` globs `*.jpg` only** — `RAW_DIR.glob("**/*.[jJ][pP][gG]")` (`:24`) —
+   so any PNG in the tree is invisible to it. Twelve of the fifteen `_staging/` files are PNG.
+
+### Not done, deliberately
+
+- **`datasets/README.md` is not updated.** Its status section still says the corpus is empty
+  and "Nothing in this directory may be treated as ground truth until real captures land."
+  That is now false, and the `declared` sentence at `:66-68` needs correcting alongside the
+  schema decision above. Doc updates go in their own PR, not folded into a code ticket.
+- **`TODO.md:2` said "annotate the fifteen staged captures"** — the count was wrong and the
+  staged files are not the ones annotated. Corrected in this branch since it is this ticket's
+  own board entry.
+- **`CLAUDE.md`'s test-count gotcha is still stale** (707/32 local, 737/2 runner; measured
+  801/32 local this session). Flagged in Sessions 13, 14, 15 and again here. Its
+  session-numbering note still says "Next is Session 14", four behind. Both for the docs PR.
