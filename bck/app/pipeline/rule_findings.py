@@ -16,6 +16,12 @@ afterwards would produce a finding under a provision that does not apply to the 
 never obtained the evidence to look for it, and a finding about the package when we
 looked. Those are different branches reached from different inputs, never a state chosen
 by widening a condition.
+
+**And a third case, which is neither.** A declaration read twice in readings that
+contradict each other is REVIEW_REQUIRED. The evidence was obtained — that is what rules
+out INSUFFICIENT_EVIDENCE — and which reading the package bears is an officer's decision,
+which is what rules out FAIL. It gets its own branch above every other, so no widening of
+an existing condition can reach it and no edit to one can reroute it.
 """
 
 from collections.abc import Mapping
@@ -23,6 +29,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.contracts import (
+    CompetingReadings,
     DeclarationField,
     FieldFinding,
     FieldState,
@@ -76,6 +83,20 @@ class EvidenceContext:
     against one obligation. ``app.modules.extraction.bind_spans`` returns both and says in
     as many words not to pick one arbitrarily; collapsing them here would do exactly that,
     and would drop an address an officer may need to see.
+    """
+
+    contested: Mapping[DeclarationField, tuple[CompetingReadings, ...]]
+    """Obligations read more than once, in readings that contradict each other.
+
+    Separate from :attr:`declared` because a contested obligation has no resolved value:
+    every reading here was read successfully, and none of them has been established as the
+    declaration the package bears. That is why it routes to REVIEW_REQUIRED and not to
+    INSUFFICIENT_EVIDENCE — the failure is not in our reading.
+
+    A *tuple* per obligation for the same reason :attr:`declared` carries one. Rule 6(1)(a)
+    is a single obligation covering manufacturer, packer and importer, so two spatially
+    distinct bilingual pairs can each disagree against it. A single
+    :class:`~app.contracts.CompetingReadings` per key would drop one of them silently.
     """
 
     measurements: Mapping[str, MeasurementResult]
@@ -167,6 +188,37 @@ def declaration_findings(
 def _one_declaration(
     rule: RuleDefinition, field: DeclarationField, context: EvidenceContext
 ) -> FieldFinding:
+    contested = context.contested.get(field, ())
+    if contested:
+        # Above `if values:` and load-bearing there, not incidentally first. A contested
+        # obligation must never be reported as a satisfied one, and the ordering is what
+        # guarantees it rather than an invariant asserted in another layer.
+        # ``test_a_contested_declaration_outranks_a_resolved_one`` goes red on a reorder.
+        readings = tuple(reading for competing in contested for reading in competing.readings)
+        observed = " | ".join(reading.normalised_value for reading in readings)
+        distinguished = ", ".join(dict.fromkeys(competing.reason.value for competing in contested))
+        return finding(
+            rule,
+            field,
+            # A literal, deliberately, and not FIELD_STATE_FROM_VERDICT[evaluate_rule(...)]
+            # as the two branches below use. Nothing was evaluated here: the rule was never
+            # applied because no declaration was resolved to apply it to. Routing a proposed
+            # Verdict.REVIEW through the evaluator would return REVIEW unconditionally — a
+            # round trip computing a constant — and would give this branch the FAIL branch's
+            # exact expression, one token from sending a contested declaration to FAIL.
+            FieldState.REVIEW_REQUIRED,
+            f"this declaration was read {len(readings)} times and the readings do not "
+            f"agree: {observed}. Each was read from the package, so the evidence was "
+            f"obtained and nothing here is a gap in our reading. What is unresolved is "
+            f"which reading the package bears, and that is an officer's decision rather "
+            f"than this pipeline's ({distinguished}).",
+            context,
+            observed_value=observed,
+            evidence_span_ids=tuple(
+                dict.fromkeys(ref for reading in readings for ref in reading.span_refs)
+            ),
+        )
+
     values = context.declared.get(field, ())
     if values:
         # Every bound value for this obligation, and every span behind all of them. One

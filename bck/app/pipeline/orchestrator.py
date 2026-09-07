@@ -19,11 +19,13 @@ one from a bad capture is how "we could not see it" becomes "it is not there".
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TypeVar
 
 import numpy as np
 
 from app.contracts import (
     CatalogueRecord,
+    CompetingReadings,
     ContractModel,
     DeclarationField,
     EvidenceProvider,
@@ -157,17 +159,30 @@ def _measurements(image: np.ndarray, calibration: Calibration) -> Mapping[str, M
     }
 
 
+_Read = TypeVar("_Read", NormalisedField, CompetingReadings)
+"""A reading of one obligation — resolved, or contested. Both carry ``field_type``.
+
+Constrained to the two concrete types rather than a protocol: they are the whole of what
+``bind_spans`` returns, and a protocol would invite a third caller to group something that
+has a ``field_type`` and means neither of these.
+"""
+
+
 def by_obligation(
-    fields: Sequence[NormalisedField],
-) -> dict[DeclarationField, tuple[NormalisedField, ...]]:
-    """Group bound declarations by the obligation each answers, keeping every one.
+    fields: Sequence[_Read],
+) -> dict[DeclarationField, tuple[_Read, ...]]:
+    """Group readings by the obligation each answers, keeping every one.
 
     Rule 6(1)(a) is one obligation covering manufacturer, packer and importer, so a
     package bearing "Manufactured by" and "Marketed by" produces two fields against it.
     ``bind_spans`` returns both deliberately and says not to pick one; this keeps both, in
     the order the binder returned them, and the finding cites the spans behind all of them.
+
+    Serves ``fields`` and ``disagreements`` alike. The same obligation can carry two of
+    either, for the same reason, so grouping them two different ways would be one loop and
+    one bug waiting to differ from it.
     """
-    grouped: dict[DeclarationField, tuple[NormalisedField, ...]] = {}
+    grouped: dict[DeclarationField, tuple[_Read, ...]] = {}
     for field in fields:
         grouped[field.field_type] = (*grouped.get(field.field_type, ()), field)
     return grouped
@@ -236,11 +251,13 @@ def run_image_scan(
     # unclassified_spans — the binder conserves them, and so does this.
     extraction = bind_spans(spans)
     declared = by_obligation(extraction.fields)
+    contested = by_obligation(extraction.disagreements)
 
     context = EvidenceContext(
         rule_set_version=default_rule_set_version(),
         evaluation_date=evaluated_at.date(),
         declared=declared,
+        contested=contested,
         measurements=_measurements(image, calibration),
         product_category=product_category,
         source_is_listing=False,
@@ -253,7 +270,10 @@ def run_image_scan(
             findings=findings,
             rule_set_version=context.rule_set_version,
             evaluated_at=evaluated_at,
-            field_providers=dict.fromkeys(declared, EvidenceProvider.PADDLEOCR),
+            # Contested obligations belong here too. Each was read — twice, by this
+            # provider — so it is a field with readable values behind it, which is the
+            # only thing field_providers excludes.
+            field_providers=dict.fromkeys((*declared, *contested), EvidenceProvider.PADDLEOCR),
         ),
         spans=spans,
         unclassified_spans=tuple(extraction.unclassified_spans),
@@ -280,6 +300,11 @@ def run_catalogue_scan(
     ``unreadable_reason`` is ``None`` here, and that is the substantive difference from
     the image path: a declaration absent from ``declared_fields`` was not declared in the
     listing, which is a finding about the listing rather than a gap in our reading of it.
+
+    ``contested`` is empty for a structural reason rather than an unimplemented one. A
+    listing supplies each obligation once, as a dictionary key, so there is no second
+    reading for a first to disagree with. Competing readings arise from reading a package
+    twice, which only the image path does.
     """
     # The normalisation adapter stays on this path and only this path. A catalogue record
     # supplies the obligation as a dictionary key, so the role is established by the source
@@ -296,6 +321,7 @@ def run_catalogue_scan(
         rule_set_version=default_rule_set_version(),
         evaluation_date=evaluated_at.date(),
         declared=declared,
+        contested={},
         measurements={},
         product_category=product_category,
         source_is_listing=True,

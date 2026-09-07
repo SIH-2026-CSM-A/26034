@@ -4,23 +4,15 @@
 
 ## Now
 
-1. **PIP-004** — route a contested declaration to REVIEW_REQUIRED. CTR-006 landed
-   `CompetingReadings` and `ExtractionResult.disagreements`; nothing reads them yet, so once
-   EXT-007 populates the collection a contested obligation lands in **INSUFFICIENT_EVIDENCE**,
-   which the constraints forbid — both readings were read perfectly well. Four edit points:
-   (a) `EvidenceContext`, `bck/app/pipeline/rule_findings.py:60-93`, a field carrying the
-   contested obligations; (b) `_one_declaration`, same file `:167-197`, a REVIEW_REQUIRED
-   branch **above** the `if values:` test — its own branch, never sharing an expression with
-   INSUFFICIENT_EVIDENCE or FAIL, and no set membership test; (c) `orchestrator.py:240`, the
-   image path, fed from `extraction.disagreements`, including `field_providers` at `:256`
-   which is `dict.fromkeys(declared, …)` and would otherwise omit a contested obligation that
-   now carries a finding; (d) `orchestrator.py:295`, the catalogue path, passes empty — a
-   listing supplies one value per obligation key.
-   **Not optional polish.** `verdict.py:56-59` tests REVIEW_REQUIRED and INSUFFICIENT_EVIDENCE
-   one at a time and both return `Verdict.REVIEW`, so the package verdict is the same either
-   way. What PIP-004 buys is the correct *reason string* on the officer surface: without it
-   the system tells an officer "the evidence needed could not be obtained" about a label it
-   read perfectly, twice. **Merges before EXT-007** so the forbidden state never reaches main.
+1. **EXT-007** (Sitanshu) — populate `ExtractionResult.disagreements` from the non-pairing
+   branch at `binder.py:604`. **Now unblocked on both sides:** CTR-006 (#65) landed the
+   contract and PIP-004 (Session 12) landed the pipeline, so a contested obligation already
+   routes to REVIEW_REQUIRED the moment the collection is non-empty. **Move
+   `_are_spans_spatially_adjacent` (607) above the value check (604)** — as ordered, the
+   branch cannot tell "two scripts disagreeing about one declaration" from "two unrelated
+   declarations elsewhere on the panel", and EXT-007 would record disagreements that are not
+   disagreements. `tests/modules/extraction/test_bilingual_declarations.py:185` pins today's
+   two-record behaviour and is the test EXT-007 changes.
 2. **DAT-005** — annotate the fifteen staged captures. The single highest-value item on the
    board; every accuracy figure in the PRD depends on it and none is currently defensible.
 3. **Send the three review drafts** — MEA-006 to Yashashvi (unblocked by #58), EXT-006 to
