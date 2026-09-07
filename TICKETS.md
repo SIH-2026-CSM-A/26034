@@ -1,182 +1,155 @@
-# TICKETS.md — board state, end of Session 6, 2026-09-07
+# TICKETS.md — board state, end of Session 13, 2026-09-07
 
-ClickUp is the source of truth. This file mirrors it. The connector was rate-limited for all
-of Session 6, so several moves below were made by hand and some tickets were never created —
-both are marked.
+ClickUp is the source of truth. This file mirrors it. `done` is terminal; nothing moves to
+`complete`.
 
-`done` is the terminal status. Nothing moves to `complete`.
+**Connector note:** ClickUp MCP works again, but **custom-field writes are capped on this plan**
+— `clickup_update_task` with `custom_fields` returns *"Custom field usages exceeded for your
+plan"*. Name and status updates work. Consequence below on FNT-003.
 
 ---
 
-## Merged in Session 6
+## Merged in Session 13
 
 | Ticket | PR | Owner | Notes |
 |---|---|---|---|
-| CI-004 | #60 | Abhiram | `datasets` CI job + repo-hygiene step. Not yet a required check. |
-| TAM-001 | #55 | Akshaya | Tamper detection. Uncalibrated thresholds, no caller. TAM-002 follows. |
-| CTR-005 | #58 | Abhiram | Margin measurement types as siblings. **Ticket never created on the board** — create it retroactively as `done`. |
-| DAT-004 | #59 | Abhiram | Schema adopts measurement's reference-object vocabulary. |
+| CORE-003 | #62 | Abhiram | `asset_type` on the evidence entry, its column, its migration. Created retroactively — it shipped with no board ticket. |
+| EXT-006 | #56 | Sitanshu | Bilingual Devanagari/Latin pairing. Both blockers closed properly. |
+| DAT-003 | #64 | Abhiram | Docs only after rescope: unsafe purge form, AGENTS heading, ownership reassignment. |
+| MEA-006 | #47 | Yashashvi | Zero margin permitted; half-plane slicing fix beyond ticket scope. |
+| CTR-006 | #65 | Abhiram | `CompetingReadings` + `DisagreementReason` in contracts. |
+| PIP-004 | #67 | Abhiram | Contested declaration routes to REVIEW_REQUIRED. |
+| RUL-005 | #68 | Abhiram | Rule 3 Chapter II scope limb. |
+| — | #69 | Abhiram | Docs: Session 13 log, Rule 25 export-limb correction. |
 
 ---
 
 ## Open PRs — exact remaining items
 
+### PR #63 — VIS-004 model weights · Akshaya · `vis-004-model-weights-bootstrap`
+
+Head `7b8ca16`, three checks green. **Green is not evidence here** — the suite has had guards
+removed. Twelve OCR tests deleted across two pushes; five restored on the second.
+
+**Blockers — restore or justify each individually in the PR body:**
+
+1. `test_offline_guarantee_raises_on_missing_tessdata` and
+   `test_offline_guarantee_missing_tessdata_dir` — these prove the ticket's entire purpose: no
+   network fetch, no silent fallback, the demo survives the venue network failing. The offline
+   enforcement was rewritten and its tests deleted.
+2. `test_arbitration_disagreement_emits_review_marker` — providers that disagree on a numeric
+   field surface both readings rather than arbitrating (ARCHITECTURE.md data-flow step 5). The
+   same principle CTR-006 and PIP-004 encoded one layer up this session.
+3. `test_arbitration_currency_normalization`, `test_extract_mrp_quantity_mocked`,
+   `test_extract_panel_text_mocked` — the constrained re-OCR on MRP and net quantity.
+
+If a test cannot survive the 3.7.0 API, rename it to state what it actually proves and give the
+reason in its docstring. **Correct the claim, not the code.**
+
+**Also still owed from the first review:** `px_to_cm_ratio` and `area_cm2` come off `PDPResult`
+entirely — pixels to centimetres needs a calibration and belongs to measurement, not vision. The
+empty-detection branch must refuse rather than return a full-image box with `confidence 0.0` and
+an area attached, which overestimates PDP area and biases toward POTENTIAL VIOLATION. The
+`DetectionResult` → `PDPResult` rename is held until it is its own ticket.
+
+**What is good and stays:** `YOLO_OFFLINE` / `ULTRALYTICS_OFFLINE`, no network download path, no
+stock-COCO substitution, `bootstrap_weights.py`, and the README.
+
+### PR #66 — EXT-008 additional-script detection · Sitanshu · `ext-008-additional-script-detection`
+
+Head `a415ccf`, three checks green, three files, one module. Shape is clean.
+
+1. Remove `"Page 9"` from the Statutory Corpus Citation. Page numbers are a `pdftotext`
+   artefact, not a stable reference — cite the gazette file as every rule in the store does.
+   Keep the substance: Rule 9(4) permits other languages in addition.
+2. **The ticket's actual ask is not done.** `NEITHER` still means both "a script we recognise
+   but do not normalise" and "not text in any script". Adding Tamil and Bengali regexes moved
+   the defect one script over — a Telugu span and `"12345 !!!"` still share a bucket. Separate
+   the two conditions and add the test that pins it.
+
 ### PR #46 — EVD-005 retention and purge · Shiva Kumar · `evd-005-retention-purge`
 
-Blocked on CORE-003. Head `e510224` at last review. **CI red at `Format check`** — that is
-`ruff format --check .`, and Lint passed while Import boundaries and Tests were skipped, so
-nothing about the code has been verified by CI yet.
+Head `7215b2b`. **Red on `Format check`.** That step runs before Lint, Import boundaries and
+Tests, so **nothing in this PR has been verified by CI.** Single quotes where the house style is
+double, and a multi-line `with` that ruff wants parenthesised, in `test_retention_purge.py`.
 
-Owed, none confirmed:
-1. **The false attestation.** `storage_key = f"evidence/{entry.payload_hash}"` keys on the
-   payload hash while the CAS client keys on image bytes. When they differ, `purge_image`
-   takes its not-found branch, `purge_evidence` returns `True`, and `append_purge_entry`
-   writes an immutable chain entry attesting a destruction that never happened. Derive the key
-   from what `store_image` returned; write no audit record on a no-op.
-2. `is_purged` reads `payload.get("type")` but persisted payloads are JSON strings, so it
-   returns `False` for everything on the database path — purge detection is memory-only.
-3. **The legal hold is inverted.** HOLD on any `POTENTIAL_VIOLATION` with no review row; HOLD
-   on `CONFIRM` or `OVERRIDE`; RELEASE only on `REJECT`. The docstring describes the opposite
-   of what the code does — fix both.
-4. `S3ContentAddressedStorageClient.purge_image` catches bare `Exception` and returns, so a
-   permissions failure reads as "already purged".
-5. `purge_evidence(e0, e0, ...)` passes an entry as its own predecessor in several tests.
-6. `test_chain_verification_tampered_purge` proves nothing about purging — remove the purge
-   entirely and it still passes, because the tampering alone causes `payload_hash_mismatch`.
+`cd bck && uv run ruff format . && uv run ruff check . --fix`
 
-Also: the PR carries `bck/app/core/config.py`, `bck/app/pipeline/repository.py` and
-`bck/tests/core/test_persistence.py`, all Abhiram's. He must say what each edit is for; they
-get split or folded into CORE-003.
+Then rebase onto CORE-003: `asset_type` is required with no default and inside
+`compute_entry_hash`. `create_genesis_entry` and `append_entry` must take it as a **required
+parameter** — a constructor default reintroduces at the call site exactly what the no-default
+column prevents. Member set is three, not five. `EvidenceAssetType` now lives in
+`app.contracts`; delete the local definition and import it.
 
-When CORE-003 lands, his hash-chain test expectations move because `asset_type` joins
-`compute_entry_hash`. Expected, not a regression.
+**Good news:** `config.py`, `repository.py` and `test_persistence.py` are no longer in the diff.
+The ownership escalation is cleared — seven files, all his module.
 
-### PR #47 — MEA-006 permit zero margin results · Yashashvi · `mea-006-zero-margin`
-
-**Unblocked by #58.** Head `1518ebe`, CI red on backend. The design call in it was right and
-is what shipped in CTR-005.
-
-1. Rebase and drop the contracts half:
-   `git checkout origin/main -- bck/app/contracts/__init__.py bck/app/contracts/measurement.py`
-   The PR then touches only `services.py`, its tests and her session log, and the merge-gate
-   escalation disappears.
-2. `MeasurementMarginCalibrated.confidence_interval` is `gt=0`. `measure_margins` computes
-   `confidence = max(0, dist_px) * conf_interval`, exactly `0.0` for a zero margin, so the
-   field path now raises while the artwork path succeeds. Floor the interval at the mm
-   equivalent of one pixel at the measured scale. Module-level constant, documented as an
-   uncalibrated prior. Not a hardcoded epsilon.
-3. Add the calibrated twin of `test_zero_margin_is_valid`: `is_artwork=False`, a reference
-   scale, zero margin, asserting a non-zero interval comes back.
-4. `max(0, dist_px)` swallows overlap. A negative distance means ink intruding into the free
-   space Rule 8(1)'s proviso requires — the violation the measurement exists to detect. Handle
-   it as a distinct outcome, not a clamped zero.
-5. Say in the PR body that this does not restore Rule 8 — `pipeline/` still never calls
-   `measure_margins`.
-
-### PR #56 — EXT-006 bilingual declarations · Sitanshu · `ext-006-bilingual-declarations`
-
-Head `9cf855f`, three checks green. Six of nine review items properly closed, including the
-`किलोग्राम` ordering fix with a ten-case boundary test, `MIXED` barred from pairing,
-`pair_conf` changed from `max` to `min`, and `StrEnum`.
-
-1. **BLOCKER — the lexicon change is in the log, not the branch.** The final entry says
-   `मूल्य` → MRP and `अधिकतम राशी` → MRP were removed and
-   `test_bare_mulya_does_not_cause_false_mrp` added. Both mappings are still in
-   `_DEVANAGARI_TOKEN_MAP`; the test exists only inside that log sentence. The audit reasoning
-   is correct and should be kept — `मूल्य` is generic price, used in the corpus inside
-   `अजधकतम खुिरा मूल्य`. Commit the change.
-2. The module docstring carries the *Statutory Corpus Citation* / *Engineering Priors* block
-   **verbatim twice** plus a third partial restatement of Rule 9(4). Keep one. Preserve the
-   sentence stating the 3.0 multipliers are engineering heuristics and not statutory
-   thresholds.
-3. PR body and log say 11 tests; the file has 17. Both say 694 passed; main has moved.
-4. He now wraps every `_dispatch_single_span` confidence in `min(span.confidence, X)`, which
-   changes monolingual behaviour too. Probably correct, outside ticket scope — state it in the
-   PR body rather than reverting.
-5. Not blocking, docstring note only: `detect_script` puts a Tamil or Bengali span and
-   `"12345 !!!"` in the same `NEITHER` bucket, and Rule 9(4)'s proviso is what permits that
-   additional language.
+**Six review items stand.** The `storage_key` false attestation is the blocker: it keys on
+`payload_hash` while the CAS client keys on image bytes, so `purge_evidence` returns `True` and
+writes an immutable chain entry attesting a destruction that never happened. CORE-003 did not
+touch it.
 
 ### PR #43 — MEA-005 artwork vector ingest · Yashashvi · `mea-005-artwork-vector-ingest`
 
-Untouched in Session 6. Still blocked on a new `pdfplumber` dependency, which needs Abhiram's
-decision before the PR can proceed.
+**Unblocked — `pdfplumber` approved.** Pure Python over `pdfminer.six`, no system libraries.
+Scoped to PDF; SVG is a separate ticket. Flag the dependency in the PR body per the deny rules.
+Needs a rebase — main moved eight times this session.
 
 ---
 
 ## To do — Abhiram
 
-### CORE-003 — `asset_type` on EvidenceEntry, its column, and its migration
-**In flight, Lane A, plan stage.** Unblocks #46. Two decisions are made and are not open:
-`asset_type` is required with no default; `asset_type` is folded into `compute_entry_hash`.
-Also fixes `bck/tests/core/test_persistence.py`. Out of scope: `retention.py`, `storage.py`,
-and `chain.py`'s purge logic — all Shiva's.
+**MEA-009 — an overlapping margin is a finding, not a refusal.** Part A (contracts) is his and
+blocks Part B (Yashashvi). A negative margin means ink intruding into the Rule 8(1) free space —
+the violation the measurement exists to detect — and returning `MeasurementRefusal` makes a
+detected violation look like a failed measurement.
 
-### DAT-005 — annotate the fifteen staged captures
-**Highest value on the board.** `~/26034-dat/datasets/raw/_staging/`, six SKUs. Check Rule 26
-against the corpus before writing ground truth for the 2 g Maggi sachet — if the exemption
-applies, most Rule 6(1) obligations are `NOT_APPLICABLE`, not FAIL. `reference_object` must
-now satisfy the DAT-004 vocabulary: `present: true` requires `object_type: coin_10` and
-`known_dimension_mm: 27.0`. Heights stay null on every uncalibrated capture. The
-`manifest.json` rebuild moved here from DAT-003.
+**RUL-006 — `applies_to` is a decorative field that reads as a scope guard.** Fourteen rules
+carry it, a test enforces its vocabulary, it is copied into every verdict snapshot, and **no
+evaluator reads it**. Now sits beside RUL-005's real gate. Default recommendation: remove it.
+Decide after reading RUL-005 as merged.
 
-### CI/datasets required status check
-It has reported once, so it can now be added. Browser only:
-`github.com/SIH-2026-CSM-A/26034/settings/rules` → `main-protection` → Require status checks →
-`+ Add checks` → `datasets` → Save. Change nothing else. Never add a `paths:` filter after.
+**PIP-003 — wire `propose_category` into the orchestrator** as a proposal that never writes
+itself into the confirmed category.
 
-### DAT-003 — ownership reassignment only
-**Rescoped. Do not run its original setup step** — it unzips `dat001-raw-corpus.zip` into
-`datasets/raw/`, re-importing the fabricated corpus DAT-002 deleted. What remains:
-`.github/CODEOWNERS` reassigning `datasets/` away from Aashritha; the AGENTS.md ownership
-table to match; `bck/app/modules/measurement/README.md`, which names `@Abhiram-0910` where
-measurement belongs to Yashashvi.
-
-### PIP-003 — wire the category proposal into the orchestrator
-`propose_category` merged in #52 with no caller. A proposal is evidence, never a confirmation:
-`Scan.product_category` is set only by an officer's explicit act. The load-bearing test is
-that a proposal never mutates it. The sector gate stays exactly as it is.
-
-### Docs PR — the `rtk` gotcha
-CLAUDE.md and AGENTS.md both document the purge as bare `find … -exec`, which is the unsafe
-shape. Must become `/usr/bin/find`, with the exit-1 behaviour and the `gh run view`
-interception recorded.
+**DAT-005 — annotate the staged captures. Parked, not cancelled.** All six `*_uncalibrated`
+files have ₹10 coins in frame, so the uncalibrated half of the set does not exist and the
+refusal path has no sample. Cropping destroyed the declaration block; inpainting left visible
+starbursts. **Needs six real photographs — one per SKU, no reference object in frame.** Check
+Rule 26 against the corpus before annotating the 2 g Maggi sachet or the 6 ml Dove sachet: if
+the exemption applies, most Rule 6(1) obligations are NOT_APPLICABLE, not FAIL — and an exempt
+obligation the label happens to satisfy is still NOT_APPLICABLE, not PASS.
 
 ---
 
-## To create — not yet on the board
+## To do — team
 
-### TAM-002 — wire tamper detection and calibrate its priors
-Akshaya. **Blocked on DAT-005.** Export and call both detectors from the orchestrator; a
-tamper finding routes to REVIEW and never produces `POTENTIAL_VIOLATION` on its own. Carried
-over from the TAM-001 review: a conflict flags every span in every cluster including agreeing
-ones, so it does not localise; `off\b` in the exclusion list drops a whole span, a false
-negative on the MRP; spans skipped by the `continue` branches are indistinguishable from
-clean. Once the corpus exists, report the false-positive rate — if the sticker detector fires
-on clean labels, cut it to conflicting-MRP only for the demo.
+**EXT-007 — Sitanshu. Unblocked.** Both CTR-006 and PIP-004 are on main. Finish or park #66
+first; never two branches in one module. **At `binder.py:604` the value check runs before
+`_are_spans_spatially_adjacent` at 607** — move adjacency above value, or the ticket records
+disagreements between unrelated declarations. CTR-006's validator refuses a `field_type` in both
+`fields` and `disagreements`, so both readings must leave `fields` entirely.
 
-### MEA-008 — REF_DIMS has no entry for the printable 50 mm calibration card
-Yashashvi. F2's manufacturer self-check names it. Deliver the `REF_DIMS` entry, the detector
-branch and a confidence prior together, or close the ticket with the finding that the artefact
-does not exist yet. Do not write `50.0` as though it were sourced the way the ₹10 coin's
-27.0 mm is.
+**FNT-003 — Vineeth.** Generate the API client from the OpenAPI schema and move exactly one
+screen onto it. **The ticket's branch field is wrong** — it reads `fnt-001-generated-api-client`
+because the custom-field write was rejected by the plan cap. **The branch is
+`fnt-003-generated-api-client`.** Renamed from FNT-001 because that id and FNT-002 were both
+already taken by shipped work.
 
-### EXT-007 — a bilingual declaration whose two renderings disagree
-Sitanshu. **Blocked on #56.** Non-pairing is correct; silently emitting two contradictory
-`NormalisedField` records of the same type is not. Read ARCHITECTURE.md's data-flow step 5 —
-providers that disagree surface both readings rather than arbitrating. Likely REVIEW, not
-`INSUFFICIENT_EVIDENCE` (both were read perfectly well) and not FAIL (which is wrong is an
-officer's call).
+**MEA-007, MEA-008 — Yashashvi.** Homography from an ellipse fit rather than a bounding box;
+`REF_DIMS` has no entry for the printable 50 mm calibration card. MEA-008 may legitimately close
+as a finding that the artefact does not exist.
+
+**TAM-002 — Akshaya. Blocked on DAT-005.** Wiring plus false-positive rate on real labels.
+Tamper detection must not be described as working until it has run against annotated labels.
 
 ---
 
-## Board moves owed by hand
+## Board hygiene
 
-Connector was rate-limited. These were not made programmatically — verify each:
+Move to `done` when their PRs merge: RUL-005 (#68 merged — do this).
 
-`done` — DAT-002, CTR-004, CI-004, TAM-001, DAT-004, and CTR-005 once created.
-`in progress` — EVD-005, MEA-006, EXT-006, CORE-003.
-`to do` — DAT-003, DAT-005, PIP-003, and TAM-002 / MEA-008 / EXT-007 once created.
+Not yet on the board: nothing outstanding. CORE-003 was created retroactively; CTR-005 already
+existed; the duplicate RUL-005 was deleted.
 
-Several existing tickets are missing the `Module 26034` option UUID — it rejects a plain
-string and needs a UUID from `clickup_get_custom_fields`.
+`Module 26034` option UUIDs cannot be backfilled on this plan.

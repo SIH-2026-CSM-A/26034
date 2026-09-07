@@ -15,6 +15,10 @@ evidence-backed findings.
 
 ### CI
 
+`datasets` is a required status check. Three checks report on every PR. **"Require branches to be up to date before merging" is deliberately unchecked** — turning it on would force five people to rebase on every merge. The cost is that a stale base can carry a green tick past the gate, which is why you read the check list rather than the colour.
+
+**An empty grep of a CI log for `FAILED|^E |assert` means the failure is not a test.** It is usually `ruff format --check`, which runs *before* Lint, Import boundaries and Tests — so a format failure means nothing in the PR has been verified by CI. Grep for `Process completed with exit code` instead.
+
 Three checks report on every PR: `CI/backend`, `CI/datasets`, `Frontend/frontend`. A PR
 showing two has a base predating #60 — that is a stale base wearing a green tick, not a CI
 problem. Rebase before reading anything into it.
@@ -29,12 +33,18 @@ The `datasets` job deliberately has no ruff step: `datasets/` carries seven pre-
 UP042 findings and one format diff under `bck`'s config, so adding one turns the job red on
 arrival.
 
-Backend reports 737 passed / 2 skipped on the runner and 707 passed / 32 skipped locally. The
+**Do not quote a test count from this file. Measure it.** The local baseline moved
+three times in Session 13 alone (731 -> 739 -> 741 -> 772) and this line was stale all
+session. Measure on `origin/main` in your own session, with a clean tree and bytecode
+purged, before claiming a delta. CI reports roughly 30 higher because it un-skips the
+postgres-marked tests.
+
+The historical figures were 737 passed / 2 skipped on the runner and 707 / 32 locally. The
 difference is the 30 postgres-marked tests, which CI un-skips because it provides a Postgres
 service. Both numbers are correct.
 
-Session-log numbering in `session-log/abhiram.md`: 7 = CI-004, 8 = CTR-005, 9 = DAT-004. Next
-is Session 10. Resolve conflicts in that file by reconstruction — take main's version verbatim
+Session-log numbering in `session-log/abhiram.md`: 10 = CORE-003, 11 = CTR-006,
+12 = PIP-004, 13 = RUL-005. Next is Session 14. Resolve conflicts in that file by reconstruction — take main's version verbatim
 and append your block — never by editing conflict markers. Prove it with
 `git diff --numstat origin/main -- session-log/abhiram.md` showing zero deletions.
 
