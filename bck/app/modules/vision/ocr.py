@@ -141,9 +141,7 @@ def _parse_paddle_results(results: Any) -> list[ExtractedSpan]:
                     if len(box) > 0 and isinstance(box[0], (list, np.ndarray))
                     else []
                 )
-                text = str(
-                    line.get("text", line.get("transcription", line.get("rec_texts", "")))
-                )
+                text = str(line.get("text", line.get("transcription", line.get("rec_texts", ""))))
                 confidence = float(
                     line.get("confidence", line.get("score", line.get("rec_scores", 1.0)))
                 )
