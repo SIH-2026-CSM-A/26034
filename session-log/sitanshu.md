@@ -252,3 +252,27 @@ uff check . -> clean (All checks passed!).
 - 797 passed, 32 skipped across full backend suite (`16.00s`).
 - Quality gates: `ruff check` (PASS), `ruff format --check` (PASS), `lint-imports` (PASS), `git diff --check` (PASS).
 - `session-log/sitanshu.md` numstat against `origin/main`: 0 deletions, additions > 0.
+
+
+### 2026-09-07 — ExT-004 Declaration Bounding Box Prerequisite for Rule 8 Free-Space Clearance (Sitanshu)
+
+**Done**
+- Source-of-Truth Inspection & Data Flow Audit:
+  - Audited bck/app/modules/extraction/binder.py and extraction data models.
+  - Verified NormalisedField.span_refs identifies backing ExtractedSpan objects whose polygons field (tuple[Point, ...]) contains source bounding geometry.
+  - Confirmed measure_margins() in bck/app/modules/measurement/services.py expects bounding box representation.
+- Implementation of get_declaration_bbox() in bck/app/modules/extraction/binder.py:
+  - Pure canonical query helper: get_declaration_bbox(field: NormalisedField, spans: Sequence[ExtractedSpan]) -> tuple[float, float, float, float] | None.
+  - Calculates exact (min_x, min_y, max_x, max_y) enclosing bounding envelope over the union of all polygons of referenced spans.
+  - Preserves exact floating-point canvas pixel coordinates; quantization (floor/ceil integer conversion) is deferred to downstream measurement callers.
+- Refusal Behavior:
+  - Returns None (refusal) when geometry is undeterminable: empty span_refs, missing referenced span_id, empty or < 3 vertex polygons, non-finite (NaN/Inf) coordinates, or degenerate zero/negative area envelopes (min_x >= max_x or min_y >= max_y).
+- Unit Testing & Falsification (bck/tests/modules/extraction/test_bilingual_declarations.py):
+  - Added 11 focused unit tests covering single span, bilingual pairs, multi-line address envelopes, empty refs refusal, missing span ID refusal, empty polygons, < 3 vertex polygons, maloformed point refusal, non-finite coord refusal, degenerate geometry refusal, and fractional floating-point preservation.
+  - Executed 6 independent falsification mutations (multi-span union truncation, min/max corruption, dummy refusal bbox, float quantization, non-finite coords, degenerate envelope) — all 6 went RED under mutation and returned 100% GREEN upon restoration.
+- Quality Gates & Integrity:
+  - All 4 quality gates passed: ruff check . (0 errors), ruff format --check . (0 format violations), lint-imports (3 contracts kept, 0 broken across 115 files), pytest (812 passed, 32 skipped).
+  - Targeted extraction tests: 39 passed in 1.23s.
+  - python -m py_compile passed cleanly on modified modules.
+  - Rebased cleanly onto current origin/main (c4922ce2463cd4485969c3de09b1d5d9db2e7033).
+  - No contracts, pipeline, or measurement files modified. Zero AI-attribution trailers.
