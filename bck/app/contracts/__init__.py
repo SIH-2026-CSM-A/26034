@@ -37,6 +37,8 @@ from app.contracts.measurement import (
     MeasurementExact,
     MeasurementMarginCalibrated,
     MeasurementMarginExact,
+    MeasurementMarginOverlapCalibrated,
+    MeasurementMarginOverlapExact,
     MeasurementRefusal,
     MeasurementResult,
 )
@@ -64,6 +66,8 @@ __all__ = [
     "MeasurementExact",
     "MeasurementMarginCalibrated",
     "MeasurementMarginExact",
+    "MeasurementMarginOverlapCalibrated",
+    "MeasurementMarginOverlapExact",
     "MeasurementRefusal",
     "MeasurementResult",
     "NormalisedField",

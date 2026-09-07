@@ -26,6 +26,8 @@ from app.contracts import (
     MeasurementExact,
     MeasurementMarginCalibrated,
     MeasurementMarginExact,
+    MeasurementMarginOverlapCalibrated,
+    MeasurementMarginOverlapExact,
     MeasurementRefusal,
     MeasurementResult,
     NormalisedField,
@@ -366,7 +368,7 @@ def test_a_margin_is_not_an_instance_of_the_measurement_it_relaxes() -> None:
 
 
 def test_each_measurement_shape_round_trips_through_the_union_as_itself() -> None:
-    """Five value shapes, five discriminators, no collapsing on the way back.
+    """Seven shapes, seven discriminators, no collapsing on the way back.
 
     ``type(...) is`` rather than ``isinstance``: a subclass would satisfy ``isinstance``
     and defeat the point of
@@ -381,6 +383,10 @@ def test_each_measurement_shape_round_trips_through_the_union_as_itself() -> Non
         MeasurementMarginCalibrated(
             value=0.0, confidence_interval=0.1, unit="mm", reference_object="coin_10"
         ),
+        MeasurementMarginOverlapExact(overlap=0.4, unit="mm"),
+        MeasurementMarginOverlapCalibrated(
+            overlap=0.4, confidence_interval=0.1, unit="mm", reference_object="coin_10"
+        ),
         MeasurementRefusal(reason="glare"),
     )
     for original in originals:
@@ -389,6 +395,169 @@ def test_each_measurement_shape_round_trips_through_the_union_as_itself() -> Non
             f"{original.mode} came back as {type(restored).__name__}"
         )
         assert restored == original
+
+
+# --------------------------------------------------------------------------------------
+# Overlaps: a negative clearance is an observation about the package, not a failed reading.
+# --------------------------------------------------------------------------------------
+
+
+def test_an_overlap_of_exactly_zero_is_not_an_overlap() -> None:
+    """Zero belongs to the margin shapes, and one physical fact gets one representation.
+
+    A declaration flush against its neighbour has a clearance of exactly 0.0 and is a
+    :class:`MeasurementMarginExact`. If ``overlap`` admitted 0.0 the same package could be
+    reported two ways, and a consumer counting overlaps would count a flush declaration as
+    an intrusion.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapExact(overlap=0.0, unit="mm")
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(
+            overlap=0.0,
+            confidence_interval=0.1,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+
+def test_an_overlap_is_carried_as_a_positive_magnitude() -> None:
+    """The direction lives in the type, not in the sign.
+
+    The producing branch fires on a *negative* clearance, so the obvious mistake is to
+    hand the negative straight through. A stored ``-0.4`` would compare against a
+    requirement the wrong way round on the first consumer that forgets to negate it.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapExact(overlap=-0.4, unit="mm")
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(
+            overlap=-0.4,
+            confidence_interval=0.1,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+    intruding = MeasurementMarginOverlapExact(overlap=0.4, unit="mm")
+    assert intruding.overlap == 0.4
+
+
+def test_an_overlap_cannot_be_read_as_a_margin_value() -> None:
+    """The field is ``overlap``, and there is no ``value`` to read by accident.
+
+    ``app.pipeline.measurement_findings`` formats a millimetre-bearing result as
+    ``f"{result.value} {result.unit}"``. An overlap carrying ``value`` would reach an
+    officer as the identical string a clearance of the same size produces — the same
+    number, the opposite meaning. Under this name that consumer raises rather than
+    misreporting, which is the outcome this asserts.
+    """
+    intruding = MeasurementMarginOverlapExact(overlap=0.4, unit="mm")
+    assert not hasattr(intruding, "value")
+
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapExact(value=0.4, unit="mm")
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(
+            value=0.4,
+            confidence_interval=0.1,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+
+def test_a_calibrated_overlap_without_a_reference_object_raises() -> None:
+    """An intrusion measured from a photograph is still a millimetre figure.
+
+    Nothing about the figure being negative relaxes the rule that a millimetre read off an
+    image names the object it was calibrated against, or it cannot be re-derived by anyone
+    checking the work.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(overlap=0.4, confidence_interval=0.1, unit="mm")
+
+
+def test_a_calibrated_overlap_without_a_confidence_interval_raises() -> None:
+    """A calibrated figure with no stated interval reads as an exact one."""
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(overlap=0.4, unit="mm", reference_object="coin_10")
+
+
+def test_a_calibrated_overlap_may_not_claim_a_zero_width_confidence_interval() -> None:
+    """An overlap has no claim to a certainty the margin it inverts already refuses.
+
+    :class:`MeasurementMarginCalibrated` tightens the interval to ``gt=0`` because a
+    millimetre distance recovered from a photograph carries pixel quantisation and
+    reference-object localisation error. Reversing the sign of that distance changes none
+    of it, so the tightening is repeated here rather than inherited loose from the base.
+    """
+    with pytest.raises(ValidationError):
+        MeasurementMarginOverlapCalibrated(
+            overlap=0.4,
+            confidence_interval=0.0,
+            unit="mm",
+            reference_object="coin_10",
+        )
+
+
+def test_an_overlap_is_not_substitutable_for_a_margin() -> None:
+    """The overlap shapes are siblings of the margin shapes, not subclasses of them.
+
+    This is the failure the sibling structure exists to prevent, and it is worse here than
+    for the margins themselves. A margin subclassing a measurement relaxes a constraint; an
+    overlap subclassing a margin would leave every ``isinstance(x, MeasurementMarginExact)``
+    check already written answering yes while the number underneath it came to mean the
+    opposite — clearance replaced by intrusion, silently, at a call site that reads as
+    correct.
+    """
+    overlap_exact = MeasurementMarginOverlapExact(overlap=0.4, unit="mm")
+    overlap_calibrated = MeasurementMarginOverlapCalibrated(
+        overlap=0.4,
+        confidence_interval=0.1,
+        unit="mm",
+        reference_object="coin_10",
+    )
+    assert not isinstance(overlap_exact, MeasurementMarginExact)
+    assert not isinstance(overlap_exact, MeasurementExact)
+    assert not isinstance(overlap_calibrated, MeasurementMarginCalibrated)
+    assert not isinstance(overlap_calibrated, MeasurementCalibrated)
+
+    margin_exact = MeasurementMarginExact(value=0.0, unit="mm")
+    margin_calibrated = MeasurementMarginCalibrated(
+        value=0.0,
+        confidence_interval=0.1,
+        unit="mm",
+        reference_object="coin_10",
+    )
+    assert not isinstance(margin_exact, MeasurementMarginOverlapExact)
+    assert not isinstance(margin_calibrated, MeasurementMarginOverlapCalibrated)
+
+
+def test_no_overlap_shape_carries_a_rule_threshold() -> None:
+    """An overlap is an observation. What it means is the rule engine's question.
+
+    Rule 8(1)'s proviso requires clearance of at least the numeral's own height above and
+    below and twice that height left and right, and those multiples are read from the rule
+    store at evaluation time. A ``numeral_height_mm``, a multiple, a side name or a verdict
+    added to these types would put a slice of that decision in ``contracts``, where no
+    gazette reference reaches it.
+
+    The expected field names are written here rather than read off the model, so this
+    compares the type against a literal instead of against itself.
+    """
+    assert set(MeasurementMarginOverlapExact.model_fields) == {
+        "mode",
+        "overlap",
+        "unit",
+        "rule_limb",
+    }
+    assert set(MeasurementMarginOverlapCalibrated.model_fields) == {
+        "mode",
+        "overlap",
+        "confidence_interval",
+        "unit",
+        "reference_object",
+        "rule_limb",
+    }
 
 
 # --------------------------------------------------------------------------------------
