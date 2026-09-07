@@ -1462,3 +1462,105 @@ twice. Four edit points:
    key, so this passes empty.
 
 PIP-004 merges **before** EXT-007, so the forbidden state never reaches `main`.
+
+## Session 12 — 2026-09-07, PIP-004 (Claude Code, Opus 5)
+
+**Ticket.** Route a contested declaration to REVIEW_REQUIRED rather than
+INSUFFICIENT_EVIDENCE. Merges before EXT-007 so the forbidden state never reaches `main`.
+
+**The state this closes.** CTR-006 (#65) landed `CompetingReadings` and
+`ExtractionResult.disagreements` and nothing read them. Once EXT-007 diverts two
+contradictory readings out of `extraction.fields`, `by_obligation` never sees them,
+`context.declared` has no key, and `_one_declaration` falls past `if values:` to the
+`unreadable_reason` branch — **INSUFFICIENT_EVIDENCE** on a label that was read perfectly,
+twice. Package verdict is REVIEW either way (`verdict.py:56-59` tests both states in
+separate branches); what this buys is the reason string on the officer surface. An officer
+told the declaration could not be read re-photographs a package that needs no second photo.
+
+**Shipped.** `EvidenceContext.contested:
+Mapping[DeclarationField, tuple[CompetingReadings, ...]]`; a REVIEW_REQUIRED branch at the
+top of `_one_declaration`; `by_obligation` widened to serve both collections; the image path
+fed from `extraction.disagreements` with `field_providers` extended to cover
+disagreement-only obligations; the catalogue path passing `{}`.
+
+**REVIEW_REQUIRED is a literal, not `FIELD_STATE_FROM_VERDICT[evaluate_rule(...)]`.** The
+research question the ticket asked was whether REVIEW_REQUIRED is reachable through that
+mapping. **It is** — `dispositions.py:21`, keyed by `Verdict.REVIEW`. CTR-006's note that
+the mapping is not total over `FieldState` is right about the two members it names,
+`NOT_APPLICABLE` and `INSUFFICIENT_EVIDENCE`, and REVIEW_REQUIRED is not in that company.
+It is still produced outside the mapping, for three reasons. Nothing was evaluated — the
+rule was never applied because no declaration was resolved to apply it to. The round trip
+computes a constant: `evaluate_rule` (`evaluator.py:66-76`) has one gate,
+`UNVERIFIED → REVIEW`, so proposing `Verdict.REVIEW` returns REVIEW unconditionally. And it
+would hand this branch the FAIL branch's exact expression,
+`FIELD_STATE_FROM_VERDICT[evaluate_rule(rule, X)]` — one token
+(`Verdict.REVIEW` → `Verdict(rule.severity.value)`) from routing a contested declaration to
+FAIL, which is the accident the five-state vocabulary exists to prevent. Literals are
+already the house pattern for every branch that did not evaluate: `sector_findings`,
+`observation_findings`, `listing_findings`, and the `unreadable_reason` branch. Skipping
+the evaluator loses nothing, because the gate's answer for an UNVERIFIED rule is REVIEW —
+the same state.
+
+**A tuple per obligation, matching `declared`.** Rule 6(1)(a) is one obligation covering
+manufacturer, packer and importer, so two spatially distinct bilingual pairs can each
+disagree against it. A `Mapping[DeclarationField, CompetingReadings]` would drop one
+silently — the same class of defect as the wrongful PASS this line of work exists to fix.
+`by_obligation` was widened with a `TypeVar` constrained to `NormalisedField` and
+`CompetingReadings` rather than a second grouping loop written: the same obligation can
+carry two of either, for the same reason, so two loops would be one bug waiting to differ.
+
+**No contracts change.** `CompetingReadings`, `DisagreementReason`,
+`FieldState.REVIEW_REQUIRED`, `FieldFinding.observed_value` / `.evidence_span_ids` and
+`EvidenceProvider.PADDLEOCR` were all already on `main` and exported. Nothing raised with
+the owner.
+
+**The sector gate still runs first, and that is correct — do not "fix" it.** A gated rule
+(R6-1-A, R6-1-D, …) with an unconfirmed category still yields the gate's
+INSUFFICIENT_EVIDENCE even for a contested field, because `sector_findings` returns before
+`declaration_findings` runs. A confirmed category is a **precondition of evaluation**, not
+a filter applied after it: whether the packaged rules govern an obligation at all is settled
+before we ask what we observed. Recorded here because it looks like a miss and is not.
+
+**Two tests, because one was not enough.** Both on **R6-1-C** — governs NET_QUANTITY,
+VERIFIED, absent from `SECTOR_GOVERNED_RULES`, and named by `sector_gate.py` as an ungated
+declaration rule.
+
+`test_a_contested_declaration_is_review_required_not_insufficient_evidence` proves the
+branch exists. It does **not** prove the branch sits above `if values:` — an obligation
+present only in `contested` has an empty `declared` tuple and reaches REVIEW_REQUIRED under
+either ordering. Abhiram caught that in review before any code was written.
+`test_a_contested_declaration_outranks_a_resolved_one` puts the same `DeclarationField` in
+**both** collections and asserts REVIEW_REQUIRED beats PASS. Its `EvidenceContext` is built
+directly, because CTR-006's `_a_disagreement_is_never_also_a_field` refuses that shape at
+`ExtractionResult` construction — that invariant belongs to extraction; what is pinned here
+is the pipeline's branch ordering, which no validator in another layer holds in place. Its
+docstring says so, so it does not get read as decorative and deleted.
+
+**Falsification — three defects, all reverted.** Each with
+`/usr/bin/find . -name __pycache__ -type d -exec rm -rf {} +` first and the surviving
+directory count asserted at **0**.
+
+| Defect introduced | Result |
+|---|---|
+| Contested branch deleted | `..._not_insufficient_evidence` red on **INSUFFICIENT_EVIDENCE** — the exact bug |
+| Literal → `FieldState.INSUFFICIENT_EVIDENCE` | Both contested tests red |
+| Branch moved **below** `if values:` | `..._outranks_a_resolved_one` red on **PASS**; the other test **passed** |
+
+The third row is the one worth keeping. It is the direct demonstration that the first test
+alone would have left the ordering untested, and that the second test is the thing holding
+it — a reorder produces a wrongful PASS on a self-contradicting package and only that test
+notices.
+
+**Gate.** `741 passed, 32 skipped` locally. Baseline measured on `origin/main` @ `a95e8fb`
+in this session, clean tree, bytecode purged: `739 passed, 32 skipped` — exactly **+2**,
+nothing else moved. Ruff clean, `ruff format --check` clean, `lint-imports` **3 contracts
+kept over 111 files / 368 dependencies**, exit code read directly rather than through a pipe.
+
+**CLAUDE.md's baseline is still stale.** It says `707 passed / 32 skipped`; `origin/main`
+is 739/32. Session 11 flagged it at 731/32 and it has moved again since. Not corrected here
+— doc updates go in their own PR.
+
+**Unblocks EXT-007 (Sitanshu).** The pipeline now consumes `disagreements`. Session 11's
+handover still stands: at `binder.py:604` the value check runs before
+`_are_spans_spatially_adjacent` at 607, and the adjacency check has to move above it or
+EXT-007 will record disagreements that are not disagreements.

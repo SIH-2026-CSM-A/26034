@@ -9,14 +9,19 @@ and a verdict outside the three the system is allowed to reach.
 
 import re
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import get_args
 
 import pytest
 
 from app.contracts import (
+    CompetingReadings,
+    DeclarationField,
+    DisagreementReason,
     FieldState,
     MeasurementCalibrated,
     MeasurementRefusal,
+    NormalisedField,
     Verdict,
 )
 from app.modules.rules import (
@@ -41,6 +46,34 @@ EVALUATION_DATE = date(2026, 9, 6)
 NO_CALIBRATION = MeasurementRefusal(reason="no reference object was in frame")
 UNREADABLE = "the panel was read but no declaration was bound to a span."
 
+LATIN_NET_QUANTITY = NormalisedField(
+    field_type=DeclarationField.NET_QUANTITY,
+    span_refs=("span-latin",),
+    normalised_value="500 g",
+    numeric_value=Decimal("500"),
+    unit="g",
+    parse_confidence=0.9,
+)
+DEVANAGARI_NET_QUANTITY = NormalisedField(
+    field_type=DeclarationField.NET_QUANTITY,
+    span_refs=("span-devanagari",),
+    normalised_value="250 g",
+    numeric_value=Decimal("250"),
+    unit="g",
+    parse_confidence=0.9,
+)
+CONTESTED_NET_QUANTITY = {
+    DeclarationField.NET_QUANTITY: (
+        CompetingReadings(
+            field_type=DeclarationField.NET_QUANTITY,
+            readings=(LATIN_NET_QUANTITY, DEVANAGARI_NET_QUANTITY),
+            reason=DisagreementReason.BILINGUAL_VALUE_MISMATCH,
+        ),
+    )
+}
+"""A package bearing "500 g" against "२५० ग्राम" — the worked example in CTR-006's own
+docstring, and the shape ``bind_spans`` will hand the pipeline once EXT-007 lands."""
+
 MILLIMETRE = re.compile(r"\d+(?:[.,]\d+)?\s*(?:mm|millimetres?|millimeters?)\b", re.IGNORECASE)
 """A number presented as a length in millimetres.
 
@@ -55,6 +88,7 @@ def context(**overrides: object) -> EvidenceContext:
         "rule_set_version": default_rule_set_version(),
         "evaluation_date": EVALUATION_DATE,
         "declared": {},
+        "contested": {},
         "measurements": dict.fromkeys(
             ("table_height", "width_ratio", "free_space", "pdp_area"), NO_CALIBRATION
         ),
@@ -264,3 +298,68 @@ def test_a_declaration_absent_from_a_listing_is_a_finding_about_the_listing() ->
     absent = findings_for_rule(findings, "R6-1-C")
     assert {f.state for f in absent} == {FieldState.FAIL}
     assert all("looked for and is not present" in f.reason for f in absent)
+
+
+# --------------------------------------------------------------------------------------
+# A declaration read twice, in readings that contradict each other.
+#
+# R6-1-C throughout: it governs NET_QUANTITY, it is VERIFIED, and it is absent from
+# SECTOR_GOVERNED_RULES, so the sector gate does not settle it before its own builder
+# runs. ``sector_gate.py`` names it as one of the two ungated declaration rules.
+# --------------------------------------------------------------------------------------
+
+
+def test_a_contested_declaration_is_review_required_not_insufficient_evidence() -> None:
+    """Both readings were read. Saying we could not obtain the evidence is a false
+    statement about our own reading, and it sends an officer to re-photograph a package
+    whose label was read perfectly, twice.
+
+    The default context carries an ``unreadable_reason``, so without the contested branch
+    this obligation falls to INSUFFICIENT_EVIDENCE — which is what the assertion below
+    fails on, and what makes it falsifiable.
+    """
+    findings = findings_for_rule(findings_for(contested=CONTESTED_NET_QUANTITY), "R6-1-C")
+
+    assert findings, "R6-1-C produced no finding for a contested net quantity"
+    assert {f.state for f in findings} == {FieldState.REVIEW_REQUIRED}
+    assert FieldState.INSUFFICIENT_EVIDENCE not in {f.state for f in findings}
+    assert all(f.observed_value == "500 g | 250 g" for f in findings), (
+        "the finding must show an officer both readings; one of them alone is an "
+        "arbitration this pipeline has no grounds to make"
+    )
+    assert all(f.evidence_span_ids == ("span-latin", "span-devanagari") for f in findings), (
+        "the finding must cite the spans behind every reading, not a bare state"
+    )
+
+
+def test_a_contested_declaration_outranks_a_resolved_one() -> None:
+    """The contested branch sits **above** ``if values:``, and that ordering is the guard.
+
+    The test above does not prove it. An obligation present only in ``contested`` has an
+    empty ``declared`` tuple, so it reaches REVIEW_REQUIRED under either ordering. Only a
+    context carrying the same obligation in *both* collections separates them: below
+    ``if values:`` the resolved reading wins and R6-1-C returns PASS on a package that
+    contradicts itself, which is the wrongful PASS this whole line of work exists to stop.
+
+    **Why the context is built directly.** CTR-006's
+    ``ExtractionResult._a_disagreement_is_never_also_a_field`` refuses this shape at
+    construction, so ``bind_spans`` cannot produce it. That invariant belongs to the
+    extraction layer; what is pinned here is the *pipeline's* branch ordering, which no
+    validator in another layer holds in place. The state being unreachable from today's
+    binder is the reason to pin it, not a reason to call this test decorative — it goes
+    red the moment the branch is reordered, which is the edit it exists to catch.
+    """
+    findings = findings_for_rule(
+        findings_for(
+            declared={DeclarationField.NET_QUANTITY: (LATIN_NET_QUANTITY,)},
+            contested=CONTESTED_NET_QUANTITY,
+        ),
+        "R6-1-C",
+    )
+
+    assert findings, "R6-1-C produced no finding for a contested net quantity"
+    assert {f.state for f in findings} == {FieldState.REVIEW_REQUIRED}
+    assert FieldState.PASS not in {f.state for f in findings}, (
+        "a resolved reading beat a contested one: the contested branch has been moved "
+        "below `if values:`, and a self-contradicting package now passes"
+    )
