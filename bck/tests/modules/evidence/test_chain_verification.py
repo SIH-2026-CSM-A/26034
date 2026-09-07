@@ -1,3 +1,4 @@
+from app.contracts import EvidenceAssetType
 from app.modules.evidence.chain import (
     append_entry,
     compute_entry_hash,
@@ -10,9 +11,11 @@ from app.modules.evidence.domain import EvidenceEntry
 def build_valid_chain(length: int = 10):
     """Helper to build a valid evidence chain of specified length."""
     timestamp = "2026-09-06T10:00:00Z"
-    entries = [create_genesis_entry({"i": 0}, timestamp)]
+    entries = [create_genesis_entry({"i": 0}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)]
     for i in range(1, length):
-        entries.append(append_entry(entries[-1], {"i": i}, timestamp))
+        entries.append(
+            append_entry(entries[-1], {"i": i}, timestamp, EvidenceAssetType.PRODUCT_IMAGE)
+        )
     return entries
 
 
@@ -81,12 +84,15 @@ def test_tamper_foreign_entry_inserted():
         prev_hash="rogue-prev",
         entry_hash="rogue-entry",
         payload={"data": "rogue"},
+        asset_type=EvidenceAssetType.PRODUCT_IMAGE,
     )
     # Make it internally consistent to avoid early hash failure
     from app.modules.evidence.chain import compute_payload_hash
 
     p_hash = compute_payload_hash(rogue.payload)
-    e_hash = compute_entry_hash(rogue.sequence, rogue.timestamp, p_hash, rogue.prev_hash)
+    e_hash = compute_entry_hash(
+        rogue.sequence, rogue.timestamp, p_hash, rogue.prev_hash, rogue.asset_type
+    )
     rogue = rogue.model_copy(update={"payload_hash": p_hash, "entry_hash": e_hash})
 
     chain.insert(4, rogue)
@@ -106,7 +112,9 @@ def test_tamper_recomputed_hash_attack():
     entry5 = chain[5]
     new_payload = {"i": "ATTACK"}
     new_p_hash = compute_payload_hash(new_payload)
-    new_e_hash = compute_entry_hash(entry5.sequence, entry5.timestamp, new_p_hash, entry5.prev_hash)
+    new_e_hash = compute_entry_hash(
+        entry5.sequence, entry5.timestamp, new_p_hash, entry5.prev_hash, entry5.asset_type
+    )
     chain[5] = entry5.model_copy(
         update={"payload": new_payload, "payload_hash": new_p_hash, "entry_hash": new_e_hash}
     )

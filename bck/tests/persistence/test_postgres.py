@@ -26,7 +26,13 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
-from app.contracts import DeclarationField, FieldState, RuleParameterSnapshot, Verdict
+from app.contracts import (
+    DeclarationField,
+    EvidenceAssetType,
+    FieldState,
+    RuleParameterSnapshot,
+    Verdict,
+)
 from app.core.db import get_session
 from app.core.enums import ReviewAction
 
@@ -56,6 +62,7 @@ pytestmark = pytest.mark.postgres
 ENUM_TYPES: dict[str, type[StrEnum]] = {
     "calibration_method": CalibrationMethod,
     "declaration_field": DeclarationField,
+    "evidence_asset_type": EvidenceAssetType,
     "field_state": FieldState,
     "scan_source_type": ScanSourceType,
     "scan_status": ScanStatus,
@@ -354,6 +361,7 @@ async def test_the_chain_cannot_take_two_entries_at_one_sequence(
             prev_hash="0" * 64,
             entry_hash=entry_hash,
             payload_json="{}",
+            asset_type=EvidenceAssetType.AUDIT_LOG,
         )
 
     async with request_session() as session:

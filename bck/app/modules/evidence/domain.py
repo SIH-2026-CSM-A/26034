@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.contracts import EvidenceAssetType
+
 
 class EvidenceEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -12,6 +14,7 @@ class EvidenceEntry(BaseModel):
     prev_hash: str  # SHA-256 hex digest
     entry_hash: str  # SHA-256 hex digest
     payload: dict | str
+    asset_type: EvidenceAssetType
 
 
 class ChainVerification(BaseModel):

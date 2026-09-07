@@ -25,7 +25,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.contracts import DeclarationField, ExtractedSpan, VerdictRecord
+from app.contracts import DeclarationField, EvidenceAssetType, ExtractedSpan, VerdictRecord
 from app.core import (
     CalibrationMethod,
     EvidenceEntryRow,
@@ -267,7 +267,7 @@ def add_evidence_entry(
     }
     payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     timestamp = record.evaluated_at.isoformat()
-    entry = create_genesis_entry(payload_json, timestamp)
+    entry = create_genesis_entry(payload_json, timestamp, EvidenceAssetType.AUDIT_LOG)
 
     row = EvidenceEntryRow(
         scan_id=scan.id,
@@ -277,6 +277,7 @@ def add_evidence_entry(
         prev_hash=entry.prev_hash,
         entry_hash=entry.entry_hash,
         payload_json=payload_json,
+        asset_type=entry.asset_type,
     )
     session.add(row)
     return row

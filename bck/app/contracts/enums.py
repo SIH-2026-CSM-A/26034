@@ -210,6 +210,36 @@ class EvidenceProvider(StrEnum):
     an automated reading and is recorded as such."""
 
 
+class EvidenceAssetType(StrEnum):
+    """What a stored piece of evidence *is*, for the purpose of deciding when it is destroyed.
+
+    The counterpart to :class:`EvidenceProvider`, which records what produced a piece of
+    evidence. This records what the thing is, and it is the field a retention window is
+    read from — so it is inside :func:`app.modules.evidence.chain.compute_entry_hash`.
+    Outside the hash an entry could be relabelled, fall under a different retention rule,
+    and chain verification would still report the chain intact.
+
+    Deliberately short. A member ships only alongside something that consumes it — a
+    retention window, a purge branch, or a hash input — so this is the set the retention
+    rules actually distinguish today and not a complete taxonomy of evidence. Adding a
+    member later needs a hand-written ``ALTER TYPE ... ADD VALUE``, which cannot run inside
+    a transaction and which ``alembic check`` does not report as drift.
+    """
+
+    PRODUCT_IMAGE = "PRODUCT_IMAGE"
+    """The captured photograph of the package. Takes the default retention window, and is
+    the asset a legal hold protects."""
+
+    PERSONAL_DATA = "PERSONAL_DATA"
+    """Personal identifiers and geolocation. Takes the shorter statutory window; that
+    different window is the only reason this is distinct from PRODUCT_IMAGE, and the two
+    kinds are one member because no rule tells them apart."""
+
+    AUDIT_LOG = "AUDIT_LOG"
+    """The chain's own entries, including purge records. Never purged: an audit trail that
+    could expire cannot evidence the purges it records."""
+
+
 class RuleStatus(StrEnum):
     """Whether an encoded rule has been checked against its gazette source."""
 

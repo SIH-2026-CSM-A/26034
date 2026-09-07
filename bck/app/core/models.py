@@ -40,7 +40,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.contracts import DeclarationField, FieldState, Verdict
+from app.contracts import DeclarationField, EvidenceAssetType, FieldState, Verdict
 from app.core.enums import (
     CalibrationMethod,
     ReviewAction,
@@ -235,6 +235,16 @@ class EvidenceEntryRow(Base):
     prev_hash: Mapped[str] = mapped_column(String(SHA256_HEX_LENGTH), nullable=False)
     entry_hash: Mapped[str] = mapped_column(String(SHA256_HEX_LENGTH), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+    asset_type: Mapped[EvidenceAssetType] = mapped_column(
+        enum_column(EvidenceAssetType, "evidence_asset_type"), nullable=False
+    )
+    """What this entry holds, and therefore when it may be destroyed.
+
+    Required with no default, on the column as well as the model. A default would let an
+    entry carry a disposition nobody chose, on the one field that decides whether evidence
+    is destroyed. It is also inside the entry hash, so a relabelling breaks verification
+    rather than silently moving the entry to a different retention rule."""
 
     storage_ref: Mapped[str | None] = mapped_column(String(512))
     """Where the full artefact sits in the object store, when one was written. ``None``

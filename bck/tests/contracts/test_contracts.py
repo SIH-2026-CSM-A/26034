@@ -17,6 +17,7 @@ from app.contracts import (
     CatalogueRecord,
     CategoryProposal,
     DeclarationField,
+    EvidenceAssetType,
     EvidenceProvider,
     ExtractedSpan,
     FieldFinding,
@@ -76,6 +77,23 @@ def test_field_state_has_exactly_five_members() -> None:
         FieldState.REVIEW_REQUIRED,
         FieldState.NOT_APPLICABLE,
         FieldState.INSUFFICIENT_EVIDENCE,
+    }
+
+
+def test_evidence_asset_type_has_exactly_three_members() -> None:
+    """A member ships only alongside something that consumes it.
+
+    The set is what the retention rules distinguish today — a default window, a shorter
+    statutory one, and the audit trail that is never purged — not a complete taxonomy of
+    evidence. A fourth added here needs a hand-written ``ALTER TYPE ... ADD VALUE``, which
+    cannot run in a transaction and which ``alembic check`` reports as clean before failing
+    at the first insert, so it is a migration decision and not a local widening.
+    """
+    assert len(EvidenceAssetType) == 3
+    assert set(EvidenceAssetType) == {
+        EvidenceAssetType.PRODUCT_IMAGE,
+        EvidenceAssetType.PERSONAL_DATA,
+        EvidenceAssetType.AUDIT_LOG,
     }
 
 
