@@ -87,6 +87,7 @@ name = "Modules are independent of one another"
 type = "independence"
 modules = [
     "app.modules.analytics",
+    "app.modules.reviews",
     "app.modules.vision",
     "app.modules.vendor",
     "app.modules.extraction",
