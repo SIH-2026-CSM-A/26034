@@ -3389,3 +3389,141 @@ Four uncalibrated images support no Rule 7 letter-height accuracy figure. Any ta
 false-positive rate over this set is n=4 and must always be quoted with its n. No accuracy or
 false-positive number is quoted in the PR body, and none should be quoted anywhere until a
 calibrated set exists.
+
+## Session 25 — 2026-09-08, WIRE-001/002/003 (Claude Code, Opus 5)
+
+Five module packages were built, tested and unreachable over HTTP. `main.py` registered two
+routers — `auth_router` and `scan_router` — and nothing else. This session made the other
+five reachable, backend only; `fnt/` was not touched.
+
+Three commits on `core-wire-orphan-modules`, one per step.
+
+**WIRE-001 (0b3b7e2) — register the two routers that already existed.** `reviews_router` and
+`analytics_router` were complete with passing tests and were included only inside their own
+test modules. Four lines in `main.py`. No contract change was needed: the layers contract is
+`main > pipeline > modules > core > contracts`, and a layers contract permits a higher layer
+to import a lower one, so `app.main` importing `app.modules.*` was already legal. `CLAUDE.md`'s
+"`pipeline/` is the only package allowed to import `app.modules.*`" is about modules composing
+each other, not about the entrypoint above them — worth stating because I checked it before
+assuming it.
+
+**WIRE-002 (adef37b) — `complaints/router.py`.** Three routes on the existing
+`ComplaintService` and repository: `GET /complaints`, `POST /complaints`,
+`GET /complaints/{complaint_id}`.
+
+The officer is the principal, never the payload. `raised_by_officer_id` is written from
+`Principal.subject`, and `ComplaintRaiseRequest` sets `extra="forbid"`, so a body carrying
+`raised_by_officer_id` is a 422 rather than a field that is silently ignored. That distinction
+is the test `test_a_body_naming_an_officer_is_refused_outright`.
+
+Append-only is preserved over HTTP. No PUT, no DELETE, and a second escalation writes a new
+row whose `supersedes_id` is resolved from the stored thread head rather than supplied. The
+request body has no such field: a caller choosing what their row supersedes is a caller
+rewriting the history it supersedes.
+
+`complaints` carries no territory of its own, so `_scoped_complaints` joins to `scans` and
+scopes there. A complaint outside the caller's jurisdiction is a 404, matching
+`pipeline/repository.get_scan`.
+
+**Duplication I introduced, and did not fix — worth a ticket.** `POST /complaints` has to
+build a `ConfirmedVerdict`, which needs a `VerdictRecord`, whose `findings` is
+`min_length=1`. Reconstructing it from stored rows duplicates
+`app.pipeline.responses.finding_from_row` inside `complaints/repository._verdict_record`,
+including the load-bearing `RuleParameterSnapshot.model_validate` round-trip. The module
+independence contract is what forces the copy — `complaints` may not import `pipeline`. The
+honest fix is a row-to-record helper in `app.core`, which is shared and not mine to
+re-shape unilaterally. Raising it rather than doing it.
+
+**WIRE-003 (773990e) — `vendor/router.py`.** `GET /vendors` and `GET /vendors/{vendor_id}`,
+scoped through the existing `scope_vendor_query`, which delegates to
+`core.rbac.scope_to_jurisdiction`. Read-only and deliberately so: a vendor row is written by
+`persist_vendor_scan` while attributing a scan, which is the only thing that knows a premises
+exists, so a create route would be a second way onto the register with nothing to attribute.
+
+`VendorResponse` carries no scan count and no compliance summary, and
+`test_the_register_carries_no_compliance_summary` pins the exact response keys. `VendorScanRow`
+holds nothing the evaluation path could branch on, and a trust score on this response would be
+the first column that could become one.
+
+`vendor/__init__.py`'s `__all__` is inflated by eight aliases of the same three functions
+(`record_vendor_scan`, `persist_vendor_submission`, `record_vendor_submission`,
+`lookup_vendor_jurisdiction`, `route_vendor_submission`, `route_vendor_result`, plus
+`RoutingResult` / `VendorRoutingResult` for `RoutingDecision`). I used the canonical names
+only and added none. Collapsing them is somebody's ticket, not a change I made in passing.
+
+### Falsification
+
+Eleven defects introduced, each with `__pycache__` purged via the absolute path first, run
+without `-x` so the intended test could be identified rather than assumed.
+
+Complaints — dropping the jurisdiction join; a hardcoded officer id; `extra="ignore"` on the
+schemas; `prior_complaint=None`; removing the no-review 409; removing the
+`UnconfirmedVerdictError` to 409 mapping. All six turned exactly the intended test red.
+
+Vendor — dropping `scope_vendor_query` from both reads; over-restrictive scoping that returns
+nothing; 404 replaced by 403; a `trust_score` field added to the response; the auth dependency
+replaced by a fixed principal. All five turned the intended tests red.
+
+**Two falsification attempts of mine proved nothing and are recorded as errors.** The first
+was a no-op — I wrote a replacement string identical to the original and read the resulting
+green as evidence. The second forced `VerdictRecord.verdict` to `POTENTIAL_VIOLATION` to
+defeat the escalation gate, and the suite stayed green: the test drives an OVERRIDE review, and
+`resolve_effective_verdict_domain` reads `review_row.overridden_verdict` for OVERRIDE and never
+consults the record's verdict at all. Both were redone against the code path that actually
+decides the outcome. A green falsification run is a statement about the edit, not about the
+test.
+
+### Baselines — measured, not carried
+
+Both measured in this session against the same PostgreSQL 16.13, clean tree, `__pycache__`
+purged before each:
+
+- `origin/main` @ `0de8b48`: **1060 passed, 1 failed, 2 skipped**
+- `core-wire-orphan-modules` @ `773990e`: **1076 passed, 1 failed, 2 skipped**
+
+Delta **+16 passed** — ten complaint router tests, six vendor router tests. Do not quote these
+numbers in a later session; measure again.
+
+The single failure is `tests/modules/measurement/test_measurement.py::test_coin_oblique_synthetic_geometry`
+(`assert np.float32(0.29966766) <= 0.05`), and it fails identically on `origin/main`. It is not
+mine and I did not touch it.
+
+A run with `DATABASE_URL` unset is not clean on this repo and never was: `tests/modules/reviews/conftest.py`
+calls `pytest.fail` rather than `pytest.skip`, so ten reviews tests error out. That is also
+true on `origin/main` (1001 passed, 51 skipped, 10 errors) and is a separate defect worth a
+ticket — a hard fail where the rest of the suite skips means a laptop with no database cannot
+get a green run.
+
+I ran against the already-running `26034-db-1` container on `:5433`, but created a separate
+`pccs_wire` database on it rather than using `pccs`, because the test fixtures drop every
+table and another session may be on the shared one. Dropped afterwards.
+
+### Gates
+
+`ruff format --check` clean (211 files), `ruff check` clean, `lint-imports` 3 contracts kept /
+0 broken, exit 0 checked directly and not through a pipe. No new dependency, no migration —
+`257f6bc96647` already created `product_reviews`, `vendors`, `vendor_scans` and `complaints`.
+No contract change was needed in `pyproject.toml`: no new module package was added, so
+`tests/test_import_boundaries.py`'s pinned list is untouched.
+
+### Reachable now
+
+```
+/analytics/by-category  /analytics/by-rule  /analytics/jurisdiction  /analytics/over-time
+/auth/token
+/complaints  /complaints/{complaint_id}
+/reviews  /reviews/{product_identifier}
+/scans  /scans/image  /scans/{scan_id}  /scans/{scan_id}/review
+/vendors  /vendors/{vendor_id}
+```
+
+Four before this session (`/auth/token` and the four `/scans` paths); fifteen after.
+
+### Raised, not fixed
+
+1. `complaints/repository._verdict_record` duplicates `pipeline/responses.finding_from_row`.
+   A row-to-record helper in `app.core` would remove the copy; `app.core` is shared, so this
+   is a ticket, not a drive-by.
+2. `tests/modules/reviews/conftest.py` calls `pytest.fail` where every other database fixture
+   in the repo calls `pytest.skip`, so ten tests error on any machine without `DATABASE_URL`.
+3. `vendor/__init__.py`'s `__all__` names eight aliases of three functions.
