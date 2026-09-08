@@ -120,6 +120,226 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Review
+         * @description Persist one anonymous sentiment and report only its publication state.
+         */
+        post: operations["submit_review_reviews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reviews/{product_identifier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Published Reviews
+         * @description Return only published sentiment aggregates for one product identifier.
+         */
+        get: operations["get_published_reviews_reviews__product_identifier__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/by-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate By Rule
+         * @description Return privacy-eligible distinct-scan cohorts for failing findings by rule.
+         */
+        get: operations["aggregate_by_rule_analytics_by_rule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/by-category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate By Category
+         * @description Return privacy-eligible potential-verdict cohorts by confirmed category.
+         */
+        get: operations["aggregate_by_category_analytics_by_category_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/over-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate Over Time
+         * @description Return privacy-eligible potential-verdict cohorts by UTC evaluation day.
+         */
+        get: operations["aggregate_over_time_analytics_over_time_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/jurisdiction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate By Jurisdiction
+         * @description Return privacy-eligible potential-verdict cohorts by scan jurisdiction.
+         */
+        get: operations["aggregate_by_jurisdiction_analytics_jurisdiction_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Complaints
+         * @description Complaint rows this officer may see, newest first.
+         *
+         *     The jurisdiction predicate is applied by the repository on every query and is not
+         *     something a caller can widen — there is no jurisdiction parameter on this route.
+         */
+        get: operations["list_complaints_complaints_get"];
+        put?: never;
+        /**
+         * Raise Complaint
+         * @description Open an escalation against the manufacturer named on a scan's confirmed verdict.
+         *
+         *     Three refusals, and they mean different things. A scan this officer cannot see is a 404.
+         *     A scan no officer has finalised, or one whose effective verdict is not
+         *     POTENTIAL_VIOLATION, is a 409 — the scan is real and visible, and there is simply
+         *     nothing here to escalate yet. Text that would put a legal determination in an
+         *     external-facing summary is a 422 against the request that carried it.
+         */
+        post: operations["raise_complaint_complaints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/complaints/{complaint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Complaint
+         * @description One complaint, with the escalation history recorded against its scan.
+         *
+         *     The history is every complaint row for that scan, oldest first — which is what the table
+         *     holds. Reconstructing separate threads out of the ``supersedes_id`` chains is a reading
+         *     the caller can make from the rows; it is not one this route makes for them.
+         */
+        get: operations["get_complaint_complaints__complaint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Vendors
+         * @description Vendors this officer may see, by name.
+         *
+         *     The jurisdiction predicate is applied by the repository on every query and is not
+         *     something a caller can widen — there is no jurisdiction parameter on this route.
+         */
+        get: operations["list_vendors_vendors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendors/{vendor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vendor
+         * @description One vendor in full, or a 404 for absent and out-of-jurisdiction alike.
+         */
+        get: operations["get_vendor_vendors__vendor_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -224,6 +444,16 @@ export interface components {
             institutional_or_industrial_confirmed: boolean;
         };
         /**
+         * CategoryAggregateCell
+         * @description A privacy-eligible count of scans for a confirmed-category display bucket.
+         */
+        CategoryAggregateCell: {
+            /** Product Category */
+            product_category: string;
+            /** Count */
+            count: number;
+        };
+        /**
          * CategoryProposal
          * @description A product category a reader inferred, with the evidence it inferred it from.
          *
@@ -248,6 +478,117 @@ export interface components {
             reason: string;
         };
         /**
+         * ComplaintRaiseRequest
+         * @description What an officer supplies to open an escalation against a manufacturer.
+         *
+         *     Carries no officer identity and no status: the first is the principal's, and the second
+         *     is RAISED by construction — ``ComplaintService.raise_complaint`` is the only way a first
+         *     row is written, and it names the status itself.
+         */
+        ComplaintRaiseRequest: {
+            /**
+             * Scan Id
+             * Format: uuid
+             */
+            scan_id: string;
+            /** Manufacturer Name */
+            manufacturer_name: string;
+            /** Rule Id */
+            rule_id: string;
+            field: components["schemas"]["DeclarationField"];
+            /** Measured Value */
+            measured_value: string;
+            /** Required Value */
+            required_value: string;
+        };
+        /**
+         * ComplaintResponse
+         * @description One complaint row, which is one event in an append-only thread.
+         *
+         *     ``status`` is the state *this row* asserts, not a field that moved, and
+         *     ``supersedes_id`` names the row it replaced where it replaced one. Both rows stay.
+         */
+        ComplaintResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Scan Id
+             * Format: uuid
+             */
+            scan_id: string;
+            /**
+             * Verdict Id
+             * Format: uuid
+             */
+            verdict_id: string;
+            /** Manufacturer Name */
+            manufacturer_name: string;
+            /** Issue Summary */
+            issue_summary: string;
+            status: components["schemas"]["ComplaintStatus"];
+            /** Raised By Officer Id */
+            raised_by_officer_id: string;
+            /**
+             * Raised At
+             * Format: date-time
+             */
+            raised_at: string;
+            /** Supersedes Id */
+            supersedes_id?: string | null;
+        };
+        /**
+         * ComplaintStatus
+         * @description Where an escalation had got to when the row carrying it was written.
+         * @enum {string}
+         */
+        ComplaintStatus: "raised" | "acknowledged" | "resolved" | "rejected";
+        /**
+         * ComplaintThread
+         * @description One complaint and the escalation history recorded against its scan, oldest first.
+         */
+        ComplaintThread: {
+            complaint: components["schemas"]["ComplaintResponse"];
+            /** History */
+            history: components["schemas"]["ComplaintResponse"][];
+        };
+        /**
+         * ConsumerSafetyClaim
+         * @description What one member of the public asserted about one product. **Not a verdict.**
+         *
+         *     :class:`app.contracts.Verdict` is what this system recommends about a package and is
+         *     PASS / REVIEW / POTENTIAL_VIOLATION for the reasons stated there. This is a consumer
+         *     reporting their own experience, stored so it can be republished as theirs. The name
+         *     carries that boundary rather than a docstring alone, because a column name survives
+         *     into every downstream surface a docstring cannot follow.
+         *
+         *     It is defined here and deliberately **not** in ``contracts``: ``contracts`` holds the
+         *     vocabularies that cross a module boundary, so keeping this out of it means nothing in
+         *     the verdict path can import this enum and therefore nothing in the verdict path can
+         *     branch on it.
+         *
+         *     Its values are lowercase against ``Verdict``'s uppercase, which is free structural
+         *     separation — in a dump, a CSV export or a log line the two vocabularies are visually
+         *     distinct and no string comparison can match across them.
+         * @enum {string}
+         */
+        ConsumerSafetyClaim: "safe" | "unsafe";
+        /**
+         * DailyAggregateCell
+         * @description A privacy-eligible count of scans evaluated on one calendar day.
+         */
+        DailyAggregateCell: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Count */
+            count: number;
+        };
+        /**
          * DeclarationField
          * @description The declarations a package must bear, one member per obligation.
          *
@@ -259,6 +600,24 @@ export interface components {
          * @enum {string}
          */
         DeclarationField: "NAME_AND_ADDRESS" | "COUNTRY_OF_ORIGIN" | "COMMON_OR_GENERIC_NAME" | "NET_QUANTITY" | "MANUFACTURE_DATE" | "BEST_BEFORE_DATE" | "RETAIL_SALE_PRICE" | "DIMENSIONS" | "OTHER_PRESCRIBED_MATTER" | "CONSUMER_CARE" | "UNIT_SALE_PRICE";
+        /**
+         * DisplayCategory
+         * @enum {string}
+         */
+        DisplayCategory: "packaged_food" | "cosmetics" | "non_food_packaged_goods" | "electronics" | "household";
+        /** DisplayCategoryTaxonomy */
+        DisplayCategoryTaxonomy: {
+            category: components["schemas"]["DisplayCategory"];
+            parent_category: components["schemas"]["DisplayCategory"] | null;
+            /** Path */
+            path: string[];
+            /** Confidence */
+            confidence: number;
+            /** Span Refs */
+            span_refs: string[];
+            /** Reason */
+            reason: string;
+        };
         /**
          * FieldFinding
          * @description The outcome of evaluating one declaration against one rule, with its evidence.
@@ -295,6 +654,38 @@ export interface components {
         };
         JsonValue: unknown;
         /**
+         * Jurisdiction
+         * @description The territory an officer's authority runs over.
+         *
+         *     Levels below the officer's tier are ``None`` — a state-level officer has no single
+         *     region, and saying so with ``None`` is what lets :func:`scope_to_jurisdiction` filter
+         *     on exactly the levels that are pinned.
+         */
+        Jurisdiction: {
+            /** State */
+            state: string;
+            /** Region */
+            region?: string | null;
+            /** District */
+            district?: string | null;
+        };
+        /**
+         * JurisdictionAggregateCell
+         * @description A privacy-eligible jurisdiction aggregate with a relative density band.
+         */
+        JurisdictionAggregateCell: {
+            /** State */
+            state: string;
+            /** Region */
+            region?: string | null;
+            /** District */
+            district?: string | null;
+            /** Count */
+            count: number;
+            /** Density Band */
+            density_band: string;
+        };
+        /**
          * ProductCategory
          * @description A *confirmed* product category that a sector override may key on.
          *
@@ -320,6 +711,25 @@ export interface components {
          * @enum {string}
          */
         ProductCategory: "food" | "cosmetics" | "medical_device";
+        /**
+         * PublishedConsensus
+         * @description A published count for one exact consumer sentiment value.
+         */
+        PublishedConsensus: {
+            consumer_safety_claim: components["schemas"]["ConsumerSafetyClaim"];
+            /** Submission Count */
+            submission_count: number;
+        };
+        /**
+         * PublishedReviewsResponse
+         * @description Published consumer sentiment aggregates for one product identifier.
+         */
+        PublishedReviewsResponse: {
+            /** Product Identifier */
+            product_identifier: string;
+            /** Published Consensus */
+            published_consensus: components["schemas"]["PublishedConsensus"][];
+        };
         /**
          * QualityReason
          * @enum {string}
@@ -404,6 +814,39 @@ export interface components {
             created_at: string;
             /** Finalised */
             finalised: boolean;
+        };
+        /**
+         * ReviewSubmissionRequest
+         * @description Anonymous sentiment submitted for one normalized product identifier.
+         */
+        ReviewSubmissionRequest: {
+            /** Product Identifier */
+            product_identifier: string;
+            consumer_safety_claim: components["schemas"]["ConsumerSafetyClaim"];
+        };
+        /**
+         * ReviewSubmissionResponse
+         * @description Public result of accepting one anonymous sentiment submission.
+         */
+        ReviewSubmissionResponse: {
+            /** Product Identifier */
+            product_identifier: string;
+            consumer_safety_claim: components["schemas"]["ConsumerSafetyClaim"];
+            /**
+             * Publication Status
+             * @enum {string}
+             */
+            publication_status: "HELD" | "PUBLISHED";
+        };
+        /**
+         * RuleAggregateCell
+         * @description A privacy-eligible count of scans with a failing finding for one rule.
+         */
+        RuleAggregateCell: {
+            /** Rule Id */
+            rule_id: string;
+            /** Count */
+            count: number;
         };
         /**
          * RuleParameterSnapshot
@@ -494,6 +937,7 @@ export interface components {
             findings: components["schemas"]["FieldFinding"][];
             quality?: components["schemas"]["QualityRejection"] | null;
             category_proposal?: components["schemas"]["CategoryProposal"] | null;
+            display_category?: components["schemas"]["DisplayCategoryTaxonomy"] | null;
         };
         /**
          * ScanSourceType
@@ -573,6 +1017,41 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * VendorResponse
+         * @description One premises on the register.
+         *
+         *     Carries no scan counts and no verdict summary. A vendor-submitted scan is an ordinary
+         *     scan, and :class:`~app.core.market.VendorScanRow` holds nothing the evaluation path
+         *     could branch on; a vendor's compliance history is a question for the scan routes, which
+         *     are scoped in their own right.
+         */
+        VendorResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            vendor_type: components["schemas"]["VendorType"];
+            jurisdiction: components["schemas"]["Jurisdiction"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * VendorType
+         * @description What kind of premises a vendor operates.
+         *
+         *     Three, because three is what the pilot distinguishes. This says nothing about
+         *     obligations: a kirana and a supermarket are under identical declaration rules, and
+         *     nothing in the verdict path reads this column.
+         * @enum {string}
+         */
+        VendorType: "godown" | "supermarket" | "kirana";
         /**
          * Verdict
          * @description The package-level recommendation assembled from the per-field findings.
@@ -781,6 +1260,285 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_review_reviews_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewSubmissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSubmissionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_published_reviews_reviews__product_identifier__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedReviewsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    aggregate_by_rule_analytics_by_rule_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleAggregateCell"][];
+                };
+            };
+        };
+    };
+    aggregate_by_category_analytics_by_category_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryAggregateCell"][];
+                };
+            };
+        };
+    };
+    aggregate_over_time_analytics_over_time_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyAggregateCell"][];
+                };
+            };
+        };
+    };
+    aggregate_by_jurisdiction_analytics_jurisdiction_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JurisdictionAggregateCell"][];
+                };
+            };
+        };
+    };
+    list_complaints_complaints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintResponse"][];
+                };
+            };
+        };
+    };
+    raise_complaint_complaints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintRaiseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_complaint_complaints__complaint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintThread"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_vendors_vendors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorResponse"][];
+                };
+            };
+        };
+    };
+    get_vendor_vendors__vendor_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vendor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorResponse"];
                 };
             };
             /** @description Validation Error */
