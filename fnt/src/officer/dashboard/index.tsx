@@ -347,61 +347,99 @@ export const OfficerDashboard: React.FC = () => {
   }, [loadDashboard]);
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900 p-3 sm:p-6">
+    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50 text-slate-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
-        <header className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4 border-b border-slate-100 pb-3">
-            <div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-950 tracking-tight">
-                Legal Metrology Enforcement Dashboard
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-600">
-                SIH 2026 · Problem Statement 26034 · Rule 6 Jurisdiction Monitoring
-              </p>
+
+        {/* ── Header card ── */}
+        <header className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          {/* Coloured accent bar at top */}
+          <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-rose-500" />
+
+          <div className="p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  {/* Shield icon */}
+                  <svg className="w-5 h-5 text-indigo-600 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
+                  </svg>
+                  <h1 className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
+                    Legal Metrology Enforcement
+                  </h1>
+                </div>
+                <p className="text-xs text-slate-500 pl-7">
+                  SIH 2026 · PS 26034 · Rule 6 Jurisdiction Monitoring
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={loadDashboard}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-slate-400 border-t-slate-700 rounded-full animate-spin" />
+                      Refreshing…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M13.5 8A5.5 5.5 0 112.5 8M13.5 8V4.5M13.5 8H10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Refresh
+                    </>
+                  )}
+                </button>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={loadDashboard}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-colors disabled:opacity-50"
+
+            {error && (
+              <div
+                role="alert"
+                className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center justify-between gap-3"
               >
-                {loading ? 'Refreshing...' : '↻ Refresh'}
-              </button>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Officer Portal Live
-              </span>
-            </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-rose-500 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4.5zm0 7.5a.75.75 0 110-1.5.75.75 0 010 1.5z"/>
+                  </svg>
+                  <span>{error}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadDashboard}
+                  className="shrink-0 font-bold underline hover:text-rose-950"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            <CategoryFilterBar
+              categories={data.categories}
+              activeCategory={activeCategory}
+              onSelectCategory={setActiveCategory}
+            />
           </div>
-
-          {error && (
-            <div role="alert" className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-300 text-xs text-rose-900 flex items-center justify-between">
-              <span>{error}</span>
-              <button
-                type="button"
-                onClick={loadDashboard}
-                className="underline font-bold hover:text-rose-950 ml-2"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          <CategoryFilterBar
-            categories={data.categories}
-            activeCategory={activeCategory}
-            onSelectCategory={setActiveCategory}
-          />
         </header>
 
         {loading ? (
-          <div className="p-12 text-center bg-white border border-slate-200 rounded-xl shadow-xs">
-            <div className="inline-block w-8 h-8 border-4 border-slate-300 border-t-slate-800 rounded-full animate-spin mb-3"></div>
-            <p className="text-sm font-semibold text-slate-700">Loading enforcement dashboard metrics from API...</p>
+          <div className="p-16 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="inline-flex flex-col items-center gap-3">
+              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              <p className="text-sm font-semibold text-slate-600">
+                Loading enforcement metrics…
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
             <div className="lg:col-span-7 space-y-4 sm:space-y-6">
               <HeatmapJurisdiction
                 wards={data.wards}

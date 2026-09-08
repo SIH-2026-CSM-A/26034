@@ -6,11 +6,20 @@ interface Props {
   onSelectCategory: (category: string) => void;
 }
 
-export const CategoryFilterBar: React.FC<Props> = ({ categories, activeCategory, onSelectCategory }) => {
+export const CategoryFilterBar: React.FC<Props> = ({
+  categories,
+  activeCategory,
+  onSelectCategory,
+}) => {
   return (
-    <nav aria-label="Product category filter" className="w-full overflow-x-auto pb-1">
-      <div className="flex items-center gap-2 min-w-max">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 mr-1">Category Axis:</span>
+    <nav
+      aria-label="Product category filter"
+      className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="shrink-0 text-xs font-bold uppercase tracking-widest text-slate-500 mr-1">
+          Filter:
+        </span>
         {categories.map((cat) => {
           const isActive = cat === activeCategory;
           return (
@@ -18,10 +27,11 @@ export const CategoryFilterBar: React.FC<Props> = ({ categories, activeCategory,
               key={cat}
               type="button"
               onClick={() => onSelectCategory(cat)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              aria-pressed={isActive}
+              className={`shrink-0 px-3 py-1 text-xs font-semibold rounded-full border transition-all duration-150 ${
                 isActive
-                  ? 'bg-slate-900 text-white border-2 border-slate-950 shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:text-indigo-700 hover:bg-indigo-50'
               }`}
             >
               {cat}

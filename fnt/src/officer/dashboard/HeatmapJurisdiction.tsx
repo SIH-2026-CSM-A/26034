@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React from 'react';
 import type { HeatmapWard, DensityBand } from './types';
 
 interface Props {
@@ -8,85 +8,123 @@ interface Props {
   onSelectWard: (wardId: string) => void;
 }
 
-export const HeatmapJurisdiction: React.FC<Props> = ({ wards, activeCategory, selectedWard, onSelectWard }) => {
-  const patternId = useId();
+/** Colour tokens for heatmap density bands — must not be changed independently of
+ *  the legend rendered below the grid. */
+const DENSITY_CARD: Record<DensityBand, {
+  card: string;
+  badge: string;
+  badgeText: string;
+  label: string;
+  dot: string;
+}> = {
+  HIGH: {
+    card: 'bg-rose-100 border-rose-500 text-rose-950',
+    badge: 'bg-rose-600 text-white',
+    badgeText: 'HIGH',
+    label: 'HIGH density',
+    dot: 'bg-rose-500',
+  },
+  MEDIUM: {
+    card: 'bg-amber-50 border-amber-400 text-amber-950',
+    badge: 'bg-amber-400 text-amber-950',
+    badgeText: 'MED',
+    label: 'MEDIUM density',
+    dot: 'bg-amber-400',
+  },
+  LOW: {
+    card: 'bg-slate-50 border-slate-300 text-slate-700',
+    badge: 'bg-slate-200 text-slate-700',
+    badgeText: 'LOW',
+    label: 'LOW density',
+    dot: 'bg-slate-400',
+  },
+};
 
-  const getCardStyle = (density: DensityBand, isSelected: boolean) => {
-    const base = 'relative p-3.5 rounded-lg border-2 text-left transition-all';
-    const selectionRing = isSelected ? 'ring-2 ring-offset-1 ring-slate-900 shadow-md' : 'shadow-xs';
-
-    if (density === 'HIGH') {
-      return `${base} ${selectionRing} border-slate-900 bg-rose-50 text-slate-950`;
-    }
-    if (density === 'MEDIUM') {
-      return `${base} ${selectionRing} border-dashed border-slate-700 bg-amber-50 text-slate-900`;
-    }
-    return `${base} ${selectionRing} border-solid border-slate-300 bg-slate-50 text-slate-800`;
-  };
-
+export const HeatmapJurisdiction: React.FC<Props> = ({
+  wards,
+  activeCategory,
+  selectedWard,
+  onSelectWard,
+}) => {
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-      <svg className="absolute w-0 h-0" aria-hidden="true">
-        <defs>
-          <pattern id={`${patternId}-hatch`} width="8" height="8" patternUnits="userSpaceOnUse">
-            <path d="M-1,1 l2,-2 M0,8 l8,-8 M7,9 l2,-2" stroke="#475569" strokeWidth="1.2" opacity="0.35" />
-          </pattern>
-        </defs>
-      </svg>
-
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
-        <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase">
-          Jurisdiction Heatmap · Ward Density
-        </h2>
-        <div className="flex items-center gap-2 text-xs text-slate-600">
-          <span className="flex items-center gap-1 font-bold text-slate-900">
-            <span className="w-2.5 h-2.5 bg-rose-200 border border-slate-900 inline-block"></span> HIGH
-          </span>
-          <span className="flex items-center gap-1 font-semibold text-slate-800">
-            <span className="w-2.5 h-2.5 bg-amber-100 border border-dashed border-slate-700 inline-block"></span> MED
-          </span>
-          <span className="flex items-center gap-1 text-slate-600">
-            <span className="w-2.5 h-2.5 bg-slate-100 border border-slate-300 inline-block"></span> LOW
-          </span>
+    <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase leading-tight">
+            Jurisdiction Heatmap
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Potential violation density by ward · scan-ID hashed assignment
+          </p>
+        </div>
+        {/* Legend */}
+        <div className="flex items-center gap-3 shrink-0">
+          {(['HIGH', 'MEDIUM', 'LOW'] as DensityBand[]).map((band) => (
+            <span key={band} className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+              <span
+                className={`w-3 h-3 rounded-sm inline-block shrink-0 ${DENSITY_CARD[band].dot}`}
+              />
+              {DENSITY_CARD[band].badgeText}
+            </span>
+          ))}
         </div>
       </header>
 
       {wards.length === 0 ? (
-        <p className="text-xs text-slate-500 py-6 text-center">No jurisdiction scan activity recorded.</p>
+        <p className="text-xs text-slate-500 py-8 text-center">
+          No jurisdiction scan activity recorded.
+        </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {wards.map((ward) => {
-          const isSelected = ward.wardId === selectedWard;
-          const displayCount =
-            activeCategory === 'All Categories'
-              ? ward.violationCount
-              : ward.categoryBreakdown[activeCategory] ?? 0;
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+          {wards.map((ward) => {
+            const isSelected = ward.wardId === selectedWard;
+            const tokens = DENSITY_CARD[ward.density];
+            const displayCount =
+              activeCategory === 'All Categories'
+                ? ward.violationCount
+                : (ward.categoryBreakdown[activeCategory] ?? 0);
 
-          return (
-            <button
-              key={ward.wardId}
-              type="button"
-              onClick={() => onSelectWard(ward.wardId)}
-              className={getCardStyle(ward.density, isSelected)}
-            >
-              {ward.density === 'HIGH' && (
-                <div
-                  className="absolute inset-0 pointer-events-none rounded-lg"
-                  style={{ backgroundImage: `url(#${patternId}-hatch)` }}
-                />
-              )}
-              <div className="relative z-10 flex items-start justify-between gap-2 mb-2">
-                <span className="font-bold text-sm text-slate-900">{ward.wardName}</span>
-                <span className="shrink-0 text-xs font-mono font-bold px-2 py-0.5 border border-slate-800 bg-white text-slate-900 rounded">
-                  {ward.density}
+            return (
+              <button
+                key={ward.wardId}
+                type="button"
+                onClick={() => onSelectWard(ward.wardId)}
+                aria-pressed={isSelected}
+                className={[
+                  'relative text-left p-3.5 rounded-xl border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                  tokens.card,
+                  isSelected
+                    ? 'ring-2 ring-offset-2 ring-indigo-600 shadow-md scale-[1.02]'
+                    : 'hover:shadow-sm',
+                ].join(' ')}
+              >
+                {/* Density badge */}
+                <span
+                  className={`absolute top-2 right-2 text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded ${tokens.badge}`}
+                >
+                  {tokens.badgeText}
                 </span>
-              </div>
-              <div className="relative z-10 text-xs text-slate-700">
-                <span className="font-bold text-slate-900">{displayCount}</span> potential violations · {ward.totalScans} total scans
-              </div>
-            </button>
-          );
-        })}
+
+                {/* Ward name */}
+                <p className="font-bold text-xs leading-snug pr-8 mb-2">
+                  {ward.wardName}
+                </p>
+
+                {/* Counts */}
+                <p className="text-xs">
+                  <span className="font-black text-base tabular-nums">
+                    {displayCount}
+                  </span>{' '}
+                  <span className="opacity-70 font-medium">
+                    {displayCount === 1 ? 'potential violation' : 'potential violations'}
+                  </span>
+                </p>
+                <p className="text-xs opacity-60 mt-0.5">
+                  {ward.totalScans} total scans
+                </p>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>

@@ -1,5 +1,28 @@
 # Session log — Abhiram
 
+### 2026-09-08 — FNT dashboard visual polish for live demo — Antigravity
+
+**Done**
+- Polished all 6 scoped dashboard files (`fnt/src/officer/dashboard/`): `index.tsx`, `StatusPill.tsx`, `CategoryFilterBar.tsx`, `HeatmapJurisdiction.tsx`, `TimelineBucketChart.tsx`, `ClauseBreakdownView.tsx`
+- Verdict colour tokens made consistent across every component: PASS = emerald-500, REVIEW = amber-400, POTENTIAL_VIOLATION = rose-600
+- Heatmap: replaced muted colours with bold density tokens (rose/amber/slate), removed broken SVG hatch `url(#id)` on a `<div>`, 2-col mobile grid, indigo selection ring, density badge coloured per band
+- Timeline chart: fixed bar bug (outer div width was being set instead of full-width always); stacked bar now always spans 100% with opacity scaled by daily volume; human-readable date labels
+- ClauseBreakdownView: rate badge and progress bar colour-coded by severity threshold; progress bar width is actual rate (was `rate * 2.5`); modal gets click-outside-to-close, indigo button, ward disclaimer footer
+- StatusPill: solid rounded-pill badges with SVG icons
+- CategoryFilterBar: hidden scrollbar, indigo active pill, `shrink-0` on buttons for 390px mobile
+- index.tsx: gradient bg, branded header with accent bar + shield icon, SVG refresh button, indigo spinner
+- `npx tsc -b` → exit 0. `npx vite build` → exit 0 (599ms). Only 6 dashboard files modified.
+- PR #125 opened, not merged: https://github.com/SIH-2026-CSM-A/26034/pull/125
+
+**Decided**
+- Removed SVG hatch overlay on HIGH density cards — `backgroundImage: url(#pattern-id)` on a `<div>` renders nothing (SVG pattern IDs only work inside SVG paint contexts); replaced with solid rose-100 background + rose-500 border which is visually unambiguous.
+- Progress bar width is the actual percentage (0–100%), not scaled by 2.5 — scaling a rate that can reach 100% meant bars could overflow their container.
+- Ward placeholder disclaimer added to modal footer rather than removed — the constraint says not to present them as verified geography.
+
+**Hit**
+- `export default OfficerDashboard` was dropped when the JSX block replacement trimmed the trailing lines; caught by reading the file end after the edit and re-added before commit.
+- Branch was behind origin/main by 1 commit at session start; stash → rebase → stash pop before commit per AGENTS.md rule.
+
 ### 2026-09-06 — CTR-003 `ProductCategory` into contracts, plus `CategoryProposal` — Claude Code
 
 **Why now**
