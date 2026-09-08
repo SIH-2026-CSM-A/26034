@@ -14,11 +14,13 @@ from .models import (
 from .pdf_renderer import render_to_pdf
 from .report import UnconfirmedVerdictExportError
 
-FINALISING_ACTIONS = frozenset({
-    ReviewAction.CONFIRM,
-    ReviewAction.REJECT,
-    ReviewAction.OVERRIDE,
-})
+FINALISING_ACTIONS = frozenset(
+    {
+        ReviewAction.CONFIRM,
+        ReviewAction.REJECT,
+        ReviewAction.OVERRIDE,
+    }
+)
 
 
 def build_report_model(
@@ -38,9 +40,7 @@ def build_report_model(
         else str(review_row.created_at)
     )
     officer_action = (
-        review_row.action.value
-        if hasattr(review_row.action, "value")
-        else str(review_row.action)
+        review_row.action.value if hasattr(review_row.action, "value") else str(review_row.action)
     )
 
     extracted_declarations = []
@@ -48,11 +48,7 @@ def build_report_model(
 
     for f in record.findings:
         field_str = f.field.value if hasattr(f.field, "value") else str(f.field)
-        provider_obj = (
-            record.field_providers.get(f.field)
-            if record.field_providers
-            else None
-        )
+        provider_obj = record.field_providers.get(f.field) if record.field_providers else None
         provider_name = (
             provider_obj.name
             if hasattr(provider_obj, "name")

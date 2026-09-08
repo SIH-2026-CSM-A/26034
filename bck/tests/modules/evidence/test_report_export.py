@@ -1,13 +1,20 @@
+import uuid
 from datetime import UTC, datetime
 from io import BytesIO
 from unittest.mock import patch
-import uuid
 
 import pytest
 from docx import Document
 from pypdf import PdfReader
 
-from app.contracts.enums import DeclarationField, EvidenceProvider, FieldState, RuleStatus, RuleSeverity, Verdict
+from app.contracts.enums import (
+    DeclarationField,
+    EvidenceProvider,
+    FieldState,
+    RuleSeverity,
+    RuleStatus,
+    Verdict,
+)
 from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
 from app.core.enums import ReviewAction
 from app.core.models import ReviewRow
@@ -237,7 +244,9 @@ def test_clause_citation_assertion(confirmed_record, review_row):
 
 
 def test_measurement_refusal_rendering(review_row):
-    """AC: Assert measurement refusal renders as 'Measurement declined' instead of 'N/A' and prints no number."""
+    """AC: Assert measurement refusal renders as 'Measurement declined' instead of 'N/A'
+    and prints no number.
+    """
     finding = make_finding(
         field=DeclarationField.RETAIL_SALE_PRICE,
         state=FieldState.INSUFFICIENT_EVIDENCE,
@@ -307,7 +316,9 @@ def test_offline_and_zero_stub(confirmed_record, review_row):
     with patch("socket.socket", side_effect=OSError("Offline")):
         pdf_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="pdf")
         pdf_text = extract_pdf_text(pdf_bytes)
-        docx_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="docx")
+        docx_bytes = export_compliance_report(
+            confirmed_record, review_row=review_row, format="docx"
+        )
         docx_text = extract_docx_text(docx_bytes)
 
     placeholders = ["sample text", "placeholder", "lorem ipsum", "[INSERT]", "TBD"]
