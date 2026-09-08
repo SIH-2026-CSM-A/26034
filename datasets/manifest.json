@@ -1,100 +1,36 @@
 {
   "records": [
     {
-      "sample_id": "cosmetics_colgate_strong_teeth_100g_001",
-      "sku_id": "cosmetics_colgate_strong_teeth_100g",
+      "sample_id": "food_parle_g_gluco_biscuits_65g_001",
+      "sku_id": "food_parle_g_gluco_biscuits_65g",
+      "category": "food",
+      "relative_image_path": "datasets/raw/food/food_parle_g_gluco_biscuits_65g/food_parle_g_gluco_biscuits_65g_001.jpg",
+      "annotation_path": "datasets/annotations/food/food_parle_g_gluco_biscuits_65g_001.json",
+      "sha256": "cd91c7df2338b9fd8adeab0eb7ed770c95aa88f8b0d01fd2d4aa573aee4cb23f"
+    },
+    {
+      "sample_id": "food_parle_g_gluco_biscuits_130g_001",
+      "sku_id": "food_parle_g_gluco_biscuits_130g",
+      "category": "food",
+      "relative_image_path": "datasets/raw/food/food_parle_g_gluco_biscuits_130g/food_parle_g_gluco_biscuits_130g_001.jpg",
+      "annotation_path": "datasets/annotations/food/food_parle_g_gluco_biscuits_130g_001.json",
+      "sha256": "e4df70bd48a2319f3e4d61a1e312cf3244ae8f8e1eab0c2b65ab4972a20b226d"
+    },
+    {
+      "sample_id": "cosmetics_himalaya_curcuma_face_wash_150ml_001",
+      "sku_id": "cosmetics_himalaya_curcuma_face_wash_150ml",
       "category": "cosmetics",
-      "relative_image_path": "datasets/raw/cosmetics/cosmetics_colgate_strong_teeth_100g/cosmetics_colgate_strong_teeth_100g_001.jpg",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_colgate_strong_teeth_100g_001.json",
-      "sha256": "633e4e87421914d4795bd04d248d4eefbd1ecce6805682b7ac734cba421f421f"
+      "relative_image_path": "datasets/raw/cosmetics/cosmetics_himalaya_curcuma_face_wash_150ml/cosmetics_himalaya_curcuma_face_wash_150ml_001.jpg",
+      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_curcuma_face_wash_150ml_001.json",
+      "sha256": "df6acb2faab83ef8ac358e8dc7066401a3b59ce333b4438d0259706050a11bf4"
     },
     {
-      "sample_id": "cosmetics_colgate_strong_teeth_100g_002",
-      "sku_id": "cosmetics_colgate_strong_teeth_100g",
+      "sample_id": "cosmetics_himalaya_neem_turmeric_face_wash_150ml_001",
+      "sku_id": "cosmetics_himalaya_neem_turmeric_face_wash_150ml",
       "category": "cosmetics",
-      "relative_image_path": "datasets/raw/cosmetics/cosmetics_colgate_strong_teeth_100g/cosmetics_colgate_strong_teeth_100g_002.jpg",
-      "annotation_path": "datasets/annotations/cosmetics/cosmetics_colgate_strong_teeth_100g_002.json",
-      "sha256": "7b241e4ef90980323adad2a47f9b853a3f4d847598642e25ad0cd57b0b99efb5"
-    },
-    {
-      "sample_id": "food_aarambh_oats_1_5kg_001",
-      "sku_id": "food_aarambh_oats_1_5kg",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_aarambh_oats_1_5kg/food_aarambh_oats_1_5kg_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_aarambh_oats_1_5kg_001.json",
-      "sha256": "24c8c9353d285ef9b5200819e44b3b215e41816a2e7986272c672fc2ecf8bdd4"
-    },
-    {
-      "sample_id": "food_aarambh_oats_1_5kg_002",
-      "sku_id": "food_aarambh_oats_1_5kg",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_aarambh_oats_1_5kg/food_aarambh_oats_1_5kg_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_aarambh_oats_1_5kg_002.json",
-      "sha256": "16833a212d99b128cbbfa962ee5df50d931478436549a3a90c2affc677d23eb1"
-    },
-    {
-      "sample_id": "food_aashirvaad_select_atta_1kg_001",
-      "sku_id": "food_aashirvaad_select_atta_1kg",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_aashirvaad_select_atta_1kg/food_aashirvaad_select_atta_1kg_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_aashirvaad_select_atta_1kg_001.json",
-      "sha256": "4178874eb5c3a603db5982331f06fe8d964ff8d3b2a336fb7610f93387ccdd75"
-    },
-    {
-      "sample_id": "food_aashirvaad_select_atta_1kg_002",
-      "sku_id": "food_aashirvaad_select_atta_1kg",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_aashirvaad_select_atta_1kg/food_aashirvaad_select_atta_1kg_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_aashirvaad_select_atta_1kg_002.json",
-      "sha256": "438db4d01706a3c7cdcfb035a394e0bd9ee189983ff29b6d74798b66696350c1"
-    },
-    {
-      "sample_id": "food_dhara_sunflower_oil_1l_001",
-      "sku_id": "food_dhara_sunflower_oil_1l",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_dhara_sunflower_oil_1l/food_dhara_sunflower_oil_1l_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_dhara_sunflower_oil_1l_001.json",
-      "sha256": "78610d91a9adba37a5d7b10d99bfefa9fd94481d6746be92576f04e7ce4053de"
-    },
-    {
-      "sample_id": "food_dhara_sunflower_oil_1l_002",
-      "sku_id": "food_dhara_sunflower_oil_1l",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_dhara_sunflower_oil_1l/food_dhara_sunflower_oil_1l_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_dhara_sunflower_oil_1l_002.json",
-      "sha256": "a02445a4eb4d096c85349c1ac39b24e3ab481249a48f58dfcb9104df8be997ee"
-    },
-    {
-      "sample_id": "food_mdh_chicken_masala_100g_001",
-      "sku_id": "food_mdh_chicken_masala_100g",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_mdh_chicken_masala_100g/food_mdh_chicken_masala_100g_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_mdh_chicken_masala_100g_001.json",
-      "sha256": "a9ab8c3e54c16bac4d57268aca4c1c57b3a4fa9686d17e7fda3aead0afaf466f"
-    },
-    {
-      "sample_id": "food_mdh_chicken_masala_100g_002",
-      "sku_id": "food_mdh_chicken_masala_100g",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_mdh_chicken_masala_100g/food_mdh_chicken_masala_100g_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_mdh_chicken_masala_100g_002.json",
-      "sha256": "c5cdc477213e3a7219f9b478799b0ac306dda06651dc7aabe59ba42d7caa1c65"
-    },
-    {
-      "sample_id": "food_parle_g_biscuits_82_5g_001",
-      "sku_id": "food_parle_g_biscuits_82_5g",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_parle_g_biscuits_82_5g/food_parle_g_biscuits_82_5g_001.jpg",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_82_5g_001.json",
-      "sha256": "d1c81ab85f546d753f418b0a15a4963343476cb1e94bcd271b57ebf3515ee09d"
-    },
-    {
-      "sample_id": "food_parle_g_biscuits_82_5g_002",
-      "sku_id": "food_parle_g_biscuits_82_5g",
-      "category": "food",
-      "relative_image_path": "datasets/raw/food/food_parle_g_biscuits_82_5g/food_parle_g_biscuits_82_5g_002.jpg",
-      "annotation_path": "datasets/annotations/food/food_parle_g_biscuits_82_5g_002.json",
-      "sha256": "928ff833038b90ff6cd866f994f4690a9770171746ab4cdbb6a75e36587bd4e9"
+      "relative_image_path": "datasets/raw/cosmetics/cosmetics_himalaya_neem_turmeric_face_wash_150ml/cosmetics_himalaya_neem_turmeric_face_wash_150ml_001.jpg",
+      "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_neem_turmeric_face_wash_150ml_001.json",
+      "sha256": "da0a79e77e177b36fd76478a017d58263932684223724fb5515dfc042d13f8ae"
     }
   ]
 }
