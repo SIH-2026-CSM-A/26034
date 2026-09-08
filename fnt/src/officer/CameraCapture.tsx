@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import { awaitScanOutcome } from '../services/scans'
+import { decodeFromImageSource, type BarcodeResult } from '../services/barcode'
 import type { components } from '../services/generated/schema'
 import { VerdictBanner } from './components/VerdictBanner'
 import type { Verdict as FixtureVerdict } from '../fixtures/contracts'
@@ -27,6 +28,8 @@ export function CameraCapture() {
 
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
+  // Decoded in the browser from the captured frame. Never sent anywhere, never looked up.
+  const [barcode, setBarcode] = useState<BarcodeResult | null | 'pending'>(null)
 
   // Calibration & capture metadata
   const [calibrationMethod, setCalibrationMethod] = useState<CalibrationMethod>('none')
@@ -148,6 +151,8 @@ export function CameraCapture() {
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    setBarcode('pending')
+    void decodeFromImageSource(canvas, canvas.width, canvas.height).then(setBarcode)
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -526,6 +531,16 @@ export function CameraCapture() {
             {/* Capture Details Summary */}
             <div className="border border-hairline bg-paper p-3 font-mono text-secondary">
               <div className="flex justify-between border-b border-hairline pb-1.5">
+                <span className="text-mute">Barcode:</span>
+                <span className="text-right text-ink">
+                  {barcode === 'pending'
+                    ? 'reading…'
+                    : barcode
+                      ? `${barcode.value} · ${barcode.symbology}${barcode.checkDigitVerifies ? '' : ' · check digit does not verify'}`
+                      : 'none read in frame'}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-hairline pb-1.5 pt-1.5">
                 <span className="text-mute">Calibration:</span>
                 <span className="text-ink">{calibrationMethod}</span>
               </div>
