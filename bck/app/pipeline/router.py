@@ -93,6 +93,7 @@ async def submit_catalogue_scan(
         ScanSourceType.CATALOGUE_RECORD,
         CalibrationMethod.NONE,
         body.product_category,
+        ward=body.ward,
     )
     async with session.begin():
         repository.add_scan(session, scan)
@@ -125,6 +126,7 @@ async def submit_image_scan(
     artwork_dpi: Annotated[float | None, Form()] = None,
     product_category: Annotated[ProductCategory | None, Form()] = None,
     institutional_or_industrial_confirmed: Annotated[bool, Form()] = False,
+    ward: Annotated[str | None, Form()] = None,
 ) -> ScanDetail:
     """Accept a photographed package and evaluate it after this response has gone.
 
@@ -151,6 +153,7 @@ async def submit_image_scan(
         artwork_dpi=artwork_dpi,
         product_category=product_category,
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+        ward=ward,
     )
 
 
@@ -165,6 +168,7 @@ async def _accept_image_scan(
     artwork_dpi: float | None,
     product_category: ProductCategory | None,
     institutional_or_industrial_confirmed: bool,
+    ward: str | None = None,
 ) -> ScanDetail:
     """Store the scan at PROCESSING, queue evaluation, and return the row to poll."""
     calibration = ImageCalibration(
@@ -172,7 +176,11 @@ async def _accept_image_scan(
     )
     frame = _decode(image_bytes)
     scan = repository.new_scan(
-        principal, ScanSourceType.PHYSICAL_LABEL, calibration.method, product_category
+        principal,
+        ScanSourceType.PHYSICAL_LABEL,
+        calibration.method,
+        product_category,
+        ward=ward,
     )
     async with session.begin():
         repository.add_scan(session, scan)

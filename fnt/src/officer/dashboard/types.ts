@@ -13,12 +13,13 @@ export interface RecordDetail {
   jurisdictionWard: string;
 }
 
-export interface HeatmapWard {
-  wardId: string;
-  wardName: string;
-  density: DensityBand;
+export interface WardAggregate {
+  /** Canonical GHMC ward label, matching a `name` in `ghmcWards.ts` and the value
+   * persisted on the scan. */
+  name: string;
   violationCount: number;
   totalScans: number;
+  /** Potential-violation counts split by display category, for the category filter. */
   categoryBreakdown: Record<string, number>;
 }
 
@@ -41,7 +42,14 @@ export interface DailyBucket {
 
 export interface DashboardData {
   categories: string[];
-  wards: HeatmapWard[];
+  /** One entry per GHMC ward that has at least one scan. Wards with no scans are absent
+   * here and render as "no scans" on the map, never as a low-density finding. */
+  wards: WardAggregate[];
+  /** Scans carrying no ward (older records, or the officer named none). Reported as a
+   * count beside the map, never shaded onto a polygon. */
+  unassignedScans: number;
+  /** Scans whose recorded ward matches no GHMC ward in `ghmcWards.ts`. */
+  unknownWardScans: number;
   clauses: ClauseDrilldown[];
   timeline: DailyBucket[];
 }

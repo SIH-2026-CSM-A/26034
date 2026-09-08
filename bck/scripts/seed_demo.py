@@ -55,6 +55,64 @@ PRODUCTS = [
     ("Instant Noodles", "70 g", "Rs. 14.00"),
 ]
 
+# Real GHMC wards the demonstration spreads its scans across, by exact ``ghmcWards.ts``
+# name so the dashboard map shades them. The first four carry a deliberate gradient of
+# potential-violation density from heaviest to lightest; the rest hold the non-violation
+# scans, so more of the city reads as "scanned" rather than "no data".
+PV_GRADIENT_WARDS = [
+    "Ward 98 Ameerpet",
+    "Ward 91 Khairatabad",
+    "Ward 93 Banjara Hills",
+    "Ward 95 Jubilee Hills",
+]
+OTHER_WARDS = [
+    "Ward 121 Kukatpally",
+    "Ward 1 Kapra",
+    "Ward 150 Monda Market",
+    "Ward 105 Gachibowli",
+]
+# Weighting that concentrates potential violations onto the first wards. Under the
+# dashboard's tercile split this yields three visible density bands rather than one flat
+# colour. Data, not a claim: the verdicts themselves come from the pipeline.
+_PV_BAG = (
+    [PV_GRADIENT_WARDS[0]] * 5
+    + [PV_GRADIENT_WARDS[1]] * 4
+    + [PV_GRADIENT_WARDS[2]] * 2
+    + [PV_GRADIENT_WARDS[3]] * 1
+)
+
+
+def assign_demo_wards(verdicts: list[str]) -> list[str]:
+    """A ward per scan, in scan order, spreading potential violations across wards.
+
+    Deterministic: the same verdict list always yields the same assignment. Potential
+    violations cycle through a weighted bag that tapers HIGH -> LOW, so the gradient shape
+    holds for any number of them rather than piling every extra scan onto the last ward;
+    everything else is spread evenly across the remaining wards. Kept pure so it can be
+    unit-tested against the dashboard's own band rule without a database or an API.
+    """
+    out: list[str] = []
+    pv = other = 0
+    for verdict in verdicts:
+        if verdict == "POTENTIAL_VIOLATION":
+            out.append(_PV_BAG[pv % len(_PV_BAG)])
+            pv += 1
+        else:
+            out.append(OTHER_WARDS[other % len(OTHER_WARDS)])
+            other += 1
+    return out
+
+
+def _predicted_seed_verdicts(count: int, offset: int = 0) -> list[str]:
+    """The verdict class ``listing(i)`` will reach, from its own omission rule: a listing
+    missing a mandatory declaration fails Rule 6 and reaches POTENTIAL_VIOLATION, a
+    complete one reaches REVIEW. Used to pick a ward at submission, before the verdict is
+    known, so a fresh seed carries the same spread the backfill would produce."""
+    return [
+        "POTENTIAL_VIOLATION" if i % 5 in (1, 3) else "REVIEW"
+        for i in range(offset, offset + count)
+    ]
+
 
 def call(method: str, path: str, *, body=None, token=None, form=None):
     data = None
@@ -227,7 +285,53 @@ async def seed_rows(complaint_ids: list[str]) -> None:
             print(f"complaint {cid[:8]} -> {status}")
 
 
+async def backfill_wards() -> None:
+    """Assign real GHMC wards to the already-seeded scans, in place, over the database.
+
+    For a database seeded before the ``ward`` column existed: it reads each demo-seeder
+    scan and its latest verdict and writes a ward, spreading potential violations so the
+    jurisdiction map shows all three density bands. No API and no password — it edits its
+    own seeded rows directly, and is idempotent, since the assignment is a pure function of
+    the scans' order and verdicts.
+    """
+    from sqlalchemy import select as _select
+
+    from app.core import get_session_factory
+    from app.core.models import Scan, VerdictRow
+
+    factory = get_session_factory()
+    async with factory() as session, session.begin():
+        scans = (
+            (
+                await session.execute(
+                    _select(Scan).where(Scan.officer_id == OFFICER).order_by(Scan.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        verdicts: list[str] = []
+        for scan in scans:
+            verdict = (
+                await session.execute(
+                    _select(VerdictRow.verdict)
+                    .where(VerdictRow.scan_id == scan.id)
+                    .order_by(VerdictRow.evaluated_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            verdicts.append(verdict.value if verdict is not None else "REVIEW")
+        wards = assign_demo_wards(verdicts)
+        for scan, ward in zip(scans, wards, strict=True):
+            scan.ward = ward
+    tally = ", ".join(f"{w}={wards.count(w)}" for w in dict.fromkeys(wards))
+    print(f"backfilled wards on {len(scans)} scans: {tally or '(none)'}")
+
+
 def main() -> None:
+    if len(sys.argv) >= 2 and sys.argv[1] == "--backfill-wards":
+        asyncio.run(backfill_wards())
+        return
     password = sys.argv[1]
     # `seed_demo.py <password> --append N OFFSET` submits N more listings numbered from
     # OFFSET and nothing else, for a second run on a database already seeded.
@@ -235,9 +339,12 @@ def main() -> None:
         status, tok = call("POST", "/auth/token", form={"username": OFFICER, "password": password})
         assert status == 200, (status, tok)
         count, offset = int(sys.argv[3]), int(sys.argv[4])
+        append_wards = assign_demo_wards(_predicted_seed_verdicts(count, offset))
         verdicts = []
-        for i in range(offset, offset + count):
-            status, detail = call("POST", "/scans", body=listing(i), token=tok["access_token"])
+        for k, i in enumerate(range(offset, offset + count)):
+            body = listing(i)
+            body["ward"] = append_wards[k]
+            status, detail = call("POST", "/scans", body=body, token=tok["access_token"])
             assert status == 201, (status, detail)
             verdicts.append(detail["verdict"])
         print(
@@ -256,8 +363,11 @@ def main() -> None:
         scans = [s for s in mine if s["officer_id"] == OFFICER]
     else:
         scans = []
+        seed_wards = assign_demo_wards(_predicted_seed_verdicts(30))
         for i in range(30):
-            status, detail = call("POST", "/scans", body=listing(i), token=token)
+            body = listing(i)
+            body["ward"] = seed_wards[i]
+            status, detail = call("POST", "/scans", body=body, token=token)
             assert status == 201, (status, detail)
             scans.append(detail)
         print(

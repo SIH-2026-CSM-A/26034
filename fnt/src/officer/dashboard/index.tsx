@@ -10,22 +10,17 @@ import type {
   ClauseDrilldown,
   DailyBucket,
   DashboardData,
-  DensityBand,
-  HeatmapWard,
   RecordDetail,
+  WardAggregate,
 } from './types';
+import { GHMC_WARDS } from './ghmcWards';
 
 type ScanSummary = components['schemas']['ScanSummary'];
 type ScanDetail = components['schemas']['ScanDetail'];
 
-const JURISDICTION_WARDS: ReadonlyArray<{ id: string; name: string }> = [
-  { id: 'W-01', name: 'Ward 12 - Begumpet' },
-  { id: 'W-02', name: 'Ward 08 - Ameerpet' },
-  { id: 'W-03', name: 'Ward 14 - Banjara Hills' },
-  { id: 'W-04', name: 'Ward 03 - Secunderabad' },
-  { id: 'W-05', name: 'Ward 19 - Jubilee Hills' },
-  { id: 'W-06', name: 'Ward 05 - Kukatpally' },
-];
+// The real GHMC ward labels the map can shade. A scan whose recorded ward is not one of
+// these is counted as "unknown" and shaded nowhere, never quietly dropped.
+const GHMC_WARD_NAMES: ReadonlySet<string> = new Set(GHMC_WARDS.map((w) => w.name));
 
 const STANDARD_CLAUSES: ReadonlyArray<{ clauseNumber: string; description: string; category: string }> = [
   {
@@ -66,51 +61,6 @@ function formatCategory(cat?: string | null): string {
   return cat.charAt(0).toUpperCase() + cat.slice(1);
 }
 
-function getWardForScan(scanId: string): { id: string; name: string } {
-  let hash = 0;
-  for (let i = 0; i < scanId.length; i++) {
-    hash = (hash * 31 + scanId.charCodeAt(i)) >>> 0;
-  }
-  const index = hash % JURISDICTION_WARDS.length;
-  const ward = JURISDICTION_WARDS[index];
-  return ward ?? { id: 'W-01', name: 'Ward 12 - Begumpet' };
-}
-
-function computeDensityBands(counts: number[]): Map<number, DensityBand> {
-  const sorted = [...counts].sort((a, b) => a - b);
-  const distinct = Array.from(new Set(sorted)).sort((a, b) => a - b);
-  const result = new Map<number, DensityBand>();
-
-  if (distinct.length === 0) return result;
-  const first = distinct[0] ?? 0;
-  if (distinct.length === 1) {
-    result.set(first, first > 10 ? 'HIGH' : first > 0 ? 'MEDIUM' : 'LOW');
-    return result;
-  }
-  const second = distinct[1] ?? 0;
-  if (distinct.length === 2) {
-    result.set(first, 'LOW');
-    result.set(second, 'HIGH');
-    return result;
-  }
-
-  const finalIdx = sorted.length - 1;
-  const lowerCut = sorted[Math.floor(finalIdx / 3)] ?? 0;
-  const upperCut = sorted[Math.floor((finalIdx * 2 + 2) / 3)] ?? 0;
-
-  for (const count of distinct) {
-    if (count <= lowerCut) {
-      result.set(count, 'LOW');
-    } else if (count >= upperCut) {
-      result.set(count, 'HIGH');
-    } else {
-      result.set(count, 'MEDIUM');
-    }
-  }
-
-  return result;
-}
-
 function formatTimestamp(iso: string): string {
   try {
     return new Intl.DateTimeFormat('en-IN', {
@@ -135,6 +85,8 @@ export const OfficerDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData>({
     categories: ['All Categories', 'Packaged Food', 'Personal Care', 'Beverages', 'Household Goods'],
     wards: [],
+    unassignedScans: 0,
+    unknownWardScans: 0,
     clauses: [],
     timeline: [],
   });
@@ -182,40 +134,40 @@ export const OfficerDashboard: React.FC = () => {
         ...Array.from(new Set([...defaultCategories, ...foundCategories])),
       ];
 
-      // Heatmap Wards aggregation
-      const wardMap = new Map<string, HeatmapWard>();
-      JURISDICTION_WARDS.forEach((w) => {
-        wardMap.set(w.id, {
-          wardId: w.id,
-          wardName: w.name,
-          density: 'LOW',
-          violationCount: 0,
-          totalScans: 0,
-          categoryBreakdown: {},
-        });
-      });
+      // Ward aggregation, keyed by the ward the officer actually recorded on the scan.
+      // A ward is created in the map only when a scan names it, so wards with no activity
+      // stay off the aggregate and render as "no scans" rather than a low-density finding.
+      // A scan with no ward, or one naming a ward the map does not know, is counted aside
+      // and shaded nowhere. Density bands are computed in the map component, over the
+      // active category, so the shading always matches the number shown.
+      const wardMap = new Map<string, WardAggregate>();
+      let unassignedScans = 0;
+      let unknownWardScans = 0;
 
       scanList.forEach((scan) => {
-        const assignedWard = getWardForScan(scan.id);
-        const ward = wardMap.get(assignedWard.id);
-        if (!ward) return;
-
+        const wardName = scan.ward?.trim();
+        if (!wardName) {
+          unassignedScans += 1;
+          return;
+        }
+        if (!GHMC_WARD_NAMES.has(wardName)) {
+          unknownWardScans += 1;
+          return;
+        }
+        let ward = wardMap.get(wardName);
+        if (!ward) {
+          ward = { name: wardName, violationCount: 0, totalScans: 0, categoryBreakdown: {} };
+          wardMap.set(wardName, ward);
+        }
         ward.totalScans += 1;
-        const category = formatCategory(scan.product_category);
-        const isPotentialViolation = scan.verdict === 'POTENTIAL_VIOLATION';
-
-        if (isPotentialViolation) {
+        if (scan.verdict === 'POTENTIAL_VIOLATION') {
           ward.violationCount += 1;
+          const category = formatCategory(scan.product_category);
           ward.categoryBreakdown[category] = (ward.categoryBreakdown[category] ?? 0) + 1;
         }
       });
 
       const wardArray = Array.from(wardMap.values());
-      const violationCounts = wardArray.map((w) => w.violationCount);
-      const densityMap = computeDensityBands(violationCounts);
-      wardArray.forEach((w) => {
-        w.density = densityMap.get(w.violationCount) ?? 'LOW';
-      });
 
       // Timeline 7-day buckets
       const timelineBucketsMap = new Map<string, DailyBucket>();
@@ -275,7 +227,7 @@ export const OfficerDashboard: React.FC = () => {
 
       // Populate from live scan details findings
       detailsMap.forEach((detail) => {
-        const assignedWard = getWardForScan(detail.id);
+        const assignedWard = detail.ward?.trim() || 'Unassigned';
         const category = formatCategory(detail.product_category);
         const scanVerdict =
           detail.verdict === 'POTENTIAL_VIOLATION'
@@ -312,7 +264,7 @@ export const OfficerDashboard: React.FC = () => {
               detail.source_type === 'catalogue_record'
                 ? 'E-Commerce Marketplace Listing'
                 : 'Physical Retail Package Inspection',
-            jurisdictionWard: assignedWard.name,
+            jurisdictionWard: assignedWard,
           };
 
           if (isIssue) {
@@ -335,6 +287,8 @@ export const OfficerDashboard: React.FC = () => {
       setData({
         categories: combinedCategories,
         wards: wardArray,
+        unassignedScans,
+        unknownWardScans,
         clauses,
         timeline,
       });
@@ -453,7 +407,9 @@ export const OfficerDashboard: React.FC = () => {
                 wards={data.wards}
                 activeCategory={activeCategory}
                 selectedWard={selectedWard}
-                onSelectWard={(id) => setSelectedWard(id === selectedWard ? null : id)}
+                onSelectWard={(name) => setSelectedWard(name === selectedWard ? null : name)}
+                unassignedScans={data.unassignedScans}
+                unknownWardScans={data.unknownWardScans}
               />
               <TimelineBucketChart timeline={data.timeline} />
             </div>
