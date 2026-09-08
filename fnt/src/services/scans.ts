@@ -13,6 +13,13 @@ const POLL_INTERVAL_MS = 2000
 // server, so a scan queued behind others waits for them first.
 const POLL_DEADLINE_MS = 10 * 60 * 1000
 
+// A single read that fails is not the outcome. PaddleOCR holds the interpreter lock for
+// up to ~20 s inside one detection call, so a poll issued at that moment waits that long
+// for its answer, and a mobile network may drop it first. The scan id is known and the
+// server carries on regardless, so the right response is to read again, not to report
+// failure. Give up only after this many failed reads in a row.
+const MAX_CONSECUTIVE_READ_FAILURES = 5
+
 /**
  * Read a scan back until its status leaves PROCESSING.
  *
@@ -26,15 +33,24 @@ export async function awaitScanOutcome(
   onTick?: (elapsedSeconds: number) => void,
 ): Promise<ScanDetail> {
   const started = Date.now()
+  let failedReads = 0
   for (;;) {
-    const { data, error } = await apiClient.GET('/scans/{scan_id}', {
-      params: { path: { scan_id: scanId } },
-    })
-    if (error || !data) {
-      throw new Error('Failed to fetch')
+    let detail: ScanDetail | undefined
+    try {
+      const { data } = await apiClient.GET('/scans/{scan_id}', {
+        params: { path: { scan_id: scanId } },
+      })
+      detail = data
+    } catch {
+      detail = undefined
     }
-    if (data.status !== 'processing') {
-      return data
+    if (detail) {
+      failedReads = 0
+      if (detail.status !== 'processing') {
+        return detail
+      }
+    } else if (++failedReads >= MAX_CONSECUTIVE_READ_FAILURES) {
+      throw new Error('Failed to fetch')
     }
     const elapsed = Date.now() - started
     if (elapsed > POLL_DEADLINE_MS) {

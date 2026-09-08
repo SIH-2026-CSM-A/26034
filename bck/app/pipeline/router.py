@@ -166,9 +166,13 @@ async def submit_image_scan(
     return scan_detail(scan, None, finalised=False)
 
 
-# ponytail: one evaluation at a time. The VM has four cores and PaddleOCR takes all of
-# them for one image; two at once would each take twice as long. A worker queue is the
-# upgrade if concurrent officers ever matter.
+# ponytail: one evaluation at a time, on a thread. The VM has four cores and PaddleOCR
+# takes all of them for one image; two at once would each take twice as long. Paddle
+# also holds the interpreter lock inside its inference call — measured at up to 21 s on
+# the VM — so the loop, and every poll for this scan, stalls for that long. Tolerated by
+# the client, which retries a failed read. The upgrade is a one-worker process pool,
+# which frees the loop entirely; it is not done here because the route tests patch the
+# pipeline in-process, and a spawned worker would not see the patches.
 _EVALUATION_LOCK = asyncio.Lock()
 
 
