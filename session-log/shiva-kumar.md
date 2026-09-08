@@ -42,3 +42,18 @@
   - Defect B (Refusal Rendering): Replaced 'Measurement declined' in `docx_renderer.py`; verified `test_measurement_refusal_rendering` failed RED, restored.
 - **Verification**: All 8 report export tests passing green; evidence suite passing 45/45 runnable tests.
 - **Agent**: Claude Code.
+
+## CMP-001 Verification & Completion (Parts A & B)
+
+- **Status**: Completed, verified, and confirmed on `main` following PR #110 merge.
+- **Module**: `app/modules/complaints/` (`domain.py`, `service.py`, `repository.py`).
+- **Validation Results**:
+  - `uv run pytest tests/modules/complaints/ -v`: 21 passed in 12.64s.
+  - `uv run ruff check .`: All checks passed.
+  - `uv run ruff format --check .`: 187 files already formatted.
+  - `uv run lint-imports`: 3 kept, 0 broken across 135 files and 484 dependencies.
+- **Invariants Upheld**:
+  - Immutable append-only transitions (`supersedes_id` chain).
+  - Dropped `resolved_at` in favor of reading the `RESOLVED` row creation timestamp and walking lineage.
+  - Structural confirmation gate preventing unconfirmed machine verdicts from raising complaints.
+  - Exposure vocabulary guarded against legal-liability terms.
