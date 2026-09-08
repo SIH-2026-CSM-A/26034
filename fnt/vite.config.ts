@@ -7,6 +7,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   server: {
     host: true,
+    // The backend sends no CORS headers, and the dev server is HTTPS on a
+    // different port, so a direct browser call to :8000 is refused before it
+    // is sent. Proxying keeps every API call same-origin. Point
+    // VITE_API_BASE_URL at /api to use it — see .env.example.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
   plugins: [
     react(),
