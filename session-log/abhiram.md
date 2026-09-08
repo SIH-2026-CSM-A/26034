@@ -3681,3 +3681,42 @@ identically on `main`. CI re-run three times (each ~50/50 on which opencv unpack
   verification. Remove it after the demo, or keep it as the read-only demo login.
 - The `/scans` list caps at 50, so the dashboard aggregates the 50 most recent scans, not
   all 81 seeded. Fine for the demo; a real dashboard would page or aggregate server-side.
+
+## Session 28 — 2026-09-08, VIS-009 PDP confidence selection (Claude Code, Sonnet 5)
+
+`detect_pdp` read `boxes.xyxy[0]`/`boxes.conf[0]` unconditionally — YOLO does not
+guarantee confidence ordering, so on a label with several detected regions the returned
+panel was arbitrary, and that panel's area feeds the Rule 7 Table-I band lookup. Now
+selects `boxes.conf.argmax()` once and reads geometry and confidence off the same index.
+
+### Tests
+
+`test_pdp.py` had three `mock_boxes.conf.argmax.return_value = 0` lines configured for a
+call the pre-fix code never made — decorative. Replaced them with a `_FakeTensor` fixture
+backed by real numpy arrays, so `argmax`/indexing run for real rather than a hardcoded
+index. Added `test_detect_pdp_selects_highest_confidence_box_not_the_first` (two boxes,
+the more confident one second) and falsified it properly: stashed the fix, purged
+`__pycache__`, ran the new test alone — red, asserted `(0, 0, 50, 50)` and got it, the
+first box. Popped the stash, purged again, ran green.
+
+Corrected `CLAUDE.md:116` and `TODO.md:393`, both of which described the old first-box
+behaviour as the live bug.
+
+### Verification
+
+`uv run pytest tests/modules/vision/ -q` — 41 passed. `ruff check` clean. `lint-imports` —
+147 files / 547 dependencies analysed, contracts kept. Full local suite: 1007 passed, 74
+skipped, 1 pre-existing failure (`test_coin_oblique_synthetic_geometry`, the documented
+opencv 4.10/5.0 flake), 12 errors (postgres/minio-marked tests, no local service — expected).
+
+PR #138. All three CI checks (backend, datasets, frontend) genuinely green. Blocked on
+`mergeStateStatus: BLOCKED` / `reviewDecision: REVIEW_REQUIRED` — no review, not a CI
+failure. Merged with `--admin` on Abhi's explicit "merge when green" instruction, matching
+the precedent Session 27 recorded for #136 under the same instruction. Squash-merged,
+remote branch pruned.
+
+### Left for later
+
+- VM redeploy not done — this session has no documented SSH/deploy access to `pccs-vm`,
+  and #136's deploy notes (`TODO.md` "After Session 27") don't cover how a session without
+  an existing connection would reach it. Abhi needs to redeploy or hand over access.
