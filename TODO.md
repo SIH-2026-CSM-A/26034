@@ -7,6 +7,14 @@ them, read the file.
 
 ---
 
+## After Session 28 (2026-09-08, VIS-009 PDP confidence) — read this first
+
+Merged #138: `detect_pdp` now selects `boxes.conf.argmax()` instead of `boxes[0]` — see
+`session-log/abhiram.md` Session 28 for the falsification and the doc corrections it made.
+
+1. **Not deployed to `pccs-vm` yet.** The VM still serves #136. This session had no
+   documented SSH/deploy access — redeploy manually or hand a session that access.
+
 ## After Session 27 (2026-09-08, real ward + geographic map) — read this first
 
 Merged #136: the dashboard heatmap is now a real GHMC ward choropleth, and the ward is a
