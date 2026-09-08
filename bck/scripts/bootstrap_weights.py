@@ -25,4 +25,9 @@ if det_src and rec_src:
     shutil.copytree(rec_src, rec_dst, dirs_exist_ok=True)
     print("Offline cache successfully populated!")
 else:
-    print("Could not find downloaded inference.yml files.")
+    # Exits non-zero so a `RUN bootstrap_weights.py` in a Dockerfile fails the build
+    # instead of baking an image whose weights directories are empty.
+    raise SystemExit(
+        f"could not locate det/rec inference.yml under {paddlex_dir}; "
+        "PaddleOCR downloaded nothing usable"
+    )

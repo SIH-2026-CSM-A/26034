@@ -14,6 +14,12 @@ dependencies = [
     "opencv-python-headless>=5.0.0.93",
     "pytesseract>=0.3.13",
     "ultralytics>=8.4.141",
+    # Declared, though nothing here imports it: ultralytics pulls torch transitively, and
+    # uv applies [tool.uv.sources] only to a project's DIRECT dependencies. Left implicit,
+    # the CPU index below is silently ignored and PyPI's CUDA build wins. Pinning the
+    # source is the only reason these two lines exist.
+    "torch>=2.0",
+    "torchvision>=0.15",
     "paddleocr>=2.10.0",
     "paddlepaddle>=3.3.1",
     "boto3>=1.43.89",
@@ -42,6 +48,23 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# torch reaches this project only through ultralytics, and only ever runs on CPU: the
+# image has no NVIDIA runtime and the VM has no GPU. PyPI's default torch wheel for
+# linux-x86_64 declares the CUDA runtime as hard dependencies, which pulled 2.4 GB of
+# nvidia-* and triton wheels into a CPU-only image — more than four times everything
+# else in the tree combined.
+#
+# `explicit = true` matters: without it uv may resolve *any* package from this index.
+# With it, only the packages named in [tool.uv.sources] come from here.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

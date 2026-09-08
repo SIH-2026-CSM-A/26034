@@ -1,0 +1,110 @@
+# PCCS production stack: one VM, one Compose project. Deliberately not decomposed into
+# managed services. Copy .env.example to .env beside this file and fill it in first.
+#
+# Migrations run on backend startup (`alembic upgrade head` in the command below). One
+# VM means one backend replica, so there is no migration race to design around.
+#
+# The database publishes on 5433, not 5432. A local PostgreSQL cluster on 127.0.0.1:5432
+# silently wins over a container published there: the container still reports healthy and
+# alembic quietly migrates the wrong server. Nothing inside the stack uses 5433 — backend
+# to db goes over the compose network on 5432 — so DATABASE_URL below says `db:5432`.
+#
+# POSTGRES_HOST_PORT and REDIS_HOST_PORT exist only so this stack can be brought up on a
+# developer machine that already has the dev compose db (docker-compose.yml) on 5433 or
+# another project's redis on 6379. On the VM, leave both unset.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pccs-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build: ./bck
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      # Not on the browser path: the frontend calls /api on its own origin and nginx
+      # proxies it. Kept because port 8000 is still published for debugging.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RULES_CORPUS_DIR: /rules-corpus
+      OFFICERS: ${OFFICERS:-[]}
+    volumes:
+      - ./rules-corpus:/rules-corpus:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./fnt
+      args:
+        # Relative by default so the bundle calls nginx on its own origin. See .env.example.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Object storage for evidence images. Nothing in bck/ constructs
+  # S3ContentAddressedStorageClient yet — this is provisioned ahead of that wiring.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - pccs-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # No redis client in bck/ today either. Ephemeral by intent: no volume, because
+  # anything that must survive a restart belongs in Postgres.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  pccs-db-data:
+  pccs-minio-data:
