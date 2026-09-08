@@ -42,3 +42,22 @@
   - Defect B (Refusal Rendering): Replaced 'Measurement declined' in `docx_renderer.py`; verified `test_measurement_refusal_rendering` failed RED, restored.
 - **Verification**: All 8 report export tests passing green; evidence suite passing 45/45 runnable tests.
 - **Agent**: Claude Code.
+
+## CMP-001 Part A: Manufacturer Complaint Loop Domain Implementation
+
+- **Status**: Completed Part A (Domain State Machine & Structural Confirmation Gate).
+- **Module**: `app/modules/complaints/` (`domain.py`, `service.py`).
+- **Design & Invariants**:
+  - `ComplaintStatus` enum: `RAISED`, `ACKNOWLEDGED`, `RESOLVED`, `REJECTED`.
+  - Append-only transitions: Returning a new `ComplaintRecord` rather than mutating history in-place.
+  - Re-opening a resolved/rejected complaint generates a new `RAISED` record with `supersedes_id` pointing to the prior complaint.
+  - Structural human-confirmation gate: Factory `create_complaint_from_verdict` strictly enforces `review_row.action` in `{ReviewAction.CONFIRM, ReviewAction.OVERRIDE}`; raises `UnconfirmedVerdictComplaintError` otherwise.
+  - Forbidden vocabulary guarded: Verified omission of forbidden terms (`violation confirmed`, `illegal`, `non-compliant`, etc.).
+- **Falsification Verification**:
+  - Injected defect bypassing `target_status` check in `ComplaintRecord.transition_to`.
+  - Ran `uv run pytest tests/modules/complaints/test_complaints_domain.py` without `-x`:
+    ```text
+    FAILED tests/modules/complaints/test_complaints_domain.py::test_illegal_transitions - Failed: DID NOT RAISE IllegalComplaintTransitionError
+    ======================= 1 failed, 4 passed in 8.72s =======================
+    ```
+  - Reverted `domain.py`: Suite returned clean green (5 passed in 5.03s).

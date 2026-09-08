@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,8 +9,9 @@ from app.core.enums import ReviewAction
 from app.core.models import ReviewRow
 
 
-class ComplaintStatus(str, Enum):
+class ComplaintStatus(StrEnum):
     """Lifecycle states for a legal compliance complaint."""
+
     RAISED = "RAISED"
     ACKNOWLEDGED = "ACKNOWLEDGED"
     RESOLVED = "RESOLVED"
@@ -19,11 +20,13 @@ class ComplaintStatus(str, Enum):
 
 class IllegalComplaintTransitionError(ValueError):
     """Raised when a complaint attempts to move to an invalid status."""
+
     pass
 
 
 class UnconfirmedVerdictComplaintError(ValueError):
     """Raised when a complaint is raised from a verdict that has not been finalized."""
+
     pass
 
 
@@ -40,6 +43,7 @@ class ComplaintRecord(BaseModel):
     Structural record of a compliance complaint raised against a manufacturer.
     Cites the underlying evidence record and officer review that triggered it.
     """
+
     model_config = ConfigDict(frozen=True)
 
     id: UUID = Field(default_factory=uuid4)

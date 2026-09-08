@@ -1,6 +1,7 @@
-import pytest
-from uuid import uuid4
 from datetime import UTC, datetime
+from uuid import uuid4
+
+import pytest
 
 from app.contracts.enums import DeclarationField, FieldState, RuleSeverity, RuleStatus, Verdict
 from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
@@ -129,7 +130,7 @@ def test_unconfirmed_verdict_rejection(confirmed_record):
     """
     # review_row=None
     with pytest.raises(UnconfirmedVerdictComplaintError):
-        create_complaint_from_verdict(confirmed_record, None, "M1") # type: ignore
+        create_complaint_from_verdict(confirmed_record, None, "M1")  # type: ignore
 
     # review_row.action=ANNOTATE
     annotate_row = ReviewRow(

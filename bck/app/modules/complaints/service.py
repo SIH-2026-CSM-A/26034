@@ -1,7 +1,6 @@
-from uuid import UUID
-
 from app.contracts.records import VerdictRecord
 from app.core.models import ReviewRow
+
 from .domain import (
     ComplaintRecord,
     ComplaintStatus,

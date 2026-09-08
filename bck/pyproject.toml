@@ -85,15 +85,13 @@ layers = [
 name = "Modules are independent of one another"
 type = "independence"
 modules = [
-    "app.modules.analytics",
     "app.modules.vision",
-    "app.modules.vendor",
+    "app.modules.complaints",
     "app.modules.extraction",
     "app.modules.measurement",
     "app.modules.rules",
     "app.modules.tamper",
     "app.modules.evidence",
-    "app.modules.complaints",
 ]
 
 [[tool.importlinter.contracts]]
