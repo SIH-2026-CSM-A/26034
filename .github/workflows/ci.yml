@@ -90,7 +90,7 @@ jobs:
             echo "::error::tracked path above contains a quote or a backtick, or has a component starting with '-'"
             exit 1
           fi
-          if git ls-files | grep -v / | grep -vxE '\.gitignore|AGENTS\.md|ARCHITECTURE\.md|CLAUDE\.md|HANDOFF\.md|HANDOFF-PROTOCOL\.md|README\.md|SESSION-LOG\.md|SETUP\.md|TICKETS\.md|TODO\.md|docker-compose\.yml'; then
+          if git ls-files | grep -v / | grep -vxE '\.gitignore|AGENTS\.md|ARCHITECTURE\.md|CLAUDE\.md|HANDOFF\.md|HANDOFF-PROTOCOL\.md|README\.md|SESSION-LOG\.md|SETUP\.md|TICKETS\.md|TODO\.md|docker-compose\.yml|docker-compose\.prod\.yml|\.env\.example'; then
             echo "::error::file above sits at the repo root and is not on the allowlist in this step"
             exit 1
           fi
