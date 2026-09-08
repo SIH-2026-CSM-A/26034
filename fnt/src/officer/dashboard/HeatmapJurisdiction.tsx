@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import type { HeatmapWard, DensityBand } from './types';
 
 interface Props {
@@ -8,37 +8,24 @@ interface Props {
   onSelectWard: (wardId: string) => void;
 }
 
-/** Colour tokens for heatmap density bands — must not be changed independently of
- *  the legend rendered below the grid. */
-const DENSITY_CARD: Record<DensityBand, {
-  card: string;
-  badge: string;
-  badgeText: string;
-  label: string;
-  dot: string;
-}> = {
-  HIGH: {
-    card: 'bg-rose-100 border-rose-500 text-rose-950',
-    badge: 'bg-rose-600 text-white',
-    badgeText: 'HIGH',
-    label: 'HIGH density',
-    dot: 'bg-rose-500',
-  },
-  MEDIUM: {
-    card: 'bg-amber-50 border-amber-400 text-amber-950',
-    badge: 'bg-amber-400 text-amber-950',
-    badgeText: 'MED',
-    label: 'MEDIUM density',
-    dot: 'bg-amber-400',
-  },
-  LOW: {
-    card: 'bg-slate-50 border-slate-300 text-slate-700',
-    badge: 'bg-slate-200 text-slate-700',
-    badgeText: 'LOW',
-    label: 'LOW density',
-    dot: 'bg-slate-400',
-  },
+/**
+ * Fill, stroke and legend copy per density band. The three fills are the scale; a
+ * reader sees the band from the tile before reading a number. Kept in one table so the
+ * legend and the tiles cannot drift apart.
+ */
+const BAND: Record<DensityBand, { fill: string; stroke: string; text: string; label: string }> = {
+  HIGH: { fill: '#A32A1E', stroke: '#6E1A12', text: '#FFFFFF', label: 'High' },
+  MEDIUM: { fill: '#E0A126', stroke: '#845605', text: '#101A24', label: 'Medium' },
+  LOW: { fill: '#8FC7A8', stroke: '#14603C', text: '#101A24', label: 'Low' },
 };
+
+const ORDER: DensityBand[] = ['HIGH', 'MEDIUM', 'LOW'];
+
+// Tile geometry in SVG units. Three columns; the viewBox grows with the row count, and
+// the SVG scales to its container, so the same drawing reads at 390px and at 1280px.
+const COLS = 3;
+const TILE = 100;
+const GAP = 8;
 
 export const HeatmapJurisdiction: React.FC<Props> = ({
   wards,
@@ -46,87 +33,113 @@ export const HeatmapJurisdiction: React.FC<Props> = ({
   selectedWard,
   onSelectWard,
 }) => {
+  // Scoped: the dashboard renders this once per breakpoint variant, and a duplicate
+  // pattern id resolves url(#…) to the hidden copy and paints nothing.
+  const hatchId = useId();
+  const rows = Math.max(1, Math.ceil(wards.length / COLS));
+  const width = COLS * TILE + (COLS - 1) * GAP;
+  const height = rows * TILE + (rows - 1) * GAP;
+
+  const countFor = (ward: HeatmapWard) =>
+    activeCategory === 'All Categories'
+      ? ward.violationCount
+      : (ward.categoryBreakdown[activeCategory] ?? 0);
+
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+    <section className="border border-hairline bg-paper p-4 sm:p-5">
+      <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase leading-tight">
-            Jurisdiction Heatmap
+          <h2 className="text-label font-bold uppercase tracking-wider text-ink">
+            Jurisdiction heatmap
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Potential violation density by ward · scan-ID hashed assignment
+          <p className="mt-0.5 text-secondary text-mute">
+            Potential-violation density by ward
           </p>
         </div>
-        {/* Legend */}
-        <div className="flex items-center gap-3 shrink-0">
-          {(['HIGH', 'MEDIUM', 'LOW'] as DensityBand[]).map((band) => (
-            <span key={band} className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Density scale">
+          {ORDER.map((band) => (
+            <li key={band} className="flex items-center gap-1.5 text-label text-ink">
               <span
-                className={`w-3 h-3 rounded-sm inline-block shrink-0 ${DENSITY_CARD[band].dot}`}
+                aria-hidden="true"
+                className="inline-block h-3.5 w-3.5 shrink-0"
+                style={{ backgroundColor: BAND[band].fill, border: `1px solid ${BAND[band].stroke}` }}
               />
-              {DENSITY_CARD[band].badgeText}
-            </span>
+              {BAND[band].label}
+            </li>
           ))}
-        </div>
+        </ul>
       </header>
 
       {wards.length === 0 ? (
-        <p className="text-xs text-slate-500 py-8 text-center">
+        <p className="py-8 text-center text-secondary text-mute">
           No jurisdiction scan activity recorded.
         </p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
-          {wards.map((ward) => {
-            const isSelected = ward.wardId === selectedWard;
-            const tokens = DENSITY_CARD[ward.density];
-            const displayCount =
-              activeCategory === 'All Categories'
-                ? ward.violationCount
-                : (ward.categoryBreakdown[activeCategory] ?? 0);
-
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="block w-full"
+          role="group"
+          aria-label="Ward density map"
+        >
+          <defs>
+            <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse">
+              <path d="M-1 1 1 -1M0 6 6 0M5 7 7 5" stroke="#101A24" strokeWidth="1" strokeOpacity="0.25" />
+            </pattern>
+          </defs>
+          {wards.map((ward, i) => {
+            const x = (i % COLS) * (TILE + GAP);
+            const y = Math.floor(i / COLS) * (TILE + GAP);
+            const band = BAND[ward.density];
+            const selected = ward.wardId === selectedWard;
+            const count = countFor(ward);
+            const [wardCode, ...rest] = ward.wardName.split(' - ');
+            const locality = rest.join(' - ');
             return (
-              <button
+              <g
                 key={ward.wardId}
-                type="button"
+                transform={`translate(${x} ${y})`}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                aria-label={`${ward.wardName}: ${count} potential violation${count === 1 ? '' : 's'} in ${ward.totalScans} scans, ${band.label} density`}
                 onClick={() => onSelectWard(ward.wardId)}
-                aria-pressed={isSelected}
-                className={[
-                  'relative text-left p-3.5 rounded-xl border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
-                  tokens.card,
-                  isSelected
-                    ? 'ring-2 ring-offset-2 ring-indigo-600 shadow-md scale-[1.02]'
-                    : 'hover:shadow-sm',
-                ].join(' ')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectWard(ward.wardId);
+                  }
+                }}
+                className="cursor-pointer focus:outline-none"
               >
-                {/* Density badge */}
-                <span
-                  className={`absolute top-2 right-2 text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded ${tokens.badge}`}
-                >
-                  {tokens.badgeText}
-                </span>
-
-                {/* Ward name */}
-                <p className="font-bold text-xs leading-snug pr-8 mb-2">
-                  {ward.wardName}
-                </p>
-
-                {/* Counts */}
-                <p className="text-xs">
-                  <span className="font-black text-base tabular-nums">
-                    {displayCount}
-                  </span>{' '}
-                  <span className="opacity-70 font-medium">
-                    {displayCount === 1 ? 'potential violation' : 'potential violations'}
-                  </span>
-                </p>
-                <p className="text-xs opacity-60 mt-0.5">
-                  {ward.totalScans} total scans
-                </p>
-              </button>
+                <rect width={TILE} height={TILE} rx="4" fill={band.fill} stroke={band.stroke} strokeWidth={selected ? 4 : 1.5} />
+                {ward.totalScans === 0 && (
+                  <rect width={TILE} height={TILE} rx="4" fill={`url(#${hatchId})`} />
+                )}
+                <text x="8" y="18" fontFamily="IBM Plex Mono, ui-monospace, monospace" fontSize="10" fontWeight="600" fill={band.text}>
+                  {wardCode}
+                </text>
+                <text x="8" y="31" fontFamily="IBM Plex Sans, system-ui, sans-serif" fontSize="9" fill={band.text} fillOpacity="0.9">
+                  {locality.length > 18 ? `${locality.slice(0, 17)}…` : locality}
+                </text>
+                <text x="8" y="72" fontFamily="IBM Plex Mono, ui-monospace, monospace" fontSize="30" fontWeight="600" fill={band.text}>
+                  {count}
+                </text>
+                <text x="8" y="90" fontFamily="IBM Plex Sans, system-ui, sans-serif" fontSize="9" fill={band.text} fillOpacity="0.9">
+                  of {ward.totalScans} scan{ward.totalScans === 1 ? '' : 's'}
+                </text>
+                {selected && (
+                  <rect x="2" y="2" width={TILE - 4} height={TILE - 4} rx="3" fill="none" stroke="#101A24" strokeWidth="1.5" strokeDasharray="3 2" />
+                )}
+              </g>
             );
           })}
-        </div>
+        </svg>
       )}
+
+      <p className="mt-3 border-t border-hairline pt-2 text-label text-mute">
+        Ward assignment is a scan-ID hash over placeholder ward names. The geography is not
+        verified and must not be read as where a scan was taken.
+      </p>
     </section>
   );
 };
