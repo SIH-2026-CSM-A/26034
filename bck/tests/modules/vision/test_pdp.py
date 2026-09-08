@@ -21,6 +21,39 @@ def mock_pdp_model_file(tmp_path: Path) -> str:
     return str(weights_path)
 
 
+class _FakeTensor:
+    """Enough of the torch.Tensor surface for `detect_pdp` to run against real data.
+
+    Backed by a real numpy array so `.argmax()` and indexing compute a real answer instead
+    of one hardcoded in the test — the point of VIS-009 is that selection logic runs, not
+    that a mock says which index wins.
+    """
+
+    def __init__(self, values) -> None:
+        self._array = np.asarray(values)
+
+    def cpu(self) -> "_FakeTensor":
+        return self
+
+    def numpy(self):
+        return self._array
+
+    def argmax(self):
+        return self._array.argmax()
+
+    def __getitem__(self, index) -> "_FakeTensor":
+        return _FakeTensor(self._array[index])
+
+
+def _mock_boxes(xyxy: list[list[float]], conf: list[float]) -> MagicMock:
+    """A `Results.boxes`-shaped mock whose `conf`/`xyxy` are real, indexable arrays."""
+    boxes = MagicMock()
+    boxes.__len__.return_value = len(conf)
+    boxes.conf = _FakeTensor(conf)
+    boxes.xyxy = _FakeTensor(xyxy)
+    return boxes
+
+
 def printed_panel() -> np.ndarray:
     """A light frame with a block of print confined to its upper-left quadrant.
 
@@ -65,18 +98,40 @@ def test_detect_pdp_empty_image(mock_pdp_model_file: str):
 def test_detect_pdp_success(mock_yolo_cls: MagicMock, mock_pdp_model_file: str):
     img = np.zeros((200, 200, 3), dtype=np.uint8)
 
-    mock_boxes = MagicMock()
-    mock_boxes.__len__.return_value = 1
-    mock_boxes.conf.argmax.return_value = 0
-    mock_boxes.conf.__getitem__.return_value.cpu().numpy.return_value = 0.95
-    mock_boxes.xyxy.__getitem__.return_value.cpu().numpy.return_value = np.array([20, 30, 120, 150])
-
     mock_results = [MagicMock()]
-    mock_results[0].boxes = mock_boxes
+    mock_results[0].boxes = _mock_boxes(xyxy=[[20, 30, 120, 150]], conf=[0.95])
 
     mock_model_instance = MagicMock()
     mock_model_instance.return_value = mock_results
     mock_yolo_cls.return_value = mock_model_instance
+    res = detect_pdp(img, weights_path=mock_pdp_model_file)
+    assert res.bbox == (20, 30, 100, 120)
+    assert res.area == 12000
+    assert res.confidence == 0.95
+
+
+@patch("ultralytics.YOLO")
+def test_detect_pdp_selects_highest_confidence_box_not_the_first(
+    mock_yolo_cls: MagicMock, mock_pdp_model_file: str
+):
+    """VIS-009: the detector can return several boxes; the panel is the most confident one.
+
+    The first box here is a COCO-shaped distractor at low confidence; the second, more
+    confident box is the real panel. A detector that took `boxes[0]` would return the
+    distractor's geometry and confidence — this must return the second box's instead.
+    """
+    img = np.zeros((200, 200, 3), dtype=np.uint8)
+
+    mock_results = [MagicMock()]
+    mock_results[0].boxes = _mock_boxes(
+        xyxy=[[0, 0, 50, 50], [20, 30, 120, 150]],
+        conf=[0.4, 0.95],
+    )
+
+    mock_model_instance = MagicMock()
+    mock_model_instance.return_value = mock_results
+    mock_yolo_cls.return_value = mock_model_instance
+
     res = detect_pdp(img, weights_path=mock_pdp_model_file)
     assert res.bbox == (20, 30, 100, 120)
     assert res.area == 12000
@@ -133,16 +188,8 @@ def test_pdp_detector_different_boxes(mock_pdp_model_file: str):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         x, y, w, h = cv2.boundingRect(gray)
 
-        mock_boxes = MagicMock()
-        mock_boxes.__len__.return_value = 1
-        mock_boxes.conf.argmax.return_value = 0
-        mock_boxes.conf.__getitem__.return_value.cpu().numpy.return_value = 0.95
-        mock_boxes.xyxy.__getitem__.return_value.cpu().numpy.return_value = np.array(
-            [x, y, x + w, y + h]
-        )
-
         mock_result = MagicMock()
-        mock_result.boxes = mock_boxes
+        mock_result.boxes = _mock_boxes(xyxy=[[x, y, x + w, y + h]], conf=[0.95])
         return [mock_result]
 
     with patch("ultralytics.YOLO") as mock_yolo_cls:
@@ -185,14 +232,8 @@ def test_model_detection_is_not_a_heuristic_region(
     mock_yolo_cls: MagicMock, mock_pdp_model_file: str
 ):
     """And the other direction, so the two cannot be collapsed from either side."""
-    mock_boxes = MagicMock()
-    mock_boxes.__len__.return_value = 1
-    mock_boxes.conf.argmax.return_value = 0
-    mock_boxes.conf.__getitem__.return_value.cpu().numpy.return_value = 0.95
-    mock_boxes.xyxy.__getitem__.return_value.cpu().numpy.return_value = np.array([20, 30, 120, 150])
-
     mock_results = [MagicMock()]
-    mock_results[0].boxes = mock_boxes
+    mock_results[0].boxes = _mock_boxes(xyxy=[[20, 30, 120, 150]], conf=[0.95])
 
     mock_model_instance = MagicMock()
     mock_model_instance.return_value = mock_results
