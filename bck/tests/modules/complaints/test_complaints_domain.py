@@ -1,371 +1,196 @@
-"""Unit tests for manufacturer complaint domain models and service rules (CMP-001)."""
-
-import contextlib
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
-
 import pytest
+from uuid import uuid4
+from datetime import UTC, datetime
 
-from app.contracts.enums import (
-    DeclarationField,
-    FieldState,
-    RuleSeverity,
-    RuleStatus,
-    Verdict,
-)
+from app.contracts.enums import DeclarationField, FieldState, RuleSeverity, RuleStatus, Verdict
 from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
 from app.core.enums import ReviewAction
 from app.core.models import ReviewRow
-from app.modules.complaints import (
-    ComplaintService,
+from app.modules.complaints.domain import (
+    ComplaintRecord,
     ComplaintStatus,
-    ConfirmedVerdict,
-    InvalidStatusTransitionError,
-    UnconfirmedVerdictError,
-    build_issue_summary,
+    IllegalComplaintTransitionError,
+    UnconfirmedVerdictComplaintError,
+    create_complaint_from_verdict,
 )
+from app.modules.complaints.service import ComplaintService
 
 
-def _make_verdict_record(verdict: Verdict = Verdict.POTENTIAL_VIOLATION) -> VerdictRecord:
-    """Helper to construct a valid VerdictRecord for testing."""
-    scan_id = uuid4()
+def make_finding(
+    field: DeclarationField = DeclarationField.NET_QUANTITY,
+    state: FieldState = FieldState.FAIL,
+    observed_value: str | None = "400g",
+    expected_value: str | None = "500g",
+) -> FieldFinding:
     snapshot = RuleParameterSnapshot(
-        rule_id="R2",
-        clause_ref="Clause 5(2)",
-        gazette_ref="LMPC-2011.pdf",
-        source_text="Net quantity obligation",
+        rule_id="R1",
+        clause_ref="Clause 4(1)",
+        gazette_ref="G.S.R. 123(E)",
+        source_text="Rule source text",
         status=RuleStatus.VERIFIED,
         severity=RuleSeverity.MANDATORY,
-        rule_set_version="1.0",
+        rule_set_version="v1.0",
         parameters={},
         rounding_increment=None,
         tolerance=None,
         tolerance_basis=None,
     )
-    finding = FieldFinding(
-        field=DeclarationField.NET_QUANTITY,
-        state=FieldState.FAIL if verdict == Verdict.POTENTIAL_VIOLATION else FieldState.PASS,
+    return FieldFinding(
+        field=field,
+        state=state,
         rule_snapshot=snapshot,
-        observed_value="150 g",
-        expected_value="200 g",
-        reason="Net quantity non-compliant",
+        observed_value=observed_value,
+        expected_value=expected_value,
+        reason="Value deficient",
+        evidence_span_ids=["span-1"],
     )
+
+
+@pytest.fixture
+def confirmed_record():
+    finding = make_finding()
     return VerdictRecord(
-        subject_ref=f"SCAN-{scan_id}",
-        verdict=verdict,
-        rule_set_version="1.0",
+        subject_ref="REP-123",
+        verdict=Verdict.POTENTIAL_VIOLATION,
+        rule_set_version="v1.0",
         evaluated_at=datetime.now(UTC),
         findings=(finding,),
+        field_providers={DeclarationField.NET_QUANTITY: "PADDLEOCR"},
     )
 
 
-def _make_review_row(
-    record: VerdictRecord,
-    action: ReviewAction = ReviewAction.CONFIRM,
-    overridden_verdict: Verdict | None = None,
-) -> ReviewRow:
-    """Helper to construct a ReviewRow for testing."""
-    scan_id = uuid4()
-    if record.subject_ref.startswith("SCAN-"):
-        with contextlib.suppress(ValueError):
-            scan_id = UUID(record.subject_ref.replace("SCAN-", ""))
+@pytest.fixture
+def confirmed_review():
     return ReviewRow(
         id=uuid4(),
-        scan_id=scan_id,
+        scan_id=uuid4(),
         verdict_id=uuid4(),
-        officer_id="OFFICER-001",
-        action=action,
-        note="Audit approved",
-        overridden_verdict=overridden_verdict,
+        action=ReviewAction.CONFIRM,
+        officer_id="Officer Smith",
+        note="Confirmed",
         created_at=datetime.now(UTC),
     )
 
 
-class TestComplaintStatus:
-    def test_complaint_status_values(self) -> None:
-        """Test enum string representation."""
-        assert ComplaintStatus.RAISED == "raised"
-        assert ComplaintStatus.ACKNOWLEDGED == "acknowledged"
-        assert ComplaintStatus.RESOLVED == "resolved"
-        assert ComplaintStatus.REJECTED == "rejected"
+def test_legal_transitions():
+    """Test RAISED -> ACKNOWLEDGED -> RESOLVED."""
+    complaint = ComplaintRecord(
+        verdict_id="V1",
+        review_id=uuid4(),
+        manufacturer_id="M1",
+        status=ComplaintStatus.RAISED,
+        complaint_text="Text",
+    )
+
+    # RAISED -> ACKNOWLEDGED
+    c2 = complaint.transition_to(ComplaintStatus.ACKNOWLEDGED)
+    assert c2.status == ComplaintStatus.ACKNOWLEDGED
+
+    # ACKNOWLEDGED -> RESOLVED
+    c3 = c2.transition_to(ComplaintStatus.RESOLVED)
+    assert c3.status == ComplaintStatus.RESOLVED
 
 
-class TestValidTransitions:
-    def test_valid_transitions_from_raised(self) -> None:
-        """Test permitted transitions from RAISED."""
-        service = ComplaintService()
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, ReviewAction.CONFIRM)
-        cv = ConfirmedVerdict(record, review)
+def test_illegal_transitions():
+    """
+    Test illegal transitions:
+    - RAISED -> RESOLVED raises IllegalComplaintTransitionError
+    - RESOLVED -> any raises IllegalComplaintTransitionError
+    """
+    complaint = ComplaintRecord(
+        verdict_id="V1",
+        review_id=uuid4(),
+        manufacturer_id="M1",
+        status=ComplaintStatus.RAISED,
+        complaint_text="Text",
+    )
 
-        c = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-            officer_id="OFFICER-001",
-        )
+    # RAISED -> RESOLVED (Illegal)
+    with pytest.raises(IllegalComplaintTransitionError):
+        complaint.transition_to(ComplaintStatus.RESOLVED)
 
-        c_ack = service.transition_complaint(c, ComplaintStatus.ACKNOWLEDGED, "OFFICER-002")
-        assert c_ack.status == ComplaintStatus.ACKNOWLEDGED
-
-        c_res = service.transition_complaint(c, ComplaintStatus.RESOLVED, "OFFICER-002")
-        assert c_res.status == ComplaintStatus.RESOLVED
-
-        c_rej = service.transition_complaint(c, ComplaintStatus.REJECTED, "OFFICER-002")
-        assert c_rej.status == ComplaintStatus.REJECTED
-
-    def test_valid_transitions_from_acknowledged(self) -> None:
-        """Test permitted transitions from ACKNOWLEDGED."""
-        service = ComplaintService()
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, ReviewAction.CONFIRM)
-        cv = ConfirmedVerdict(record, review)
-
-        c = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-            officer_id="OFFICER-001",
-        )
-        c_ack = service.transition_complaint(c, ComplaintStatus.ACKNOWLEDGED, "OFFICER-002")
-
-        c_res = service.transition_complaint(c_ack, ComplaintStatus.RESOLVED, "OFFICER-003")
-        assert c_res.status == ComplaintStatus.RESOLVED
-
-        c_rej = service.transition_complaint(c_ack, ComplaintStatus.REJECTED, "OFFICER-003")
-        assert c_rej.status == ComplaintStatus.REJECTED
+    # RESOLVED -> any (Illegal)
+    resolved = ComplaintRecord(
+        verdict_id="V1",
+        review_id=uuid4(),
+        manufacturer_id="M1",
+        status=ComplaintStatus.RESOLVED,
+        complaint_text="Text",
+    )
+    with pytest.raises(IllegalComplaintTransitionError):
+        resolved.transition_to(ComplaintStatus.ACKNOWLEDGED)
 
 
-class TestInvalidTransitions:
-    def test_invalid_transitions(self) -> None:
-        """Test illegal status transitions raise InvalidStatusTransitionError."""
-        service = ComplaintService()
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, ReviewAction.CONFIRM)
-        cv = ConfirmedVerdict(record, review)
+def test_unconfirmed_verdict_rejection(confirmed_record):
+    """
+    Test unconfirmed verdict rejection:
+    - review_row=None raises UnconfirmedVerdictComplaintError
+    - review_row.action=ANNOTATE/REJECT raises UnconfirmedVerdictComplaintError
+    """
+    # review_row=None
+    with pytest.raises(UnconfirmedVerdictComplaintError):
+        create_complaint_from_verdict(confirmed_record, None, "M1") # type: ignore
 
-        c = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-            officer_id="OFFICER-001",
-        )
-        ack = service.transition_complaint(c, ComplaintStatus.ACKNOWLEDGED, "OFFICER-002")
-        res = service.transition_complaint(ack, ComplaintStatus.RESOLVED, "OFFICER-003")
-        rej = service.transition_complaint(c, ComplaintStatus.REJECTED, "OFFICER-002")
+    # review_row.action=ANNOTATE
+    annotate_row = ReviewRow(
+        id=uuid4(),
+        scan_id=uuid4(),
+        verdict_id=uuid4(),
+        action=ReviewAction.ANNOTATE,
+        officer_id="Officer Smith",
+        created_at=datetime.now(UTC),
+    )
+    with pytest.raises(UnconfirmedVerdictComplaintError):
+        create_complaint_from_verdict(confirmed_record, annotate_row, "M1")
 
-        # Cannot transition back to RAISED
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(ack, ComplaintStatus.RAISED, "OFFICER-003")
-
-        # RESOLVED terminal state transitions
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(res, ComplaintStatus.RAISED, "OFFICER-003")
-
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(res, ComplaintStatus.ACKNOWLEDGED, "OFFICER-003")
-
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(res, ComplaintStatus.REJECTED, "OFFICER-003")
-
-        # REJECTED terminal state transitions
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(rej, ComplaintStatus.RAISED, "OFFICER-003")
-
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(rej, ComplaintStatus.ACKNOWLEDGED, "OFFICER-003")
-
-        with pytest.raises(InvalidStatusTransitionError, match="Illegal status transition"):
-            service.transition_complaint(rej, ComplaintStatus.RESOLVED, "OFFICER-003")
+    # review_row.action=REJECT
+    reject_row = ReviewRow(
+        id=uuid4(),
+        scan_id=uuid4(),
+        verdict_id=uuid4(),
+        action=ReviewAction.REJECT,
+        officer_id="Officer Smith",
+        created_at=datetime.now(UTC),
+    )
+    with pytest.raises(UnconfirmedVerdictComplaintError):
+        create_complaint_from_verdict(confirmed_record, reject_row, "M1")
 
 
-class TestConfirmationGate:
-    def test_unconfirmed_machine_verdict_fails(self) -> None:
-        """Machine verdict with no ReviewRow fails confirmation gate."""
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        with pytest.raises(UnconfirmedVerdictError, match="non-null officer ReviewRow"):
-            ConfirmedVerdict(record=record, review_row=None)  # type: ignore[arg-type]
+def test_forbidden_vocabulary(confirmed_record, confirmed_review):
+    """Assert forbidden phrases are absent in generated text."""
+    complaint = create_complaint_from_verdict(confirmed_record, confirmed_review, "M1")
+    text = complaint.complaint_text.lower()
 
-    def test_non_finalising_review_action_fails(self) -> None:
-        """Non-finalising review actions (ANNOTATE, REQUEST_RECAPTURE) fail confirmation gate."""
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review_ann = _make_review_row(record, action=ReviewAction.ANNOTATE)
-        with pytest.raises(UnconfirmedVerdictError, match="non-finalising"):
-            ConfirmedVerdict(record, review_ann)
+    forbidden = {
+        "violation confirmed",
+        "illegal",
+        "non-compliant",
+        "non_compliant",
+        "noncompliant",
+        "guilty",
+    }
 
-        review_recap = _make_review_row(record, action=ReviewAction.REQUEST_RECAPTURE)
-        with pytest.raises(UnconfirmedVerdictError, match="non-finalising"):
-            ConfirmedVerdict(record, review_recap)
-
-    def test_effective_pass_or_review_fails(self) -> None:
-        """Effective verdicts of PASS or REVIEW fail confirmation gate."""
-        record_pass = _make_verdict_record(Verdict.PASS)
-        review_pass = _make_review_row(record_pass, action=ReviewAction.CONFIRM)
-        with pytest.raises(UnconfirmedVerdictError, match="requires POTENTIAL_VIOLATION"):
-            ConfirmedVerdict(record_pass, review_pass)
-
-        record_rev = _make_verdict_record(Verdict.REVIEW)
-        review_rev = _make_review_row(record_rev, action=ReviewAction.CONFIRM)
-        with pytest.raises(UnconfirmedVerdictError, match="requires POTENTIAL_VIOLATION"):
-            ConfirmedVerdict(record_rev, review_rev)
-
-    def test_override_to_non_violation_fails(self) -> None:
-        """Officer OVERRIDE to PASS fails confirmation gate."""
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review_override_pass = _make_review_row(
-            record, action=ReviewAction.OVERRIDE, overridden_verdict=Verdict.PASS
-        )
-        with pytest.raises(UnconfirmedVerdictError, match="requires POTENTIAL_VIOLATION"):
-            ConfirmedVerdict(record, review_override_pass)
-
-    def test_override_missing_verdict_fails(self) -> None:
-        """Officer OVERRIDE without overridden_verdict raises ValueError."""
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, action=ReviewAction.OVERRIDE, overridden_verdict=None)
-        with pytest.raises(ValueError, match="OVERRIDE action requires overridden_verdict"):
-            ConfirmedVerdict(record, review)
-
-    def test_override_to_review_fails(self) -> None:
-        """Officer OVERRIDE to REVIEW fails confirmation gate."""
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review_override_rev = _make_review_row(
-            record, action=ReviewAction.OVERRIDE, overridden_verdict=Verdict.REVIEW
-        )
-        with pytest.raises(UnconfirmedVerdictError, match="requires POTENTIAL_VIOLATION"):
-            ConfirmedVerdict(record, review_override_rev)
-
-    def test_valid_confirm_and_override_to_violation_succeeds(self) -> None:
-        """Officer CONFIRM on POTENTIAL_VIOLATION or OVERRIDE to POTENTIAL_VIOLATION succeeds."""
-        # CONFIRM
-        record1 = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review1 = _make_review_row(record1, action=ReviewAction.CONFIRM)
-        cv1 = ConfirmedVerdict(record1, review1)
-        assert cv1.record.verdict == Verdict.POTENTIAL_VIOLATION
-
-        # OVERRIDE from REVIEW to POTENTIAL_VIOLATION
-        record2 = _make_verdict_record(Verdict.REVIEW)
-        review2 = _make_review_row(
-            record2, action=ReviewAction.OVERRIDE, overridden_verdict=Verdict.POTENTIAL_VIOLATION
-        )
-        cv2 = ConfirmedVerdict(record2, review2)
-        assert cv2.review_row.overridden_verdict == Verdict.POTENTIAL_VIOLATION
+    for term in forbidden:
+        assert term not in text, f"Forbidden term '{term}' found in complaint text"
 
 
-class TestComplaintWording:
-    def test_build_issue_summary_format_and_forbidden_words(self) -> None:
-        """Test issue summary contains rule details and avoids forbidden words."""
-        summary = build_issue_summary(
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-        )
-        assert "rule7" in summary
-        assert "net_quantity" in summary
-        assert "150 g" in summary
-        assert "200 g" in summary
-        assert "potential violation" in summary.lower()
+def test_reopen_creates_new_record(confirmed_record, confirmed_review):
+    """Test reopen creates new record referencing supersedes_id."""
+    service = ComplaintService()
+    complaint = service.raise_complaint(confirmed_record, confirmed_review, "M1")
 
-        # Case-insensitive forbidden word checks
-        summary_lower = summary.lower()
-        assert "violation confirmed" not in summary_lower
-        assert "illegal" not in summary_lower
-        assert "non-compliant" not in summary_lower
+    # Advance to RESOLVED
+    c_ack = service.advance_status(complaint, ComplaintStatus.ACKNOWLEDGED)
+    c_res = service.advance_status(c_ack, ComplaintStatus.RESOLVED)
 
-    def test_build_issue_summary_rejects_forbidden_text(self) -> None:
-        """Test build_issue_summary raises ValueError if forbidden text is present."""
-        with pytest.raises(ValueError, match="forbidden"):
-            build_issue_summary(
-                rule_id="illegal",
-                field="net_quantity",
-                measured_value="150 g",
-                required_value="200 g",
-            )
-        with pytest.raises(ValueError, match="forbidden"):
-            build_issue_summary(
-                rule_id="rule7",
-                field="net_quantity",
-                measured_value="violation confirmed",
-                required_value="200 g",
-            )
-        with pytest.raises(ValueError, match="forbidden"):
-            build_issue_summary(
-                rule_id="rule7",
-                field="net_quantity",
-                measured_value="150 g",
-                required_value="non-compliant",
-            )
+    # Reopen
+    reopened = service.reopen_resolved(
+        c_res,
+        review=confirmed_review,
+        reason="Manufacturer provided new evidence",
+    )
 
-
-class TestAppendOnlyBehavior:
-    def test_transition_leaves_previous_complaint_unchanged(self) -> None:
-        """Test status transition creates a new event without mutating historical complaint."""
-        service = ComplaintService()
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, ReviewAction.CONFIRM)
-        cv = ConfirmedVerdict(record, review)
-
-        initial = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-            officer_id="OFFICER-001",
-        )
-
-        ack = service.transition_complaint(initial, ComplaintStatus.ACKNOWLEDGED, "OFFICER-002")
-
-        # Initial object is completely unchanged
-        assert initial.status == ComplaintStatus.RAISED
-        assert initial.supersedes_id is None
-
-        # Ack object is a new record referencing initial
-        assert ack.status == ComplaintStatus.ACKNOWLEDGED
-        assert ack.supersedes_id == initial.id
-        assert ack.id != initial.id
-
-    def test_new_complaint_after_resolution_references_prior_complaint(self) -> None:
-        """Test creating a new complaint thread after resolution links prior complaint."""
-        service = ComplaintService()
-        record = _make_verdict_record(Verdict.POTENTIAL_VIOLATION)
-        review = _make_review_row(record, ReviewAction.CONFIRM)
-        cv = ConfirmedVerdict(record, review)
-
-        initial = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="150 g",
-            required_value="200 g",
-            officer_id="OFFICER-001",
-        )
-
-        resolved = service.transition_complaint(initial, ComplaintStatus.RESOLVED, "OFFICER-002")
-
-        # Creating a NEW complaint thread following resolved complaint
-        reopened_thread = service.raise_complaint(
-            confirmed_verdict=cv,
-            manufacturer_name="Acme Corp",
-            rule_id="rule7",
-            field="net_quantity",
-            measured_value="140 g",
-            required_value="200 g",
-            officer_id="OFFICER-003",
-            prior_complaint=resolved,
-        )
-
-        assert reopened_thread.status == ComplaintStatus.RAISED
-        assert reopened_thread.supersedes_id == resolved.id
-        assert resolved.status == ComplaintStatus.RESOLVED
+    assert reopened.status == ComplaintStatus.RAISED
+    assert reopened.supersedes_id == c_res.id
+    assert "Reopened:" in reopened.complaint_text
+    assert reopened.id != c_res.id

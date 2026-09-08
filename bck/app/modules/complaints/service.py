@@ -1,71 +1,52 @@
-"""Complaint domain service providing escalation workflows (CMP-001)."""
+from uuid import UUID
 
-from __future__ import annotations
-
-from datetime import UTC, datetime
-from uuid import uuid4
-
-from app.modules.complaints.domain import (
+from app.contracts.records import VerdictRecord
+from app.core.models import ReviewRow
+from .domain import (
     ComplaintRecord,
     ComplaintStatus,
-    ConfirmedVerdict,
-    build_issue_summary,
+    create_complaint_from_verdict,
 )
 
 
 class ComplaintService:
-    """Pure domain service for managing manufacturer complaints."""
+    """
+    High-level coordinator for compliance complaint lifecycles.
+    Orchestrates domain logic for raising, advancing, and reopening complaints.
+    """
 
     def raise_complaint(
-        self,
-        confirmed_verdict: ConfirmedVerdict,
-        manufacturer_name: str,
-        rule_id: str,
-        field: str,
-        measured_value: str,
-        required_value: str,
-        officer_id: str,
-        prior_complaint: ComplaintRecord | None = None,
-        at_time: datetime | None = None,
+        self, record: VerdictRecord, review: ReviewRow, manufacturer_id: str
     ) -> ComplaintRecord:
-        """Raise a new complaint for a confirmed officer verdict of POTENTIAL_VIOLATION.
+        """Raises a new complaint against a manufacturer based on a confirmed verdict."""
+        return create_complaint_from_verdict(record, review, manufacturer_id)
 
-        If prior_complaint is given (e.g. creating a new complaint thread after a previously
-        resolved/closed complaint), supersedes_id references prior_complaint.id.
+    def advance_status(
+        self, complaint: ComplaintRecord, target_status: ComplaintStatus
+    ) -> ComplaintRecord:
+        """Transitions a complaint to a new status."""
+        return complaint.transition_to(target_status)
+
+    def reopen_resolved(
+        self, complaint: ComplaintRecord, review: ReviewRow, reason: str
+    ) -> ComplaintRecord:
         """
-        issue_summary = build_issue_summary(
-            rule_id=rule_id,
-            field=field,
-            measured_value=measured_value,
-            required_value=required_value,
-        )
+        Re-opens a resolved complaint by creating a new record that supersedes the old one.
+        The reason for reopening is appended to the original complaint text.
+        """
+        if complaint.status != ComplaintStatus.RESOLVED:
+            # The requirement specifically says "reopen_resolved",
+            # we assume it's only for RESOLVED status.
+            raise ValueError("Only resolved complaints can be reopened.")
 
-        supersedes = prior_complaint.id if prior_complaint is not None else None
+        # Note: review here is likely the review that triggers the reopen
+        new_text = f"{complaint.complaint_text}\nReopened: {reason}"
 
         return ComplaintRecord(
-            id=uuid4(),
-            scan_id=confirmed_verdict.scan_id,
-            verdict_id=confirmed_verdict.verdict_id,
-            manufacturer_name=manufacturer_name,
-            issue_summary=issue_summary,
+            verdict_id=complaint.verdict_id,
+            review_id=review.id,
+            manufacturer_id=complaint.manufacturer_id,
             status=ComplaintStatus.RAISED,
-            raised_by_officer_id=officer_id,
-            raised_at=at_time or datetime.now(UTC),
-            supersedes_id=supersedes,
-        )
-
-    def transition_complaint(
-        self,
-        complaint: ComplaintRecord,
-        new_status: ComplaintStatus,
-        officer_id: str,
-        new_issue_summary: str | None = None,
-        at_time: datetime | None = None,
-    ) -> ComplaintRecord:
-        """Record a status transition on an existing complaint thread."""
-        return complaint.transition(
-            new_status=new_status,
-            officer_id=officer_id,
-            new_issue_summary=new_issue_summary,
-            at_time=at_time,
+            complaint_text=new_text,
+            supersedes_id=complaint.id,
         )
