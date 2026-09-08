@@ -374,8 +374,14 @@ def new_scan(
     source_type: ScanSourceType,
     calibration: CalibrationMethod,
     product_category: ProductCategory | None,
+    ward: str | None = None,
 ) -> Scan:
-    """A scan row from the caller's *verified* jurisdiction, never from a request body."""
+    """A scan row from the caller's *verified* jurisdiction, never from a request body.
+
+    ``ward`` is the exception, and the only field here that comes from the request: it is
+    a location the officer records, not an authority they claim, so it does not go through
+    the token the way ``state`` / ``region`` / ``district`` do. See ``Scan.ward``.
+    """
     return Scan(
         id=uuid4(),
         source_type=source_type,
@@ -384,6 +390,7 @@ def new_scan(
         state=principal.jurisdiction.state,
         region=principal.jurisdiction.region,
         district=principal.jurisdiction.district,
+        ward=(ward.strip() or None) if ward else None,
         officer_id=principal.subject,
         rule_set_version=default_rule_set_version(),
         product_category=None if product_category is None else product_category.value,

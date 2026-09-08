@@ -4,6 +4,7 @@ import { apiClient } from '../services/apiClient'
 import { awaitScanOutcome } from '../services/scans'
 import type { components } from '../services/generated/schema'
 import { VerdictBanner } from './components/VerdictBanner'
+import { WardSelect } from './WardSelect'
 
 type CalibrationMethod = components['schemas']['CalibrationMethod']
 type ProductCategory = components['schemas']['ProductCategory']
@@ -28,6 +29,7 @@ export function ScanSubmission() {
   const [referenceType, setReferenceType] = useState<string>('coin')
   const [artworkDpi, setArtworkDpi] = useState<string>('')
   const [productCategory, setProductCategory] = useState<ProductCategory | ''>('')
+  const [ward, setWard] = useState<string>('')
   const [institutionalConfirmed, setInstitutionalConfirmed] = useState<boolean>(false)
 
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -61,6 +63,9 @@ export function ScanSubmission() {
         if (productCategory) {
           formData.append('product_category', productCategory)
         }
+        if (ward) {
+          formData.append('ward', ward)
+        }
         formData.append(
           'institutional_or_industrial_confirmed',
           String(institutionalConfirmed),
@@ -85,7 +90,7 @@ export function ScanSubmission() {
         setSubmitting(false)
       }
     },
-    [file, calibrationMethod, referenceType, artworkDpi, productCategory, institutionalConfirmed],
+    [file, calibrationMethod, referenceType, artworkDpi, productCategory, ward, institutionalConfirmed],
   )
 
   const resetForm = () => {
@@ -330,6 +335,23 @@ export function ScanSubmission() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* GHMC ward — where the package was inspected */}
+            <div className="border border-hairline bg-paper p-4">
+              <label htmlFor="ghmc-ward" className="block text-body font-medium">
+                Ward / jurisdiction (optional)
+              </label>
+              <p className="mt-0.5 text-secondary text-mute">
+                The GHMC ward this package was inspected in. Recorded on the scan and shown on
+                the jurisdiction map. Leave unset if not applicable.
+              </p>
+              <WardSelect
+                id="ghmc-ward"
+                value={ward}
+                onChange={setWard}
+                className="mt-3 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
+              />
             </div>
 
             {/* Institutional / Industrial Carve-out */}

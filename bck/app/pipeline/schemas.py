@@ -46,6 +46,15 @@ class CatalogueScanRequest(ScanDTO):
 
     record: CatalogueRecord
 
+    ward: str | None = Field(default=None, max_length=120)
+    """The GHMC ward the officer recorded for this inspection, or ``None`` for none.
+
+    A location the officer names, not a level of authority, so unlike tier and
+    jurisdiction it *may* travel in the body — see ``Scan.ward``. Length-capped and
+    otherwise unconstrained: the canonical ward list lives in the dashboard, and a value
+    it does not know simply shades no polygon rather than being refused here.
+    """
+
     product_category: ProductCategory | None = None
     """The officer's confirmed product category, if they have confirmed one.
 
@@ -73,6 +82,9 @@ class ScanSummary(RuleSetStamped):
     status: ScanStatus
     verdict: Verdict | None = None
     product_category: str | None = None
+    ward: str | None = None
+    """The GHMC ward recorded at capture, or ``None``. A location, read straight off the
+    stored row; the dashboard aggregates potential-violation density by this value."""
     officer_id: str
     created_at: datetime
     finalised: bool

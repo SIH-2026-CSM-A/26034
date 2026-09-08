@@ -81,6 +81,23 @@ class Scan(Base):
     neither; a narrower officer's equality predicate excludes those rows, which is the
     correct answer."""
 
+    ward: Mapped[str | None] = mapped_column(String(JURISDICTION_LEVEL_LENGTH))
+    """The GHMC ward the package was inspected in, as the officer named it at capture.
+
+    A *location* the officer records, not a level of authority, and deliberately outside
+    :func:`app.core.rbac.scope_to_jurisdiction`: a ward is finer than the three RBAC
+    tiers (``state`` / ``region`` / ``district``), the system holds no ward-to-district
+    map to validate it against, and nothing keys visibility on it. It is the one field on
+    this row that legitimately arrives in the request body — see
+    ``pipeline/schemas.CatalogueScanRequest.ward`` — because it describes where a package
+    was, not who the officer is. ``None`` where the officer named no ward, and on the
+    consumer surface, which pins no ward at all.
+
+    A plain string, not an enum column, for the same reason ``product_category`` is: the
+    canonical vocabulary (the GHMC ward list) lives at the request boundary and in the
+    dashboard, and constraining it here would make every ward the corporation adds a
+    migration. A ward the dashboard does not know simply does not shade a polygon."""
+
     officer_id: Mapped[str] = mapped_column(String(JURISDICTION_LEVEL_LENGTH), nullable=False)
     """The submitting officer's :attr:`app.core.rbac.Principal.subject`. Deliberately not
     a foreign key: officers are configuration until there is a users table."""

@@ -442,6 +442,8 @@ export interface components {
              * @default false
              */
             institutional_or_industrial_confirmed: boolean;
+            /** Ward */
+            ward?: string | null;
         };
         /**
          * CalibrationMethod
@@ -494,6 +496,8 @@ export interface components {
          */
         CatalogueScanRequest: {
             record: components["schemas"]["CatalogueRecord"];
+            /** Ward */
+            ward?: string | null;
             product_category?: components["schemas"]["ProductCategory"] | null;
             /**
              * Institutional Or Industrial Confirmed
@@ -746,6 +750,9 @@ export interface components {
         /**
          * PanelSpan
          * @description One run of text as vision read it off the panel, by the id the findings cite.
+         *
+         *     Validated from the stored evidence record, which carries the whole span; the other
+         *     fields are ignored here, not copied, so this stays text and an id read through.
          */
         PanelSpan: {
             /** Span Id */
@@ -985,6 +992,8 @@ export interface components {
             verdict?: components["schemas"]["Verdict"] | null;
             /** Product Category */
             product_category?: string | null;
+            /** Ward */
+            ward?: string | null;
             /** Officer Id */
             officer_id: string;
             /**
@@ -1044,6 +1053,8 @@ export interface components {
             verdict?: components["schemas"]["Verdict"] | null;
             /** Product Category */
             product_category?: string | null;
+            /** Ward */
+            ward?: string | null;
             /** Officer Id */
             officer_id: string;
             /**

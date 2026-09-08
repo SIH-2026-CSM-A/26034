@@ -5,6 +5,7 @@ import { awaitScanOutcome } from '../services/scans'
 import { decodeFromImageSource, type BarcodeResult } from '../services/barcode'
 import type { components } from '../services/generated/schema'
 import { VerdictBanner } from './components/VerdictBanner'
+import { WardSelect } from './WardSelect'
 import type { Verdict as FixtureVerdict } from '../fixtures/contracts'
 
 type CalibrationMethod = components['schemas']['CalibrationMethod']
@@ -35,6 +36,7 @@ export function CameraCapture() {
   const [calibrationMethod, setCalibrationMethod] = useState<CalibrationMethod>('none')
   const [referenceType, setReferenceType] = useState<string>('coin')
   const [productCategory, setProductCategory] = useState<ProductCategory | ''>('')
+  const [ward, setWard] = useState<string>('')
   const [institutionalConfirmed, setInstitutionalConfirmed] = useState<boolean>(false)
 
   // API submission state
@@ -204,6 +206,9 @@ export function CameraCapture() {
       if (productCategory) {
         formData.append('product_category', productCategory)
       }
+      if (ward) {
+        formData.append('ward', ward)
+      }
       formData.append(
         'institutional_or_industrial_confirmed',
         String(institutionalConfirmed),
@@ -227,7 +232,7 @@ export function CameraCapture() {
     } finally {
       setSubmitting(false)
     }
-  }, [capturedBlob, calibrationMethod, referenceType, productCategory, institutionalConfirmed])
+  }, [capturedBlob, calibrationMethod, referenceType, productCategory, ward, institutionalConfirmed])
 
   const resetAll = useCallback(() => {
     if (capturedUrl) {
@@ -479,6 +484,23 @@ export function CameraCapture() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* GHMC ward — where the package was inspected */}
+              <div className="border border-hairline bg-paper p-4">
+                <label htmlFor="camera-ward" className="block text-body font-medium">
+                  Ward / jurisdiction (optional)
+                </label>
+                <p className="mt-0.5 text-secondary text-mute">
+                  The GHMC ward this package was inspected in. Recorded on the scan and shown on
+                  the jurisdiction map.
+                </p>
+                <WardSelect
+                  id="camera-ward"
+                  value={ward}
+                  onChange={setWard}
+                  className="mt-2 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
+                />
               </div>
 
               {/* Statutory Carve-out Checkbox */}

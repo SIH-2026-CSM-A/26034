@@ -334,3 +334,35 @@ async def test_tampering_with_a_stored_payload_breaks_the_chain(
     )
     assert not tampered.is_valid
     assert tampered.reason == "payload_hash_mismatch"
+
+
+async def test_a_recorded_ward_round_trips_to_summary_and_detail(client: AsyncClient) -> None:
+    """The ward the officer names at submission is persisted and read back everywhere.
+
+    It is a location the officer records, not a level of authority, so unlike tier and
+    jurisdiction it may travel in the request body — and once stored it must appear on the
+    submission response, the list row and the detail, because the dashboard aggregates
+    potential-violation density by exactly this value.
+    """
+    submitted = await client.post(
+        "/scans", json={**LISTING, "ward": "Ward 98 Ameerpet"}, headers=auth(INSPECTOR)
+    )
+    assert submitted.status_code == 201, submitted.text
+    assert submitted.json()["ward"] == "Ward 98 Ameerpet"
+
+    scan_id = submitted.json()["id"]
+    detail = await client.get(f"/scans/{scan_id}", headers=auth(INSPECTOR))
+    assert detail.json()["ward"] == "Ward 98 Ameerpet"
+
+    listed = await client.get("/scans", headers=auth(INSPECTOR))
+    row = next(r for r in listed.json() if r["id"] == scan_id)
+    assert row["ward"] == "Ward 98 Ameerpet"
+
+
+async def test_a_scan_with_no_ward_reads_back_null(client: AsyncClient) -> None:
+    """No ward named is ``None``, not an empty string or a default. The dashboard counts
+    such a scan as unassigned and shades it onto no polygon."""
+    scan = await submit(client)
+    assert scan["ward"] is None
+    detail = await client.get(f"/scans/{scan['id']}", headers=auth(INSPECTOR))
+    assert detail.json()["ward"] is None
