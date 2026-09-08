@@ -390,8 +390,9 @@ same batch. Nothing real was lost; DAT-005 does not change shape.
   two comparison bands. If it fires on clean labels once the corpus exists, cut it. **Cost:** the
   demo scenario for physical tampering shrinks to price-conflict only, which is still real.
 - **The PDP detector.** There is no PDP-trained model. Pointing `PDP_WEIGHTS_PATH` at stock
-  `yolov8n.pt` is worse than leaving it unset — `detect_pdp` takes `boxes.xyxy[0]` — the first box, not the most confident — of
-  whatever it is given, so stock COCO weights return a confident wrong box whose area feeds the
+  `yolov8n.pt` is worse than leaving it unset — `detect_pdp` selects `boxes.conf.argmax()`, the
+  highest-confidence box — of whatever it is given, so stock COCO weights still return a
+  confident wrong box (a COCO class, not a panel) whose area feeds the
   Rule 7 Table-I band lookup. This is a decision — train one, or use the documented
   largest-coherent-text-region fallback and say so — not a download. **Cost: the image path has
   still never run with real weights.** (#63 has since made empty detection refuse rather than

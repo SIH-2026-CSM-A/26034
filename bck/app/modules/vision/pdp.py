@@ -200,11 +200,12 @@ def detect_pdp(image_path, weights_path=None) -> PDPDetection:
     if not res or not hasattr(res[0], "boxes") or len(res[0].boxes) == 0:
         raise ValueError("No PDP detected in image.")
 
-    c = res[0].boxes.xyxy[0].cpu().numpy()
+    idx = int(res[0].boxes.conf.argmax())
+    c = res[0].boxes.xyxy[idx].cpu().numpy()
     bw, bh = int(c[2] - c[0]), int(c[3] - c[1])
 
     return PDPResult(
         bbox=(int(c[0]), int(c[1]), bw, bh),
-        confidence=float(res[0].boxes.conf[0].cpu().numpy()),
+        confidence=float(res[0].boxes.conf[idx].cpu().numpy()),
         area=float(bw * bh),
     )

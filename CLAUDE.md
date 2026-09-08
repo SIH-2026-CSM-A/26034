@@ -113,9 +113,10 @@ exit code.
   are `PDP_WEIGHTS_PATH` (a file), `OCR_DET_MODEL_DIR`, `OCR_REC_MODEL_DIR` and
   `TESSERACT_TESSDATA_DIR` (directories). Blank is treated as unset.
 - **There is no PDP-trained YOLO model, and pointing `PDP_WEIGHTS_PATH` at stock weights is
-  worse than leaving it unset.** `detect_pdp` takes `boxes.xyxy[0]` — the first box the detector returns, not the most confident one — of whatever it is
-  given, so `yolov8n.pt` returns a COCO box as the principal display panel and its area
-  feeds the Rule 7 band lookup. Its empty-detection branch returns the **whole image** with
+  worse than leaving it unset.** `detect_pdp` selects `boxes.conf.argmax()` — the
+  highest-confidence box, not necessarily the first one YOLO returns — of whatever it is
+  given, so `yolov8n.pt` returns a confident COCO box as the principal display panel and its
+  area feeds the Rule 7 band lookup. Its empty-detection branch returns the **whole image** with
   `confidence 0.0`, overestimating area and biasing toward POTENTIAL VIOLATION.
 - **paddleocr is 3.7.0.** The 2.x API (`det_model_dir`, `use_gpu`, `show_log`,
   `ocr(cls=False)`) does not construct. Use `text_detection_model_dir`,
