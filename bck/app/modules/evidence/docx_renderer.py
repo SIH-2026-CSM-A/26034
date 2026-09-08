@@ -14,7 +14,7 @@ def _build_title_section(doc: Document, report: OfficerReportModel):
     p.add_run(f"Report ID: {report.report_id}\n").bold = True
     p.add_run(f"Generated: {report.generated_at}\n")
     p.add_run(f"Rule Set: {report.rule_set_version}\n")
-    p.add_run(f"Evidence Hash: {report.evidence_hash}")
+    p.add_run(f"Evidence Hash: {report.evidence_hash or 'Not available'}")
 
 
 def _build_confirmation_section(doc: Document, report: OfficerReportModel):
@@ -50,7 +50,7 @@ def _build_declarations_section(doc: Document, report: OfficerReportModel):
         row_cells[1].text = d.declared_value or "N/A"
         row_cells[2].text = d.state
         row_cells[3].text = d.ocr_provider
-        row_cells[4].text = f"{d.confidence:.2f}"
+        row_cells[4].text = f"{d.confidence:.2f}" if d.confidence is not None else "N/A"
 
 
 def _build_rules_section(doc: Document, report: OfficerReportModel):

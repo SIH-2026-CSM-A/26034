@@ -34,25 +34,18 @@ def build_report_model(
             "Export forbidden: Verdict record has not been finalized by an officer."
         )
 
-    confirmed_at = (
-        review_row.created_at.isoformat()
-        if hasattr(review_row.created_at, "isoformat")
-        else str(review_row.created_at)
-    )
-    officer_action = (
-        review_row.action.value if hasattr(review_row.action, "value") else str(review_row.action)
-    )
+    confirmed_at = review_row.created_at.isoformat()
+    officer_action = review_row.action.value
 
     extracted_declarations = []
     rule_evaluations = []
 
     for f in record.findings:
-        field_str = f.field.value if hasattr(f.field, "value") else str(f.field)
-        provider_obj = record.field_providers.get(f.field) if record.field_providers else None
+        field_str = f.field.value
         provider_name = (
-            provider_obj.name
-            if hasattr(provider_obj, "name")
-            else (str(provider_obj) if provider_obj else "PaddleOCR")
+            record.field_providers[f.field].value
+            if record.field_providers and f.field in record.field_providers
+            else "Unspecified"
         )
 
         extracted_declarations.append(
@@ -61,7 +54,7 @@ def build_report_model(
                 declared_value=f.observed_value,
                 state=f.state,
                 ocr_provider=provider_name,
-                confidence=1.0,
+                confidence=None,
             )
         )
 
@@ -81,7 +74,7 @@ def build_report_model(
         report_id=record.subject_ref,
         generated_at=datetime.now(UTC).isoformat(),
         rule_set_version=record.rule_set_version,
-        evidence_hash=record.subject_ref,
+        evidence_hash=None,
         source_image_path=image_path,
         confirmed_by=review_row.officer_id,
         confirmed_at=confirmed_at,

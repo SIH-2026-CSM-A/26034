@@ -24,7 +24,8 @@ def _build_title_section(elements: list, report: OfficerReportModel, styles: dic
     elements.append(
         Paragraph(
             f"Report ID: {report.report_id}<br/>Generated: {report.generated_at}<br/>"
-            f"Rule Set: {report.rule_set_version}<br/>Evidence Hash: {report.evidence_hash}",
+            f"Rule Set: {report.rule_set_version}<br/>"
+            f"Evidence Hash: {report.evidence_hash or 'Not available'}",
             meta_style,
         )
     )
@@ -66,7 +67,7 @@ def _build_declarations_section(elements: list, report: OfficerReportModel, styl
                 d.declared_value or "N/A",
                 d.state,
                 d.ocr_provider,
-                f"{d.confidence:.2f}",
+                f"{d.confidence:.2f}" if d.confidence is not None else "N/A",
             ]
         )
     t_decl = Table(decl_data, hAlign="LEFT")

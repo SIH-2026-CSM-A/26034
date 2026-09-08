@@ -149,6 +149,8 @@ def test_divergence_pdf_docx(confirmed_record, review_row):
         "505g",
         FieldState.PASS.value.lower(),
         "paddleocr",
+        "n/a",
+        "not available",
         "r1",
         "clause 4(1)",
         "r2",
@@ -219,12 +221,12 @@ def test_human_confirmation_gate(confirmed_record):
         with pytest.raises(UnconfirmedVerdictExportError):
             export_compliance_report(confirmed_record, review_row=None, format=fmt)
 
-    # 2. Review row with non-finalising action (if any)
+    # 2. Review row with non-finalising action
     unconfirmed_row = ReviewRow(
         id=uuid.uuid4(),
         scan_id=uuid.uuid4(),
         verdict_id=uuid.uuid4(),
-        action=None,
+        action=ReviewAction.ANNOTATE,
         officer_id="Officer Smith",
         created_at=datetime.now(UTC),
     )
