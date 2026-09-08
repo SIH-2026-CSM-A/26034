@@ -379,3 +379,5 @@ same batch. Nothing real was lost; DAT-005 does not change shape.
   category.** All three need a column and a migration, all three are `contracts`-owned.
   **Cost:** none of them survives a page reload, so an officer cannot act on any after leaving
   the scan. Three fields, one migration — worth doing as one ticket rather than three.
+
+- **FNT-verdict-detail** — Antigravity. Removed the fabricated geometry overlay from the VerdictDetail and CapturePlate components, since no geometry data is exposed by the API and compliance rules forbid fake measurements. PR opened.

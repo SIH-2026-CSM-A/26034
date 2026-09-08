@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
-import { CapturePlate } from './components/CapturePlate'
 import { FieldStateChip } from './components/FieldStateChip'
 import { VerdictBanner, verdictLabel } from './components/VerdictBanner'
 
@@ -174,7 +173,6 @@ export function VerdictDetail() {
   }, [fetchScan])
 
   const findings = scan?.findings ?? []
-  const focused = findings[focusedIndex]
 
   // UI Rule 3: Insufficient evidence visibility
   const insufficientFindings = findings.filter(
@@ -286,7 +284,7 @@ export function VerdictDetail() {
       <main className="mx-auto max-w-[1280px] px-4 pb-48 lg:pb-40">
         <h1 className="sr-only">Verdict detail for {scan.id}</h1>
 
-        <div className="lg:grid lg:grid-cols-[1fr_400px] lg:gap-10">
+        <div className="max-w-3xl">
           <div className="min-w-0">
             {/* Recommendation verdict banner (UI Rule 2) */}
             <div className="pt-6">
@@ -417,20 +415,20 @@ export function VerdictDetail() {
 
             {/* Insufficient Evidence visibility banner (UI Rule 3) */}
             {insufficientFindings.length > 0 && (
-              <section aria-label="Evidence status" className="mt-6 border border-dotted border-mute bg-paper p-4">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-3 w-3 rounded-full border-2 border-mute" />
-                  <span className="font-mono text-label font-semibold text-ink">
-                    INSUFFICIENT EVIDENCE DETECTED
-                  </span>
-                  <span className="text-label text-mute">
-                    ({insufficientFindings.length} declaration{insufficientFindings.length === 1 ? '' : 's'} could not be read)
-                  </span>
-                </div>
-                <p className="mt-2 text-secondary text-mute">
-                  The automated reader could not obtain readable evidence for all required declarations. Confirming this scan acknowledges unreadable evidence, not compliance. Consider whether recapture is required.
-                </p>
-              </section>
+               <section aria-label="Evidence status" className="mt-6 border border-dotted border-mute bg-paper p-4">
+                 <div className="flex items-center gap-2">
+                   <span className="inline-block h-3 w-3 rounded-full border-2 border-mute" />
+                   <span className="font-mono text-label font-semibold text-ink">
+                     INSUFFICIENT EVIDENCE DETECTED
+                   </span>
+                   <span className="text-label text-mute">
+                     ({insufficientFindings.length} declaration{insufficientFindings.length === 1 ? '' : 's'} could not be read)
+                   </span>
+                 </div>
+                 <p className="mt-2 text-secondary text-mute">
+                   The automated reader could not obtain readable evidence for all required declarations. Confirming this scan acknowledges unreadable evidence, not compliance. Consider whether recapture is required.
+                 </p>
+               </section>
             )}
 
             {scan.quality && (
@@ -440,15 +438,6 @@ export function VerdictDetail() {
                 <p className="mt-1 font-mono text-label text-mute">Reason code: {scan.quality.reason_code}</p>
               </div>
             )}
-
-            {/* Capture Plate */}
-            <div className="mt-6 lg:hidden">
-              <CapturePlate
-                pinnedSpans={[]}
-                showUnresolvedRegion={focused?.state === 'INSUFFICIENT_EVIDENCE'}
-                inspectionId={scan.id}
-              />
-            </div>
 
             {/* Findings ledger */}
             <h2 className="mt-8 text-section">Findings</h2>
@@ -469,16 +458,6 @@ export function VerdictDetail() {
               </ul>
             )}
           </div>
-
-          <aside className="hidden lg:block lg:pt-6">
-            <div className="lg:sticky lg:top-24">
-              <CapturePlate
-                pinnedSpans={[]}
-                showUnresolvedRegion={focused?.state === 'INSUFFICIENT_EVIDENCE'}
-                inspectionId={scan.id}
-              />
-            </div>
-          </aside>
         </div>
       </main>
 
