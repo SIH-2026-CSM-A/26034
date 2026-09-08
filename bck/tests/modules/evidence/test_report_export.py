@@ -1,70 +1,20 @@
+from datetime import UTC, datetime
 from io import BytesIO
 from unittest.mock import patch
+import uuid
 
 import pytest
 from docx import Document
 from pypdf import PdfReader
 
-from app.contracts.enums import FieldState, Verdict
+from app.contracts.enums import DeclarationField, EvidenceProvider, FieldState, RuleStatus, RuleSeverity, Verdict
+from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
+from app.core.enums import ReviewAction
+from app.core.models import ReviewRow
 from app.modules.evidence.export import (
     UnconfirmedVerdictExportError,
     export_compliance_report,
 )
-
-
-class MockDeclaration:
-    def __init__(self, field_name, declared_value, state, ocr_provider, confidence):
-        self.field_name = field_name
-        self.declared_value = declared_value
-        self.state = state  # Should be FieldState
-        self.ocr_provider = ocr_provider
-        self.confidence = confidence
-
-
-class MockRuleEvaluation:
-    def __init__(self, rule_id, clause, parameter, required, measured, state, notes=None):
-        self.rule_id = rule_id
-        self.clause = clause
-        self.parameter = parameter
-        self.required = required
-        self.measured = measured
-        self.state = state  # Should be FieldState
-        self.notes = notes
-
-
-class MockConfirmation:
-    def __init__(self, confirmed_by, confirmation_timestamp, officer_action):
-        self.confirmed_by = confirmed_by
-        self.confirmation_timestamp = confirmation_timestamp
-        self.officer_action = officer_action
-
-
-class MockVerdictRecord:
-    def __init__(
-        self,
-        verdict,
-        is_human_confirmed=True,
-        report_id="REP-123",
-        rule_set_version="v1.0",
-        source_image_hash="hash123",
-        image_path="path/to/img.jpg",
-        confirmed_by="Officer Smith",
-        confirmed_at="2026-09-06T10:00:00Z",
-        officer_action="APPROVED",
-        officer_notes="Looks good",
-        declarations=None,
-        rule_evaluations=None,
-    ):
-        self.verdict = verdict  # Should be Verdict
-        self.is_human_confirmed = is_human_confirmed
-        self.report_id = report_id
-        self.rule_set_version = rule_set_version
-        self.source_image_hash = source_image_hash
-        self.image_path = image_path
-        self.confirmation = MockConfirmation(confirmed_by, confirmed_at, officer_action)
-        self.officer_notes = officer_notes
-        self.declarations = declarations or []
-        self.rule_evaluations = rule_evaluations or []
 
 
 def extract_pdf_text(pdf_bytes):
@@ -87,48 +37,115 @@ def extract_docx_text(docx_bytes):
     return "\n".join(text)
 
 
-@pytest.fixture
-def confirmed_record():
-    return MockVerdictRecord(
-        verdict=Verdict.PASS,
-        declarations=[
-            MockDeclaration("Net Weight", "500g", FieldState.PASS, "PaddleOCR", 0.98),
-        ],
-        rule_evaluations=[
-            MockRuleEvaluation("R1", "Clause 4(1)", "Weight", ">=500g", "505g", FieldState.PASS),
-            MockRuleEvaluation("R2", "Clause 5(2)", "Font Size", ">=2mm", "2.1mm", FieldState.PASS),
-        ],
+def make_finding(
+    field: DeclarationField = DeclarationField.NET_QUANTITY,
+    state: FieldState = FieldState.PASS,
+    clause_ref: str = "Clause 4(1)",
+    rule_id: str = "R1",
+    observed_value: str | None = "500g",
+    expected_value: str | None = ">=500g",
+    reason: str = "Weight matches specification",
+) -> FieldFinding:
+    snapshot = RuleParameterSnapshot(
+        rule_id=rule_id,
+        clause_ref=clause_ref,
+        gazette_ref="G.S.R. 123(E)",
+        source_text="Rule source text",
+        status=RuleStatus.VERIFIED,
+        severity=RuleSeverity.MANDATORY,
+        rule_set_version="v1.0",
+        parameters={},
+        rounding_increment=None,
+        tolerance=None,
+        tolerance_basis=None,
+    )
+    return FieldFinding(
+        field=field,
+        state=state,
+        rule_snapshot=snapshot,
+        observed_value=observed_value,
+        expected_value=expected_value,
+        reason=reason,
+        evidence_span_ids=["span-1"],
     )
 
 
-def test_divergence_pdf_docx(confirmed_record):
+def make_review_row(
+    action: ReviewAction = ReviewAction.CONFIRM,
+    officer_id: str = "Officer Smith",
+    note: str | None = "Looks good",
+) -> ReviewRow:
+    return ReviewRow(
+        id=uuid.uuid4(),
+        scan_id=uuid.uuid4(),
+        verdict_id=uuid.uuid4(),
+        action=action,
+        officer_id=officer_id,
+        note=note,
+        created_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def confirmed_record():
+    finding_1 = make_finding(
+        field=DeclarationField.NET_QUANTITY,
+        state=FieldState.PASS,
+        clause_ref="Clause 4(1)",
+        rule_id="R1",
+        observed_value="505g",
+        expected_value=">=500g",
+        reason="Quantity meets requirement",
+    )
+    finding_2 = make_finding(
+        field=DeclarationField.RETAIL_SALE_PRICE,
+        state=FieldState.PASS,
+        clause_ref="Clause 5(2)",
+        rule_id="R2",
+        observed_value="2.1mm",
+        expected_value=">=2mm",
+        reason="Height requirement satisfied",
+    )
+    return VerdictRecord(
+        subject_ref="REP-123",
+        verdict=Verdict.PASS,
+        rule_set_version="v1.0",
+        evaluated_at=datetime.now(UTC),
+        findings=(finding_1, finding_2),
+        field_providers={
+            DeclarationField.NET_QUANTITY: EvidenceProvider.PADDLEOCR,
+            DeclarationField.RETAIL_SALE_PRICE: EvidenceProvider.PADDLEOCR,
+        },
+    )
+
+
+@pytest.fixture
+def review_row():
+    return make_review_row()
+
+
+def test_divergence_pdf_docx(confirmed_record, review_row):
     """AC1: Assert PDF and DOCX content match for the same record."""
-    pdf_bytes = export_compliance_report(confirmed_record, format="pdf")
-    docx_bytes = export_compliance_report(confirmed_record, format="docx")
+    pdf_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="pdf")
+    docx_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="docx")
 
     pdf_text = extract_pdf_text(pdf_bytes).lower()
     docx_text = extract_docx_text(docx_bytes).lower()
 
-    # Critical fields to check in both
     critical_fields = [
-        confirmed_record.report_id.lower(),
+        confirmed_record.subject_ref.lower(),
         confirmed_record.rule_set_version.lower(),
-        confirmed_record.source_image_hash.lower(),
-        confirmed_record.confirmation.confirmed_by.lower(),
-        confirmed_record.confirmation.officer_action.lower(),
+        review_row.officer_id.lower(),
+        review_row.action.value.lower(),
         confirmed_record.verdict.value.lower(),
-        "net weight",
-        "500g",
+        "net_quantity",
+        "505g",
         FieldState.PASS.value.lower(),
         "paddleocr",
         "r1",
         "clause 4(1)",
-        "weight",
-        "505g",
-        FieldState.PASS.value.lower(),
         "r2",
         "clause 5(2)",
-        "font size",
         "2.1mm",
     ]
 
@@ -137,24 +154,36 @@ def test_divergence_pdf_docx(confirmed_record):
         assert field in docx_text, f"Field '{field}' missing from DOCX"
 
 
-def test_pass_report_completeness(confirmed_record):
+def test_pass_report_completeness(confirmed_record, review_row):
     """AC2: Assert PASS reports render all rule checks in full detail."""
-    pdf_bytes = export_compliance_report(confirmed_record, format="pdf")
+    pdf_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="pdf")
     pdf_text = extract_pdf_text(pdf_bytes)
 
-    for rule in confirmed_record.rule_evaluations:
-        assert rule.rule_id in pdf_text
-        assert rule.clause in pdf_text
-        assert rule.parameter in pdf_text
-        assert rule.state.value in pdf_text
+    for f in confirmed_record.findings:
+        assert f.rule_snapshot.rule_id in pdf_text
+        assert f.rule_snapshot.clause_ref in pdf_text
+        assert f.field.value in pdf_text
+        assert f.state.value in pdf_text
 
 
-def test_forbidden_vocabulary():
+def test_forbidden_vocabulary(review_row):
     """AC3: Assert POTENTIAL_VIOLATION reports avoid banned terms."""
-    record = MockVerdictRecord(
+    finding = make_finding(
+        field=DeclarationField.NET_QUANTITY,
+        state=FieldState.FAIL,
+        clause_ref="Clause 4(1)",
+        rule_id="R1",
+        observed_value="400g",
+        expected_value="500g",
+        reason="Quantity deficient",
+    )
+    record = VerdictRecord(
+        subject_ref="REP-VIOLATION",
         verdict=Verdict.POTENTIAL_VIOLATION,
-        declarations=[MockDeclaration("Weight", "400g", FieldState.FAIL, "PaddleOCR", 0.95)],
-        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "400g", FieldState.FAIL)],
+        rule_set_version="v1.0",
+        evaluated_at=datetime.now(UTC),
+        findings=(finding,),
+        field_providers={DeclarationField.NET_QUANTITY: EvidenceProvider.PADDLEOCR},
     )
 
     banned_terms = [
@@ -167,7 +196,7 @@ def test_forbidden_vocabulary():
     ]
 
     for fmt in ["pdf", "docx"]:
-        out_bytes = export_compliance_report(record, format=fmt)
+        out_bytes = export_compliance_report(record, review_row=review_row, format=fmt)
         if fmt == "pdf":
             text = extract_pdf_text(out_bytes).lower()
         else:
@@ -176,53 +205,66 @@ def test_forbidden_vocabulary():
             assert term not in text, f"Banned term '{term}' found in {fmt} report"
 
 
-def test_human_confirmation_gate():
+def test_human_confirmation_gate(confirmed_record):
     """AC4: Assert unconfirmed records raise UnconfirmedVerdictExportError."""
-    record = MockVerdictRecord(verdict=Verdict.PASS, is_human_confirmed=False)
-
+    # 1. No review row at all
     for fmt in ["pdf", "docx"]:
         with pytest.raises(UnconfirmedVerdictExportError):
-            export_compliance_report(record, format=fmt)
+            export_compliance_report(confirmed_record, review_row=None, format=fmt)
+
+    # 2. Review row with non-finalising action (if any)
+    unconfirmed_row = ReviewRow(
+        id=uuid.uuid4(),
+        scan_id=uuid.uuid4(),
+        verdict_id=uuid.uuid4(),
+        action=None,
+        officer_id="Officer Smith",
+        created_at=datetime.now(UTC),
+    )
+    for fmt in ["pdf", "docx"]:
+        with pytest.raises(UnconfirmedVerdictExportError):
+            export_compliance_report(confirmed_record, review_row=unconfirmed_row, format=fmt)
 
 
-def test_clause_citation_assertion(confirmed_record):
+def test_clause_citation_assertion(confirmed_record, review_row):
     """AC5: Assert 100% of rule check rows contain a non-empty clause_reference."""
-    pdf_bytes = export_compliance_report(confirmed_record, format="pdf")
+    pdf_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="pdf")
     pdf_text = extract_pdf_text(pdf_bytes)
 
-    for rule in confirmed_record.rule_evaluations:
-        assert rule.clause in pdf_text
-        assert rule.clause != "", "Clause reference must not be empty"
+    for f in confirmed_record.findings:
+        assert f.rule_snapshot.clause_ref in pdf_text
+        assert f.rule_snapshot.clause_ref != "", "Clause reference must not be empty"
 
 
-def test_measurement_refusal_rendering():
-    """AC: Assert measurement refusal renders as 'Measurement declined' instead of 'N/A'."""
-    record = MockVerdictRecord(
+def test_measurement_refusal_rendering(review_row):
+    """AC: Assert measurement refusal renders as 'Measurement declined' instead of 'N/A' and prints no number."""
+    finding = make_finding(
+        field=DeclarationField.RETAIL_SALE_PRICE,
+        state=FieldState.INSUFFICIENT_EVIDENCE,
+        clause_ref="Clause 5(2)",
+        rule_id="R1",
+        observed_value=None,
+        expected_value=">=2mm",
+        reason="Refused measurement due to glare",
+    )
+    record = VerdictRecord(
+        subject_ref="REP-REFUSED",
         verdict=Verdict.REVIEW,
-        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
-        rule_evaluations=[
-            MockRuleEvaluation(
-                "R1",
-                "C1",
-                "Font Size",
-                ">=2mm",
-                None,
-                FieldState.INSUFFICIENT_EVIDENCE,
-                notes="Refused",
-            )
-        ],
+        rule_set_version="v1.0",
+        evaluated_at=datetime.now(UTC),
+        findings=(finding,),
+        field_providers={DeclarationField.RETAIL_SALE_PRICE: EvidenceProvider.PADDLEOCR},
     )
 
     for fmt in ["pdf", "docx"]:
-        out_bytes = export_compliance_report(record, format=fmt)
+        out_bytes = export_compliance_report(record, review_row=review_row, format=fmt)
         text = extract_pdf_text(out_bytes) if fmt == "pdf" else extract_docx_text(out_bytes)
         assert "Measurement declined" in text, f"Refusal text missing from {fmt} report"
-        assert "N/A" not in text.split("Status")[0], (
-            f"'N/A' found in measured value for {fmt} report"
-        )
+        status_split = text.split("Status")[0]
+        assert "N/A" not in status_split, f"'N/A' found in measured value for {fmt} report"
 
 
-def test_insufficient_evidence_rendering():
+def test_insufficient_evidence_rendering(review_row):
     """
     AC: Assert INSUFFICIENT_EVIDENCE:
     1. Visibly distinct from FAIL (not containing 'FAIL' in status).
@@ -230,24 +272,26 @@ def test_insufficient_evidence_rendering():
     3. Reason is not replaced by generic placeholder.
     """
     reason_text = "Image too blurry to determine font size"
-    record = MockVerdictRecord(
+    finding = make_finding(
+        field=DeclarationField.RETAIL_SALE_PRICE,
+        state=FieldState.INSUFFICIENT_EVIDENCE,
+        clause_ref="Clause 5(2)",
+        rule_id="R1",
+        observed_value=None,
+        expected_value=">=2mm",
+        reason=reason_text,
+    )
+    record = VerdictRecord(
+        subject_ref="REP-INSUFF",
         verdict=Verdict.REVIEW,
-        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
-        rule_evaluations=[
-            MockRuleEvaluation(
-                "R1",
-                "C1",
-                "Font Size",
-                ">=2mm",
-                None,
-                FieldState.INSUFFICIENT_EVIDENCE,
-                notes=reason_text,
-            )
-        ],
+        rule_set_version="v1.0",
+        evaluated_at=datetime.now(UTC),
+        findings=(finding,),
+        field_providers={DeclarationField.RETAIL_SALE_PRICE: EvidenceProvider.PADDLEOCR},
     )
 
     for fmt in ["pdf", "docx"]:
-        out_bytes = export_compliance_report(record, format=fmt)
+        out_bytes = export_compliance_report(record, review_row=review_row, format=fmt)
         text = extract_pdf_text(out_bytes) if fmt == "pdf" else extract_docx_text(out_bytes)
 
         # 1. Distinct from FAIL
@@ -258,18 +302,12 @@ def test_insufficient_evidence_rendering():
         assert reason_text in text, f"Reason '{reason_text}' missing from {fmt} report"
 
 
-def test_offline_and_zero_stub():
+def test_offline_and_zero_stub(confirmed_record, review_row):
     """AC6: Assert clean execution offline and no placeholder text."""
-    record = MockVerdictRecord(
-        verdict=Verdict.PASS,
-        declarations=[MockDeclaration("Weight", "500g", FieldState.PASS, "PaddleOCR", 0.99)],
-        rule_evaluations=[MockRuleEvaluation("R1", "C1", "W", "500g", "500g", FieldState.PASS)],
-    )
-
     with patch("socket.socket", side_effect=OSError("Offline")):
-        pdf_bytes = export_compliance_report(record, format="pdf")
+        pdf_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="pdf")
         pdf_text = extract_pdf_text(pdf_bytes)
-        docx_bytes = export_compliance_report(record, format="docx")
+        docx_bytes = export_compliance_report(confirmed_record, review_row=review_row, format="docx")
         docx_text = extract_docx_text(docx_bytes)
 
     placeholders = ["sample text", "placeholder", "lorem ipsum", "[INSERT]", "TBD"]
