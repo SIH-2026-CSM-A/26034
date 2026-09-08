@@ -90,7 +90,9 @@ def test_tamper_foreign_entry_inserted():
     from app.modules.evidence.chain import compute_payload_hash
 
     p_hash = compute_payload_hash(rogue.payload)
-    e_hash = compute_entry_hash(rogue.sequence, rogue.timestamp, p_hash, rogue.prev_hash)
+    e_hash = compute_entry_hash(
+        rogue.sequence, rogue.timestamp, p_hash, rogue.prev_hash, rogue.asset_type
+    )
     rogue = rogue.model_copy(update={"payload_hash": p_hash, "entry_hash": e_hash})
 
     chain.insert(4, rogue)
@@ -110,7 +112,9 @@ def test_tamper_recomputed_hash_attack():
     entry5 = chain[5]
     new_payload = {"i": "ATTACK"}
     new_p_hash = compute_payload_hash(new_payload)
-    new_e_hash = compute_entry_hash(entry5.sequence, entry5.timestamp, new_p_hash, entry5.prev_hash)
+    new_e_hash = compute_entry_hash(
+        entry5.sequence, entry5.timestamp, new_p_hash, entry5.prev_hash, entry5.asset_type
+    )
     chain[5] = entry5.model_copy(
         update={"payload": new_payload, "payload_hash": new_p_hash, "entry_hash": new_e_hash}
     )

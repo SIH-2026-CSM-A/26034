@@ -136,14 +136,21 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
 
     def purge_image(self, storage_key: str) -> bool:
         try:
+            from botocore.exceptions import ClientError
+
             response = self.s3.get_object(Bucket=self.bucket_name, Key=storage_key)
             if response["Body"].read() == b"TOMBSTONE":
                 return True  # Idempotent
-        except Exception as e:
+        except ClientError as e:
             # Check for 404 / NoSuchKey specifically
-            error_code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            error_code = e.response.get("Error", {}).get("Code")
             if error_code in ("404", "NoSuchKey"):
                 return False
+            raise
+        except Exception:
+            # For non-client errors, we can't be sure if it's a 404, but usually
+            # we should not swallow these unless they are clearly 404s.
+            # Re-raise to let the caller handle system failures.
             raise
 
         self.s3.put_object(

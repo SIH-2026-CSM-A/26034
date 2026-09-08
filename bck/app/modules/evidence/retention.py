@@ -50,7 +50,7 @@ class RetentionManager:
         """
         Returns the retention window for a given asset class from configuration.
         """
-        if asset_type in (EvidenceAssetType.GEOLOCATION, EvidenceAssetType.PERSONAL_IDENTIFIER):
+        if asset_type == EvidenceAssetType.PERSONAL_DATA:
             return self.settings.evidence_pii_retention_days
         return self.settings.evidence_image_retention_days
 
@@ -101,20 +101,18 @@ class RetentionManager:
             return False, None
 
         # 4. Storage Purge
-        # Use the persisted storage reference if available; otherwise, fallback to
-        # reconstructed key for legacy entries (which may fail as per lead review).
-        storage_key = entry.storage_ref or f"evidence/{entry.payload_hash}"
+        # Use the payload hash to derive the storage key (content-addressed).
+        storage_key = f"evidence/{entry.payload_hash}"
         try:
             purged = self.storage_client.purge_image(storage_key)
             if not purged:
                 logger.error(
                     f"Purge aborted for entry {entry.sequence}: Asset not found in storage."
                 )
-                return False, "asset_not_found"
+                return "asset_not_found", None
         except Exception as e:
             logger.error(f"Failed to purge storage for entry {entry.sequence}: {e}")
             return False, None
-
 
         # 5. Audit Entry
         audit_entry = append_purge_entry(

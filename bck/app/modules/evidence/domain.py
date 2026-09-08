@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -19,7 +20,20 @@ class EvidenceEntry(BaseModel):
     @property
     def is_purged(self) -> bool:
         """True if the payload is a purge record."""
-        return isinstance(self.payload, dict) and self.payload.get("type") == "purge_record"
+        if isinstance(self.payload, dict):
+            return self.payload.get("type") == "purge_record"
+        if isinstance(self.payload, str):
+            try:
+                data = json.loads(self.payload)
+                return isinstance(data, dict) and data.get("type") == "purge_record"
+            except json.JSONDecodeError:
+                return False
+        return False
+
+    @property
+    def storage_key(self) -> str:
+        """Derives the content-addressed storage key from the payload hash."""
+        return f"evidence/{self.payload_hash}"
 
 
 class PurgeRecordPayload(BaseModel):
