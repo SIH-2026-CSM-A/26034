@@ -1,3 +1,4 @@
+import { SEEDED_DEMO_OFFICER } from '../services/demo'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
@@ -291,6 +292,11 @@ export function VerdictDetail() {
               {scan.verdict ? (
                 <div>
                   <VerdictBanner verdict={scan.verdict} />
+              {scan.officer_id === SEEDED_DEMO_OFFICER && (
+                <p className="mt-2 border border-query px-2 py-1 font-mono text-label text-query">
+                  Seeded demo record: this scan was entered to populate the demonstration, not collected in the field.
+                </p>
+              )}
                   <p className="mt-1 text-label text-mute">
                     Recommendation only. Official determination requires officer review.
                   </p>

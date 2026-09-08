@@ -1,3 +1,4 @@
+import { SEEDED_DEMO_OFFICER } from '../../services/demo';
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../../services/apiClient';
 import type { components } from '../../services/generated/schema';
@@ -130,6 +131,7 @@ export const OfficerDashboard: React.FC = () => {
   const [selectedWard, setSelectedWard] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [seededCount, setSeededCount] = useState<number>(0);
   const [data, setData] = useState<DashboardData>({
     categories: ['All Categories', 'Packaged Food', 'Personal Care', 'Beverages', 'Household Goods'],
     wards: [],
@@ -150,6 +152,7 @@ export const OfficerDashboard: React.FC = () => {
       }
 
       const scanList: ScanSummary[] = scans ?? [];
+      setSeededCount(scanList.filter((s) => s.officer_id === SEEDED_DEMO_OFFICER).length);
 
       // Fetch detailed findings for up to 30 scans
       const detailsMap = new Map<string, ScanDetail>();
@@ -441,6 +444,11 @@ export const OfficerDashboard: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
             <div className="lg:col-span-7 space-y-4 sm:space-y-6">
+              {seededCount > 0 && (
+                <p className="border border-query bg-paper px-3 py-2 font-mono text-label text-query">
+                  Includes {seededCount} seeded demo scan{seededCount === 1 ? '' : 's'} (officer {SEEDED_DEMO_OFFICER}), entered to populate this dashboard, not collected in the field.
+                </p>
+              )}
               <HeatmapJurisdiction
                 wards={data.wards}
                 activeCategory={activeCategory}

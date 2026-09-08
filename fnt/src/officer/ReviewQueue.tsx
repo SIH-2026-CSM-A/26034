@@ -1,3 +1,4 @@
+import { SEEDED_DEMO_OFFICER } from '../services/demo'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
@@ -272,6 +273,11 @@ export function ReviewQueue() {
                   <td className="px-3 py-2">
                     <span className="text-body font-medium">
                       {row.product_category ?? (row.source_type === 'physical_label' ? 'Physical label' : 'Catalogue record')}
+                      {row.officer_id === SEEDED_DEMO_OFFICER && (
+                        <span className="ml-2 border border-query px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-query">
+                          seeded demo
+                        </span>
+                      )}
                     </span>
                     <span className="ml-2 font-mono text-label text-mute">
                       {row.source_type}

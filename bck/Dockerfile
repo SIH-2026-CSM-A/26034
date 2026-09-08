@@ -27,6 +27,15 @@ ENV UV_LINK_MODE=copy \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Downloads the PaddleOCR default models and copies det/rec into ~/.cache/pccs/models.
+# The script exits non-zero if it finds nothing, so an image can never ship empty weights.
+# Before the source copy on purpose: the download depends on nothing but the script, and
+# putting it after `COPY . .` re-downloaded the weights on every code change.
+COPY scripts/bootstrap_weights.py scripts/bootstrap_weights.py
+RUN python scripts/bootstrap_weights.py \
+    && test -s /root/.cache/pccs/models/ocr_det/inference.yml \
+    && test -s /root/.cache/pccs/models/ocr_rec/inference.yml
+
 COPY . .
 RUN uv sync --frozen --no-dev
 
@@ -36,12 +45,6 @@ RUN eng="$(find /usr/share/tesseract-ocr -name eng.traineddata -print -quit)" \
     && test -n "$eng" \
     && ln -s "$(dirname "$eng")" /opt/tessdata \
     && ls /opt/tessdata
-
-# Downloads the PaddleOCR default models and copies det/rec into ~/.cache/pccs/models.
-# The script exits non-zero if it finds nothing, so an image can never ship empty weights.
-RUN python scripts/bootstrap_weights.py \
-    && test -s /root/.cache/pccs/models/ocr_det/inference.yml \
-    && test -s /root/.cache/pccs/models/ocr_rec/inference.yml
 
 ENV OCR_DET_MODEL_DIR=/root/.cache/pccs/models/ocr_det \
     OCR_REC_MODEL_DIR=/root/.cache/pccs/models/ocr_rec \
