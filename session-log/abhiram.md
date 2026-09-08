@@ -3623,3 +3623,61 @@ cloudflared quick tunnel under systemd.
 - The quick tunnel's hostname changes on every cloudflared restart. A named tunnel needs
   a domain on Cloudflare.
 - The opencv resolution defect on `main` is recorded on #124 and not fixed.
+
+## Session 27 — 2026-09-08, real ward jurisdiction and a geographic map (Claude Code, Opus 4.8)
+
+Replaced the dashboard's tile heatmap and its `hash(scan_id) % 6` ward with a persisted
+GHMC ward and an inline-SVG choropleth of Hyderabad. PR #136.
+
+### What shipped
+
+- **`ward` column on `scans`** (migration `5b522f144ba0`, down_revision `5c88e68c05c0`).
+  Upgrade/downgrade/upgrade proven on a throwaway `initdb` Postgres 18 cluster in the
+  scratchpad — column added, dropped clean (empty `information_schema` result), re-added.
+- **Ward is a location, not authority.** It sits outside `scope_to_jurisdiction` — a ward
+  is finer than the state/region/district RBAC tiers and there is no ward→district map to
+  validate it — so it is the one scan field that legitimately arrives in the request body.
+  Captured at submission (a zone-grouped `<select>` in both officer forms), persisted,
+  exposed on `ScanSummary`/`ScanDetail`. `getWardForScan` deleted.
+- **Choropleth.** `HeatmapJurisdiction` renders 145 of 150 real GHMC wards as inline SVG
+  paths, shaded HIGH/MEDIUM/LOW by potential-violation density with a "No scans" neutral
+  state, tap/hover readout, legible at 390 and 1280. Geometry baked into `ghmcWards.ts`
+  from DataMeet/OSM (ODbL), simplified+projected by `fnt/scripts/build-ghmc-geo.py`. No
+  tiles, no network at render.
+- **Band rule** now ranks distinct counts into thirds (was sample terciles, which dropped
+  MEDIUM whenever many wards shared a count).
+- **Honesty.** The hash disclaimer is gone; the map now states it shows where scans in this
+  dataset were submitted, seeded records are badged, and a shaded ward is not a verified
+  enforcement finding.
+- **Seed.** `seed_demo.py` assigns real wards to fresh listings and gains a password-free
+  `--backfill-wards` mode (DB-direct) that spreads seeded scans across wards. Pure-function
+  self-check `test_seed_demo_wards.py` asserts three bands under the dashboard's own rule;
+  falsified (flattened gradient → red) and reverted.
+
+### Verification
+
+- Backend `1090 passed, 2 skipped` locally + new ward round-trip tests (postgres-marked).
+  `ruff format/check`, `lint-imports` clean. Frontend `tsc`/`oxlint` clean, `vite build` ok.
+- Playwright against the live tunnel at 390 and 1280, network-throttled (all non-origin
+  hosts blocked) to prove no tile dependency: 145 ward polygons render; HIGH/MEDIUM/LOW all present at both widths (1/3/4 wards, 137 no-scans); tap/hover readout accurate ("Ward 91 Khairatabad — 6 potential violations in 6 scans"); 0 console errors; 0 horizontal overflow at 390. With all non-origin hosts blocked the map drew identically and made 0 external requests, 0 tile requests — proving no tile dependency. VERDICT PASS.
+
+### The opencv coin flake, again
+
+`test_coin_oblique_synthetic_geometry` (height 259.93, cv2 4.10) failed the backend CI
+check on this PR — the documented 4.10-vs-5.0 flake (#1 in TODO), unrelated, fails
+identically on `main`. CI re-run three times (each ~50/50 on which opencv unpacks); merged #136 via --admin once all three checks were genuinely green, on Abhi's explicit "merge when green" instruction.
+
+### My own errors, by name
+
+- First `--backfill-wards` used clamp-to-last for excess PV scans, piling every extra onto
+  the lightest gradient ward (Ward 95 would have been the sole hotspot on the VM's 44-PV
+  data). Switched to a modulo cycle so the gradient shape holds for any PV count.
+- Node ESM `import` does not honour `NODE_PATH`; the global playwright resolved only after
+  symlinking `$(npm root -g)` as a local `node_modules`.
+
+### Left for later
+
+- verify1 is a temporary state-tier officer added to the VM `.env` for browser
+  verification. Remove it after the demo, or keep it as the read-only demo login.
+- The `/scans` list caps at 50, so the dashboard aggregates the 50 most recent scans, not
+  all 81 seeded. Fine for the demo; a real dashboard would page or aggregate server-side.
