@@ -3353,10 +3353,15 @@ against the bytes on disk. That claim had never been checked before DAT-007.
    said it means absent from the pack; the ticket says a declaration not in this frame is
    `declared: false` plus `INSUFFICIENT_EVIDENCE`. The ticket's reading was applied and the
    README updated to match, noting the state and not `declared` is what separates the two.
-4. **`test_coin_oblique_synthetic_geometry` is red on `main`** — `Height 259.93 deviates from
-   200.0 by >5%`, a 29.97% error in `detect_reference_object`'s recovered homography. Nothing
-   in this branch touches `measurement/`; identical code and identical test, so it is
-   pre-existing. Not this ticket's, and it has no ticket that I can find.
+4. **`test_coin_oblique_synthetic_geometry` fails on this machine and passes in CI.**
+   `Height 259.93 deviates from 200.0 by >5%`, a 29.97% error in `detect_reference_object`'s
+   recovered homography. **I first wrote this up as "red on `main`" and that was wrong** — CI
+   ran the same commit and reported 1063 passed, 2 skipped, **0 failed**. Same code, same
+   test, different result, so it is an environment difference on WSL (OpenCV/numpy build,
+   most likely) and not a defect on `main`. Corrected in the PR body too. It is still worth a
+   look: a homography test that is 30% out locally and clean on the runner is a test whose
+   result depends on the machine, which is not a property you want in the one guard over
+   `detect_reference_object`'s geometry.
 
 ### Gates
 
@@ -3365,11 +3370,18 @@ against the bytes on disk. That claim had never been checked before DAT-007.
 both `TestCommittedAnnotationsLoad` guards executing against four real annotations rather
 than skipping.
 
-Full backend suite: 1 failed, 1003 passed, 51 skipped, 10 errors. The 10 errors are all
-`tests/modules/reviews/` failing setup with `DATABASE_URL is not set; reviews persistence
-needs PostgreSQL` — environmental, and CI supplies the service. The 1 failure is item 4
-above. **That count is this session's measurement on this tree and is not a baseline; measure
-`origin/main` yourself before quoting any delta.**
+Full backend suite **locally**: 1 failed, 1003 passed, 51 skipped, 10 errors. The 10 errors
+are all `tests/modules/reviews/` failing setup with `DATABASE_URL is not set; reviews
+persistence needs PostgreSQL` — environmental, and CI supplies the service. The 1 failure is
+item 4.
+
+**In CI, on the same commit:** `backend` 1063 passed / 2 skipped, `datasets` 28 passed,
+`frontend` green — three checks reporting, so the base is not stale. The backend log shows
+`tests/contracts/test_manifest_integrity.py ....`, four dots, so all four guards ran against
+the tracked images rather than passing vacuously.
+
+**None of these counts is a baseline; measure `origin/main` yourself before quoting any
+delta.**
 
 ### No figure is available from this corpus
 
