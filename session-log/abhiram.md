@@ -3550,3 +3550,76 @@ Four before this session (`/auth/token` and the four `/scans` paths); fifteen af
 2. `tests/modules/reviews/conftest.py` calls `pytest.fail` where every other database fixture
    in the repo calls `pytest.skip`, so ten tests error on any machine without `DATABASE_URL`.
 3. `vendor/__init__.py`'s `__all__` names eight aliases of three functions.
+
+## Session 26 — 2026-09-08, deployment night (Claude Code, Fable 5.1)
+
+Nine PRs merged in one sitting: #123 (wire), #124 (OPS-001 production stack), #128 and
+#129 (asynchronous scan evaluation with client polling), #130 (consumer surface),
+#131 (SVG heatmap), #132 (browser barcode decode), #133 and #134 (demo seed and labels,
+Dockerfile weights before the source copy). The VM `pccs-vm` serves `main` through a
+cloudflared quick tunnel under systemd.
+
+### What was found by measuring, not guessing
+
+- **The phone dropped the scan request 25.7 s after the upload finished.** nginx logged a
+  499, cloudflared logged `context canceled`, and the backend went on to write a 201
+  twenty-seven seconds later that nobody received. Desktop paths through the same tunnel
+  held for 47 s and succeeded. Neither suspected cause: the 2.4 MB body was accepted and
+  the tunnel did not time out.
+- **PaddleOCR takes 36 to 41 s per image on the 4-vCPU VM** — 35.7 of 40.5 s inside
+  `paddle.run`, 17 s detection, 17 s recognition, 3.5 s constructing the pipeline on
+  every request. `enable_mkldnn=True` raises `NotImplementedError` in PaddlePaddle 3.3's
+  PIR attribute converter, so `vision/ocr.py`'s `enable_mkldnn=False` is load-bearing.
+- **Paddle holds the interpreter lock inside inference.** A poll issued during the 17 s
+  detection call waited 21 s. The client now retries a dropped read; a one-worker
+  process pool is the recorded upgrade.
+- **The coin-geometry CI flake is proven.** Two worktrees on the identical lock:
+  `import cv2` is 4.10.0 in one (fails, height 259.93) and 5.0.0 in the other (passes).
+  Three opencv distributions unpack into one `cv2` directory and the last one wins. It
+  cost seven CI reruns tonight.
+- **The upload page posted the image under `file`; the route reads `image`.** Every
+  upload from that page was a 422 with "Failed to fetch" on screen. Fixed in #128.
+- **Parle-G's printed GTIN `8901719100015` does not verify** under the GS1 modulo-10
+  rule that a Coca-Cola GTIN and the imported item's `8906115960296` both pass. The bars
+  and the printed digits agree with each other. The decoder reports the check digit
+  beside the value rather than enforcing it.
+- **A catalogue record declares nothing it does not list**, so every seeded listing
+  without dimensions and other prescribed matter failed Rule 6(1)(f) and 6(1)(g)
+  outright. Complete listings reach REVIEW, never PASS, because measurements are
+  INSUFFICIENT_EVIDENCE on a listing.
+
+### Design decisions
+
+- `POST /scans/image` and `POST /consumer/scans/image` return the scan at PROCESSING;
+  evaluation runs on a background task in a thread, one at a time; `GET` reports the
+  outcome. The three response-only fields are stored on `scans.capture_outcome_json`
+  (migration `5c88e68c05c0`), which the schema docstring had recorded as a gap with a
+  ticket of its own.
+- Consumer scans are submitted as one fixed principal whose jurisdiction is the literal
+  state `consumer`. The existing jurisdiction predicate keeps the two surfaces apart with
+  no second code path; a test asserts both 404s.
+- `ScanDetail.panel_spans` reads every span through from the stored evidence record,
+  validated with `extra="ignore"`, so the span-provenance guard stays green.
+- Seeded records are labelled by construction: the officer `demo-seeder`, the platform
+  `seeded-demo`, a `[Seeded demo]` prefix on vendor and manufacturer names, and a badge on
+  every officer surface and the reviews panel.
+
+### My own errors, by name
+
+- `pkill -f "<pattern>"` twice killed the SSH shell running it, because the pattern was
+  in that shell's own command line. `[d]ocker` avoids self-matching but not another
+  waiter whose command line quotes the same string; two waiters deadlocked on each other.
+- A heredoc file write chained after a failed `git checkout -b` never ran, and the next
+  command's `tsc` passed on the absence. Two files were "written" twice.
+- `node verify.mjs | tail -60` threw away the first half of the verification report.
+- The first verification script matched "shopper" against the section heading and
+  reported the reviews lookup broken when it was not.
+
+### Not done
+
+- Aashirvaad (`large-format-pack-back.jpg`) does not decode: ~200 px wide on a curled
+  pouch edge. Eight of ten corpus photographs do not decode; two do, with no false reads.
+- No endpoint transitions a complaint; the seeded lifecycle successors are rows.
+- The quick tunnel's hostname changes on every cloudflared restart. A named tunnel needs
+  a domain on Cloudflare.
+- The opencv resolution defect on `main` is recorded on #124 and not fixed.

@@ -7,6 +7,25 @@ them, read the file.
 
 ---
 
+## After Session 26 (2026-09-08, deployment night) — read this first
+
+The VM serves `main` through a cloudflared quick tunnel; the hostname changes on every
+cloudflared restart, so read it from `journalctl -u cloudflared-quick` on `pccs-vm`.
+
+1. **opencv resolves to 4.10 or 5.0 at random** — three distributions share one `cv2`
+   directory and the last unpacked wins; `test_coin_oblique_synthetic_geometry` fails under
+   4.10 with height 259.93. Seven CI reruns tonight. Pin the three to one version or drop two.
+2. **Evaluate in a one-worker process pool.** Paddle holds the interpreter lock for up to
+   21 s inside inference, so every request stalls with it. The route tests patch the
+   pipeline in-process, which is why it is a thread today; a process pool needs a seam.
+3. **Barcode recall.** Two of ten corpus photographs decode; the rest are small, curled or
+   absent barcodes. A library is the upgrade, and a dependency to ask for.
+4. **Complaint transitions** have no endpoint; the UI's transitions stay local.
+5. **Named tunnel** for a stable hostname: needs a domain on Cloudflare.
+6. **Rate limiting** on `/consumer/scans/image`: none today; a per-IP limit at nginx.
+
+---
+
 ## Now
 
 1. **#63 VIS-004 — the OCR suite is hollow, and it is the one ticket between this project and a
