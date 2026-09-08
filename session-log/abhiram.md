@@ -3197,3 +3197,183 @@ worse than an absent one.
 is what the third import-linter contract forbids — `DisplayCategoryTaxonomy` is extraction's
 own, so exporting the pair would be consistent with `bind_spans` / `propose_category`. His
 file, his call.
+
+---
+
+## Session 24 — 2026-09-08, DAT-008 (Claude Code, Opus 5)
+
+Rebuilt the evaluation corpus from the four images actually on disk. Branch
+`dat-008-real-corpus`, cut stale and rebased onto `origin/main` @ `0de8b48` at session start
+— it was behind by the reviews module, FNT-010 and MEA-005's SVG removal, and the diff
+against `main` read as thirty-three files of deletions until it was rebased.
+
+### What was there
+
+`datasets/manifest.json` held twelve records from DAT-005 (#77). Every one named an image
+that does not exist. The four real JPEGs under `datasets/raw/` were named by no record, and
+no annotation's `image_sha256` matched the hash of any file present. Thirteen integrity
+guards passed over that state.
+
+DAT-007's guard was cherry-picked in (`ce27167`) and run before anything was changed:
+**2 failed, 2 passed**, exactly as its commit message claimed. The two that passed are the
+annotation-side ones — matching two documents against each other proves nothing when both
+describe a file that is not there.
+
+### The categories were swapped, and the names were wrong twice over
+
+VIS-008's report was right and understated it. Every image was opened and read before it was
+filed:
+
+- `raw/cosmetics/cosmetics_himalaya_face_wash_100ml_001/` — a Parle-G packet,
+  `NET WEIGHT: 55g+10g EXTRA=65g`.
+- `raw/cosmetics/cosmetics_himalaya_face_wash_100ml_002/` — a Parle-G packet,
+  `NET WEIGHT: 110g+20g EXTRA= 130g`.
+- `raw/food/food_parle_g_biscuits_001/` — Himalaya Dark Spot Clearing Curcuma Face Wash,
+  `150 ml ℮`.
+- `raw/food/food_parle_g_biscuits_002/` — a Himalaya Neem/Turmeric face wash, `150 ml ℮`.
+
+So not a two-directory swap. The names also carried a net quantity the packs contradict
+(`100ml` on a 150 ml tube), and each "pair" was two *different* SKUs sharing one `sku_id`,
+which `datasets/README.md` already forbids in as many words. Four directories now, one image
+each, named for what the packs read.
+
+This is the Rule 6(1)(d) proviso split, read out of `rules.yaml` rather than from memory:
+the **first** proviso routes a food pack's date declaration to the food law, the **third**
+routes a cosmetic's to the Drugs and Cosmetics Rules, 1945. A mis-filed pack is evaluated
+against the wrong override. Both land on `NOT_APPLICABLE` here, but for different reasons and
+via different rule ids.
+
+### Annotation
+
+Twelve orphan annotations deleted, not repaired. Four written by hand against
+`LabelledSample`, each field read off the photograph at magnification — the 500×500 Parle-G
+frames needed 5–9× crops to resolve the manufacturer block and the best-before line.
+
+Every state is sourced, and **nothing is annotated `FAIL`**:
+
+- `NOT_APPLICABLE` where a sourced override displaces the clause — Rule 6(1)(a)
+  Explanation III for both food packs (`R6-1-A-EXPL-III-FOOD`: the clause "shall not apply"
+  to food articles), Rule 6(1)(d)'s provisos for all four, and Rule 6(1)(aa) for the Parle-G
+  packs, which are not imported products. The Parle-G manufacturer address is complete and
+  legible and is still `NOT_APPLICABLE`, not `PASS` — the same shape as the Rule 26
+  instruction, an exempt obligation is not a satisfied one.
+- `INSUFFICIENT_EVIDENCE` where a declaration is not in frame or cannot be read. Both
+  Parle-G packs print `MRP ₹ INCL. OF ALL TAXES` with **no resolvable price numeral**, which
+  is `declared: true` with a null value, not a missing declaration and not a violation.
+- `PASS` only where the clause applies and the declaration is legible: both net weights,
+  the 130 g commodity name and its full consumer care cell (`022-6691 6929`,
+  `cs@parle.biz`), and country of origin `UAE` on both tubes.
+
+Rule 26 was checked against all four before annotating and reaches none: 65 g, 130 g, 150 ml,
+150 ml are all above the 10 g / 10 ml threshold.
+
+All four are uncalibrated — no reference object in any frame — so `reference_object.present`
+is false, `pdp.is_measurable` is false, every height field is null and every verdict is
+`REVIEW`.
+
+### `ingest_images.py` deleted, not fixed
+
+It wrote `samples` while every reader reads `records`; demanded a Google Drive ID the
+offline-demo design forbids; globbed `*.jpg` only; and derived `sample_id` as
+`{category}_{sku_dir}_{stem}`, double-prefixing the category `sku_dir` already carries. Four
+records maintained by hand do not need sixty lines that have never produced a correct
+manifest and can destroy one. Nothing imports it — the only references were docs recording it
+as a hazard.
+
+### The images are now tracked, and that was Abhiram's call
+
+`datasets/raw/` is gitignored, so on a fresh clone the images do not exist. Measured by
+moving the tree aside: **2 of DAT-007's 4 guards fail** with it absent. That would have made
+this PR red on `CI/backend` no matter how correct the corpus was, and it is a problem DAT-007
+inherits independently of this ticket.
+
+Resolved by force-adding the four JPEGs — 524,541 bytes total — over the ignore. `raw/` stays
+ignored, so a future capture still has to be `git add -f`ed deliberately. The alternative
+considered and rejected was a `skipif` on the two byte-level guards: a skip that fires on
+every CI run is precisely the vacuum DAT-007 was written to close.
+
+Mode was `100755` on first add (WSL) and was `chmod 644`ed before commit.
+
+### A format failure was hiding in the cherry-pick
+
+`uv run ruff format --check .` exited 1 on
+`bck/tests/contracts/test_manifest_integrity.py:51` — a comprehension that fits in 100
+characters on one line. Caught only by checking the exit code directly; the summary line
+`1 file would be reformatted, 201 files already formatted` scrolls past. `ruff format` was
+applied to that file. **DAT-007's branch is red on `ruff format` as it stands**, which under
+this repo's CI ordering means nothing on it has been verified by Lint, Import boundaries or
+Tests.
+
+### Guards falsified
+
+Six defects introduced one at a time, whole file run each time, `__pycache__` purged with the
+absolute path first:
+
+| defect | test that went red |
+| --- | --- |
+| `records` emptied | all four (the non-empty assertion) |
+| record names a missing image | `..._names_an_image_that_exists` + the disk-hash guard |
+| record names a missing annotation | `..._names_an_annotation_that_exists` + the doc-hash guard |
+| one sha256 digit flipped in **both** manifest and annotation | `test_the_manifest_hash_is_the_hash_of_the_image_on_disk` alone |
+| `numeral_height_mm: 2.5` on an uncalibrated sample | `test_no_annotation_claims_a_millimetre_height` |
+| `reference_object.present: true` with `object_type: none` | `test_every_annotation_validates` |
+
+The fourth is the one that matters: two documents forged to agree with each other still fail
+against the bytes on disk. That claim had never been checked before DAT-007.
+
+### Errors I made this session
+
+- I very nearly filed the swap as a straight two-directory move, which is what the ticket
+  described. Opening the images first is what showed the net quantity in the directory names
+  was also wrong and that four SKUs were being filed as two.
+- I wrote `MISSING_MONTH_YEAR` into the difficulty tags before catching that it asserts an
+  omission the frames cannot establish, while the field state says
+  `INSUFFICIENT_EVIDENCE`. The tag was dropped from all four; the observation is prose in
+  `known_issues` instead.
+- I annotated the tubes' MRP as `INSUFFICIENT_EVIDENCE` before reading far enough into
+  `datasets/README.md` to find the standing convention that a foreign-retail pack's missing
+  INR MRP is `NOT_APPLICABLE`, and that Rule 25 must not be cited for it. Corrected to
+  `NOT_APPLICABLE` on both tubes for MRP and unit sale price. **DAT-002 had already done this
+  forensic analysis on these same four images and reached the same conclusions**; I
+  reproduced most of a day of it independently because I read the README's Layout section
+  before its Status section.
+
+### Raised, not fixed
+
+1. **The cosmetics half of the corpus is two EU/UK-market packs.** Responsible Person
+   addresses in Warsaw, Riga and London, country of origin UAE, `150 ml ℮`, no MRP, no Indian
+   importer. Nothing in Rule 3 as encoded excludes them, so no field state rests on the
+   question, but two packs never placed on the Indian market are the entire cosmetics
+   coverage.
+2. **None of the four is a field capture.** All are e-commerce catalogue images on seamless
+   white, one with a studio reflection — the provenance DAT-002 recorded. Not AI-generated,
+   but OCR and tamper numbers over them will read better than the same code reads a
+   photograph taken in a shop.
+3. **`datasets/README.md` and the DAT-008 ticket disagreed on `declared: false`.** The README
+   said it means absent from the pack; the ticket says a declaration not in this frame is
+   `declared: false` plus `INSUFFICIENT_EVIDENCE`. The ticket's reading was applied and the
+   README updated to match, noting the state and not `declared` is what separates the two.
+4. **`test_coin_oblique_synthetic_geometry` is red on `main`** — `Height 259.93 deviates from
+   200.0 by >5%`, a 29.97% error in `detect_reference_object`'s recovered homography. Nothing
+   in this branch touches `measurement/`; identical code and identical test, so it is
+   pre-existing. Not this ticket's, and it has no ticket that I can find.
+
+### Gates
+
+`ruff format --check` and `ruff check` both exit 0. `lint-imports` exits 0, 3 contracts kept.
+`tests/contracts/test_manifest_integrity.py` — 4 passed. `datasets/tests` — 11 passed, with
+both `TestCommittedAnnotationsLoad` guards executing against four real annotations rather
+than skipping.
+
+Full backend suite: 1 failed, 1003 passed, 51 skipped, 10 errors. The 10 errors are all
+`tests/modules/reviews/` failing setup with `DATABASE_URL is not set; reviews persistence
+needs PostgreSQL` — environmental, and CI supplies the service. The 1 failure is item 4
+above. **That count is this session's measurement on this tree and is not a baseline; measure
+`origin/main` yourself before quoting any delta.**
+
+### No figure is available from this corpus
+
+Four uncalibrated images support no Rule 7 letter-height accuracy figure. Any tamper
+false-positive rate over this set is n=4 and must always be quoted with its n. No accuracy or
+false-positive number is quoted in the PR body, and none should be quoted anywhere until a
+calibrated set exists.

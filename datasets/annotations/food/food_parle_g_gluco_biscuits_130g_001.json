@@ -1,0 +1,143 @@
+{
+  "sample_id": "food_parle_g_gluco_biscuits_130g_001",
+  "sku_id": "food_parle_g_gluco_biscuits_130g",
+  "image_filename": "food_parle_g_gluco_biscuits_130g_001.jpg",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "flexible_pouch",
+    "crowded",
+    "low_contrast"
+  ],
+  "known_issues": [
+    "uncalibrated_no_reference_object_in_frame",
+    "single_panel_only_principal_display_panel_not_in_frame",
+    "catalogue_image_not_a_field_capture",
+    "mrp_legend_present_but_no_price_numeral_legible"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MANUFACTURED FOR: (P) PARLE PRODUCTS PVT LTD, NORTH LEVEL CROSSING, VILE PARLE EAST, MUMBAI, MH - 400057",
+      "normalised_value": {
+        "name": "Parle Products Pvt Ltd",
+        "address": "North Level Crossing, Vile Parle East, Mumbai, MH - 400057"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(a) Explanation III: in respect of packages containing food articles the provisions of this clause do not apply, and the Food Safety and Standards Act, 2006 and the rules made thereunder apply instead (R6-1-A-EXPL-III-FOOD). The declaration is present on this panel, but the LMPC obligation is displaced and must not be scored PASS."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Parle-G Gluco BISCUITS",
+      "normalised_value": {
+        "generic_name": "Gluco biscuits"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "NET WEIGHT: 110g+20g EXTRA= 130g",
+      "normalised_value": {
+        "value": 130.0,
+        "unit": "g",
+        "basis": "110 g plus 20 g extra"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": "BEST BEFORE FIVE MONTHS FROM PACKAGING.",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(d) first proviso: for packages containing food articles the provisions of the food law apply in place of this sub-clause (R6-1-D source text). The obligation is displaced. No month and year is legible in this frame in any event; the only date-related text is a shelf-life period."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ~ INCL. OF ALL TAXES",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "The MRP legend and the rupee symbol are printed and legible, but no price numeral appears after them in this capture. The figure cannot be read and must not be inferred."
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible on the panel in frame. Absence from one panel does not establish absence from the package: the principal display panel is not in this capture."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "CONSUMER CARE CELL PARLE PRODUCTS PVT. LTD. NORTH LEVEL CROSSING, VILE PARLE EAST MUMBAI, MH-400057 PHONE NO.:022-6691 6929 Email:cs@parle.biz",
+      "normalised_value": {
+        "name": "Consumer Care Cell, Parle Products Pvt. Ltd.",
+        "address": "North Level Crossing, Vile Parle East, Mumbai, MH-400057",
+        "telephone": "022-6691 6929",
+        "email": "cs@parle.biz"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(aa) requires the country of origin or manufacture or assembly to be mentioned 'in case of imported products' (R6-1-AA source text). This pack declares Indian manufacturing units with FSSAI licence numbers; it is not an imported product, so the clause does not apply. The pack also bears 'WARNING: COMMERCIAL EXPORT OF THIS PACK IS STRICTLY PROHIBITED AND LIABLE FOR PROSECUTION.'"
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Flattened back panel of a Parle-G Gluco Biscuits wrapper, 130 g, at 500x500 against a white background. No reference object is in frame, so the capture is uncalibrated: pdp.is_measurable is false and every height field is null. This is a different SKU from the 65 g sample, not a second view of it -- the two were filed under one directory before DAT-008. Rule 26 does not reach either: 130 g is above the 10 g threshold. Provenance: catalogue product image, not a field capture.",
+  "image_sha256": "e4df70bd48a2319f3e4d61a1e312cf3244ae8f8e1eab0c2b65ab4972a20b226d"
+}

@@ -48,9 +48,7 @@ def test_every_manifest_record_names_an_image_that_exists():
 
 def test_every_manifest_record_names_an_annotation_that_exists():
     missing = [
-        r["annotation_path"]
-        for r in _records()
-        if not (REPO_ROOT / r["annotation_path"]).is_file()
+        r["annotation_path"] for r in _records() if not (REPO_ROOT / r["annotation_path"]).is_file()
     ]
     assert not missing, f"{len(missing)} records name a missing annotation: {missing[:5]}"
 

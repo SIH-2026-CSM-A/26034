@@ -3,7 +3,61 @@
 **Owner:** Abhiram (`@Abhiram-0910`) — transferred from Aashritha, who is off the project.
 **Ticket:** DAT-002.
 
-## Status, 2026-09-06 — the corpus is empty
+## Status, 2026-09-08 — four samples, all uncalibrated, none usable for Rule 7
+
+DAT-008 rebuilt the corpus from the four images actually on disk. Before it, `manifest.json`
+held twelve records from DAT-005 (#77), every one naming an image that does not exist, while
+the four real images were named by no record and no annotation's `image_sha256` matched any
+file present. Thirteen integrity guards passed over that. The twelve orphan annotations were
+deleted rather than repaired; they described nothing.
+
+What is here now:
+
+| sample | net quantity | category |
+| --- | --- | --- |
+| `food_parle_g_gluco_biscuits_65g_001` | 55 g + 10 g extra = 65 g | food |
+| `food_parle_g_gluco_biscuits_130g_001` | 110 g + 20 g extra = 130 g | food |
+| `cosmetics_himalaya_curcuma_face_wash_150ml_001` | 150 ml ℮ | cosmetics |
+| `cosmetics_himalaya_neem_turmeric_face_wash_150ml_001` | 150 ml ℮ | cosmetics |
+
+Four SKUs, one image each — not two SKUs with two views. The `cosmetics/` and `food/`
+directories were swapped: `raw/cosmetics/cosmetics_himalaya_face_wash_100ml_*` held Parle-G
+packets and `raw/food/food_parle_g_biscuits_*` held face wash tubes. That is a legal error,
+not a filing one — Rule 6(1)(d)'s first proviso routes a food pack's date declaration to the
+food law and its third proviso routes a cosmetic's to the Drugs and Cosmetics Rules, 1945, so
+a mis-filed pack is evaluated against the wrong sector override. The directory names also
+carried the wrong net quantity (`100ml` on a 150 ml tube), so they were renamed to what the
+packs actually read.
+
+**All four are uncalibrated.** No reference object is in any frame, so
+`reference_object.present` is false, `pdp.is_measurable` is false, every `numeral_height_mm`
+and `letter_height_mm` is null, and every `ground_truth_verdict` is `REVIEW`. No sample here
+supports a Rule 7 letter-height finding, and **no accuracy or false-positive figure may be
+quoted from this set.** Any tamper false-positive rate over it is n=4 and must be quoted with
+its n.
+
+No field is annotated `FAIL`. Each is `PASS` only where the declaration is legible in that
+frame and the clause applies; `NOT_APPLICABLE` where a sourced sector override displaces the
+clause; and `INSUFFICIENT_EVIDENCE` where a declaration is not in frame or cannot be read.
+Rule 26 was checked against all four and reaches none of them: 65 g, 130 g, 150 ml and
+150 ml are all above the 10 g / 10 ml threshold.
+
+The two face wash tubes are EU/UK-market packs — Responsible Person addresses in Warsaw,
+Riga and London, country of origin UAE, no MRP and no Indian importer. Their MRP and unit
+sale price are `NOT_APPLICABLE` under the foreign-retail convention recorded below. **Whether
+the LMPC Rules reach a pack in that market at all is unresolved**; nothing in Rule 3 as
+encoded excludes it, so no field state rests on the question, but the corpus's cosmetics half
+is two packs that were never placed on the Indian market.
+
+None of the four is a field capture. All are e-commerce catalogue images on seamless white,
+one with a studio reflection — the provenance DAT-002 recorded below, unchanged. They are not
+AI-generated, but OCR and tamper numbers measured over them will read better than the same
+code will read a photograph taken in a shop.
+
+`datasets/ingest_images.py` was deleted in DAT-008 rather than fixed. See "Building the
+manifest" below.
+
+## History, 2026-09-06 — DAT-002 emptied the corpus
 
 Four annotations and four images previously lived here. All four were deleted in DAT-002
 after being checked against their own photographs and against `schema.py` for the first
@@ -43,9 +97,15 @@ Real captures, taken by the team, of packages we physically hold. Each sample:
   25.0 mm appears in older drafts; that figure is sourced in neither `rules-corpus/` nor
   `SIH26034_Research_And_References.md`, so the ₹5 coin must not be added to the schema
   enum or to measurement's `REF_DIMS`;
-- annotated only from what is legible in that image. A value that cannot be read is
-  `null`, and `declared: false` means the declaration is absent from the pack, not that
-  the photograph failed to show it.
+- annotated only from what is legible in that image. A value that cannot be read is `null`.
+
+`declared` is **per-image, not pack-level** (DAT-008). A declaration that is not in this
+frame is `declared: false` with `expected_field_state: INSUFFICIENT_EVIDENCE` — a back-panel
+declaration annotated on a front image is exactly that. What distinguishes "not shown here"
+from "absent from the pack" is the state, never `declared` on its own: absence from the pack
+would have to be `FAIL`, and no single panel can establish it. This supersedes the earlier
+rule that `declared: false` meant absent from the pack; the two readings were annotated
+inconsistently across DAT-002 and DAT-005.
 
 `ground_truth_verdict` is the verdict the **system should reach given the evidence in that
 photograph** — not the compliance status of the physical product. A sample with no
@@ -67,11 +127,31 @@ arise. Two limbs, and they are no longer the same one:
 
 ## Layout
 
-- `datasets/raw/<category>/<sku_id>/<sample_id>.<ext>` — image binaries, gitignored.
+- `datasets/raw/<category>/<sku_id>/<sample_id>.<ext>` — image binaries. `raw/` is
+  gitignored, and the four DAT-008 captures (512 KB total) are force-added on top of that
+  ignore so CI can verify their hashes. A new capture is **not** tracked by dropping it in
+  the directory; it has to be `git add -f`ed deliberately, which is the intended friction.
 - `datasets/annotations/<category>/<sample_id>.json` — one annotation per image, tracked.
-- `datasets/manifest.json` — built from `datasets/raw/` by walking the directory. It is
-  not synced from Google Drive; the demo has to survive the venue network failing.
+- `datasets/manifest.json` — one record per image, written by hand. See below.
 - `schema.py` (Pydantic v2) is authoritative; `schema.json` is exported from it.
+
+## Building the manifest
+
+By hand. There is no script.
+
+`ingest_images.py` was deleted in DAT-008. It wrote a `samples` key while every reader —
+`bck/tests/contracts/test_manifest_integrity.py` and the harness — reads `records`, so
+running it emptied the manifest as far as every consumer was concerned and left the guards
+looping an empty list, green. It also demanded a Google Drive folder ID the offline-demo
+design forbids, globbed `*.jpg` only so every `.png` capture was skipped in silence, and
+derived `sample_id` as `{category}_{sku_dir}_{stem}`, which double-prefixes the category
+that `sku_dir` already starts with. Four records maintained by hand do not need sixty lines
+that have never produced a correct manifest and can destroy one.
+
+The `sha256` in each record is the SHA-256 of the image bytes on disk, and
+`annotation.image_sha256` must equal it. `test_the_manifest_hash_is_the_hash_of_the_image_on_disk`
+checks that against the file rather than against the other document — forging both to agree
+still fails.
 
 Identifiers: `sku_id` matches `^(food|cosmetics)_[a-z0-9_]+$`; `sample_id` is
 `<sku_id>_<index>`. **One `sku_id` means one physical product at one pack size.** Two pack

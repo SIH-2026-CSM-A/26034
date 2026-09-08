@@ -43,6 +43,17 @@ them, read the file.
    **It does not make an accuracy figure available.** Every capture is uncalibrated, so nothing
    in the set can support a Rule 7 finding. No accuracy figure is quoted anywhere and none
    should be until a calibrated set exists.
+
+   **Superseded by DAT-008 (Session 24).** All twelve of those annotations described images
+   that do not exist, and the four real JPEGs on disk were named by no record — thirteen
+   guards passed over it. The twelve were deleted and four were written by hand from the
+   photographs. The `cosmetics/` and `food/` directories were swapped, and the names also
+   carried a net quantity the packs contradict, so there are now four SKUs at one image each:
+   Parle-G Gluco Biscuits at 65 g and at 130 g, and two Himalaya face wash tubes at 150 ml.
+   Still uncalibrated, still `REVIEW`, still no accuracy figure. Two open items came out of
+   it: the cosmetics half is two EU/UK-market packs that were never placed on the Indian
+   market, and none of the four is a field capture — all are catalogue images on seamless
+   white. Both are recorded in `datasets/README.md` and in the DAT-008 PR body.
 3. **EXT-009 — `MIXED` no longer marks the pair Rule 9(4) turns on.** #66 merged with this open.
    `bck/app/modules/extraction/binder.py:190` returns `MIXED` for any two of five scripts, so
    Tamil-plus-Bengali and Devanagari-plus-Latin are now the same value — and the second is the
@@ -144,54 +155,35 @@ It also contradicts `datasets/README.md`. Needs a `NOT_IN_FRAME` state or a `vis
 bool, and a decision about which — a state changes the enum and therefore needs an
 `ALTER TYPE ... ADD VALUE` if it ever reaches Postgres.
 
-**2. `ingest_images.py` emits `samples`; everything that reads the manifest reads `records`.
-Since #77 this is a live regression risk, not a latent one.** `datasets/ingest_images.py:47-52`
-writes a `"samples"` key. `bck/tests/contracts/test_manifest_integrity.py:16` and `:41` both
-loop `manifest.get("records", [])`.
+**DAT-008 picked the convention, not the schema change.** A declaration not in the frame is
+`declared: false` with `expected_field_state: INSUFFICIENT_EVIDENCE`, and `datasets/README.md`
+now says the *state* is what separates "not shown here" from "absent from the pack" — never
+`declared` on its own, because absence from a pack would have to be `FAIL` and no single panel
+establishes it. All four DAT-008 annotations follow that. This does **not** close the item: the
+harness still cannot tell the two apart from `declared` alone, and the enum question is
+untouched. It only means the corpus is now annotated consistently while the decision is made.
 
-**Before #77** the defect was dormant: the committed `datasets/manifest.json` was nineteen bytes
-— `{"records": []}` — so both loops got `[]` twice over and two green tests claimed the
-annotation hashes matched the images while comparing nothing.
-`test_annotation_image_sha256_matches_manifest` still has **no assertion outside its loop**, so
-it passes against any JSON object whatsoever.
+**2-4. `ingest_images.py` — RESOLVED in DAT-008 by deleting the script.** All three items
+(the `samples`/`records` key mismatch, the Google Drive ID the offline-demo design forbids,
+and the silent `.png` skip) were defects in one sixty-line file that had never produced a
+correct manifest and could destroy one. It was deleted rather than fixed: nothing imported
+it, and four records maintained by hand do not need a writer. `datasets/manifest.json` is
+now written by hand and `datasets/README.md` says so under "Building the manifest".
 
-**After #77 the same mismatch destroys real data.** `main` now carries a **real twelve-record
-manifest keyed `records`**, hand-written, carrying the `sha256` of every annotated capture. The
-writer has not been fixed. **So anyone who runs the project's own ingest script to regenerate
-the manifest silently replaces twelve records with a `samples` array** — the integrity tests go
-back to looping an empty list, both stay green, and there is no failing test and no obvious diff
-to say the corpus guard stopped guarding. The script is the documented way to rebuild the
-manifest, so this is a thing someone will do, not a thing they might.
+The assertion item 2 asked for — the one that makes an empty manifest fail — is DAT-007's
+`_records()` and it is in. Four guards now run in
+`bck/tests/contracts/test_manifest_integrity.py`, including
+`test_the_manifest_hash_is_the_hash_of_the_image_on_disk`, which compares the recorded hash
+to the file's bytes rather than to the other document. Forging manifest and annotation to
+agree with each other still fails it.
 
-**Why it matters:** those two tests are the only link between a checked-in annotation and the
-image it claims to describe, and this project has already lost a corpus to fabrication once.
-**Fix the writer to emit `records`**, or delete the writer and state that the manifest is
-maintained by hand. Do **not** fix the tests to read `samples` — the checked-in manifest is the
-artefact that matters. Either way, add the assertion that makes an empty manifest fail, so the
-vacuum cannot come back quietly. Until it is fixed, treat `ingest_images.py` as unsafe to run
-against `datasets/`.
-
-**3. `ingest_images.py` demands a Google Drive ID the design explicitly forbids.**
-`datasets/ingest_images.py:18-19` raises `ValueError("A valid Google Drive folder ID must be
-provided to sync the manifest.")` on a missing or placeholder id, read from a hand-rolled
-`sys.argv` at `:60-66` (there is no argparse). `datasets/README.md:72-73` says the manifest
-"is **not** synced from Google Drive; the demo has to survive the venue network failing". The id
-is used for nothing but being stamped into the JSON at `:49` — no network call exists anywhere
-in the file. **Why it matters:** the script cannot be run at the venue, or by anyone who does
-not have the folder id, to produce a manifest it does not need the id for. Either the guard goes
-or the README does; they cannot both be right.
-
-**4. `ingest_images.py` silently skips every `.png` capture.**
-`datasets/ingest_images.py:24` is `RAW_DIR.glob("**/*.[jJ][pP][gG]")`. The character class
-already handles `.JPG`, so that is not the problem. `.png` is. Twelve of the fifteen files in
-`~/26034-dat/datasets/raw/_staging/` are `.png` — every capture numbered 01 to 05. The twelve
-captures #77 annotates are `.jpg` under `datasets/raw/{category}/{sku}/`, so they are not
-affected, and the earlier `_staging` set appears to have been superseded rather than ingested.
-**Why it matters:** the skip is silent. A run over a directory holding `.png` captures produces
-a short manifest and reports success, and nothing anywhere says how many files were dropped.
-Either widen the glob and fail loudly on an unreadable image, or make the script assert that the
-file count it wrote equals the image count it found. Combine with item 2 — this is the same
-script and it should be one ticket.
+**New, from DAT-008 — the corpus can only be verified where the images are.** `datasets/raw/`
+is gitignored, so on a fresh clone two of those four guards fail. DAT-008 force-added its four
+JPEGs (524,541 bytes) over the ignore so CI can hash them; `raw/` stays ignored, so a new
+capture still has to be `git add -f`ed deliberately. **Anyone landing DAT-007 on its own
+should know its guard is red on a tree without images**, and that `ruff format --check` exits
+1 on `test_manifest_integrity.py:51` as that branch stands — which under this repo's CI
+ordering means nothing on it has been verified by Lint, Import boundaries or Tests.
 
 **5. Per-ticket session logs.** `session-log/abhiram.md` is 137 KB and every PR appends to it,
 so every PR conflicts with every other PR. It forced a rebase on **every** PR merged on

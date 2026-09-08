@@ -1,0 +1,135 @@
+{
+  "sample_id": "cosmetics_himalaya_curcuma_face_wash_150ml_001",
+  "sku_id": "cosmetics_himalaya_curcuma_face_wash_150ml",
+  "image_filename": "cosmetics_himalaya_curcuma_face_wash_150ml_001.jpg",
+  "category": "cosmetics",
+  "difficulty_tags": [
+    "uncalibrated",
+    "curved",
+    "crowded",
+    "low_contrast"
+  ],
+  "known_issues": [
+    "uncalibrated_no_reference_object_in_frame",
+    "single_panel_only_principal_display_panel_not_in_frame",
+    "catalogue_image_not_a_field_capture",
+    "eu_uk_market_pack_carries_no_mrp_and_no_indian_importer",
+    "net_quantity_carries_eu_estimated_sign"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "cylindrical",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "Regd. Trademark of Himalaya Global Holdings Ltd. | UK RP address: Himalaya Wellness UK Ltd, 41 Devonshire Street, London, Ground Floor, W1G 7AJ, United Kingdom | EU RP address: Himalaya Wellness Poland Sp. z o.o., AL. Jerozolimskie 81, 02-001 Warsaw",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 6(1)(a) requires the name and complete address of the manufacturer, packer or importer. This panel names EU/UK Responsible Person addresses and no Indian importer. Whether a Responsible Person address discharges the clause is a decision for an officer, not a reading of the label."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Himalaya Dark Spot Clearing Curcuma Face Wash",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "The product name appears only inside the multilingual descriptive block, not as a standalone Rule 6(1)(b) declaration. The principal display panel is not in frame."
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "150 ml e",
+      "normalised_value": {
+        "value": 150.0,
+        "unit": "ml"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "REVIEW_REQUIRED",
+      "non_compliance_reason": "Rule 13(2) is satisfied on its face -- a volume below one litre is declared in millilitres. The figure carries the EU estimated sign (e), which is not a declaration form provided for by these Rules; an officer must decide what weight it carries here."
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": "Batch No.: see on packaging/ Lotto n.: vedi sulla confezione/ N. De Lote: ver en el envase/ Gyartasi szam: lasd eredeti csomagolas.",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(d) third proviso: for packages containing cosmetic products the provisions of the Drugs and Cosmetics Rules, 1945 apply in place of this sub-clause (R6-1-D source text). The obligation is displaced. No month and year is in frame; the batch reference directs the reader to another part of the pack."
+    },
+    "retail_sale_price_mrp": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "No retail sale price in Indian rupees is printed on the panel in frame. This is a pack prepared for EU/UK retail and carries no MRP by design. datasets/README.md records the standing convention that a foreign-retail pack's missing INR MRP is annotated NOT_APPLICABLE rather than FAIL, and that Rule 25 must not be cited for it: the export limb of the scope argument is marked [SOFT] in rules-corpus/README.md, so this is a project convention and not a sourced exemption."
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "No unit sale price is printed on the panel in frame, and a pack prepared for EU/UK retail carries none. Annotated NOT_APPLICABLE under the same foreign-retail convention as the retail sale price. Rule 6(11) is in any case deliberately unencoded in rules.yaml (rules-corpus/README.md), so no rule id scores this field."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "contactus@himalayawellness.com | www.himalayawellness.com",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Rule 6(1)(n) requires a consumer care cell with name, address, telephone number and email. An email address and a website are in frame; no consumer care cell name and no telephone number are, and the rest of the pack is not in this capture."
+    },
+    "country_of_origin": {
+      "declared": true,
+      "raw_text": "Country of origin/ Paese di origine/ Pais de origen/ Szarmazasi orszag: UAE",
+      "normalised_value": {
+        "country": "UAE"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Back panel of a Himalaya Dark Spot Clearing Curcuma Face Wash squeeze tube, 150 ml, at 1080x1080 against a white background. No reference object is in frame, so the capture is uncalibrated: pdp.is_measurable is false, no PDP area is computed and every height field is null. Rule 26 does not reach it: 150 ml is above the 10 ml threshold. This image was filed under datasets/raw/food/food_parle_g_biscuits_001/ before DAT-008; filing a cosmetic as food would have routed Rule 6(1)(d) to the food-law proviso instead of to the Drugs and Cosmetics Rules, 1945. The panel is a four-language EU/UK-market pack (EN/IT/ES/HU) -- all Latin script, so it is not tagged multiscript -- naming EU and UK Responsible Persons and no Indian importer, and carrying no MRP. Whether the LMPC Rules reach a pack in this market at all is an open question recorded in known_issues; nothing in Rule 3 as encoded excludes it, so no field state here rests on that question.",
+  "image_sha256": "df6acb2faab83ef8ac358e8dc7066401a3b59ce333b4438d0259706050a11bf4"
+}

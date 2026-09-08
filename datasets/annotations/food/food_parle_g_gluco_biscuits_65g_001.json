@@ -1,0 +1,139 @@
+{
+  "sample_id": "food_parle_g_gluco_biscuits_65g_001",
+  "sku_id": "food_parle_g_gluco_biscuits_65g",
+  "image_filename": "food_parle_g_gluco_biscuits_65g_001.jpg",
+  "category": "food",
+  "difficulty_tags": [
+    "uncalibrated",
+    "flexible_pouch",
+    "crowded",
+    "tilted",
+    "partially_occluded",
+    "low_contrast"
+  ],
+  "known_issues": [
+    "uncalibrated_no_reference_object_in_frame",
+    "single_panel_only_principal_display_panel_not_in_frame",
+    "catalogue_image_not_a_field_capture",
+    "mrp_legend_present_but_no_price_numeral_legible",
+    "commodity_name_and_consumer_care_cell_run_off_the_frame"
+  ],
+  "reference_object": {
+    "present": false,
+    "object_type": "none",
+    "known_dimension_mm": null,
+    "confidence_interval_mm": null,
+    "bbox": null
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": null,
+    "width_cm": null,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": null,
+    "is_measurable": false,
+    "rule7_band": null,
+    "rule7_min_height_mm": null
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "MANUFACTURED FOR: (P) PARLE PRODUCTS PVT LTD, NORTH LEVEL CROSSING, VILE PARLE EAST, MUMBAI, MH - 400057; (B) PARLE BISCUITS PVT LTD, NORTH LEVEL CROSSING, VILE PARLE EAST, MUMBAI, MH - 400057",
+      "normalised_value": {
+        "name": "Parle Products Pvt Ltd",
+        "address": "North Level Crossing, Vile Parle East, Mumbai, MH - 400057"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(a) Explanation III: in respect of packages containing food articles the provisions of this clause do not apply, and the Food Safety and Standards Act, 2006 and the rules made thereunder apply instead (R6-1-A-EXPL-III-FOOD). The declaration is present on this panel, but the LMPC obligation is displaced and must not be scored PASS."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Parle-G Gluco Bi",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "The commodity-name line runs off the pack fold in this frame; only 'Parle-G Gluco Bi' is legible, so the common or generic name required by Rule 6(1)(b) cannot be read in full."
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "NET WEIGHT: 55g+10g EXTRA=65g",
+      "normalised_value": {
+        "value": 65.0,
+        "unit": "g",
+        "basis": "55 g plus 10 g extra"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": false,
+      "raw_text": "BEST BEFORE FIVE MONTHS FROM",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(d) first proviso: for packages containing food articles the provisions of the food law apply in place of this sub-clause (R6-1-D source text). The obligation is displaced. No month and year is legible in this frame in any event; the only date-related text is a shelf-life period."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ~ INCL. OF ALL TAXES",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "The MRP legend and the rupee symbol are printed and legible, but no price numeral is resolvable in this 500x500 frame. The figure cannot be read and must not be inferred."
+    },
+    "unit_sale_price": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "Not visible on the panel in frame. Absence from one panel does not establish absence from the package: the principal display panel is not in this capture."
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "CONSUMER CARE CELL, PARLE PRODUCTS PVT. LTD.",
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "INSUFFICIENT_EVIDENCE",
+      "non_compliance_reason": "The consumer care cell line runs off the bottom edge of the frame; the address, telephone number and email required by Rule 6(1)(n) are not legible in this capture."
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(aa) requires the country of origin or manufacture or assembly to be mentioned 'in case of imported products' (R6-1-AA source text). This pack declares Indian manufacturing units with FSSAI licence numbers; it is not an imported product, so the clause does not apply."
+    }
+  },
+  "ground_truth_verdict": "REVIEW",
+  "notes": "Back and side panel of a flexible Parle-G Gluco Biscuits wrapper, 65 g, photographed at an angle against a white background at 500x500. No reference object is in frame, so the capture is uncalibrated: pdp.is_measurable is false, no PDP area is computed, no Rule 7 band is assigned and every height field is null. This image was filed under datasets/raw/cosmetics/cosmetics_himalaya_face_wash_100ml_001/ before DAT-008; it is a food package and is now filed as one, which is what routes Rule 6(1)(d) to the food-law proviso rather than to the Drugs and Cosmetics Rules, 1945. Provenance: this is a catalogue product image, not a field capture -- see known_issues.",
+  "image_sha256": "cd91c7df2338b9fd8adeab0eb7ed770c95aa88f8b0d01fd2d4aa573aee4cb23f"
+}
