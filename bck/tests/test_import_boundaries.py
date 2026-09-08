@@ -66,11 +66,13 @@ def test_independence_contract_covers_every_module_on_disk() -> None:
 
 def test_independence_contract_lists_the_six_modules() -> None:
     assert _contract("independence")["modules"] == [
-        "app.modules.vision",
+        "app.modules.analytics",
         "app.modules.complaints",
+        "app.modules.evidence",
         "app.modules.extraction",
         "app.modules.measurement",
         "app.modules.rules",
         "app.modules.tamper",
-        "app.modules.evidence",
+        "app.modules.vendor",
+        "app.modules.vision",
     ]
