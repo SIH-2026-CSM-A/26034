@@ -7,6 +7,28 @@ them, read the file.
 
 ---
 
+## After Session 27 (2026-09-08, real ward + geographic map) — read this first
+
+Merged #136: the dashboard heatmap is now a real GHMC ward choropleth, and the ward is a
+persisted, officer-selected field (not a hash). Deployed to the VM; `--backfill-wards` ran
+over the 81 seeded scans; browser-verified at 390 and 1280 with the network throttled.
+
+1. **`verify1` is a temporary officer on the VM `.env`** (state-tier Telangana), added so
+   the dashboard could be driven for browser verification. Either remove it after the demo
+   or keep it as the read-only demo login — but it is a real credential on a public tunnel,
+   so decide on purpose.
+2. **`GET /scans` caps at 50**, so the dashboard aggregates the 50 most recent scans, not
+   all 81 seeded. The map still shows all three bands, but a real dashboard would page or
+   aggregate server-side rather than shading a sample.
+3. **Ward is not validated against a district.** It is a free location tag finer than the
+   RBAC tiers; there is no ward→district table, so an officer could record a ward outside
+   their district. The dashboard shades only known GHMC wards and counts the rest aside.
+4. **Six GHMC wards (3, 4, 11, 13, 31, 113) are absent** from the upstream DataMeet file and
+   do not render. If a complete 150-ward map is wanted, assemble the missing five (119 too,
+   from the fresher Overpass pull) from OSM relations and rebuild `ghmcWards.ts`.
+
+---
+
 ## After Session 26 (2026-09-08, deployment night) — read this first
 
 The VM serves `main` through a cloudflared quick tunnel; the hostname changes on every

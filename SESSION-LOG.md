@@ -10,6 +10,20 @@ Newest entry at the top.
 
 ## Current state
 
+**Updated:** 2026-09-08 (Session 27)
+**Branch:** `main` at #136 (real ward jurisdiction + geographic choropleth), deployed to `pccs-vm`.
+**Agents active:** Claude Code (Abhiram, Session 27). See `session-log/abhiram.md` for the full log.
+
+Session 27 replaced the tile heatmap and the `hash(scan_id) % 6` ward with a persisted
+GHMC ward (migration `5b522f144ba0`) and an inline-SVG choropleth of 145 real Hyderabad
+wards. Browser-verified at 390/1280 with the network throttled; three density bands render
+and the map draws with every external host blocked. See `TODO.md` "After Session 27" for
+open items (temporary `verify1` officer on the VM, the 50-scan list cap).
+
+---
+
+## Earlier state (2026-09-05, CTR-002)
+
 **Updated:** 2026-09-05
 **Branch:** `feature/26034-CTR-002-contracts-v1`
 **Agents active:** Claude Code (Abhiram, CTR-002). A second session committed
