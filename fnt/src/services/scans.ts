@@ -28,19 +28,33 @@ const MAX_CONSECUTIVE_READ_FAILURES = 5
  * fails or the deadline passes, and `onTick` reports elapsed seconds so a screen can
  * say that it is still waiting rather than looking stuck.
  */
+export async function readOfficerScan(scanId: string): Promise<ScanDetail | undefined> {
+  const { data } = await apiClient.GET('/scans/{scan_id}', {
+    params: { path: { scan_id: scanId } },
+  })
+  return data
+}
+
+// The consumer surface reads its own route: no token, and by jurisdiction it can only
+// ever see consumer scans.
+export async function readConsumerScan(scanId: string): Promise<ScanDetail | undefined> {
+  const { data } = await apiClient.GET('/consumer/scans/{scan_id}', {
+    params: { path: { scan_id: scanId } },
+  })
+  return data
+}
+
 export async function awaitScanOutcome(
   scanId: string,
   onTick?: (elapsedSeconds: number) => void,
+  read: (scanId: string) => Promise<ScanDetail | undefined> = readOfficerScan,
 ): Promise<ScanDetail> {
   const started = Date.now()
   let failedReads = 0
   for (;;) {
     let detail: ScanDetail | undefined
     try {
-      const { data } = await apiClient.GET('/scans/{scan_id}', {
-        params: { path: { scan_id: scanId } },
-      })
-      detail = data
+      detail = await read(scanId)
     } catch {
       detail = undefined
     }

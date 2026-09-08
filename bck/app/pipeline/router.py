@@ -44,6 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import (
     CalibrationMethod,
+    Jurisdiction,
     Principal,
     RoleTier,
     Scan,
@@ -140,10 +141,36 @@ async def submit_image_scan(
     error: the scan returns to RECEIVED with the instruction attached, which is exactly
     what happened — accepted, and no evaluation made of the package.
     """
+    return await _accept_image_scan(
+        session,
+        principal,
+        background,
+        await image.read(),
+        calibration_method=calibration_method,
+        reference_type=reference_type,
+        artwork_dpi=artwork_dpi,
+        product_category=product_category,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+    )
+
+
+async def _accept_image_scan(
+    session: AsyncSession,
+    principal: Principal,
+    background: BackgroundTasks,
+    image_bytes: bytes,
+    *,
+    calibration_method: CalibrationMethod,
+    reference_type: str | None,
+    artwork_dpi: float | None,
+    product_category: ProductCategory | None,
+    institutional_or_industrial_confirmed: bool,
+) -> ScanDetail:
+    """Store the scan at PROCESSING, queue evaluation, and return the row to poll."""
     calibration = ImageCalibration(
         method=calibration_method, reference_type=reference_type, artwork_dpi=artwork_dpi
     )
-    frame = _decode(await image.read())
+    frame = _decode(image_bytes)
     scan = repository.new_scan(
         principal, ScanSourceType.PHYSICAL_LABEL, calibration.method, product_category
     )
@@ -268,6 +295,10 @@ async def get_scan(scan_id: UUID, session: Session, principal: Officer) -> ScanD
     if scan is None:
         raise _not_found()
 
+    return await _stored(session, scan)
+
+
+async def _stored(session: AsyncSession, scan: Scan) -> ScanDetail:
     verdict = await repository.latest_verdict(session, scan.id)
     findings = () if verdict is None else await repository.findings_for(session, verdict.id)
     return stored_detail(
@@ -275,6 +306,7 @@ async def get_scan(scan_id: UUID, session: Session, principal: Officer) -> ScanD
         verdict=verdict,
         findings=findings,
         finalised=await repository.is_finalised(session, scan.id),
+        panel_spans=await repository.panel_spans_for(session, scan.id),
     )
 
 
@@ -366,3 +398,55 @@ def _evaluation_failed(scan_id: UUID) -> HTTPException:
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail=f"evaluation did not complete for scan {scan_id}; the scan is recorded as failed",
     )
+
+
+# --- The consumer surface -------------------------------------------------------------
+#
+# A member of the public photographs a label and reads back what the rules say about it.
+# No login and no identity: every consumer scan is submitted as one fixed principal whose
+# jurisdiction is the literal state "consumer". That is not a territory any officer holds,
+# so the repository's jurisdiction predicate keeps consumer scans out of every officer
+# view and officer scans out of the consumer read route, with no second code path.
+#
+# ponytail: no rate limit. The route accepts one image and queues one evaluation; the
+# evaluation lock already serialises the CPU. A per-IP limit at nginx is the upgrade.
+
+CONSUMER = Principal(
+    subject="consumer", tier=RoleTier.STATE, jurisdiction=Jurisdiction(state="consumer")
+)
+
+consumer_router = APIRouter(prefix="/consumer", tags=["consumer"])
+
+
+@consumer_router.post("/scans/image", status_code=status.HTTP_201_CREATED)
+async def submit_consumer_image_scan(
+    session: Session,
+    background: BackgroundTasks,
+    image: Annotated[UploadFile, File()],
+) -> ScanDetail:
+    """Accept a consumer's photograph of a label; poll ``GET /consumer/scans/{id}``.
+
+    Uncalibrated and uncategorised by construction: a consumer confirms no product
+    category and places no reference object, so the packaged rules apply unchanged and
+    no physical measurement is ever reported from their photograph.
+    """
+    return await _accept_image_scan(
+        session,
+        CONSUMER,
+        background,
+        await image.read(),
+        calibration_method=CalibrationMethod.NONE,
+        reference_type=None,
+        artwork_dpi=None,
+        product_category=None,
+        institutional_or_industrial_confirmed=False,
+    )
+
+
+@consumer_router.get("/scans/{scan_id}")
+async def get_consumer_scan(scan_id: UUID, session: Session) -> ScanDetail:
+    """One consumer scan in full. An officer's scan is a 404 here, by jurisdiction."""
+    scan = await repository.get_scan(session, scan_id, CONSUMER)
+    if scan is None:
+        raise _not_found()
+    return await _stored(session, scan)

@@ -134,3 +134,45 @@ def _detection():
         confidence = 0.81
 
     return _Detection()
+
+
+async def test_a_consumer_scan_needs_no_token_and_is_read_back_the_same_way(
+    client: AsyncClient,
+) -> None:
+    """The consumer route is the officer route without a login; the outcome reads back."""
+    response = await client.post(
+        "/consumer/scans/image",
+        files={"image": ("capture.jpg", _jpeg(blurred_image()), "image/jpeg")},
+    )
+    assert response.status_code == 201, response.text
+    submitted = response.json()
+    assert submitted["verdict"] is None
+    detail = await client.get(f"/consumer/scans/{submitted['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["quality"]["reason_code"] == QualityReason.BLUR_EXCEEDED
+
+
+async def test_consumer_and_officer_scans_do_not_see_each_other(client: AsyncClient) -> None:
+    """Jurisdiction keeps the two apart: each read route 404s the other's scan."""
+    consumer = (
+        await client.post(
+            "/consumer/scans/image",
+            files={"image": ("capture.jpg", _jpeg(blurred_image()), "image/jpeg")},
+        )
+    ).json()
+    officer = await _submit(client, blurred_image())
+    as_officer = await client.get(f"/scans/{consumer['id']}", headers=auth(INSPECTOR))
+    assert as_officer.status_code == 404
+    assert (await client.get(f"/consumer/scans/{officer['id']}")).status_code == 404
+
+
+async def test_the_panel_text_is_read_back_beside_the_findings(client: AsyncClient) -> None:
+    """Every span vision read reaches the reader, cited by a finding or not."""
+    frame = scan_panel_frame()
+    with (
+        patch("app.pipeline.orchestrator.detect_pdp", return_value=_detection()),
+        patch("app.pipeline.orchestrator.extract_panel_text", return_value=list(PANEL_SPANS)),
+    ):
+        submitted = await _submit(client, frame)
+    detail = await _read(client, submitted["id"])
+    assert [s["text"] for s in detail["panel_spans"]] == [s.text for s in PANEL_SPANS]

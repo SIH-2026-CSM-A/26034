@@ -57,11 +57,20 @@ export interface paths {
         put?: never;
         /**
          * Submit Image Scan
-         * @description Evaluate a photographed package, or return a capture instruction.
+         * @description Accept a photographed package and evaluate it after this response has gone.
          *
-         *     A rejected capture is a 201 with no verdict, not an error: the submission was accepted
-         *     and stored, and what came back is an instruction rather than a finding. The scan stays
-         *     at RECEIVED, whose meaning is exactly that — accepted, evaluation not started.
+         *     The response is the scan at PROCESSING with no verdict: the row a client polls
+         *     ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
+         *     because it is an OCR run of the better part of a minute on CPU, and a request that
+         *     sits silent for that long does not survive a phone on a mobile network — the carrier
+         *     path drops it around twenty-five seconds in, the browser reports "failed to fetch",
+         *     and the verdict that was written a moment later is never seen.
+         *
+         *     What evaluation reports is stored, not returned: a verdict and its findings in their
+         *     tables, and the capture instruction, category proposal and display category as the
+         *     scan's :class:`~app.pipeline.schemas.CaptureOutcome`. A rejected capture is not an
+         *     error: the scan returns to RECEIVED with the instruction attached, which is exactly
+         *     what happened — accepted, and no evaluation made of the package.
          */
         post: operations["submit_image_scan_scans_image_post"];
         delete?: never;
@@ -114,6 +123,50 @@ export interface paths {
          *     do it.
          */
         post: operations["review_scan_scans__scan_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consumer/scans/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Consumer Image Scan
+         * @description Accept a consumer's photograph of a label; poll ``GET /consumer/scans/{id}``.
+         *
+         *     Uncalibrated and uncategorised by construction: a consumer confirms no product
+         *     category and places no reference object, so the packaged rules apply unchanged and
+         *     no physical measurement is ever reported from their photograph.
+         */
+        post: operations["submit_consumer_image_scan_consumer_scans_image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consumer/scans/{scan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Consumer Scan
+         * @description One consumer scan in full. An officer's scan is a 404 here, by jurisdiction.
+         */
+        get: operations["get_consumer_scan_consumer_scans__scan_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -367,6 +420,11 @@ export interface components {
              * Format: password
              */
             client_secret?: string | null;
+        };
+        /** Body_submit_consumer_image_scan_consumer_scans_image_post */
+        Body_submit_consumer_image_scan_consumer_scans_image_post: {
+            /** Image */
+            image: string;
         };
         /** Body_submit_image_scan_scans_image_post */
         Body_submit_image_scan_scans_image_post: {
@@ -686,6 +744,16 @@ export interface components {
             density_band: string;
         };
         /**
+         * PanelSpan
+         * @description One run of text as vision read it off the panel, by the id the findings cite.
+         */
+        PanelSpan: {
+            /** Span Id */
+            span_id: string;
+            /** Text */
+            text: string;
+        };
+        /**
          * ProductCategory
          * @description A *confirmed* product category that a sector override may key on.
          *
@@ -935,6 +1003,11 @@ export interface components {
              * @default []
              */
             findings: components["schemas"]["FieldFinding"][];
+            /**
+             * Panel Spans
+             * @default []
+             */
+            panel_spans: components["schemas"]["PanelSpan"][];
             quality?: components["schemas"]["QualityRejection"] | null;
             category_proposal?: components["schemas"]["CategoryProposal"] | null;
             display_category?: components["schemas"]["DisplayCategoryTaxonomy"] | null;
@@ -1260,6 +1333,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_consumer_image_scan_consumer_scans_image_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_submit_consumer_image_scan_consumer_scans_image_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_consumer_scan_consumer_scans__scan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanDetail"];
                 };
             };
             /** @description Validation Error */

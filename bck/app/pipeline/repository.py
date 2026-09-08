@@ -42,7 +42,7 @@ from app.core import (
 from app.modules.evidence import create_genesis_entry
 from app.modules.rules import ProductCategory, default_rule_set_version
 from app.pipeline.capture import QualityRejection
-from app.pipeline.schemas import CaptureOutcome, ReviewRequest, ScanFilters
+from app.pipeline.schemas import CaptureOutcome, PanelSpan, ReviewRequest, ScanFilters
 
 FINALISING_ACTIONS = frozenset({ReviewAction.CONFIRM, ReviewAction.REJECT, ReviewAction.OVERRIDE})
 """The actions that end a review. ANNOTATE and REQUEST_RECAPTURE are recorded events: a
@@ -334,6 +334,22 @@ async def persist_quality_rejection(
     async with session.begin():
         scan.capture_outcome_json = CaptureOutcome(quality=quality).model_dump_json()
         scan.status = ScanStatus.RECEIVED
+
+
+async def panel_spans_for(session: AsyncSession, scan_id: UUID) -> tuple[PanelSpan, ...]:
+    """The spans in the scan's latest evidence entry, text only, in the order written."""
+    statement = (
+        select(EvidenceEntryRow)
+        .where(EvidenceEntryRow.scan_id == scan_id)
+        .order_by(EvidenceEntryRow.sequence.desc())
+        .limit(1)
+    )
+    entry = (await session.execute(statement)).scalar_one_or_none()
+    if entry is None:
+        return ()
+    payload = json.loads(entry.payload_json)
+    # Validated straight off the stored record: the id is read through, never written.
+    return tuple(PanelSpan.model_validate(span) for span in payload.get("spans", ()))
 
 
 def capture_outcome(scan: Scan) -> CaptureOutcome:
