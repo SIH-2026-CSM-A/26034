@@ -23,7 +23,7 @@ from app.core import FieldFindingRow, Scan, VerdictRow
 from app.modules.extraction.category import DisplayCategoryTaxonomy
 from app.pipeline.capture import QualityRejection
 from app.pipeline.repository import capture_outcome
-from app.pipeline.schemas import ScanDetail, ScanSummary
+from app.pipeline.schemas import PanelSpan, ScanDetail, ScanSummary
 
 
 def finding_from_row(row: FieldFindingRow) -> FieldFinding:
@@ -99,6 +99,7 @@ def stored_detail(
     verdict: VerdictRow | None,
     findings: Sequence[FieldFindingRow],
     finalised: bool,
+    panel_spans: Sequence[PanelSpan] = (),
 ) -> ScanDetail:
     """A scan read back from storage, with the findings behind its latest verdict.
 
@@ -114,6 +115,7 @@ def stored_detail(
         subject_ref=None if verdict is None else verdict.subject_ref,
         evaluated_at=None if verdict is None else verdict.evaluated_at,
         findings=tuple(finding_from_row(row) for row in findings),
+        panel_spans=tuple(panel_spans),
         quality=outcome.quality,
         category_proposal=outcome.category_proposal,
         display_category=outcome.display_category,

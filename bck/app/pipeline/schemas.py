@@ -84,12 +84,29 @@ class ScanSummary(RuleSetStamped):
     """
 
 
+class PanelSpan(BaseModel):
+    """One run of text as vision read it off the panel, by the id the findings cite.
+
+    Validated from the stored evidence record, which carries the whole span; the other
+    fields are ignored here, not copied, so this stays text and an id read through.
+    """
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    span_id: str
+    text: str
+
+
 class ScanDetail(ScanSummary):
     """One scan in full: its findings, or the capture instruction that replaced them."""
 
     subject_ref: str | None = None
     evaluated_at: datetime | None = None
     findings: tuple[FieldFinding, ...] = ()
+    panel_spans: tuple[PanelSpan, ...] = ()
+    """Every span the evidence record holds, in reading order, text only. What the label
+    actually said — an ingredient list, a batch code — reaches a reader through this,
+    whether or not a finding cited it. Empty until evaluation has written the record."""
     quality: QualityRejection | None = None
     """Present only where the quality gate refused the capture. A scan carrying this has
     no verdict and no findings, and that is the whole of what it says: we could not read

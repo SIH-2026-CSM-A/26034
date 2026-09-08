@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import { setToken } from '../services/auth'
 
@@ -121,6 +121,13 @@ export function Login() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <p className="mt-8 border-t border-hairline pt-4 text-secondary text-mute">
+          Not an officer?{' '}
+          <Link to="/consumer" className="text-ink underline underline-offset-2">
+            Check a package label without signing in
+          </Link>
+          .
+        </p>
       </main>
     </div>
   )

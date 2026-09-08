@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoutes } from './admin/AdminRoutes'
 import { Login } from './auth/Login'
+import { ConsumerRoutes } from './consumer/ConsumerRoutes'
 import { RequireAuth } from './auth/RequireAuth'
 import { OfficerRoutes } from './officer/OfficerRoutes'
 
@@ -34,6 +35,8 @@ export function App() {
           </RequireAuth>
         }
       />
+      {/* Public. Holds no token and asks for none; the routes it calls are unauthenticated. */}
+      <Route path="/consumer/*" element={<ConsumerRoutes />} />
       <Route path="/" element={<Navigate to="/officer" replace />} />
     </Routes>
   )
