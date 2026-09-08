@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { awaitScanOutcome } from '../services/scans'
 import type { components } from '../services/generated/schema'
 import { VerdictBanner } from './components/VerdictBanner'
 
@@ -24,12 +25,13 @@ const PRODUCT_CATEGORIES: ReadonlyArray<{ value: ProductCategory; label: string 
 export function ScanSubmission() {
   const [file, setFile] = useState<File | null>(null)
   const [calibrationMethod, setCalibrationMethod] = useState<CalibrationMethod>('none')
-  const [calibrationValue, setCalibrationValue] = useState<string>('')
+  const [referenceType, setReferenceType] = useState<string>('coin')
   const [artworkDpi, setArtworkDpi] = useState<string>('')
   const [productCategory, setProductCategory] = useState<ProductCategory | ''>('')
   const [institutionalConfirmed, setInstitutionalConfirmed] = useState<boolean>(false)
 
   const [submitting, setSubmitting] = useState<boolean>(false)
+  const [waitedSeconds, setWaitedSeconds] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ScanDetail | null>(null)
 
@@ -47,10 +49,11 @@ export function ScanSubmission() {
 
       try {
         const formData = new FormData()
-        formData.append('file', file)
+        // The backend reads the upload from the form field named 'image'.
+        formData.append('image', file)
         formData.append('calibration_method', calibrationMethod)
-        if (calibrationMethod === 'reference_object' && calibrationValue) {
-          formData.append('calibration_value', calibrationValue)
+        if (calibrationMethod === 'reference_object' && referenceType) {
+          formData.append('reference_type', referenceType)
         }
         if (calibrationMethod === 'artwork' && artworkDpi) {
           formData.append('artwork_dpi', artworkDpi)
@@ -69,17 +72,20 @@ export function ScanSubmission() {
 
         if (apiError || !data) {
           setError('Failed to fetch')
-        } else {
-          setResult(data)
-          setError(null)
+          return
         }
-      } catch {
-        setError('Failed to fetch')
+        // The submission is accepted before evaluation runs. Read it back until the
+        // server has decided; each read is a short request that a phone network keeps.
+        setWaitedSeconds(0)
+        setResult(await awaitScanOutcome(data.id, setWaitedSeconds))
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch')
       } finally {
         setSubmitting(false)
       }
     },
-    [file, calibrationMethod, calibrationValue, artworkDpi, productCategory, institutionalConfirmed],
+    [file, calibrationMethod, referenceType, artworkDpi, productCategory, institutionalConfirmed],
   )
 
   const resetForm = () => {
@@ -138,10 +144,20 @@ export function ScanSubmission() {
             <div className="mt-6">
               {result.verdict ? (
                 <VerdictBanner verdict={result.verdict} />
+              ) : result.quality ? (
+                <div className="border border-seal bg-paper p-4">
+                  <span className="font-mono text-label uppercase text-seal">Capture refused — no verdict</span>
+                  <p className="mt-1 text-body">{result.quality.instruction}</p>
+                  <p className="mt-1 font-mono text-label text-mute">Reason code: {result.quality.reason_code}</p>
+                </div>
               ) : (
                 <div className="border border-dashed border-mute p-4">
                   <span className="font-mono text-label text-mute">Status: {result.status.toUpperCase()}</span>
-                  <p className="mt-1 text-secondary text-mute">No recommendation verdict issued.</p>
+                  <p className="mt-1 text-secondary text-mute">
+                    {result.status === 'failed'
+                      ? 'Evaluation did not finish. No finding about the package was made.'
+                      : 'No verdict was issued for this scan.'}
+                  </p>
                 </div>
               )}
             </div>
@@ -259,19 +275,18 @@ export function ScanSubmission() {
 
               {calibrationMethod === 'reference_object' && (
                 <div className="mt-3">
-                  <label htmlFor="calibration-value" className="block text-label text-mute">
-                    Reference object dimension (mm)
+                  <label htmlFor="reference-type" className="block text-label text-mute">
+                    Reference object type
                   </label>
-                  <input
-                    id="calibration-value"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="e.g. 85.6"
-                    value={calibrationValue}
-                    onChange={(e) => setCalibrationValue(e.target.value)}
+                  <select
+                    id="reference-type"
+                    value={referenceType}
+                    onChange={(e) => setReferenceType(e.target.value)}
                     className="mt-1 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
-                  />
+                  >
+                    <option value="coin">Standard Indian Coin (e.g. ₹5)</option>
+                    <option value="card">Standard Credit/ID Card (85.6 mm)</option>
+                  </select>
                 </div>
               )}
 
@@ -345,7 +360,11 @@ export function ScanSubmission() {
                   : 'bg-ink text-paper hover:bg-ink/90'
               }`}
             >
-              {submitting ? 'Submitting scan to pipeline...' : 'Submit scan for inspection'}
+              {submitting
+                ? waitedSeconds > 0
+                  ? `Evaluating on the server… ${waitedSeconds}s`
+                  : 'Submitting scan to pipeline...'
+                : 'Submit scan for inspection'}
             </button>
           </form>
         )}

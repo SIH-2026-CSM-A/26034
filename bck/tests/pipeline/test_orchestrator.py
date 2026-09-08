@@ -216,8 +216,8 @@ anchor with the address cluster below it, and one line — the batch code — th
 Rule 6 obligation and must therefore come back unclassified."""
 
 
-def scan_panel(spans=PANEL_SPANS, **overrides):
-    """Run the image path over supplied spans, past the gate and the models."""
+def scan_panel_frame() -> np.ndarray:
+    """A frame the quality gate accepts: a dark panel with three lines of large text."""
     frame = np.full((600, 800, 3), 200, dtype=np.uint8)
     cv2.rectangle(frame, (60, 60), (740, 540), (40, 40, 40), -1)
     for index in range(3):
@@ -230,6 +230,12 @@ def scan_panel(spans=PANEL_SPANS, **overrides):
             (230, 230, 230),
             4,
         )
+    return frame
+
+
+def scan_panel(spans=PANEL_SPANS, **overrides):
+    """Run the image path over supplied spans, past the gate and the models."""
+    frame = scan_panel_frame()
 
     class _Detection:
         bbox = (60, 60, 680, 480)

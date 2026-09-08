@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { awaitScanOutcome } from '../services/scans'
 import type { components } from '../services/generated/schema'
 import { VerdictBanner } from './components/VerdictBanner'
 import type { Verdict as FixtureVerdict } from '../fixtures/contracts'
@@ -36,6 +37,7 @@ export function CameraCapture() {
   // API submission state
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [waitedSeconds, setWaitedSeconds] = useState<number>(0)
   const [scanResult, setScanResult] = useState<ScanDetail | null>(null)
 
   // Scoped SVG pattern ID per DESIGN.md and responsive duplicate protection
@@ -190,7 +192,6 @@ export function CameraCapture() {
 
       // Backend route /scans/image expects form field named 'image'
       formData.append('image', imageFile)
-      formData.append('file', imageFile)
       formData.append('calibration_method', calibrationMethod)
       if (calibrationMethod === 'reference_object' && referenceType) {
         formData.append('reference_type', referenceType)
@@ -209,12 +210,15 @@ export function CameraCapture() {
 
       if (apiError || !data) {
         setSubmissionError('Failed to fetch')
-      } else {
-        setScanResult(data)
-        setStep('result')
+        return
       }
-    } catch {
-      setSubmissionError('Failed to fetch')
+      // The submission is accepted before evaluation runs. Read it back until the
+      // server has decided; each read is a short request that a phone network keeps.
+      setWaitedSeconds(0)
+      setScanResult(await awaitScanOutcome(data.id, setWaitedSeconds))
+      setStep('result')
+    } catch (err) {
+      setSubmissionError(err instanceof Error ? err.message : 'Failed to fetch')
     } finally {
       setSubmitting(false)
     }
@@ -564,7 +568,11 @@ export function CameraCapture() {
                 disabled={submitting}
                 className="flex min-h-target flex-1 items-center justify-center border border-ink bg-ink px-4 py-3 font-mono text-body text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-mute disabled:border-mute"
               >
-                {submitting ? 'Submitting scan to pipeline...' : 'Confirm & Submit scan'}
+                {submitting
+                  ? waitedSeconds > 0
+                    ? `Evaluating on the server… ${waitedSeconds}s`
+                    : 'Submitting scan to pipeline...'
+                  : 'Confirm & Submit scan'}
               </button>
             </div>
           </div>
@@ -588,13 +596,25 @@ export function CameraCapture() {
               <div className="mt-6">
                 {scanResult.verdict ? (
                   <VerdictBanner verdict={scanResult.verdict as FixtureVerdict} />
+                ) : scanResult.quality ? (
+                  <div className="border border-seal bg-paper p-4">
+                    <span className="font-mono text-label uppercase text-seal">
+                      Capture refused — no verdict
+                    </span>
+                    <p className="mt-1 text-body">{scanResult.quality.instruction}</p>
+                    <p className="mt-1 font-mono text-label text-mute">
+                      Reason code: {scanResult.quality.reason_code}
+                    </p>
+                  </div>
                 ) : (
                   <div className="border border-dashed border-mute p-4">
                     <span className="font-mono text-label text-mute">
                       STATUS: {scanResult.status.toUpperCase()}
                     </span>
                     <p className="mt-1 text-secondary text-mute">
-                      Evaluation received. Pending automated pipeline processing.
+                      {scanResult.status === 'failed'
+                        ? 'Evaluation did not finish. No finding about the package was made.'
+                        : 'No verdict was issued for this scan.'}
                     </p>
                   </div>
                 )}
