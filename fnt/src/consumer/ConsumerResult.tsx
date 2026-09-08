@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import type { BarcodeResult } from '../services/barcode'
 import type { components } from '../services/generated/schema'
 import { awaitScanOutcome, readConsumerScan } from '../services/scans'
 import { VerdictBanner } from '../officer/components/VerdictBanner'
@@ -30,6 +31,8 @@ const STATE_SHORT: Record<string, string> = {
 
 export function ConsumerResult() {
   const { scanId = '' } = useParams()
+  const location = useLocation()
+  const barcode = (location.state as { barcode?: BarcodeResult | null } | null)?.barcode ?? null
   const [scan, setScan] = useState<ScanDetail | null>(null)
   const [waited, setWaited] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +76,13 @@ export function ConsumerResult() {
           </div>
         )}
 
-        {scan && <Outcome scan={scan} />}
+        {scan && <Outcome scan={scan} barcode={barcode} />}
       </main>
     </div>
   )
 }
 
-function Outcome({ scan }: { scan: ScanDetail }) {
+function Outcome({ scan, barcode }: { scan: ScanDetail; barcode: BarcodeResult | null }) {
   const fields = summariseByField(scan.findings)
   const ingredients = ingredientText(scan.panel_spans)
   const codes = ingredients ? additiveCodes(ingredients) : []
@@ -212,7 +215,25 @@ function Outcome({ scan }: { scan: ScanDetail }) {
         )}
       </section>
 
-      <ReviewsPanel />
+      <section>
+        <h2 className="text-section font-semibold">Barcode</h2>
+        {barcode ? (
+          <p className="mt-2 font-mono text-body">
+            {barcode.value} <span className="text-mute">· {barcode.symbology}</span>
+            {!barcode.checkDigitVerifies && (
+              <span className="text-mute"> · check digit does not verify</span>
+            )}
+          </p>
+        ) : (
+          <p className="mt-2 text-secondary text-mute">No barcode was read from this photograph.</p>
+        )}
+        <p className="mt-1 text-label text-mute">
+          Read in your browser from the photograph. The digits are shown as printed; nothing
+          is looked up against any registry and no product name is inferred from them.
+        </p>
+      </section>
+
+      <ReviewsPanel initialIdentifier={barcode?.value ?? ''} />
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link

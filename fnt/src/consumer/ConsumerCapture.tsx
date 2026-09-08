@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
 import { ConsumerHeader } from './ConsumerHeader'
+import { decodeFromImageSource, type BarcodeResult } from '../services/barcode'
 
 type Body = components['schemas']['Body_submit_consumer_image_scan_consumer_scans_image_post']
 
@@ -17,6 +18,8 @@ export function ConsumerCapture() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Read in the browser from the chosen photograph. Not sent, not looked up anywhere.
+  const [barcode, setBarcode] = useState<BarcodeResult | null | 'pending'>(null)
 
   const choose = useCallback(
     (chosen: File | null) => {
@@ -24,6 +27,16 @@ export function ConsumerCapture() {
       setFile(chosen)
       setPreviewUrl(chosen ? URL.createObjectURL(chosen) : null)
       setError(null)
+      setBarcode(chosen ? 'pending' : null)
+      if (chosen) {
+        const img = new Image()
+        img.onload = () => {
+          void decodeFromImageSource(img, img.naturalWidth, img.naturalHeight).then(setBarcode)
+          URL.revokeObjectURL(img.src)
+        }
+        img.onerror = () => setBarcode(null)
+        img.src = URL.createObjectURL(chosen)
+      }
     },
     [previewUrl],
   )
@@ -42,13 +55,15 @@ export function ConsumerCapture() {
         setError('The photograph could not be submitted. Check the connection and try again.')
         return
       }
-      navigate(`/consumer/scans/${data.id}`)
+      navigate(`/consumer/scans/${data.id}`, {
+        state: { barcode: barcode === 'pending' ? null : barcode },
+      })
     } catch {
       setError('The photograph could not be submitted. Check the connection and try again.')
     } finally {
       setSubmitting(false)
     }
-  }, [file, navigate])
+  }, [file, navigate, barcode])
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -83,6 +98,16 @@ export function ConsumerCapture() {
               alt="The label you chose"
               className="mt-4 max-h-[420px] w-full border border-hairline object-contain"
             />
+          )}
+          {file && (
+            <p className="mt-2 font-mono text-secondary">
+              <span className="text-mute">Barcode: </span>
+              {barcode === 'pending'
+                ? 'reading…'
+                : barcode
+                  ? `${barcode.value} · ${barcode.symbology}${barcode.checkDigitVerifies ? '' : ' · check digit does not verify'}`
+                  : 'none read in this photograph'}
+            </p>
           )}
         </div>
 
