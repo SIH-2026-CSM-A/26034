@@ -106,6 +106,20 @@ class Scan(Base):
     refused there rather than stored and silently failing to route. Tracked in TODO.md.
     """
 
+    capture_outcome_json: Mapped[str | None] = mapped_column(Text)
+    """What the pipeline said about the capture and its category, beside the verdict.
+
+    A JSON :class:`app.pipeline.schemas.CaptureOutcome`: the quality-gate refusal, the
+    category proposal and the display category. These used to ride the submission response
+    and nothing else. Evaluation now finishes after the response has gone (a phone on a
+    mobile network drops a request that sits silent for the length of an OCR run), so the
+    only way an officer sees them is by reading the scan back, and that needs them stored.
+
+    Text rather than a JSON column type so this table stays portable across the dialects
+    the test suite runs against. ``NULL`` means evaluation has not reported yet — or, for a
+    row written before this column existed, that nothing was kept.
+    """
+
     image_refs: Mapped[list[dict[str, Any]]] = mapped_column(Json, nullable=False, default=list)
     """Object-store references for the images behind this scan, one entry each. A scan
     has as many as it has capture angles, and the count varies by source."""

@@ -22,6 +22,7 @@ from app.contracts import (
 from app.core import FieldFindingRow, Scan, VerdictRow
 from app.modules.extraction.category import DisplayCategoryTaxonomy
 from app.pipeline.capture import QualityRejection
+from app.pipeline.repository import capture_outcome
 from app.pipeline.schemas import ScanDetail, ScanSummary
 
 
@@ -103,11 +104,17 @@ def stored_detail(
 
     A scan with no verdict row is not an error and not an empty verdict: the quality gate
     refused the capture, or evaluation has not finished. ``verdict`` is ``None`` and there
-    are no findings, which says exactly that and nothing about the package.
+    are no findings, which says exactly that and nothing about the package. Which of the
+    two it was is on the row: ``status`` is PROCESSING while evaluation runs, and a refusal
+    leaves it at RECEIVED with the capture instruction stored beside it.
     """
+    outcome = capture_outcome(scan)
     return ScanDetail(
         **scan_summary(scan, verdict=verdict, finalised=finalised).model_dump(),
         subject_ref=None if verdict is None else verdict.subject_ref,
         evaluated_at=None if verdict is None else verdict.evaluated_at,
         findings=tuple(finding_from_row(row) for row in findings),
+        quality=outcome.quality,
+        category_proposal=outcome.category_proposal,
+        display_category=outcome.display_category,
     )

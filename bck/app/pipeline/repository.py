@@ -41,7 +41,8 @@ from app.core import (
 )
 from app.modules.evidence import create_genesis_entry
 from app.modules.rules import ProductCategory, default_rule_set_version
-from app.pipeline.schemas import ReviewRequest, ScanFilters
+from app.pipeline.capture import QualityRejection
+from app.pipeline.schemas import CaptureOutcome, ReviewRequest, ScanFilters
 
 FINALISING_ACTIONS = frozenset({ReviewAction.CONFIRM, ReviewAction.REJECT, ReviewAction.OVERRIDE})
 """The actions that end a review. ANNOTATE and REQUEST_RECAPTURE are recorded events: a
@@ -289,6 +290,7 @@ async def persist_verdict(
     record: VerdictRecord,
     spans: Sequence[ExtractedSpan] = (),
     unclassified_span_ids: Sequence[str] = (),
+    outcome: CaptureOutcome | None = None,
 ) -> None:
     """Write the verdict, its findings, its evidence entry and the scan's completion.
 
@@ -304,7 +306,41 @@ async def persist_verdict(
     async with session.begin():
         await add_verdict(session, scan, record)
         add_evidence_entry(session, scan, record, spans, unclassified_span_ids)
+        if outcome is not None:
+            scan.capture_outcome_json = outcome.model_dump_json()
         scan.status = ScanStatus.COMPLETE
+
+
+async def mark_processing(session: AsyncSession, scan: Scan) -> None:
+    """Record that evaluation has started, in a transaction of its own.
+
+    PROCESSING is what a client polls against: the row exists, nothing has been decided,
+    and the status will move — to COMPLETE, to FAILED, or back to RECEIVED with a capture
+    instruction attached — without another request from the officer.
+    """
+    async with session.begin():
+        scan.status = ScanStatus.PROCESSING
+
+
+async def persist_quality_rejection(
+    session: AsyncSession, scan: Scan, quality: QualityRejection
+) -> None:
+    """Store the capture instruction and return the scan to RECEIVED.
+
+    RECEIVED because that is what is true: the submission was accepted and no evaluation
+    was made of the package. The instruction is stored so the officer polling for the
+    outcome is told to capture again rather than left looking at a status that stopped.
+    """
+    async with session.begin():
+        scan.capture_outcome_json = CaptureOutcome(quality=quality).model_dump_json()
+        scan.status = ScanStatus.RECEIVED
+
+
+def capture_outcome(scan: Scan) -> CaptureOutcome:
+    """The stored :class:`CaptureOutcome`, or an empty one where nothing was written."""
+    if scan.capture_outcome_json is None:
+        return CaptureOutcome()
+    return CaptureOutcome.model_validate_json(scan.capture_outcome_json)
 
 
 async def mark_failed(session: AsyncSession, scan: Scan) -> None:

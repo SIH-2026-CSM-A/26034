@@ -106,10 +106,10 @@ class ScanDetail(ScanSummary):
     ``span_refs`` has ``min_length=1``, so a proposal citing no evidence cannot be built.
     Three loose fields here would re-express it and drop that.
 
-    **Present on the submission response and absent on a re-read.** Nothing persists a
-    proposal: the ``scans`` row has no column for it, so a scan fetched from storage
-    reports ``None`` whatever was proposed when it was submitted. A column and its
-    migration are their own ticket, not a silent addition to this one.
+    **Absent on the submission response and present on a re-read.** Evaluation runs
+    after the submission response has been sent, so the response cannot carry a proposal;
+    it is stored on the scan row as part of :class:`CaptureOutcome` and reported by the
+    detail route once the status leaves PROCESSING.
     """
 
     display_category: DisplayCategoryTaxonomy | None = None
@@ -218,3 +218,18 @@ class ImageCalibration(ScanDTO):
     method: CalibrationMethod = CalibrationMethod.NONE
     reference_type: str | None = None
     artwork_dpi: float | None = Field(default=None, gt=0)
+
+
+class CaptureOutcome(BaseModel):
+    """What evaluation reported about the capture itself, kept beside the verdict.
+
+    The three response-only fields of :class:`ScanDetail`, as one stored record. Written
+    once when evaluation finishes and read back by the detail route; the verdict and the
+    findings live in their own tables and are not repeated here.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    quality: QualityRejection | None = None
+    category_proposal: CategoryProposal | None = None
+    display_category: DisplayCategoryTaxonomy | None = None

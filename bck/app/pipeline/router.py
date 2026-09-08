@@ -22,6 +22,7 @@ is under examination in another. 403 is kept for the case it is for: an officer 
 jurisdiction whose tier is too low for the action.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Annotated
@@ -29,16 +30,27 @@ from uuid import UUID
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import (
     CalibrationMethod,
     Principal,
     RoleTier,
+    Scan,
     ScanSourceType,
     get_current_principal,
     get_session,
+    get_session_factory,
     require_tier,
 )
 from app.modules.rules import ProductCategory
@@ -52,6 +64,7 @@ from app.pipeline.orchestrator import (
 )
 from app.pipeline.responses import scan_detail, scan_summary, stored_detail
 from app.pipeline.schemas import (
+    CaptureOutcome,
     CatalogueScanRequest,
     ImageCalibration,
     ReviewRequest,
@@ -104,6 +117,7 @@ async def submit_catalogue_scan(
 async def submit_image_scan(
     session: Session,
     principal: Officer,
+    background: BackgroundTasks,
     image: Annotated[UploadFile, File()],
     calibration_method: Annotated[CalibrationMethod, Form()] = CalibrationMethod.NONE,
     reference_type: Annotated[str | None, Form()] = None,
@@ -111,11 +125,20 @@ async def submit_image_scan(
     product_category: Annotated[ProductCategory | None, Form()] = None,
     institutional_or_industrial_confirmed: Annotated[bool, Form()] = False,
 ) -> ScanDetail:
-    """Evaluate a photographed package, or return a capture instruction.
+    """Accept a photographed package and evaluate it after this response has gone.
 
-    A rejected capture is a 201 with no verdict, not an error: the submission was accepted
-    and stored, and what came back is an instruction rather than a finding. The scan stays
-    at RECEIVED, whose meaning is exactly that — accepted, evaluation not started.
+    The response is the scan at PROCESSING with no verdict: the row a client polls
+    ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
+    because it is an OCR run of the better part of a minute on CPU, and a request that
+    sits silent for that long does not survive a phone on a mobile network — the carrier
+    path drops it around twenty-five seconds in, the browser reports "failed to fetch",
+    and the verdict that was written a moment later is never seen.
+
+    What evaluation reports is stored, not returned: a verdict and its findings in their
+    tables, and the capture instruction, category proposal and display category as the
+    scan's :class:`~app.pipeline.schemas.CaptureOutcome`. A rejected capture is not an
+    error: the scan returns to RECEIVED with the instruction attached, which is exactly
+    what happened — accepted, and no evaluation made of the package.
     """
     calibration = ImageCalibration(
         method=calibration_method, reference_type=reference_type, artwork_dpi=artwork_dpi
@@ -126,49 +149,86 @@ async def submit_image_scan(
     )
     async with session.begin():
         repository.add_scan(session, scan)
+    await repository.mark_processing(session, scan)
 
-    try:
-        outcome = run_image_scan(
-            frame,
-            calibration=Calibration(
-                method=calibration.method,
-                reference_type=calibration.reference_type,
-                artwork_dpi=calibration.artwork_dpi,
+    background.add_task(
+        _evaluate_image_scan,
+        scan.id,
+        frame,
+        calibration=Calibration(
+            method=calibration.method,
+            reference_type=calibration.reference_type,
+            artwork_dpi=calibration.artwork_dpi,
+        ),
+        product_category=product_category,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+    )
+    return scan_detail(scan, None, finalised=False)
+
+
+# ponytail: one evaluation at a time. The VM has four cores and PaddleOCR takes all of
+# them for one image; two at once would each take twice as long. A worker queue is the
+# upgrade if concurrent officers ever matter.
+_EVALUATION_LOCK = asyncio.Lock()
+
+
+async def _evaluate_image_scan(
+    scan_id: UUID,
+    frame: np.ndarray,
+    *,
+    calibration: Calibration,
+    product_category: ProductCategory | None,
+    institutional_or_industrial_confirmed: bool,
+) -> None:
+    """Run the pipeline off the event loop and store what it says.
+
+    Runs after the submission response has been sent, on a session of its own — the
+    request's session is closed by then. The pipeline is synchronous CPU work, so it goes
+    to a thread; while it runs the loop stays free to answer the polls for this very scan.
+    Every exit writes a status: nothing leaves a scan at PROCESSING forever.
+    """
+    async with get_session_factory()() as session:
+        # Loaded in a transaction of its own and released: the helpers below each open
+        # theirs, and a load left autobegun would make the first of them raise.
+        async with session.begin():
+            scan = await session.get(Scan, scan_id)
+        assert scan is not None  # written and committed by the request that queued this
+        try:
+            async with _EVALUATION_LOCK:
+                outcome = await asyncio.to_thread(
+                    run_image_scan,
+                    frame,
+                    calibration=calibration,
+                    product_category=product_category,
+                    evaluated_at=datetime.now(UTC),
+                    subject_ref=str(scan.id),
+                    institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+                )
+        except Exception:
+            await repository.mark_failed(session, scan)
+            logger.exception("image scan %s failed during evaluation", scan.id)
+            return
+
+        if isinstance(outcome, QualityRejection):
+            await repository.persist_quality_rejection(session, scan, outcome)
+            return
+
+        assert isinstance(outcome, ImageScanResult)
+        # Every span reaches the evidence record, with the unplaced ones named inside it.
+        # `spans` already holds them, so they are identified by id rather than repeated.
+        # `product_category` on the row is the officer's own answer, written at submission;
+        # the proposal and the display classification are stored beside it, never in it.
+        await repository.persist_verdict(
+            session,
+            scan,
+            outcome.verdict,
+            outcome.spans,
+            [span.span_id for span in outcome.unclassified_spans],
+            outcome=CaptureOutcome(
+                category_proposal=outcome.category_proposal,
+                display_category=outcome.display_category,
             ),
-            product_category=product_category,
-            evaluated_at=datetime.now(UTC),
-            subject_ref=str(scan.id),
-            institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         )
-    except Exception:
-        await repository.mark_failed(session, scan)
-        logger.exception("image scan %s failed during evaluation", scan.id)
-        raise _evaluation_failed(scan.id) from None
-
-    if isinstance(outcome, QualityRejection):
-        return scan_detail(scan, None, finalised=False, quality=outcome)
-
-    assert isinstance(outcome, ImageScanResult)
-    # Every span reaches the evidence record, with the unplaced ones named inside it.
-    # `spans` already holds them, so they are identified by id rather than repeated.
-    await repository.persist_verdict(
-        session,
-        scan,
-        outcome.verdict,
-        outcome.spans,
-        [span.span_id for span in outcome.unclassified_spans],
-    )
-    # The proposal and the display classification ride the response and touch nothing else.
-    # `new_scan` above already wrote `product_category` from the submitted form field, which
-    # is the officer's own answer; these are evidence for the question and a presentation
-    # axis beside it, not two more ways of answering it.
-    return scan_detail(
-        scan,
-        outcome.verdict,
-        finalised=False,
-        category_proposal=outcome.category_proposal,
-        display_category=outcome.display_category,
-    )
 
 
 @scan_router.get("")
