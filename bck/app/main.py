@@ -29,6 +29,7 @@ from app.core import auth_router, dispose_engine, get_settings
 from app.modules.analytics.router import analytics_router
 from app.modules.complaints.router import complaints_router
 from app.modules.reviews.router import reviews_router
+from app.modules.vendor.router import vendor_router
 from app.pipeline.router import scan_router
 
 API_TITLE = "PCCS — Packaged Commodity Compliance System"
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     application.include_router(reviews_router)
     application.include_router(analytics_router)
     application.include_router(complaints_router)
+    application.include_router(vendor_router)
     return application
 
 
