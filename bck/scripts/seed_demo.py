@@ -88,6 +88,11 @@ def listing(i: int) -> dict:
         "MANUFACTURE_DATE": f"Mfd. {when:%m/%Y}",
         "BEST_BEFORE_DATE": "Best before 12 months from manufacture",
         "CONSUMER_CARE": "Consumer care: care@example.in, 1800 000 0000",
+        # A catalogue record declares nothing it does not list, so a listing without these
+        # two fails Rule 6(1)(f) and 6(1)(g) outright and every seeded verdict was
+        # POTENTIAL_VIOLATION. With them, a complete listing reaches REVIEW.
+        "DIMENSIONS": "Dimensions: 30 cm x 20 cm x 8 cm",
+        "OTHER_PRESCRIBED_MATTER": f"Lot No. SD{i:04d}",
     }
     # Roughly two in five listings omit a mandatory declaration, so the seed shows every
     # verdict the pipeline can reach rather than a wall of PASS.
@@ -224,6 +229,22 @@ async def seed_rows(complaint_ids: list[str]) -> None:
 
 def main() -> None:
     password = sys.argv[1]
+    # `seed_demo.py <password> --append N OFFSET` submits N more listings numbered from
+    # OFFSET and nothing else, for a second run on a database already seeded.
+    if len(sys.argv) >= 5 and sys.argv[2] == "--append":
+        status, tok = call("POST", "/auth/token", form={"username": OFFICER, "password": password})
+        assert status == 200, (status, tok)
+        count, offset = int(sys.argv[3]), int(sys.argv[4])
+        verdicts = []
+        for i in range(offset, offset + count):
+            status, detail = call("POST", "/scans", body=listing(i), token=tok["access_token"])
+            assert status == 201, (status, detail)
+            verdicts.append(detail["verdict"])
+        print(
+            f"appended {count}: "
+            + ", ".join(f"{v}={verdicts.count(v)}" for v in sorted(set(verdicts)))
+        )
+        return
     status, tok = call("POST", "/auth/token", form={"username": OFFICER, "password": password})
     assert status == 200, (status, tok)
     token = tok["access_token"]
