@@ -21,7 +21,7 @@ The vocabularies live in :mod:`app.core.enums` and the column plumbing in
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.enums import ComplaintStatus, ConsumerSafetyClaim
@@ -59,7 +59,15 @@ class ComplaintRow(Base):
     """
 
     __tablename__ = "complaints"
-    __table_args__ = (Index("ix_complaints_scan_id_raised_at", "scan_id", "raised_at"),)
+    __table_args__ = (
+        Index("ix_complaints_scan_id_raised_at", "scan_id", "raised_at"),
+        UniqueConstraint("supersedes_id", name="uq_complaints_supersedes_id"),
+    )
+    """The uniqueness is the storage-level answer to a forked thread: at most one row may
+    supersede any given row, so two officers transitioning the same head at the same moment
+    produce one transition and one refusal rather than two heads. It is not an
+    ``is_current`` flag — nothing is ever set on the superseded row — and a first row's
+    NULL is exempt, as NULLs are from every unique constraint."""
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     scan_id: Mapped[UUID] = mapped_column(ForeignKey("scans.id"), nullable=False, index=True)
@@ -106,6 +114,13 @@ class ComplaintRow(Base):
 
     supersedes_id: Mapped[UUID | None] = mapped_column(ForeignKey("complaints.id"))
     """The row this one replaces, where it replaces one. Both rows stay."""
+
+    note: Mapped[str | None] = mapped_column(Text)
+    """The recording officer's own words about **this** event — what the manufacturer did,
+    or why the escalation was closed. Separate from :attr:`issue_summary`, which a
+    superseding row restates by value and must not reword. ``NULL`` on a first row and on
+    an acknowledgement recorded without comment; the route requires it for RESOLVED and
+    REJECTED, because a closure with no stated reason is not reviewable by anyone else."""
 
 
 class ProductReviewRow(Base):

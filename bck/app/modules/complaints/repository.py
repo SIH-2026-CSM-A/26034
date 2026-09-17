@@ -33,6 +33,7 @@ def _row_to_record(row: ComplaintRow) -> ComplaintRecord:
         raised_by_officer_id=row.raised_by_officer_id,
         raised_at=row.raised_at,
         supersedes_id=row.supersedes_id,
+        note=row.note,
     )
 
 
@@ -48,6 +49,7 @@ def _record_to_row(record: ComplaintRecord) -> ComplaintRow:
         raised_by_officer_id=record.raised_by_officer_id,
         raised_at=record.raised_at,
         supersedes_id=record.supersedes_id,
+        note=record.note,
     )
 
 
@@ -91,6 +93,12 @@ async def get_latest_complaint_for_scan(
     if heads:
         return heads[-1]
     return history[-1]
+
+
+async def is_superseded(session: AsyncSession, complaint_id: UUID) -> bool:
+    """Whether a later row already replaces this one — that is, whether it is not a head."""
+    statement = select(ComplaintRow.id).where(ComplaintRow.supersedes_id == complaint_id)
+    return (await session.scalars(statement)).first() is not None
 
 
 def _scoped_complaints(principal: Principal) -> Select[Any]:

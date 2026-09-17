@@ -10,7 +10,7 @@ being told they cannot name the officer and a caller believing they did.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.contracts import DeclarationField
 from app.modules.complaints.domain import ComplaintRecord, ComplaintStatus
@@ -38,6 +38,29 @@ class ComplaintRaiseRequest(ComplaintSchema):
     required_value: str = Field(min_length=1)
 
 
+CLOSING_STATUSES = frozenset({ComplaintStatus.RESOLVED, ComplaintStatus.REJECTED})
+"""The transitions that end a thread, and therefore the ones that must say why."""
+
+
+class ComplaintTransitionRequest(ComplaintSchema):
+    """What an officer supplies to move an escalation on: the new state, and their words.
+
+    Carries no officer identity — that is the principal's — and no ``supersedes_id``: the
+    row being transitioned is named by the URL, and the new row supersedes exactly that one.
+    RAISED is not refused here; the domain's transition table refuses it, with every other
+    illegal move, so there is one definition of which moves exist.
+    """
+
+    status: ComplaintStatus
+    note: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _a_closure_states_its_reason(self) -> "ComplaintTransitionRequest":
+        if self.status in CLOSING_STATUSES and (self.note is None or not self.note.strip()):
+            raise ValueError(f"a transition to '{self.status.value}' requires a note")
+        return self
+
+
 class ComplaintResponse(ComplaintSchema):
     """One complaint row, which is one event in an append-only thread.
 
@@ -54,6 +77,7 @@ class ComplaintResponse(ComplaintSchema):
     raised_by_officer_id: str
     raised_at: datetime
     supersedes_id: UUID | None = None
+    note: str | None = None
 
 
 class ComplaintThread(ComplaintSchema):
@@ -75,4 +99,5 @@ def complaint_response(record: ComplaintRecord) -> ComplaintResponse:
         raised_by_officer_id=record.raised_by_officer_id,
         raised_at=record.raised_at,
         supersedes_id=record.supersedes_id,
+        note=record.note,
     )

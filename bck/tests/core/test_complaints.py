@@ -144,6 +144,7 @@ def test_the_complaints_table_holds_exactly_its_declared_columns() -> None:
         "raised_by_officer_id",
         "raised_at",
         "supersedes_id",
+        "note",
     }
 
 

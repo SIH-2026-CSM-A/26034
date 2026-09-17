@@ -157,6 +157,7 @@ class ComplaintRecord:
     raised_by_officer_id: str
     raised_at: datetime
     supersedes_id: UUID | None = None
+    note: str | None = None
 
     def transition(
         self,
@@ -164,6 +165,7 @@ class ComplaintRecord:
         officer_id: str,
         new_issue_summary: str | None = None,
         at_time: datetime | None = None,
+        note: str | None = None,
     ) -> ComplaintRecord:
         """Create a new ComplaintRecord event representing a status transition."""
         validate_status_transition(self.status, new_status)
@@ -179,4 +181,5 @@ class ComplaintRecord:
             raised_by_officer_id=officer_id,
             raised_at=at_time or datetime.now(UTC),
             supersedes_id=self.id,
+            note=note,
         )
