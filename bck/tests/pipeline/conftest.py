@@ -72,6 +72,14 @@ def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def fresh_consumer_limiter() -> None:
+    """The consumer rate limiter is process-wide; one test's uploads must not refuse another's."""
+    from app.core.ratelimit import consumer_scan_limiter
+
+    consumer_scan_limiter.__init__()
+
+
 @pytest.fixture
 def configured(monkeypatch: pytest.MonkeyPatch) -> str:
     """Settings pointed at the test database, with a developer's own .env ignored."""
