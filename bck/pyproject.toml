@@ -11,7 +11,11 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.14",
     "psycopg[binary]>=3.2",
-    "opencv-python-headless>=5.0.0.93",
+    # Exactly the build paddlex demands. paddlex verifies at pipeline creation that the
+    # *distribution* opencv-contrib-python==4.10.0.84 is installed, by metadata rather than
+    # by `import cv2`, so no other cv2 build can stand in for it — PaddleOCR refuses to
+    # construct. The override list under tool.uv below is the other half.
+    "opencv-contrib-python==4.10.0.84",
     "pytesseract>=0.3.13",
     "ultralytics>=8.4.141",
     # Declared, though nothing here imports it: ultralytics pulls torch transitively, and
@@ -28,7 +32,6 @@ dependencies = [
     "python-multipart>=0.0.20",
     "reportlab>=5.0.1",
     "python-docx>=1.2.0",
-    "pypdf>=6.17.0",
     "pdfplumber>=0.11",
     "defusedxml>=0.7.1",
 ]
@@ -61,6 +64,18 @@ build-backend = "hatchling.build"
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+# One cv2, not three. opencv-contrib-python (paddlex, pinned), opencv-python (ultralytics)
+# and opencv-python-headless are three distributions that all unpack into the same `cv2/`
+# directory, so whichever installed last won and cv2 was 4.10 or 5.0 by install order —
+# test_coin_oblique_synthetic_geometry failed on exactly the runs where 4.10 won. The
+# survivor has to be contrib 4.10, because that is the one paddlex checks for by name. A
+# never-true marker is uv's way of excluding a transitive dependency.
+[tool.uv]
+override-dependencies = [
+    "opencv-python ; sys_platform == 'never'",
+    "opencv-python-headless ; sys_platform == 'never'",
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]

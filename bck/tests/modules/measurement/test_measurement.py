@@ -444,25 +444,62 @@ def test_margin_overlap_is_negative():
 
 
 def test_resolve_coin_tilt_ambiguity():
-    """Assert resolve_coin_tilt_ambiguity forces positive tilt for u_x > 0."""
+    """An axis and its negation are the same line, and must resolve to the same tilt.
+
+    The defect this guards: the sign was keyed off ``u_x`` alone, which for a vertical
+    major axis is float noise around zero. OpenCV 4.10 fits the same synthetic coin at
+    0.0046 degrees and 5.0 at exactly 0.0, so the two builds chose opposite tilts.
+    """
+    import numpy as np
+
     from app.modules.measurement.services import resolve_coin_tilt_ambiguity
 
-    # u_x > 0 returns positive
-    assert resolve_coin_tilt_ambiguity(0.5, 1.0) == 0.5
-    assert resolve_coin_tilt_ambiguity(-0.5, 1.0) == 0.5
+    for axis in ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [8e-5, 1.0, 0.0], [-8e-5, 1.0, 0.0]):
+        theta, canonical = resolve_coin_tilt_ambiguity(0.5, np.array(axis))
+        flipped_theta, flipped = resolve_coin_tilt_ambiguity(0.5, -np.array(axis))
+        assert theta == flipped_theta == -0.5
+        assert np.allclose(canonical, flipped)
 
-    # u_x <= 0 returns negative
-    assert resolve_coin_tilt_ambiguity(0.5, -1.0) == -0.5
-    assert resolve_coin_tilt_ambiguity(-0.5, -1.0) == -0.5
-    assert resolve_coin_tilt_ambiguity(0.5, 0.0) == -0.5
+    # Noise either side of a vertical axis lands on the same canonical direction.
+    _, east = resolve_coin_tilt_ambiguity(0.5, np.array([8e-5, 1.0, 0.0]))
+    _, west = resolve_coin_tilt_ambiguity(0.5, np.array([-8e-5, 1.0, 0.0]))
+    assert east[1] > 0 and west[1] > 0
 
 
-def test_coin_oblique_synthetic_geometry():
-    """Prove MEA-007 correctly recovers the original scale of an oblique coin.
+def _tilted_coin_homography(theta_deg: float, axis: str):
+    """Image a plane tilted *in place* about an axis through the coin's centre.
 
-    Note: The synthetic focal length matches the implementation's image-diagonal assumption.
-    This test fetches its own expectation geometrically and cannot detect if the assumption is
-    wrong for a real camera.
+    The plane sits at depth f on the optical axis, so one plane unit is one pixel when it
+    is fronto-parallel, and it maps to the image as K [r1 r2 t]. This is what an oblique
+    photograph of a coin is. The generator it replaces rotated the *camera* and slid the
+    result back to the centre, which stretches the circle along the wrong axis and is not
+    a view any capture produces.
+    """
+    import numpy as np
+
+    f_true = float(np.hypot(1000, 1000))
+    k_mat = np.array([[f_true, 0.0, 500.0], [0.0, f_true, 500.0], [0.0, 0.0, 1.0]])
+    c, s = np.cos(np.deg2rad(theta_deg)), np.sin(np.deg2rad(theta_deg))
+    if axis == "x":
+        r = np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+    else:
+        r = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+    plane = np.column_stack([r[:, 0], r[:, 1], [0.0, 0.0, f_true]])
+    to_plane = np.array([[1.0, 0.0, -500.0], [0.0, 1.0, -500.0], [0.0, 0.0, 1.0]])
+    return k_mat @ plane @ to_plane
+
+
+@pytest.mark.parametrize(("theta_deg", "axis"), [(-30, "x"), (-15, "x"), (-30, "y")])
+def test_coin_oblique_synthetic_geometry(theta_deg, axis):
+    """MEA-007 recovers a rectangle beside an oblique coin, in both dimensions.
+
+    The tilts are the ones the module's stated convention covers: top of the coin further
+    away, or for a vertical axis its left edge. The opposite lean projects to the same
+    ellipse and is rectified with the wrong sign — that is a limit of the evidence, and
+    ``test_coin_tilt_toward_the_camera_is_not_recovered`` pins it rather than hiding it.
+
+    The focal length matches the implementation's image-diagonal assumption, so this
+    cannot detect that assumption being wrong for a real camera.
     """
     import cv2
     import numpy as np
@@ -472,40 +509,46 @@ def test_coin_oblique_synthetic_geometry():
 
     img = np.zeros((1000, 1000), dtype=np.uint8)
     cv2.circle(img, (500, 500), 100, 255, -1)
-
-    f_true = float(np.hypot(1000, 1000))
-    k_mat = np.array([[f_true, 0.0, 500.0], [0.0, f_true, 500.0], [0.0, 0.0, 1.0]])
-    theta_true = np.deg2rad(30)
-    r_true = np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, np.cos(theta_true), -np.sin(theta_true)],
-            [0.0, np.sin(theta_true), np.cos(theta_true)],
-        ]
-    )
-
-    y_shift = f_true * np.tan(theta_true)
-    t_mat = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, y_shift], [0.0, 0.0, 1.0]])
-    warp_m = t_mat @ k_mat @ r_true @ np.linalg.inv(k_mat)
-
-    warped = cv2.warpPerspective(img, warp_m, (1000, 1000))
-    warped_bgr = cv2.cvtColor(warped, cv2.COLOR_GRAY2BGR)
+    warp_m = _tilted_coin_homography(theta_deg, axis)
+    warped_bgr = cv2.cvtColor(cv2.warpPerspective(img, warp_m, (1000, 1000)), cv2.COLOR_GRAY2BGR)
 
     res = detect_reference_object(warped_bgr, "coin_10")
-    assert not isinstance(res, MeasurementRefusal), "Refusal: " + (
-        res.reason if hasattr(res, "reason") else ""
-    )
-
-    scale, conf, h_matrix = res
+    assert not isinstance(res, MeasurementRefusal), res
+    scale, _, h_matrix = res
     assert h_matrix is not None
+    assert abs(27.0 / scale - 200.0) / 200.0 <= 0.01
 
-    # Project coordinate points directly to avoid canvas clipping during unwarp
-    rect_pts = np.float32([[200, 400], [300, 400], [300, 600], [200, 600]])
+    rect_pts = np.float32([[450, 400], [550, 400], [550, 600], [450, 600]])
     warped_pts = cv2.perspectiveTransform(np.array([rect_pts]), warp_m)[0]
     recov_pts = cv2.perspectiveTransform(np.array([warped_pts]), h_matrix)[0]
 
-    recovered_height = np.linalg.norm(recov_pts[0] - recov_pts[3])
+    height = float(np.linalg.norm(recov_pts[0] - recov_pts[3]))
+    width = float(np.linalg.norm(recov_pts[0] - recov_pts[1]))
+    assert abs(height - 200.0) / 200.0 <= 0.02, f"height {height:.2f}, expected 200"
+    assert abs(width - 100.0) / 100.0 <= 0.02, f"width {width:.2f}, expected 100"
 
-    expected_height = 200.0
-    error = abs(recovered_height - expected_height) / expected_height
-    assert error <= 0.05, f"Height {recovered_height:.2f} deviates from {expected_height} by >5%"
+
+def test_coin_tilt_toward_the_camera_is_not_recovered():
+    """The lean the convention does not cover is rectified worse, and measurably so.
+
+    A characterisation, not a guarantee of quality: it exists so that the residual error
+    of a wrong-sign rectification is a number in the suite rather than a sentence in a
+    docstring. If a later change recovers the tilt direction, this goes red and should be
+    replaced by a case in the test above.
+    """
+    import cv2
+    import numpy as np
+
+    from app.modules.measurement.services import detect_reference_object
+
+    img = np.zeros((1000, 1000), dtype=np.uint8)
+    cv2.circle(img, (500, 500), 100, 255, -1)
+    warp_m = _tilted_coin_homography(30, "x")
+    warped_bgr = cv2.cvtColor(cv2.warpPerspective(img, warp_m, (1000, 1000)), cv2.COLOR_GRAY2BGR)
+    _, _, h_matrix = detect_reference_object(warped_bgr, "coin_10")
+
+    rect_pts = np.float32([[450, 400], [550, 400], [550, 600], [450, 600]])
+    warped_pts = cv2.perspectiveTransform(np.array([rect_pts]), warp_m)[0]
+    recov_pts = cv2.perspectiveTransform(np.array([warped_pts]), h_matrix)[0]
+    width = float(np.linalg.norm(recov_pts[0] - recov_pts[1]))
+    assert 0.02 < abs(width - 100.0) / 100.0 < 0.12

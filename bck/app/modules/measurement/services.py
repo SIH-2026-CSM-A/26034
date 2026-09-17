@@ -34,12 +34,25 @@ MIN_PLANARITY_THRESHOLD = 0.85
 MIN_ELLIPSE_FIT_SCORE = 0.80
 
 
-def resolve_coin_tilt_ambiguity(theta: float, u_x: float) -> float:
-    """Explicitly resolve the two-way sign ambiguity of a coin ellipse fit.
+def resolve_coin_tilt_ambiguity(theta: float, axis: np.ndarray) -> tuple[float, np.ndarray]:
+    """Settle the two ambiguities an ellipse fit leaves, by convention and stably.
 
-    We assume the top of the coin is further away from the camera.
+    An ellipse axis is a line, not a direction: ``fitEllipse`` may hand back ``u`` or
+    ``-u`` for the same coin, and a tilt of ``theta`` about one is a tilt of ``-theta``
+    about the other. The axis is therefore canonicalised on its *dominant* component
+    before any sign is chosen. Keying the sign off ``u_x`` alone is what made this
+    function a coin toss: for a vertical major axis ``u_x`` is float noise around zero,
+    and OpenCV 4.10 and 5.0 land on opposite sides of it for the same image.
+
+    The tilt direction itself cannot be recovered from the ellipse — a coin leaning
+    toward the camera and one leaning away project to the same outline. We assume the top
+    of the coin (or, for a vertical axis, its left edge) is further from the camera. A
+    capture leaning the other way is rectified with the wrong sign; the error that leaves
+    is a few percent near the coin and is not covered by ``PRIOR_CONFIDENCE_COIN``.
     """
-    return float(np.abs(theta)) if u_x > 0 else float(-np.abs(theta))
+    dominant = 0 if abs(axis[0]) >= abs(axis[1]) else 1
+    canonical = axis if axis[dominant] > 0 else -axis
+    return -float(np.abs(theta)), canonical
 
 
 def detect_reference_object(
@@ -123,33 +136,23 @@ def detect_reference_object(
                 )
             )
 
-        # Calculate the tilt angle
-        theta = np.arccos(b / a)
-        theta = resolve_coin_tilt_ambiguity(theta, u[0])
-
-        # Construct true 3x3 3D rotation matrix representing the tilt
+        # The coin is a circle tilted in place, so its major axis is the one diameter left
+        # unforeshortened: that is the axis it tilted about, and b/a is the cosine of the tilt.
+        theta, u = resolve_coin_tilt_ambiguity(float(np.arccos(b / a)), u)
         k_u = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
         r_tilt = np.eye(3) + np.sin(theta) * k_u + (1.0 - np.cos(theta)) * (k_u @ k_u)
 
-        # Invert the rotation to properly unwarp the plane
-        r_inv = r_tilt.T
-
-        # Construct a pseudo-camera intrinsic matrix using focal length = image diagonal
+        # A pseudo-camera centred on the coin, focal length = image diagonal, with the coin's
+        # plane at depth f so one plane unit is one pixel when fronto-parallel. The plane
+        # maps to the image as K [r1 r2 t]; rectifying it is undoing that and re-imaging the
+        # same plane untilted, K [e1 e2 t]. Scale at the coin centre is preserved exactly.
         h_img, w_img = gray.shape
         f_val = np.sqrt(w_img**2 + h_img**2)
         k_mat = np.array([[f_val, 0.0, xc], [0.0, f_val, yc], [0.0, 0.0, 1.0]])
-        k_inv = np.linalg.inv(k_mat)
-
-        # The forward rotation shifted the optical center. Calculate that pixel shift.
-        v_forward = r_tilt @ np.array([0.0, 0.0, 1.0])
-        dx = f_val * v_forward[0] / v_forward[2]
-        dy = f_val * v_forward[1] / v_forward[2]
-
-        # Create an inverse translation to keep the coin centered and preserve exact scale
-        t_inv = np.array([[1.0, 0.0, dx], [0.0, 1.0, dy], [0.0, 0.0, 1.0]])
-
-        # Compute the true perspective homography: H = K @ R_inv @ K_inv @ T_inv
-        h_matrix = k_mat @ r_inv @ k_inv @ t_inv
+        depth = np.array([0.0, 0.0, f_val])
+        tilted = np.column_stack([r_tilt[:, 0], r_tilt[:, 1], depth])
+        fronto = np.column_stack([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], depth])
+        h_matrix = k_mat @ fronto @ np.linalg.inv(tilted) @ np.linalg.inv(k_mat)
 
         diameter_px = a * 2.0
         scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px

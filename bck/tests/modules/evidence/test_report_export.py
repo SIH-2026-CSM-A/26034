@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 from io import BytesIO
 from unittest.mock import patch
 
+import pdfplumber
 import pytest
 from docx import Document
-from pypdf import PdfReader
 
 from app.contracts.enums import (
     DeclarationField,
@@ -25,11 +25,8 @@ from app.modules.evidence.export import (
 
 
 def extract_pdf_text(pdf_bytes):
-    reader = PdfReader(BytesIO(pdf_bytes))
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        return "".join((page.extract_text() or "") + "\n" for page in pdf.pages)
 
 
 def extract_docx_text(docx_bytes):
