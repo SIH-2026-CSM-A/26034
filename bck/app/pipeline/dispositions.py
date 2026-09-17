@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from enum import StrEnum
 
 from app.contracts import DeclarationField, FieldState
-from app.modules.rules import OverrideTarget, RuleDefinition, Verdict
+from app.modules.rules import OverrideTarget, ProductCategory, RuleDefinition, Verdict
 from app.pipeline.rule_snapshot import declaration_fields
 
 FIELD_STATE_FROM_VERDICT: dict[Verdict, FieldState] = {
@@ -106,6 +106,50 @@ rather than every rule or none of them.
 
 A guard test asserts every target named by an active override in the store appears as a
 value here, so a new sector override cannot arrive with nothing gated behind it.
+"""
+
+COMMODITY_CONDITIONED_RULES: dict[str, tuple[str, frozenset[ProductCategory]]] = {
+    "R6-1-DA": (
+        "may become unfit for human consumption",
+        frozenset({ProductCategory.NON_CONSUMABLE}),
+    ),
+}
+"""Rules whose own text makes the duty conditional on what the commodity is.
+
+Rule id to the conditioning phrase *as the store's ``source_text`` states it*, and the
+confirmed categories that cannot meet it. Rule 6(1)(da) requires a best-before or use-by
+date only "if a package contains a commodity which may become unfit for human consumption
+after a period of time"; a commodity confirmed as not for human consumption cannot, so for
+it the duty does not arise. Evaluating it anyway is how a phone carton comes to be reported
+as a potential violation for bearing no best-before date.
+
+One entry, because it is the only Rule 6(1) clause in the store limited by the nature of
+the commodity. Rule 6(1)(aa) and Rule 6(1)(f) are conditional too, but on facts no product
+category establishes; they are in :data:`FACT_CONDITIONED_RULES`. Rules 7, 8 and 9 are not
+limited to any class of commodity at all.
+
+The phrase is held beside the rule id so a guard test can assert it is still in the store's
+text. If an amendment rewords the clause, that test goes red instead of this table quietly
+citing a condition the rule no longer states.
+"""
+
+FACT_CONDITIONED_RULES: dict[str, str] = {
+    "R6-1-AA": "in case of imported products",
+    "R6-1-F": "Where the sizes of the commodity contained in the package are relevant",
+}
+"""Rules whose own text makes the duty conditional on a fact nothing here establishes.
+
+Rule id to the conditioning phrase as the store's ``source_text`` states it. Rule 6(1)(aa)
+requires a country of origin "in case of imported products"; Rule 6(1)(f) requires
+dimensions "where the sizes of the commodity contained in the package are relevant".
+Whether a package was imported, or whether its sizes matter, is not on the label, is not a
+product category, and is not something this system infers.
+
+So where such a declaration was looked for and is absent, the absence is not a FAIL: the
+package fell short only if the condition holds, and that is an officer's judgement —
+REVIEW_REQUIRED. Where the declaration *is* borne it is evaluated as any other, and where
+it could not be read the ordinary INSUFFICIENT_EVIDENCE stands. NOT_APPLICABLE is not
+available here either: nothing has established that the condition is unmet.
 """
 
 RULE_DECLARATION_SCOPE: dict[str, tuple[DeclarationField, ...]] = {

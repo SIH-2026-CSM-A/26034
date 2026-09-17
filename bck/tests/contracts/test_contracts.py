@@ -846,17 +846,21 @@ def test_a_normalised_field_must_cite_at_least_one_span() -> None:
         )
 
 
-def test_product_category_has_exactly_three_members() -> None:
-    assert len(ProductCategory) == 3, (
-        "A member of ProductCategory is a routing target, not a label. Adding one "
-        "without the gazette provision that routes an obligation away from these Rules "
-        "gives the sector dispatch a category it will match no rule for."
+SECTOR_CATEGORIES = {
+    ProductCategory.FOOD,
+    ProductCategory.COSMETICS,
+    ProductCategory.MEDICAL_DEVICE,
+}
+"""The routing targets: each has a gazette provision moving an obligation elsewhere."""
+
+
+def test_product_category_is_three_routing_targets_and_one_member_that_routes_nothing() -> None:
+    assert set(ProductCategory) == SECTOR_CATEGORIES | {ProductCategory.NON_CONSUMABLE}, (
+        "A member of ProductCategory is a routing target, not a label: adding one without "
+        "the gazette provision that routes an obligation away from these Rules gives the "
+        "sector dispatch a category it will match no rule for. NON_CONSUMABLE is the one "
+        "member meant to match none, and it says why on itself."
     )
-    assert set(ProductCategory) == {
-        ProductCategory.FOOD,
-        ProductCategory.COSMETICS,
-        ProductCategory.MEDICAL_DEVICE,
-    }
 
 
 def test_product_category_values_match_the_rule_store_sector_keys() -> None:
@@ -867,11 +871,12 @@ def test_product_category_values_match_the_rule_store_sector_keys() -> None:
     every type check passing and every sector override matching nothing — a medical
     device evaluated against Rule 7 Table-I, which G.S.R. 778(E) disapplies.
     """
-    assert {category.value for category in ProductCategory} == {
+    assert {category.value for category in SECTOR_CATEGORIES} == {
         "food",
         "cosmetics",
         "medical_device",
     }
+    assert ProductCategory.NON_CONSUMABLE.value == "non_consumable"
 
 
 def test_the_rules_module_and_contracts_share_one_product_category() -> None:
