@@ -1,14 +1,17 @@
 import { SEEDED_DEMO_OFFICER } from '../services/demo'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
 import { FieldStateChip } from './components/FieldStateChip'
+import { Notice } from '../ui/Notice'
+import { rise, spring, stagger } from '../ui/motion'
 import { VerdictBanner, verdictLabel } from './components/VerdictBanner'
 
 type ScanDetail = components['schemas']['ScanDetail']
+type ScanSummary = components['schemas']['ScanSummary']
 type FieldFinding = components['schemas']['FieldFinding']
-type FieldState = components['schemas']['FieldState']
 type Verdict = components['schemas']['Verdict']
 type ReviewAction = components['schemas']['ReviewAction']
 type ReviewResponse = components['schemas']['ReviewResponse']
@@ -60,16 +63,19 @@ function Masthead({
   isOnline: boolean
 }) {
   return (
-    <header className="sticky top-0 z-10 border-b-2 border-ink bg-paper">
+    <header className="glass sticky top-0 z-30 border-b border-hairline/60">
       <div className="mx-auto max-w-[1280px] px-4 py-2 lg:flex lg:items-baseline lg:gap-6 lg:py-3">
         <div className="flex items-center justify-between gap-4 lg:contents">
           <Link
             to="/officer/queue"
-            className="flex min-h-target items-center text-label text-mute hover:text-ink lg:order-1"
+            className="-ml-2 flex min-h-target items-center gap-1 rounded-ctl px-2 text-secondary font-medium text-ink lg:order-1"
           >
-            ← Queue
+            <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">
+              <path d="M10 3.5 5.5 8l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Queue
           </Link>
-          <span className="flex shrink-0 items-center gap-2 border border-ink px-2 py-0.5 lg:order-3 lg:ml-auto">
+          <span className="flex shrink-0 items-center gap-2 rounded-full border border-hairline bg-surface px-3 py-1 lg:order-3 lg:ml-auto">
             <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.75" />
               <path d="M3.8 12.2 12.2 3.8" stroke="currentColor" strokeWidth="1.75" />
@@ -112,8 +118,73 @@ function MeasuredPair({ observed, expected }: { observed: string | null; expecte
   )
 }
 
+/** What the hero needs, and all of it is on a queue row as well as on the full record. */
+type ScanHead = Pick<ScanSummary, 'id' | 'verdict' | 'status' | 'officer_id'>
+
+/**
+ * The shared element. A queue row carries layoutId `scan-<id>` and so does this, so
+ * the row grows into the verdict. The queue hands its row over in router state, which
+ * puts the verdict on screen on the first frame instead of after the detail fetch.
+ */
+function Hero({ scan }: { scan: ScanHead }) {
+  return (
+    <motion.div layoutId={`scan-${scan.id}`} transition={spring.glide} className="rounded-card">
+      {scan.verdict ? (
+        <div>
+          <VerdictBanner verdict={scan.verdict} />
+          {scan.officer_id === SEEDED_DEMO_OFFICER && (
+            <p className="badge-seeded mt-3 rounded-ctl px-3 py-1.5 text-label">
+              Seeded demo record: this scan was entered to populate the demonstration, not collected in the field.
+            </p>
+          )}
+          <p className="mt-2 text-label text-mute">
+            Recommendation only. Official determination requires officer review.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-card border-2 border-dotted border-mute bg-surface p-5">
+          <span className="font-mono text-label text-mute">Status: {scan.status.toUpperCase()}</span>
+          <p className="mt-1 text-secondary text-mute">No recommendation verdict issued.</p>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+/** Ledger-shaped placeholder: same row anatomy as LedgerRow, so the findings land in place. */
+function LedgerSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading findings">
+      <div className="skeleton mt-8 h-6 w-28" />
+      <div className="card mt-3 divide-y divide-hairline/70 overflow-hidden">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="space-y-3 px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="skeleton h-5 w-2/5" />
+              <span className="skeleton h-7 w-24 rounded-full" />
+            </div>
+            <span className="skeleton block h-4 w-3/5" />
+            <span className="skeleton block h-4 w-4/5" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Deliberately unordered by preference: nothing is pre-selected and nothing is styled as the default. */
+const DISPOSITIONS: ReadonlyArray<{ action: ReviewAction; label: string }> = [
+  { action: 'confirm', label: 'Confirm' },
+  { action: 'override', label: 'Override' },
+  { action: 'reject', label: 'Reject' },
+  { action: 'annotate', label: 'Annotate' },
+  { action: 'request_recapture', label: 'Request recapture' },
+]
+
 export function VerdictDetail() {
   const { subjectRef } = useParams<{ subjectRef: string }>()
+  const handedOver = (useLocation().state as { summary?: ScanSummary } | null)?.summary
+  const summary = handedOver && handedOver.id === subjectRef ? handedOver : null
   const [scan, setScan] = useState<ScanDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -129,6 +200,8 @@ export function VerdictDetail() {
   const [submittingReview, setSubmittingReview] = useState<boolean>(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [reviewResult, setReviewResult] = useState<ReviewResponse | null>(null)
+  // The determination sheet starts as a bar so the findings can be read first. Opening it selects nothing.
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   const fetchScan = useCallback(async () => {
     if (!subjectRef) {
@@ -227,12 +300,24 @@ export function VerdictDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-paper text-ink">
-        <header className="border-b-2 border-ink px-4 py-3">
-          <span className="text-label text-mute">PCCS Inspection</span>
-        </header>
-        <main className="mx-auto max-w-[1280px] p-8 text-center">
-          <p className="font-mono text-body text-mute animate-pulse">Loading inspection details from API...</p>
+      <div className="aurora">
+        {summary ? (
+          <Masthead
+            inspectionId={summary.id}
+            ruleSetVersion={summary.rule_set_version}
+            capturedAt={summary.created_at}
+            isOnline
+          />
+        ) : (
+          <header className="glass sticky top-0 z-30 border-b border-hairline/60 px-4 py-3">
+            <span className="text-label text-mute">PCCS Inspection</span>
+          </header>
+        )}
+        <main className="mx-auto max-w-[1280px] px-4 pb-48">
+          <div className="max-w-3xl pt-6">
+            {summary ? <Hero scan={summary} /> : <div aria-hidden="true" className="skeleton h-[136px] rounded-card" />}
+            <LedgerSkeleton />
+          </div>
         </main>
       </div>
     )
@@ -240,24 +325,24 @@ export function VerdictDetail() {
 
   if (error || !scan) {
     return (
-      <div className="min-h-screen bg-paper text-ink">
-        <header className="border-b-2 border-ink px-4 py-3">
-          <Link to="/officer/queue" className="flex min-h-target items-center text-label text-mute hover:text-ink">
+      <div className="aurora">
+        <header className="glass sticky top-0 z-30 border-b border-hairline/60 px-4 py-1.5">
+          <Link to="/officer/queue" className="flex min-h-target items-center text-secondary font-medium text-ink">
             ← Back to queue
           </Link>
         </header>
-        <main className="mx-auto max-w-[1280px] p-6">
-          <div className="border border-seal bg-paper p-6">
-            <p className="text-body font-semibold text-seal">Unable to load inspection</p>
-            <p className="mt-1 font-mono text-secondary text-mute">{error ?? 'Scan not found'}</p>
-            <button
-              type="button"
-              onClick={fetchScan}
-              className="mt-4 min-h-target border border-ink px-4 py-2 text-label hover:bg-mute/10"
-            >
-              Retry
-            </button>
-          </div>
+        <main className="mx-auto max-w-3xl p-4 pt-6">
+          <Notice
+            title="Unable to load inspection"
+            role="alert"
+            action={
+              <button type="button" onClick={fetchScan} className="btn btn-quiet">
+                Retry
+              </button>
+            }
+          >
+            <span className="font-mono">{error ?? 'Scan not found'}</span>
+          </Notice>
         </main>
       </div>
     )
@@ -274,7 +359,7 @@ export function VerdictDetail() {
     selectedAction === null || submittingReview || isOverrideInvalid || isNonConfirmNoteMissing
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div className="aurora">
       <Masthead
         inspectionId={scan.id}
         ruleSetVersion={scan.rule_set_version}
@@ -282,48 +367,31 @@ export function VerdictDetail() {
         isOnline={!error}
       />
 
-      <main className="mx-auto max-w-[1280px] px-4 pb-48 lg:pb-40">
+      <main className="mx-auto max-w-[1280px] px-4 pb-32">
         <h1 className="sr-only">Verdict detail for {scan.id}</h1>
 
         <div className="max-w-3xl">
           <div className="min-w-0">
             {/* Recommendation verdict banner (UI Rule 2) */}
             <div className="pt-6">
-              {scan.verdict ? (
-                <div>
-                  <VerdictBanner verdict={scan.verdict} />
-              {scan.officer_id === SEEDED_DEMO_OFFICER && (
-                <p className="mt-2 border border-query px-2 py-1 font-mono text-label text-query">
-                  Seeded demo record: this scan was entered to populate the demonstration, not collected in the field.
-                </p>
-              )}
-                  <p className="mt-1 text-label text-mute">
-                    Recommendation only. Official determination requires officer review.
-                  </p>
-                </div>
-              ) : (
-                <div className="border border-dashed border-mute p-4">
-                  <span className="font-mono text-label text-mute">Status: {scan.status.toUpperCase()}</span>
-                  <p className="mt-1 text-secondary text-mute">No recommendation verdict issued.</p>
-                </div>
-              )}
+              <Hero scan={scan} />
             </div>
 
             {/* Category confirmation control (UI Rule 4) */}
-            <section aria-label="Category classification" className="mt-6 border border-hairline bg-paper p-4">
+            <section aria-label="Category classification" className="card mt-6 p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
                   <span className="text-label text-mute">Confirmed Product Category</span>
-                  <div className="mt-0.5 flex items-center gap-2">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
                     <p className="font-mono text-body font-semibold">
                       {confirmedCategory ? confirmedCategory.toUpperCase() : 'None (Unconfirmed)'}
                     </p>
                     {confirmedCategory ? (
-                      <span className="border border-attest px-1.5 py-0.2 font-mono text-label text-attest">
+                      <span className="rounded-full border border-ink/40 px-2 py-0.5 font-mono text-label text-ink">
                         OFFICER CONFIRMED
                       </span>
                     ) : (
-                      <span className="border border-dashed border-mute px-1.5 py-0.2 font-mono text-label text-mute">
+                      <span className="rounded-full border border-dashed border-mute px-2 py-0.5 font-mono text-label text-mute">
                         AWAITING OFFICER CONFIRMATION
                       </span>
                     )}
@@ -340,7 +408,7 @@ export function VerdictDetail() {
                     id="select-category"
                     value={confirmedCategory ?? ''}
                     onChange={(e) => setConfirmedCategory((e.target.value as ProductCategory) || null)}
-                    className="border border-hairline bg-paper px-2 py-1 font-mono text-label text-ink"
+                    className="input w-auto font-mono text-label"
                   >
                     <option value="">Unconfirmed</option>
                     {PRODUCT_CATEGORIES.map((c) => (
@@ -355,10 +423,10 @@ export function VerdictDetail() {
               <div className="mt-4 border-t border-hairline pt-3">
                 <span className="text-label text-mute">Reader Category Proposal</span>
                 {scan.category_proposal ? (
-                  <div className="mt-2 border border-dashed border-query bg-paper p-3.5">
+                  <div className="mt-2 rounded-ctl border border-dashed border-query bg-query-tint/40 p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="border border-query px-1.5 py-0.5 font-mono text-label font-medium text-query">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-query px-2 py-0.5 font-mono text-label font-medium text-query">
                           PROPOSAL
                         </span>
                         <span className="text-label text-query font-medium">
@@ -379,7 +447,7 @@ export function VerdictDetail() {
                           {scan.category_proposal.span_refs.map((spanId) => (
                             <span
                               key={spanId}
-                              className="border border-ink bg-paper px-2 py-0.5 font-mono text-label text-ink"
+                              className="rounded-full border border-hairline bg-surface px-2 py-0.5 font-mono text-label text-ink"
                             >
                               {spanId}
                             </span>
@@ -391,10 +459,8 @@ export function VerdictDetail() {
                       <button
                         type="button"
                         onClick={() => setConfirmedCategory(scan.category_proposal?.category ?? null)}
-                        className={`min-h-target border px-3 py-1.5 font-mono text-label transition-colors ${
-                          confirmedCategory === scan.category_proposal.category
-                            ? 'border-attest bg-attest text-paper'
-                            : 'border-ink bg-paper text-ink hover:bg-mute/10'
+                        className={`btn font-mono text-label ${
+                          confirmedCategory === scan.category_proposal.category ? 'btn-primary' : 'btn-quiet'
                         }`}
                       >
                         {confirmedCategory === scan.category_proposal.category
@@ -421,9 +487,9 @@ export function VerdictDetail() {
 
             {/* Insufficient Evidence visibility banner (UI Rule 3) */}
             {insufficientFindings.length > 0 && (
-               <section aria-label="Evidence status" className="mt-6 border border-dotted border-mute bg-paper p-4">
-                 <div className="flex items-center gap-2">
-                   <span className="inline-block h-3 w-3 rounded-full border-2 border-mute" />
+               <section aria-label="Evidence status" className="mt-6 rounded-card border-2 border-dotted border-mute bg-surface p-5">
+                 <div className="flex flex-wrap items-center gap-2">
+                   <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-mute" />
                    <span className="font-mono text-label font-semibold text-ink">
                      INSUFFICIENT EVIDENCE DETECTED
                    </span>
@@ -438,8 +504,8 @@ export function VerdictDetail() {
             )}
 
             {scan.quality && (
-              <div className="mt-6 border border-query bg-paper p-4">
-                <span className="text-label font-medium text-query">Capture Quality Note</span>
+              <div className="mt-6 rounded-card border-2 border-dotted border-mute bg-surface p-5">
+                <span className="text-label font-medium text-mute">Capture Quality Note</span>
                 <p className="mt-1 text-body">{scan.quality.instruction}</p>
                 <p className="mt-1 font-mono text-label text-mute">Reason code: {scan.quality.reason_code}</p>
               </div>
@@ -448,11 +514,16 @@ export function VerdictDetail() {
             {/* Findings ledger */}
             <h2 className="mt-8 text-section">Findings</h2>
             {findings.length === 0 ? (
-              <p className="mt-4 border border-dotted border-mute p-6 text-secondary text-mute">
-                No rule findings evaluated for this inspection.
-              </p>
+              <div className="mt-4">
+                <Notice title="No rule findings evaluated for this inspection." />
+              </div>
             ) : (
-              <ul className="m-0 mt-3 list-none border-t border-hairline p-0">
+              <motion.ul
+                variants={stagger}
+                initial="hidden"
+                animate="shown"
+                className="card m-0 mt-3 list-none divide-y divide-hairline/70 overflow-hidden p-0"
+              >
                 {findings.map((finding, index) => (
                   <LedgerRow
                     key={`${finding.field}-${finding.rule_snapshot?.rule_id ?? index}`}
@@ -461,19 +532,53 @@ export function VerdictDetail() {
                     onFocus={() => setFocusedIndex(index)}
                   />
                 ))}
-              </ul>
+              </motion.ul>
             )}
           </div>
         </div>
       </main>
 
       {/* Officer Confirmation Control Surface */}
-      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t-8 border-double border-ink bg-ink text-paper">
-        <div className="mx-auto max-w-[1280px] px-4 py-3">
+      <footer className="fixed inset-x-0 bottom-0 z-20 mx-auto max-h-[72vh] max-w-[1280px] overflow-y-auto rounded-t-sheet bg-ink text-paper shadow-e3 lg:inset-x-4">
+        <div className="px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-4 sm:px-6">
+          <button
+            type="button"
+            aria-expanded={sheetOpen}
+            aria-controls="determination-sheet"
+            onClick={() => setSheetOpen((open) => !open)}
+            className="flex min-h-target w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block font-display text-body font-semibold">Officer determination</span>
+              <span className="block truncate font-mono text-label text-paper/70">
+                Recommendation: {scan.verdict ? verdictLabel(scan.verdict) : 'NONE'}
+                {insufficientFindings.length > 0 && ` · ${insufficientFindings.length} not read`}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2 rounded-full bg-paper px-4 py-2 text-label font-semibold text-ink">
+              {sheetOpen ? 'Hide' : reviewResult ? 'View' : 'Decide'}
+              <motion.svg
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                className="h-3.5 w-3.5"
+                fill="none"
+                animate={{ rotate: sheetOpen ? 180 : 0 }}
+                transition={spring.snap}
+              >
+                <path d="M3.5 10 8 5.5l4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </motion.svg>
+            </span>
+          </button>
+          <div id="determination-sheet" hidden={!sheetOpen} className="mt-3">
           {reviewResult ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-paper p-3 text-ink">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={spring.glide}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-4 text-ink"
+            >
               <div>
-                <span className="border border-attest px-1.5 py-0.5 font-mono text-label font-semibold text-attest">
+                <span className="rounded-full border border-ink/40 px-2 py-0.5 font-mono text-label font-semibold text-ink">
                   REVIEW RECORDED
                 </span>
                 <p className="mt-1 font-mono text-label">
@@ -493,32 +598,32 @@ export function VerdictDetail() {
                   setReviewNote('')
                   setOverriddenVerdict(null)
                 }}
-                className="min-h-target border border-ink px-3 py-1.5 text-label hover:bg-mute/10"
+                className="btn btn-quiet text-label"
               >
                 Modify determination
               </button>
-            </div>
+            </motion.div>
           ) : (
             <form onSubmit={handleReviewSubmit} className="space-y-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-mono text-label text-hairline">
+                <p className="font-mono text-label text-paper/70">
                   Officer confirmation surface • Determination step
                 </p>
-                <p className="text-label text-hairline">
+                <p className="text-label text-paper/70">
                   Recommendation: {scan.verdict ? verdictLabel(scan.verdict) : 'NONE'}
                 </p>
               </div>
 
               {/* Insufficient Evidence prominent banner during confirmation (UI Rule 3) */}
               {insufficientFindings.length > 0 && (
-                <div className="border border-dotted border-mute/80 bg-ink p-2.5 text-paper">
+                <div className="rounded-ctl border border-dotted border-paper/50 p-3 text-paper">
                   <div className="flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full border border-paper bg-query" />
+                    <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-paper" />
                     <span className="font-mono text-label font-semibold text-paper">
                       INSUFFICIENT EVIDENCE DETECTED ({insufficientFindings.length} DECLARATION{insufficientFindings.length === 1 ? '' : 'S'})
                     </span>
                   </div>
-                  <p className="mt-1 text-label text-hairline">
+                  <p className="mt-1 text-label text-paper/70">
                     Confirming records an acknowledgement of unreadable evidence, NOT compliance. Lack of evidence must not be folded into a pass state.
                   </p>
                 </div>
@@ -527,86 +632,55 @@ export function VerdictDetail() {
               {/* Action selection buttons (UI Rule 1: NO PRE-SELECTION) */}
               <div>
                 <div className="mb-1.5 flex items-baseline justify-between">
-                  <span className="font-mono text-label text-hairline">
+                  <span className="font-mono text-label text-paper/70">
                     Disposition choices (No default selected • Explicit selection required):
                   </span>
                   {selectedAction === null && (
-                    <span className="font-mono text-label text-query">
+                    <span className="font-mono text-label text-paper/80">
                       * Please select an action
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAction(selectedAction === 'confirm' ? null : 'confirm')}
-                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                      selectedAction === 'confirm'
-                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                    }`}
-                  >
-                    Confirm
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAction(selectedAction === 'override' ? null : 'override')}
-                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                      selectedAction === 'override'
-                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                    }`}
-                  >
-                    Override
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAction(selectedAction === 'reject' ? null : 'reject')}
-                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                      selectedAction === 'reject'
-                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                    }`}
-                  >
-                    Reject
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAction(selectedAction === 'annotate' ? null : 'annotate')}
-                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                      selectedAction === 'annotate'
-                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                    }`}
-                  >
-                    Annotate
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedAction(selectedAction === 'request_recapture' ? null : 'request_recapture')
-                    }
-                    className={`min-h-target flex-1 whitespace-nowrap px-4 py-2 text-body transition-colors ${
-                      selectedAction === 'request_recapture'
-                        ? 'border-2 border-paper bg-paper font-semibold text-ink'
-                        : 'border border-hairline bg-ink font-normal text-paper hover:bg-hairline/20'
-                    }`}
-                  >
-                    Request recapture
-                  </button>
+                <div className="flex flex-wrap gap-1.5 rounded-[18px] bg-paper/10 p-1.5">
+                  {DISPOSITIONS.map(({ action, label }) => {
+                    const chosen = selectedAction === action
+                    return (
+                      <button
+                        key={action}
+                        type="button"
+                        aria-pressed={chosen}
+                        onClick={() => setSelectedAction(chosen ? null : action)}
+                        className={`relative min-h-target flex-1 whitespace-nowrap rounded-ctl px-4 text-secondary transition-[color,transform] duration-base ease-out active:scale-[0.97] ${
+                          chosen ? 'font-semibold text-ink' : 'text-paper hover:bg-paper/10'
+                        }`}
+                      >
+                        {chosen && (
+                          <motion.span
+                            layoutId="disposition-pill"
+                            transition={spring.snap}
+                            className="absolute inset-0 rounded-ctl bg-paper shadow-e2"
+                          />
+                        )}
+                        <span className="relative">{label}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Action-specific fields when an action is selected */}
+              <AnimatePresence initial={false}>
               {selectedAction && (
-                <div className="space-y-2.5 border-t border-hairline/40 pt-2.5">
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={spring.glide}
+                  className="space-y-3 border-t border-paper/20 pt-3"
+                >
                   {/* Notice when confirming with insufficient evidence (UI Rule 3) */}
                   {selectedAction === 'confirm' && insufficientFindings.length > 0 && (
-                    <div className="border border-query bg-paper p-2.5 text-ink">
+                    <div className="rounded-ctl border border-dashed border-query bg-query-tint p-3 text-ink">
                       <p className="font-mono text-label font-bold text-query">
                         NOTICE: CONFIRMING WITH UNREADABLE EVIDENCE
                       </p>
@@ -619,14 +693,14 @@ export function VerdictDetail() {
                   {/* Override requires selecting overridden_verdict (UI Rule 2 & UI Rule 6) */}
                   {selectedAction === 'override' && (
                     <div>
-                      <label htmlFor="overridden-verdict" className="block text-label text-hairline">
+                      <label htmlFor="overridden-verdict" className="block text-label text-paper/70">
                         Substitute verdict (required for override):
                       </label>
                       <select
                         id="overridden-verdict"
                         value={overriddenVerdict ?? ''}
                         onChange={(e) => setOverriddenVerdict((e.target.value as Verdict) || null)}
-                        className="mt-1 min-h-target w-full border border-hairline bg-paper px-3 py-1 font-mono text-body text-ink"
+                        className="input mt-1 bg-surface font-mono"
                       >
                         <option value="">Select substituted verdict</option>
                         <option value="PASS">PASS</option>
@@ -634,7 +708,7 @@ export function VerdictDetail() {
                         <option value="POTENTIAL_VIOLATION">POTENTIAL VIOLATION</option>
                       </select>
                       {!overriddenVerdict && (
-                        <p className="mt-1 font-mono text-label text-seal">
+                        <p className="mt-1 font-mono text-label text-paper/80">
                           * An override must state the substitute recommendation verdict.
                         </p>
                       )}
@@ -643,7 +717,7 @@ export function VerdictDetail() {
 
                   {/* Note input */}
                   <div>
-                    <label htmlFor="review-note" className="block text-label text-hairline">
+                    <label htmlFor="review-note" className="block text-label text-paper/70">
                       Officer note {selectedAction === 'confirm' ? '(optional)' : '(required)'}:
                     </label>
                     <input
@@ -660,10 +734,10 @@ export function VerdictDetail() {
                       }
                       value={reviewNote}
                       onChange={(e) => setReviewNote(e.target.value)}
-                      className="mt-1 min-h-target w-full border border-hairline bg-paper px-3 py-1.5 text-body text-ink placeholder:text-mute"
+                      className="input mt-1 bg-surface"
                     />
                     {selectedAction !== 'confirm' && !reviewNote.trim() && (
-                      <p className="mt-1 font-mono text-label text-seal">
+                      <p className="mt-1 font-mono text-label text-paper/80">
                         * A text note explaining the decision is required for action: {selectedAction}.
                       </p>
                     )}
@@ -671,10 +745,10 @@ export function VerdictDetail() {
 
                   {/* Offline / Submission Error banner with retry affordance (Requirement 7) */}
                   {reviewError && (
-                    <div className="border-2 border-seal bg-paper p-3 text-ink" role="alert">
+                    <div className="rounded-ctl border border-dashed border-hairline bg-surface p-3 text-ink" role="alert">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-seal">{reviewError}</p>
+                          <p className="font-semibold text-ink">{reviewError}</p>
                           <p className="mt-0.5 text-secondary text-mute">
                             Backend is offline or unreachable. Review action could not be recorded on the server.
                           </p>
@@ -683,7 +757,7 @@ export function VerdictDetail() {
                           type="button"
                           onClick={(e) => handleReviewSubmit(e as unknown as React.FormEvent)}
                           disabled={submittingReview}
-                          className="min-h-target border border-ink bg-paper px-4 py-1.5 font-mono text-label text-ink hover:bg-mute/10 active:bg-mute/20"
+                          className="btn btn-quiet font-mono text-label"
                         >
                           Retry submission
                         </button>
@@ -698,26 +772,24 @@ export function VerdictDetail() {
                         setSelectedAction(null)
                         setReviewError(null)
                       }}
-                      className="min-h-target px-3 py-1 text-label text-hairline hover:text-paper"
+                      className="btn px-3 text-label text-paper/70 hover:text-paper"
                     >
                       Clear selection
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitDisabled}
-                      className={`min-h-target px-6 py-2 font-mono text-body font-medium transition-colors ${
-                        isSubmitDisabled
-                          ? 'cursor-not-allowed border border-hairline/40 bg-ink text-hairline/50'
-                          : 'border border-paper bg-paper text-ink hover:bg-paper/90'
-                      }`}
+                      className="btn bg-paper px-6 font-mono font-medium text-ink shadow-e2"
                     >
                       {submittingReview ? 'Submitting determination...' : 'Submit determination'}
                     </button>
                   </div>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </form>
           )}
+          </div>
         </div>
       </footer>
     </div>
@@ -734,9 +806,10 @@ function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
   const isInsufficient = finding.state === 'INSUFFICIENT_EVIDENCE'
 
   return (
-    <li
-      className={`border-b border-hairline border-l-5 transition-colors duration-150 ${
-        focused ? 'border-l-ink bg-focus-tint' : 'border-l-transparent bg-paper'
+    <motion.li
+      variants={rise}
+      className={`border-l-5 transition-colors duration-base ease-out ${
+        focused ? 'border-l-ink bg-focus-tint' : 'border-l-transparent bg-surface'
       }`}
     >
       <button
@@ -748,7 +821,7 @@ function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
       >
         <span className="flex flex-wrap items-start justify-between gap-3">
           <span className="text-body font-medium">{rowLabel(finding)}</span>
-          <FieldStateChip state={finding.state as FieldState} />
+          <FieldStateChip state={finding.state} />
         </span>
 
         <span className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -774,7 +847,7 @@ function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
         <div className="px-4 pb-4 sm:px-5">
           <button
             type="button"
-            className="inline-flex min-h-target w-full items-center justify-center gap-2 bg-ink px-4 py-2 text-label text-paper focus-visible:outline-paper sm:w-auto"
+            className="btn btn-primary w-full text-label sm:w-auto"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">
               <path
@@ -795,6 +868,6 @@ function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
           </button>
         </div>
       )}
-    </li>
+    </motion.li>
   )
 }

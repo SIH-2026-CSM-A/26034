@@ -14,7 +14,7 @@ interface Props {
  * option values are the exact ward labels the dashboard map shades, so a submission and
  * its polygon can never drift apart. Optional: the empty value records no ward.
  */
-export function WardSelect({ value, onChange, id, className }: Props) {
+export function WardSelect({ value, onChange, id, className = 'input' }: Props) {
   const byZone = useMemo(() => {
     const groups = new Map<string, typeof GHMC_WARDS[number][]>();
     for (const zone of GHMC_ZONES) groups.set(zone, []);

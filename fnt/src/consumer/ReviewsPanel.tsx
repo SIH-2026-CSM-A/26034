@@ -85,7 +85,7 @@ export function ReviewsPanel({ initialIdentifier = '' }: { initialIdentifier?: s
 
   return (
     <section>
-      <h2 className="text-section font-semibold">What other shoppers reported</h2>
+      <h2 className="text-section">What other shoppers reported</h2>
       <p className="mt-1 text-secondary text-mute">
         Anonymous. Each report is one word, safe or unsafe, against a product identifier —
         the barcode digits, if the pack has one. A sentiment is published automatically
@@ -107,30 +107,32 @@ export function ReviewsPanel({ initialIdentifier = '' }: { initialIdentifier?: s
         <input
           id="product-identifier"
           inputMode="numeric"
-          placeholder="Barcode digits, e.g. 8901719100015"
+          placeholder="Barcode digits"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          className="min-h-target flex-1 border border-hairline bg-paper px-3 py-2 font-mono text-body"
+          className="input flex-1 font-mono"
         />
         <button
           type="submit"
           disabled={busy || !identifier.trim()}
-          className="min-h-target border border-ink bg-paper px-4 py-2 font-mono text-label text-ink hover:bg-mute/10 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-quiet"
         >
           Look up
         </button>
       </form>
 
-      {error && <p className="mt-2 text-secondary text-seal">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-secondary font-medium text-ink">
+          {error}
+        </p>
+      )}
 
       {queried !== null && consensus !== null && (
-        <div className="mt-4 border border-hairline p-3">
+        <div className="card mt-4 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="font-mono text-label text-mute">Identifier {queried}</p>
             {seeded && (
-              <span className="border border-query px-1.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-query">
-                includes seeded demo records
-              </span>
+              <span className="badge-seeded">includes seeded demo records</span>
             )}
           </div>
           {consensus.length === 0 ? (
@@ -139,14 +141,11 @@ export function ReviewsPanel({ initialIdentifier = '' }: { initialIdentifier?: s
               fewer than 3 submissions agree so far.
             </p>
           ) : (
-            <ul className="mt-2 space-y-1">
+            <ul className="mt-3 space-y-2">
               {consensus.map((c) => (
-                <li key={c.consumer_safety_claim} className="flex items-baseline gap-3">
-                  <span
-                    className={`border px-2 py-0.5 font-mono text-label font-semibold uppercase ${
-                      c.consumer_safety_claim === 'safe' ? 'border-attest text-attest' : 'border-seal text-seal'
-                    }`}
-                  >
+                <li key={c.consumer_safety_claim} className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/30 px-2.5 py-0.5 font-mono text-label font-semibold uppercase text-ink">
+                    <ClaimIcon claim={c.consumer_safety_claim} />
                     {c.consumer_safety_claim}
                   </span>
                   <span className="text-body">
@@ -173,16 +172,18 @@ export function ReviewsPanel({ initialIdentifier = '' }: { initialIdentifier?: s
               type="button"
               disabled={busy}
               onClick={() => submit('safe')}
-              className="min-h-target flex-1 border-2 border-attest bg-paper px-4 py-2 font-mono text-label font-semibold text-attest hover:bg-attest/10 disabled:opacity-50"
+              className="btn btn-quiet flex-1 font-mono font-semibold"
             >
+              <ClaimIcon claim="safe" />
               SAFE
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => submit('unsafe')}
-              className="min-h-target flex-1 border-2 border-seal bg-paper px-4 py-2 font-mono text-label font-semibold text-seal hover:bg-seal/10 disabled:opacity-50"
+              className="btn btn-quiet flex-1 font-mono font-semibold"
             >
+              <ClaimIcon claim="unsafe" />
               UNSAFE
             </button>
           </div>
@@ -197,5 +198,25 @@ export function ReviewsPanel({ initialIdentifier = '' }: { initialIdentifier?: s
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * A shopper's opinion is not a finding, so it borrows neither PASS green nor the
+ * rule-failure red. Thumb up, thumb down, and the word.
+ */
+function ClaimIcon({ claim }: { claim: Claim }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={`h-4 w-4 shrink-0 ${claim === 'safe' ? '' : 'rotate-180'}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    >
+      <path d="M5 7.2 7.6 2c1 0 1.7.8 1.5 1.8L8.7 6h3.5c.8 0 1.4.8 1.2 1.6l-1 4.4c-.1.6-.6 1-1.2 1H5V7.2ZM2.5 7.2H5V13H2.5z" />
+    </svg>
   )
 }

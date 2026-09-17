@@ -1,4 +1,6 @@
-import { FieldState } from '../../fixtures/contracts'
+import type { components } from '../../services/generated/schema'
+
+type FieldState = components['schemas']['FieldState']
 
 /**
  * The five field states, each on four independent channels with colour last:
@@ -79,7 +81,7 @@ interface StatePresentation {
   label: string
   Glyph: (props: GlyphProps) => JSX.Element
   /**
-   * Chip classes. Unfilled chips ground explicitly on Field Paper rather than
+   * Chip classes. Unfilled chips ground explicitly on the surface token rather than
    * inheriting the row background: Query Ochre measures 3.97:1 on the focused
    * row tint, which is below AA, and a focused REVIEW REQUIRED row would
    * otherwise drop out of compliance exactly when it is read hardest.
@@ -98,39 +100,39 @@ interface StatePresentation {
 }
 
 const PRESENTATION: Record<FieldState, StatePresentation> = {
-  [FieldState.PASS]: {
+  PASS: {
     label: 'PASS',
     Glyph: TickGlyph,
-    chip: 'bg-attest text-paper font-medium border border-attest',
+    chip: 'rounded-full bg-attest text-paper font-medium border border-attest',
     plate: '',
     description: 'Pass. The declaration satisfies the rule as evaluated.',
   },
-  [FieldState.FAIL]: {
+  FAIL: {
     label: 'FAIL',
     Glyph: CrossGlyph,
-    chip: 'bg-paper text-seal font-semibold border border-hairline border-l-5 border-l-seal',
+    chip: 'rounded-r-full bg-surface text-seal font-semibold border border-hairline border-l-5 border-l-seal',
     plate: '',
     description: 'Fail. The declaration was read and falls short of the rule.',
   },
-  [FieldState.REVIEW_REQUIRED]: {
+  REVIEW_REQUIRED: {
     label: 'REVIEW REQUIRED',
     Glyph: QueryGlyph,
-    chip: 'bg-paper text-query font-medium border border-dashed border-query',
+    chip: 'rounded-full bg-surface text-query font-medium border border-dashed border-query',
     plate: '',
     description: 'Review required. Applying the rule to this evidence needs an officer.',
   },
-  [FieldState.NOT_APPLICABLE]: {
+  NOT_APPLICABLE: {
     label: 'NOT APPLICABLE',
     Glyph: DashGlyph,
-    chip: 'bg-paper text-mute font-normal',
+    chip: 'rounded-full bg-surface text-mute font-normal',
     plate: '',
     description: 'Not applicable. A statutory carve-out removes the obligation.',
   },
-  [FieldState.INSUFFICIENT_EVIDENCE]: {
+  INSUFFICIENT_EVIDENCE: {
     label: 'INSUFFICIENT EVIDENCE',
     Glyph: RingGlyph,
-    chip: 'bg-paper bg-hatch text-mute font-medium border border-dotted border-mute',
-    plate: 'bg-paper px-1.5 py-0.5',
+    chip: 'rounded-full bg-surface bg-hatch text-mute font-medium border border-dotted border-mute',
+    plate: 'rounded-full bg-surface px-1.5 py-0.5',
     description:
       'Insufficient evidence. The evidence needed could not be obtained. This is a ' +
       'statement about the reading, not about the package.',
@@ -143,12 +145,15 @@ export function fieldStateLabel(state: FieldState): string {
 
 interface FieldStateChipProps {
   state: FieldState
+  /** Plain-language wording for the public surface. Glyph, fill, border and weight do not change. */
+  label?: string
 }
 
-export function FieldStateChip({ state }: FieldStateChipProps) {
-  const { label, Glyph, chip, plate, description } = PRESENTATION[state]
+export function FieldStateChip({ state, label: override }: FieldStateChipProps) {
+  const { Glyph, chip, plate, description } = PRESENTATION[state]
+  const label = override ?? PRESENTATION[state].label
   return (
-    <span className={`inline-flex items-center p-1 text-label leading-none ${chip}`}>
+    <span className={`inline-flex shrink-0 items-center whitespace-nowrap p-1 text-label leading-none ${chip}`}>
       <span className={`inline-flex items-center gap-2 px-1.5 py-0.5 ${plate}`}>
         <Glyph className="h-4 w-4 shrink-0" />
         <span>{label}</span>

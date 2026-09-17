@@ -36,7 +36,7 @@ export const STATE_SENTENCE: Record<FieldState, string> = {
 export const VERDICT_SENTENCE: Record<Verdict, string> = {
   PASS: 'Every declaration that could be checked from this photograph was found as the rules require.',
   REVIEW:
-    'Some declarations could not be verified from this photograph. Nothing here says the package is non-compliant.',
+    'Some declarations could not be verified from this photograph. Nothing here says the package breaks a rule.',
   POTENTIAL_VIOLATION:
     'At least one declaration appears to be missing or not as the rules require. This is a recommendation for a Legal Metrology officer to check, not a confirmed breach.',
 }

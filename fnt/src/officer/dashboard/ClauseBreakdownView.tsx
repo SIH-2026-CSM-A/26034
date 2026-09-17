@@ -1,24 +1,12 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useState } from 'react';
+import { rise, spring, stagger } from '../../ui/motion';
+import { VerdictTag } from '../components/VerdictBanner';
 import type { ClauseDrilldown, RecordDetail } from './types';
-import { StatusPill } from './StatusPill';
 
 interface Props {
   clauses: ClauseDrilldown[];
   activeCategory: string;
-}
-
-/** Rate badge colour — changes at thresholds so severity is immediately visible */
-function rateBadgeClass(rate: number): string {
-  if (rate >= 50) return 'bg-rose-100 text-rose-800 border border-rose-300';
-  if (rate >= 20) return 'bg-amber-100 text-amber-800 border border-amber-300';
-  return 'bg-slate-100 text-slate-700 border border-slate-300';
-}
-
-/** Progress bar fill — mirrors the rate badge palette */
-function rateBarClass(rate: number): string {
-  if (rate >= 50) return 'bg-rose-500';
-  if (rate >= 20) return 'bg-amber-400';
-  return 'bg-emerald-500';
 }
 
 export const ClauseBreakdownView: React.FC<Props> = ({ clauses, activeCategory }) => {
@@ -30,146 +18,146 @@ export const ClauseBreakdownView: React.FC<Props> = ({ clauses, activeCategory }
       : clauses.filter((c) => c.category === activeCategory);
 
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm h-full flex flex-col">
+    <section className="card flex h-full flex-col p-5 sm:p-6">
       <header className="mb-4 shrink-0">
-        <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase leading-tight">
-          Rule Clause Breakdown
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Select any clause to inspect underlying scan records
-        </p>
+        <h2 className="text-section">Rule clause breakdown</h2>
+        <p className="mt-0.5 text-secondary text-mute">Select any clause to inspect underlying scan records</p>
       </header>
 
-      <div className="space-y-2 flex-1 overflow-y-auto min-h-0 -mr-1 pr-1">
+      <motion.div
+        key={activeCategory}
+        variants={stagger}
+        initial="hidden"
+        animate="shown"
+        className="min-h-0 flex-1 space-y-2"
+      >
         {filteredClauses.map((clause) => (
-          <button
+          <motion.button
             key={clause.clauseNumber}
+            variants={rise}
             type="button"
             onClick={() => setActiveClause(clause)}
-            className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-white transition-all duration-150 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="card-lift block w-full rounded-ctl border border-hairline/70 bg-paper/60 p-3.5 text-left active:scale-[0.985]"
           >
-            <div className="flex items-start justify-between gap-2 mb-1.5">
-              <span className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors leading-snug">
-                {clause.clauseNumber}
+            <span className="flex items-start justify-between gap-3">
+              <span className="font-mono text-secondary font-medium text-ink">{clause.clauseNumber}</span>
+              <span className="shrink-0 font-mono text-label text-mute">
+                {clause.sampleSize === 0
+                  ? 'no findings'
+                  : `${clause.records.length} of ${clause.sampleSize} · ${clause.potentialViolationRate}%`}
               </span>
-              <span
-                className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full tabular-nums ${rateBadgeClass(clause.potentialViolationRate)}`}
-              >
-                {clause.potentialViolationRate}%
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed">
-              {clause.description}
-            </p>
-            {/* Progress bar — full width, fill shows rate relative to 100% */}
-            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${rateBarClass(clause.potentialViolationRate)}`}
+            </span>
+            <span className="mt-1 line-clamp-2 block text-label font-normal text-mute">{clause.description}</span>
+            {/* One neutral bar. The rate is not a verdict, so it borrows no state colour. */}
+            <span className="mt-2.5 block h-1.5 w-full overflow-hidden rounded-full bg-sunken">
+              <motion.span
+                className="block h-full origin-left rounded-full bg-ink/70"
                 style={{ width: `${Math.min(clause.potentialViolationRate, 100)}%` }}
-                aria-label={`Potential violation rate: ${clause.potentialViolationRate}%`}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={spring.glide}
+                aria-label={`Findings needing attention: ${clause.potentialViolationRate}%`}
               />
-            </div>
-          </button>
+            </span>
+          </motion.button>
         ))}
 
         {filteredClauses.length === 0 && (
-          <p className="text-xs text-slate-500 py-8 text-center">
-            No clauses recorded for this category.
-          </p>
+          <p className="py-6 text-secondary text-mute">No clauses recorded for this category.</p>
         )}
-      </div>
+      </motion.div>
 
-      {/* Drilldown modal */}
-      {activeClause && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Scan records for ${activeClause.clauseNumber}`}
-          className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setActiveClause(null); }}
-        >
-          <div className="bg-white w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col border border-slate-200">
-            {/* Modal header */}
-            <header className="p-4 sm:p-5 border-b border-slate-200 flex items-start justify-between gap-3 shrink-0">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <h3 className="font-black text-base text-slate-950">
-                    {activeClause.clauseNumber}
-                  </h3>
-                  <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full tabular-nums ${rateBadgeClass(activeClause.potentialViolationRate)}`}
-                  >
-                    {activeClause.potentialViolationRate}% rate
-                  </span>
+      {/* Drilldown: a bottom sheet on a phone, a centred card from sm. */}
+      <AnimatePresence>
+        {activeClause && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setActiveClause(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setActiveClause(null);
+            }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Scan records for ${activeClause.clauseNumber}`}
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              transition={spring.glide}
+              className="flex max-h-[88vh] w-full flex-col rounded-t-sheet bg-surface shadow-e3 sm:max-h-[80vh] sm:max-w-2xl sm:rounded-sheet"
+            >
+              <header className="flex shrink-0 items-start justify-between gap-3 border-b border-hairline/70 p-5">
+                <div className="min-w-0">
+                  <h3 className="font-mono text-body font-medium text-ink">{activeClause.clauseNumber}</h3>
+                  <p className="mt-1 text-secondary text-mute">{activeClause.description}</p>
+                  <p className="mt-1 font-mono text-label text-mute">
+                    {activeClause.records.length} of {activeClause.sampleSize} findings need attention ·{' '}
+                    {activeClause.potentialViolationRate}%
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {activeClause.description}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close dialog"
-                onClick={() => setActiveClause(null)}
-                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </header>
-
-            {/* Modal body */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 flex-1">
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-                Associated Scan Records
-                <span className="ml-1.5 font-black text-slate-900">
-                  ({activeClause.records.length})
-                </span>
-              </h4>
-              {activeClause.records.map((rec: RecordDetail) => (
-                <article
-                  key={rec.id}
-                  className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                <button
+                  type="button"
+                  autoFocus
+                  aria-label="Close dialog"
+                  onClick={() => setActiveClause(null)}
+                  className="btn btn-ghost h-12 w-12 shrink-0 rounded-full px-0"
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className="font-mono text-xs font-bold text-slate-900 shrink-0">
-                        {rec.id}
-                      </span>
-                      <span className="text-xs text-slate-500 shrink-0">{rec.timestamp}</span>
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </header>
+
+              <div className="flex-1 space-y-2.5 overflow-y-auto p-5">
+                <h4 className="text-label text-mute">
+                  Associated scan records <span className="font-mono text-ink">({activeClause.records.length})</span>
+                </h4>
+                {activeClause.records.map((rec: RecordDetail) => (
+                  <article
+                    key={rec.id}
+                    className="flex flex-col justify-between gap-2 rounded-ctl border border-hairline/70 bg-paper/60 p-3.5 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        <span className="font-mono text-label font-semibold text-ink">{rec.id}</span>
+                        <span className="font-mono text-label text-mute">{rec.timestamp}</span>
+                      </div>
+                      <p className="truncate text-secondary text-ink">{rec.storeName}</p>
+                      <p className="truncate text-label text-mute">{rec.jurisdictionWard}</p>
                     </div>
-                    <p className="font-medium text-xs text-slate-700 truncate">{rec.storeName}</p>
-                    <p className="text-xs text-slate-500 truncate">{rec.jurisdictionWard}</p>
-                  </div>
-                  <div className="shrink-0 self-start sm:self-center">
-                    <StatusPill verdict={rec.verdict} />
-                  </div>
-                </article>
-              ))}
+                    <div className="shrink-0 self-start sm:self-center">
+                      {rec.verdict ? (
+                        <VerdictTag verdict={rec.verdict} />
+                      ) : (
+                        <span className="rounded-full border border-dotted border-mute px-2.5 py-1 font-mono text-label text-mute">
+                          NO VERDICT
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                ))}
 
-              {activeClause.records.length === 0 && (
-                <p className="text-xs text-slate-500 py-4 text-center">
-                  No active records require officer review for this clause.
-                </p>
-              )}
-            </div>
+                {activeClause.records.length === 0 && (
+                  <p className="py-4 text-secondary text-mute">
+                    No active records require officer review for this clause.
+                  </p>
+                )}
+              </div>
 
-            {/* Modal footer */}
-            <footer className="p-3 sm:p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between rounded-b-2xl shrink-0">
-              <p className="text-xs text-slate-400 italic">
-                Scan-ID hashed ward assignment · not verified geography
-              </p>
-              <button
-                type="button"
-                onClick={() => setActiveClause(null)}
-                className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                Close
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
+              <footer className="shrink-0 border-t border-hairline/70 px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                <p className="text-label text-mute">Ward shown is the one recorded on the scan.</p>
+              </footer>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 };
