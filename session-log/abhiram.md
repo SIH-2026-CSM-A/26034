@@ -3720,3 +3720,57 @@ remote branch pruned.
 - VM redeploy not done — this session has no documented SSH/deploy access to `pccs-vm`,
   and #136's deploy notes (`TODO.md` "After Session 27") don't cover how a session without
   an existing connection would reach it. Abhi needs to redeploy or hand over access.
+
+## Session 29 — 2026-09-17, frontend design system and visual rebuild (Claude Code, Fable 5.1)
+
+`fnt/**` only. PR #143, squash-merged as `5d22768`. Brief: the frontend was functional and
+flat; rebuild it as something a judge reacts to, without bending any verdict rule.
+
+### What landed
+
+- **Tokens as CSS variables** in `fnt/src/index.css`, exposed through `tailwind.config.js`.
+  Light and dark are two sets of values, not two sets of classes — there is no `dark:` in any
+  component. Bricolage Grotesque (variable, OFL, self-hosted) for display beside Plex.
+  Radius, elevation, glass, one `aurora` gradient made from the state palette. `fnt/DESIGN.md`
+  rewritten; the five-state and three-verdict sections carried over, not replaced.
+- **`framer-motion`** (approved in the brief). `src/ui/motion.ts` holds three springs and two
+  list variants. A queue row and the verdict hero share `layoutId`; the row hands its
+  `ScanSummary` over in router state, so the verdict renders before the detail fetch returns.
+- **Heatmap**: continuous ramp via `color-mix(in oklab, …)` over four theme tokens, replacing
+  rank terciles; ward lift is a redrawn path on top (SVG has no z-index); legend marker rides
+  to the hovered ward; ranked ward list and per-ward category split from data already fetched.
+- Three subagents restyled `ComplaintTracking`, `VendorSubmissions` + `ScanSubmission` +
+  `WardSelect`, and `CameraCapture` in parallel against `DESIGN.md`; everything else by hand.
+- `scripts/contrast.mjs` reads the variables out of `index.css` and exits 1 under 4.5:1.
+
+### Verification
+
+Docker Desktop was not running at session start. A throwaway compose project (`pccs-ui4`:
+own pgvector, main's backend image unmodified, nginx serving `fnt/dist` with `fnt/nginx.conf`)
+was brought up so checks ran through nginx at `http://localhost`. `26034-deploy-frontend-1`
+was **stopped, not removed**, to free port 80 — `docker start 26034-deploy-frontend-1`
+restores it. A Playwright script drove every route at 390 and 1280, first against an empty
+database, then after `seed_demo.py`: 32 checks, 0 console errors, 0 page errors, 0 overflow,
+0 unresolved loaders, verdict headings within the three words. A real consumer scan of the
+Parle-G 130 g capture returned REVIEW in 28 s. `tsc -b`, `vite build`, `oxlint` all exit 0.
+All three CI checks green on #143; merged with `--admin` on the explicit "merge when green"
+instruction, as Sessions 27 and 28 did.
+
+### My own errors, by name
+
+- The brief pointed at `/mnt/skills/public/frontend-design/SKILL.md`. That path does not
+  exist on this machine. I used `frontend-work` and `hallmark` instead and said so at the time.
+- The first verifier flagged `/consumer/scans/<nil>` as an unresolving loader. It was the
+  verifier: `awaitScanOutcome` gives a missing scan five reads (~10 s) before reporting, and
+  the check looked at ~3 s. The check now waits up to 20 s; the screen was right.
+- First mobile queue row put the verdict tag beside the product name; POTENTIAL VIOLATION
+  clipped the source type at 390. Caught on the screenshot, not by the overflow check —
+  clipped text inside a box is not page overflow.
+- I left the verdict label as `POTENTIAL VIOLATION` (space), matching `DESIGN.md` and every
+  existing screen, where the brief wrote the enum spelling with an underscore. Flagged in the
+  report rather than decided silently.
+
+### Left for later
+
+Recorded in the PR body under "Found, not fixed" and in `TODO.md`. The one that matters for
+the demo: complaint lifecycle transitions are client-side only.

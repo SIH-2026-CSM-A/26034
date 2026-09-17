@@ -7,6 +7,30 @@ them, read the file.
 
 ---
 
+## After Session 29 (2026-09-17, frontend design system, #143) — read this first
+
+`fnt/DESIGN.md` is rewritten and is the source of truth; `node fnt/scripts/contrast.mjs` must
+exit 0 after any token change. Found during the rebuild, none written as tickets yet:
+
+1. **Complaint transitions are simulated.** `ComplaintTracking.tsx` acknowledge / resolve /
+   reject / reopen append `local-…` records to React state and never call the API. Now badged
+   "This session only", but under the no-simulated-behaviour rule this is either wired to an
+   endpoint or cut before the demo.
+2. `VerdictDetail.tsx` LedgerRow "Request recapture" has no handler.
+3. `ScanSubmission.tsx` and `CameraCapture.tsx` replace every API error with the literal
+   `'Failed to fetch'`. `resetForm` keeps a ticked Rule 3 carve-out for the next package.
+4. `CameraCapture.tsx`: double-tap on the shutter captures twice and leaks an object URL;
+   `handleRetake` does not clear `cameraError`.
+5. `dashboard/index.tsx` `STANDARD_CLAUSES` pins each clause to one hardcoded category, so the
+   category filter over clauses is not data-driven. Details are fetched for 30 scans only.
+6. `/officer/vendors` is labelled "Vendor submissions" and holds a premises register.
+7. Bundle is 529 kB (163 kB gzip). `LazyMotion` or a route split would clear Vite's warning.
+8. `src/fixtures/` is no longer imported by anything that renders. Delete it or say why not.
+9. **Not deployed to `pccs-vm`.** Same access gap as Session 28. Locally,
+   `26034-deploy-frontend-1` was stopped to free port 80 for verification and the throwaway
+   `pccs-ui4` compose project may still be up: `docker compose -p pccs-ui4 down -v`, then
+   `docker start 26034-deploy-frontend-1`.
+
 ## After Session 28 (2026-09-08, VIS-009 PDP confidence) — read this first
 
 Merged #138: `detect_pdp` now selects `boxes.conf.argmax()` instead of `boxes[0]` — see
