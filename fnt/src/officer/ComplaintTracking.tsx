@@ -1,9 +1,13 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
+import { CountUp } from '../ui/CountUp'
+import { rise, spring, stagger } from '../ui/motion'
+import { Notice } from '../ui/Notice'
 import { OfficerHeader } from './components/OfficerHeader'
-import { VerdictTag } from './components/VerdictBanner'
+import { VerdictTag, verdictLabel } from './components/VerdictBanner'
 
 // API-typed aliases
 type ComplaintResponseAPI = components['schemas']['ComplaintResponse']
@@ -147,43 +151,157 @@ function formatTimestamp(iso: string): string {
 function statusLabel(status: ComplaintStatus): string {
   switch (status) {
     case 'raised':
-      return 'RAISED'
+      return 'Raised'
     case 'acknowledged':
-      return 'ACKNOWLEDGED'
+      return 'Acknowledged'
     case 'resolved':
-      return 'RESOLVED'
+      return 'Resolved'
     case 'rejected':
-      return 'REJECTED'
+      return 'Rejected'
   }
 }
 
+// A complaint status is a workflow position, not a finding about a package, so it
+// never borrows a state colour. The four are told apart by border and fill alone.
+const STATUS_PILL: Record<ComplaintStatus, string> = {
+  raised: 'border-dashed border-ink bg-surface text-ink',
+  acknowledged: 'border-hairline bg-surface text-mute',
+  resolved: 'border-ink bg-ink text-paper',
+  rejected: 'border-mute bg-sunken text-ink',
+}
+
 function statusBadge(status: ComplaintStatus) {
-  switch (status) {
-    case 'raised':
-      return (
-        <span className="inline-flex items-center border border-dashed border-query bg-paper px-2 py-0.5 font-mono text-label font-medium text-query">
-          RAISED
-        </span>
-      )
-    case 'acknowledged':
-      return (
-        <span className="inline-flex items-center border border-solid border-mute bg-paper px-2 py-0.5 font-mono text-label font-medium text-mute">
-          ACKNOWLEDGED
-        </span>
-      )
-    case 'resolved':
-      return (
-        <span className="inline-flex items-center border border-solid border-attest bg-paper px-2 py-0.5 font-mono text-label font-medium text-attest">
-          ✓ RESOLVED
-        </span>
-      )
-    case 'rejected':
-      return (
-        <span className="inline-flex items-center border border-solid border-seal bg-paper px-2 py-0.5 font-mono text-label font-medium text-seal">
-          ✕ REJECTED
-        </span>
-      )
-  }
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-label font-medium ${STATUS_PILL[status]}`}
+    >
+      {statusLabel(status)}
+    </span>
+  )
+}
+
+const STATUS_FILTERS: ReadonlyArray<{ value: ComplaintStatus | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'All' },
+  { value: 'raised', label: 'Raised' },
+  { value: 'acknowledged', label: 'Acknowledged' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'rejected', label: 'Rejected' },
+]
+
+/** Where a thread sits on the raised, acknowledged, closed path. */
+function LifecycleSteps({ status }: { status: ComplaintStatus }) {
+  const closed = status === 'resolved' || status === 'rejected'
+  const position = status === 'raised' ? 0 : status === 'acknowledged' ? 1 : 2
+  const steps = ['Raised', 'Acknowledged', closed ? statusLabel(status) : 'Resolved']
+
+  return (
+    <ol aria-label="Lifecycle" className="flex flex-wrap items-center gap-1.5 text-label">
+      {steps.map((step, index) => (
+        <li key={step} className="flex items-center gap-1.5">
+          {index > 0 && <span aria-hidden="true" className="h-px w-3 bg-hairline" />}
+          <span
+            aria-current={index === position ? 'step' : undefined}
+            className={`rounded-full px-2.5 py-1 font-medium ${
+              index === position
+                ? 'bg-ink text-paper'
+                : index < position
+                  ? 'bg-ink/[0.07] text-ink'
+                  : 'border border-dashed border-hairline text-mute'
+            }`}
+          >
+            {step}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Close"
+      className="btn btn-ghost -mr-2 -mt-2 w-12 shrink-0 rounded-full px-0"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">
+        <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </button>
+  )
+}
+
+/** A bottom sheet on a phone, a centred card from sm up. Rendered inside AnimatePresence. */
+function Sheet({
+  labelledBy,
+  onClose,
+  width,
+  children,
+}: {
+  labelledBy: string
+  onClose: () => void
+  width: string
+  children: React.ReactNode
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgb(var(--c-shadow)/0.5)] sm:items-center sm:p-4"
+    >
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, y: 48 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 48 }}
+        transition={spring.glide}
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-t-sheet border border-hairline/70 bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-e3 sm:rounded-card sm:p-6 ${width}`}
+      >
+        <span aria-hidden="true" className="mx-auto mb-4 block h-1 w-10 rounded-full bg-hairline sm:hidden" />
+        {children}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/** Three placeholders in the box of a thread card, so the list does not jump in. */
+function ThreadSkeletons() {
+  return (
+    <div aria-busy="true" aria-label="Loading complaints" className="space-y-4 sm:space-y-6">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="card p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="skeleton h-4 w-40" />
+              <div className="skeleton h-6 w-3/5" />
+              <div className="skeleton h-4 w-2/5" />
+            </div>
+            <div className="skeleton h-7 w-24 rounded-full" />
+          </div>
+          <div className="skeleton mt-4 h-[72px] w-full rounded-ctl" />
+          <div className="skeleton mt-4 h-7 w-64 max-w-full rounded-full" />
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <div className="skeleton h-12 w-full rounded-ctl sm:w-40" />
+            <div className="skeleton h-12 w-full rounded-ctl sm:w-52" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 const DECLARATION_FIELDS: DeclarationField[] = [
@@ -208,6 +326,7 @@ export function ComplaintTracking() {
   const [scans, setScans] = useState<ScanSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'ALL'>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -243,7 +362,7 @@ export function ComplaintTracking() {
     return () => {
       active = false
     }
-  }, [])
+  }, [reloadKey])
 
   // Modals & Flows
   const [activeThread, setActiveThread] = useState<ComplaintThread | null>(null)
@@ -490,16 +609,28 @@ export function ComplaintTracking() {
     setReopenError(null)
   }
 
-  return (
-    <div className="min-h-screen bg-paper text-ink">
-      <OfficerHeader currentTitle="Complaints Ledger" />
+  const closeRaise = () => {
+    setIsRaiseModalOpen(false)
+    setSearchParams({})
+  }
 
-      <main className="mx-auto max-w-[1280px] px-4 pb-16 pt-4">
-        {/* Masthead */}
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink pb-4">
-          <div>
-            <h1 className="text-title">Complaint Raise &amp; Track Ledger</h1>
-            <p className="mt-1 text-secondary text-mute">
+  const metricTiles: ReadonlyArray<{ label: string; value: number }> = [
+    { label: 'Total escalations', value: metrics.total },
+    { label: 'Raised, awaiting acknowledgement', value: metrics.raised },
+    { label: 'Acknowledged', value: metrics.acknowledged },
+    { label: 'Resolved', value: metrics.resolved },
+    { label: 'Rejected', value: metrics.rejected },
+  ]
+
+  return (
+    <div className="aurora">
+      <OfficerHeader currentTitle="Complaints" />
+
+      <main className="mx-auto max-w-[1280px] px-4 pb-28 pt-6 md:pb-16">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-3xl">
+            <h1 className="text-title">Complaints</h1>
+            <p className="mt-1.5 text-secondary text-mute">
               Statutory manufacturer escalation tracking under Legal Metrology Rules, 2011.
               Immutable append-only record: lifecycle progression and reopening append superseding events.
             </p>
@@ -516,71 +647,90 @@ export function ComplaintTracking() {
               setRaiseFormError(null)
               setIsRaiseModalOpen(true)
             }}
-            className="flex min-h-target items-center border border-ink bg-ink px-4 py-2 text-label font-medium text-paper hover:bg-ink/90 active:bg-ink/80"
+            className="btn btn-primary w-full shrink-0 sm:w-auto"
           >
-            + Raise New Complaint
+            <svg viewBox="0 0 16 16" aria-hidden="true" className="h-3.5 w-3.5" fill="none">
+              <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Raise new complaint
           </button>
         </div>
 
-        {/* Lifecycle Metrics Bar */}
-        <div className="mt-4 grid grid-cols-2 gap-3 border border-hairline bg-paper p-3 sm:grid-cols-5">
-          <div className="border-r border-hairline/60 pr-2">
-            <span className="block text-label text-mute">Total Escalations</span>
-            <span className="font-mono text-title font-semibold">{metrics.total}</span>
-          </div>
-          <div className="border-r border-hairline/60 pr-2">
-            <span className="block text-label text-mute">RAISED (Awaiting Ack)</span>
-            <span className="font-mono text-title font-semibold text-query">
-              {metrics.raised}
-            </span>
-          </div>
-          <div className="border-r border-hairline/60 pr-2">
-            <span className="block text-label text-mute">ACKNOWLEDGED</span>
-            <span className="font-mono text-title font-semibold text-mute">
-              {metrics.acknowledged}
-            </span>
-          </div>
-          <div className="border-r border-hairline/60 pr-2">
-            <span className="block text-label text-mute">RESOLVED</span>
-            <span className="font-mono text-title font-semibold text-attest">
-              {metrics.resolved}
-            </span>
-          </div>
-          <div>
-            <span className="block text-label text-mute">REJECTED</span>
-            <span className="font-mono text-title font-semibold text-seal">
-              {metrics.rejected}
-            </span>
-          </div>
-        </div>
+        <motion.dl
+          variants={stagger}
+          initial="hidden"
+          animate="shown"
+          className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4"
+        >
+          {metricTiles.map((tile, index) => (
+            <motion.div
+              key={tile.label}
+              variants={rise}
+              className={`card flex flex-col justify-between gap-2 p-4 sm:p-5 ${index === 0 ? 'col-span-2 sm:col-span-1' : ''}`}
+            >
+              <dt className="text-label text-mute">{tile.label}</dt>
+              <dd className="font-display text-display text-ink">
+                {loading ? (
+                  <span className="skeleton block h-[1.05em] w-14" />
+                ) : fetchError ? (
+                  // A count of zero would be a claim; the list did not load.
+                  <span className="text-mute" aria-label="Not loaded">–</span>
+                ) : (
+                  <CountUp value={tile.value} />
+                )}
+              </dd>
+            </motion.div>
+          ))}
+        </motion.dl>
 
-        {/* Filters & Search */}
-        <section aria-label="Filters" className="mt-6 flex flex-wrap items-end gap-3 border-b border-hairline pb-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">Search Complaints</span>
+        <section aria-label="Filters" className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-end">
+          <label className="flex flex-col gap-1.5 lg:w-96">
+            <span className="text-label text-mute">Search complaints</span>
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by ID, manufacturer, or commodity..."
-              className="min-h-target w-72 border border-ink bg-paper px-3 py-1.5 text-body placeholder:text-mute"
+              className="input"
             />
           </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">Lifecycle Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as ComplaintStatus | 'ALL')}
-              className="min-h-target border border-ink bg-paper px-3 py-1.5 text-body"
-            >
-              <option value="ALL">All Lifecycle Stages</option>
-              <option value="raised">RAISED</option>
-              <option value="acknowledged">ACKNOWLEDGED</option>
-              <option value="resolved">RESOLVED</option>
-              <option value="rejected">REJECTED</option>
-            </select>
-          </label>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span id="status-filter-label" className="text-label text-mute">
+              Lifecycle status
+            </span>
+            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <div
+                role="group"
+                aria-labelledby="status-filter-label"
+                className="isolate inline-flex rounded-full border border-hairline/70 bg-sunken/70 p-1"
+              >
+                {STATUS_FILTERS.map((option) => {
+                  const selected = statusFilter === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setStatusFilter(option.value)}
+                      className={`relative min-h-target whitespace-nowrap rounded-full px-4 text-secondary transition-colors duration-base ease-out ${
+                        selected ? 'font-medium text-ink' : 'text-mute hover:text-ink'
+                      }`}
+                    >
+                      {selected && (
+                        <motion.span
+                          layoutId="complaint-status-pill"
+                          transition={spring.snap}
+                          className="absolute inset-0 -z-10 rounded-full bg-surface shadow-e1"
+                        />
+                      )}
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
 
           {(searchQuery || statusFilter !== 'ALL') && (
             <button
@@ -589,649 +739,538 @@ export function ComplaintTracking() {
                 setSearchQuery('')
                 setStatusFilter('ALL')
               }}
-              className="min-h-target border border-hairline px-3 py-1.5 text-label text-mute hover:border-ink hover:text-ink"
+              className="btn btn-ghost self-start lg:self-auto"
             >
               Clear filters
             </button>
           )}
         </section>
 
-        {/* Complaints Table */}
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between text-label text-mute">
-            <span className="font-mono">
-              {filteredThreads.length} active threads recorded in append-only store
-            </span>
-            <span>Immutable event ledger (no edit-in-place)</span>
-          </div>
-
+        <div className="mt-6">
           {loading ? (
-            <div className="mt-6 border border-dashed border-mute p-8 text-center text-body text-mute">
-              Loading complaints ledger…
-            </div>
+            <ThreadSkeletons />
           ) : fetchError ? (
-            <div
+            <Notice
               role="alert"
-              className="mt-6 border-2 border-seal bg-paper p-4 text-body text-seal"
-            >
-              {fetchError}
-            </div>
+              title={fetchError}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((k) => k + 1)}
+                  className="btn btn-quiet"
+                >
+                  Try again
+                </button>
+              }
+            />
           ) : filteredThreads.length === 0 ? (
-            <div className="mt-6 border border-dashed border-mute p-8 text-center text-body text-mute">
-              No complaint records found matching the criteria.
-            </div>
+            <Notice title="No complaint records found matching the criteria." />
           ) : (
-            <div className="space-y-4">
-              {filteredThreads.map((thread) => {
-                const head = thread.latest_record
-                const scan = scans.find((s) => s.id === thread.scan_id)
+            <>
+              <p className="mb-3 text-label text-mute">
+                {filteredThreads.length} active threads recorded in append-only store. Immutable
+                event ledger (no edit-in-place).
+              </p>
+              <motion.div
+                key={statusFilter}
+                variants={stagger}
+                initial="hidden"
+                animate="shown"
+                className="space-y-4 sm:space-y-6"
+              >
+                {filteredThreads.map((thread) => {
+                  const head = thread.latest_record
+                  const scan = scans.find((s) => s.id === thread.scan_id)
 
-                return (
-                  <article
-                    key={thread.thread_id}
-                    className="border-b-2 border-ink pb-5 pt-3 transition-colors hover:bg-focus-tint/20"
-                  >
-                    {/* Header line */}
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-body font-bold text-ink">
-                            {head.id}
-                          </span>
+                  return (
+                    <motion.article key={thread.thread_id} variants={rise} className="card p-5 sm:p-6">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-label text-mute">
+                            <span className="font-medium text-ink [overflow-wrap:anywhere]">{head.id}</span>
+                            <span>Event {thread.history.length} in thread</span>
+                            {/* Transitions are held in this page's state only; say so rather than let the row read as filed. */}
+                            {head.id.startsWith('local-') && (
+                              <span className="rounded-full border border-dotted border-mute px-2 py-0.5 font-sans">
+                                This session only
+                              </span>
+                            )}
+                          </div>
+                          <h2 className="mt-1.5 font-sans text-section text-ink [overflow-wrap:anywhere]">
+                            {thread.manufacturer_name}
+                          </h2>
+                          <p className="text-secondary text-mute">
+                            Commodity: {thread.product_description}
+                          </p>
                           {head.supersedes_id && (
-                            <span className="border border-hairline px-1.5 py-0.5 font-mono text-label text-mute">
+                            <p className="mt-1 font-mono text-label text-mute [overflow-wrap:anywhere]">
                               Supersedes #{head.supersedes_id}
-                            </span>
+                            </p>
                           )}
-                          <span className="font-mono text-label text-mute">
-                            • Event {thread.history.length} in thread
-                          </span>
                         </div>
-                        <h2 className="mt-1 text-section font-semibold text-ink">
-                          {thread.manufacturer_name}
-                        </h2>
-                        <p className="text-secondary text-mute">
-                          Commodity: {thread.product_description}
+
+                        <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                          {statusBadge(head.status)}
+                          {scan?.verdict && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-label text-mute">Confirmed:</span>
+                              <VerdictTag verdict={scan.verdict as Verdict} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-ctl bg-sunken/60 p-3.5">
+                        <span className="block text-label text-mute">
+                          Statutory contravention statement
+                        </span>
+                        <p className="mt-0.5 text-body text-ink [overflow-wrap:anywhere]">
+                          {head.issue_summary}
                         </p>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1.5">
-                        {statusBadge(head.status)}
-                        {scan?.verdict && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-label text-mute">Confirmed:</span>
-                            <VerdictTag verdict={scan.verdict as Verdict} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Issue Summary */}
-                    <div className="mt-3 border-l-2 border-ink pl-3">
-                      <span className="block text-label text-mute">
-                        Statutory Contravention Statement:
-                      </span>
-                      <p className="text-body text-ink">{head.issue_summary}</p>
-                    </div>
-
-                    {/* Lifecycle Progress Visualizer */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-hairline/60 pt-2 font-mono text-label text-mute">
-                      <span>Lifecycle:</span>
-                      <span
-                        className={
-                          head.status === 'raised'
-                            ? 'font-bold text-query underline'
-                            : 'text-ink'
-                        }
-                      >
-                        1. RAISED
-                      </span>
-                      <span>→</span>
-                      <span
-                        className={
-                          head.status === 'acknowledged'
-                            ? 'font-bold text-mute underline'
-                            : head.status === 'resolved' || head.status === 'rejected'
-                              ? 'text-ink'
-                              : 'text-hairline'
-                        }
-                      >
-                        2. ACKNOWLEDGED
-                      </span>
-                      <span>→</span>
-                      <span
-                        className={
-                          head.status === 'resolved'
-                            ? 'font-bold text-attest underline'
-                            : head.status === 'rejected'
-                              ? 'font-bold text-seal underline'
-                              : 'text-hairline'
-                        }
-                      >
-                        3. {head.status === 'rejected' ? 'REJECTED' : 'RESOLVED'}
-                      </span>
-                    </div>
-
-                    {/* Metadata & Actions */}
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3">
-                      <div className="font-mono text-label text-mute">
-                        {head.raised_by_officer_id ? (
-                          <span>Officer: {head.raised_by_officer_id}</span>
-                        ) : (
-                          <span>Officer: pending server sync</span>
-                        )}
-                        <span className="mx-2">•</span>
-                        <span>{formatTimestamp(head.raised_at)}</span>
+                      <div className="mt-4">
+                        <LifecycleSteps status={head.status} />
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Audit Trail Button */}
-                        <button
-                          type="button"
-                          onClick={() => setActiveThread(thread)}
-                          className="flex min-h-target items-center border border-ink bg-paper px-3 py-1 font-mono text-label text-ink hover:bg-mute/10"
-                        >
-                          Audit History ({thread.history.length})
-                        </button>
+                      <div className="mt-5 flex flex-col gap-3 border-t border-hairline/70 pt-4 lg:flex-row lg:items-center lg:justify-between">
+                        <p className="font-mono text-label text-mute">
+                          {head.raised_by_officer_id ? (
+                            <span>Officer: {head.raised_by_officer_id}</span>
+                          ) : (
+                            <span>Officer: pending server sync</span>
+                          )}
+                          <span className="mx-2" aria-hidden="true">·</span>
+                          <span>{formatTimestamp(head.raised_at)}</span>
+                        </p>
 
-                        {/* Lifecycle Progression Affordances (Append-only!) */}
-                        {head.status === 'raised' && (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                           <button
                             type="button"
-                            onClick={() =>
-                              setTransitionTarget({
-                                record: head,
-                                toStatus: 'acknowledged',
-                              })
-                            }
-                            className="flex min-h-target items-center border border-ink bg-ink px-3 py-1 text-label text-paper hover:bg-ink/90"
+                            onClick={() => setActiveThread(thread)}
+                            className="btn btn-quiet"
                           >
-                            Record Acknowledgement →
+                            Audit history ({thread.history.length})
                           </button>
-                        )}
 
-                        {head.status === 'acknowledged' && (
-                          <>
+                          {head.status === 'raised' && (
                             <button
                               type="button"
                               onClick={() =>
                                 setTransitionTarget({
                                   record: head,
-                                  toStatus: 'resolved',
+                                  toStatus: 'acknowledged',
                                 })
                               }
-                              className="flex min-h-target items-center border border-attest bg-paper px-3 py-1 text-label font-medium text-attest hover:bg-attest/10"
+                              className="btn btn-primary"
                             >
-                              Resolve Complaint ✓
+                              Record acknowledgement
                             </button>
+                          )}
+
+                          {head.status === 'acknowledged' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTransitionTarget({
+                                    record: head,
+                                    toStatus: 'rejected',
+                                  })
+                                }
+                                className="btn btn-quiet"
+                              >
+                                Reject complaint
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTransitionTarget({
+                                    record: head,
+                                    toStatus: 'resolved',
+                                  })
+                                }
+                                className="btn btn-primary"
+                              >
+                                Resolve complaint
+                              </button>
+                            </>
+                          )}
+
+                          {/* UI Rule 3: Reopen Complaint */}
+                          {(head.status === 'resolved' || head.status === 'rejected') && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setTransitionTarget({
-                                  record: head,
-                                  toStatus: 'rejected',
-                                })
-                              }
-                              className="flex min-h-target items-center border border-seal bg-paper px-3 py-1 text-label font-medium text-seal hover:bg-seal/10"
+                              onClick={() => {
+                                setReopenTarget(head)
+                                setReopenJustification('')
+                                setReopenError(null)
+                              }}
+                              className="btn btn-quiet"
                             >
-                              Reject Complaint ✕
+                              Reopen complaint
                             </button>
-                          </>
-                        )}
-
-                        {/* UI Rule 3: Reopen Complaint */}
-                        {(head.status === 'resolved' || head.status === 'rejected') && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReopenTarget(head)
-                              setReopenJustification('')
-                              setReopenError(null)
-                            }}
-                            className="flex min-h-target items-center border border-ink bg-paper px-3 py-1 font-mono text-label text-ink hover:bg-mute/10"
-                          >
-                            Reopen Complaint ↺
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
+                    </motion.article>
+                  )
+                })}
+              </motion.div>
+            </>
           )}
         </div>
+      </main>
 
-        {/* Modal 1: Thread History (Append-Only Audit View) */}
+      <AnimatePresence>
+        {/* Thread history (append-only audit view) */}
         {activeThread && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="audit-history-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          <Sheet
+            key="audit"
+            labelledBy="audit-history-title"
+            onClose={() => setActiveThread(null)}
+            width="sm:max-w-3xl"
           >
-            <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto border-2 border-ink bg-paper p-5 sm:p-6">
-              <div className="flex items-start justify-between border-b border-ink pb-3">
-                <div>
-                  <span className="font-mono text-label text-mute">
-                    APPEND-ONLY AUDIT LEDGER • THREAD #{activeThread.thread_id}
-                  </span>
-                  <h2 id="audit-history-title" className="text-title">
-                    {activeThread.manufacturer_name}
-                  </h2>
-                  <p className="font-mono text-label text-mute">
-                    Inspection Scan: {activeThread.scan_id} • Verdict: {activeThread.verdict_id}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveThread(null)}
-                  className="flex min-h-target items-center px-3 font-mono text-body hover:text-mute"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="mt-4">
-                <p className="text-secondary text-mute">
-                  Legal metrology escalation threads are immutable. Every row represents an event
-                  signed by an officer timestamp. Superseding records name their predecessor via
-                  `supersedes_id` without in-place mutation.
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 id="audit-history-title" className="text-title [overflow-wrap:anywhere]">
+                  {activeThread.manufacturer_name}
+                </h2>
+                <p className="mt-1 font-mono text-label text-mute [overflow-wrap:anywhere]">
+                  Append-only audit ledger · Thread #{activeThread.thread_id}
                 </p>
-
-                <div className="mt-4 space-y-3">
-                  {activeThread.history.map((rec, index) => (
-                    <div
-                      key={rec.id}
-                      className="border border-hairline bg-paper p-3 text-secondary"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline/60 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-label font-bold text-ink">
-                            Event #{index + 1}: {rec.id}
-                          </span>
-                          {statusBadge(rec.status)}
-                        </div>
-                        <span className="font-mono text-label text-mute">
-                          {formatTimestamp(rec.raised_at)}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 space-y-1">
-                        <p className="text-body font-medium text-ink">{rec.issue_summary}</p>
-                        <p className="font-mono text-label text-mute">
-                          {rec.raised_by_officer_id
-                            ? `Officer: ${rec.raised_by_officer_id}`
-                            : 'Officer: pending server sync'}
-                          {rec.supersedes_id
-                            ? ` • Supersedes #${rec.supersedes_id}`
-                            : ' • Initial Root Event'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p className="font-mono text-label text-mute [overflow-wrap:anywhere]">
+                  Inspection scan: {activeThread.scan_id} · Verdict: {activeThread.verdict_id}
+                </p>
               </div>
-
-              <div className="mt-6 flex justify-end border-t border-ink pt-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveThread(null)}
-                  className="min-h-target border border-ink px-4 py-2 text-label text-ink hover:bg-mute/10"
-                >
-                  Close Audit Ledger
-                </button>
-              </div>
+              <CloseButton onClick={() => setActiveThread(null)} />
             </div>
-          </div>
+
+            <p className="mt-4 text-secondary text-mute">
+              Legal metrology escalation threads are immutable. Every row represents an event
+              signed by an officer timestamp. Superseding records name their predecessor via
+              `supersedes_id` without in-place mutation.
+            </p>
+
+            <motion.ol variants={stagger} initial="hidden" animate="shown" className="mt-4 space-y-3">
+              {activeThread.history.map((rec, index) => (
+                <motion.li
+                  key={rec.id}
+                  variants={rise}
+                  className="rounded-ctl border border-hairline/70 bg-sunken/50 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="font-mono text-label font-medium text-ink [overflow-wrap:anywhere]">
+                        Event #{index + 1}: {rec.id}
+                      </span>
+                      {statusBadge(rec.status)}
+                    </div>
+                    <span className="font-mono text-label text-mute">
+                      {formatTimestamp(rec.raised_at)}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-body text-ink [overflow-wrap:anywhere]">{rec.issue_summary}</p>
+                  <p className="mt-1 font-mono text-label text-mute [overflow-wrap:anywhere]">
+                    {rec.raised_by_officer_id
+                      ? `Officer: ${rec.raised_by_officer_id}`
+                      : 'Officer: pending server sync'}
+                    {rec.supersedes_id
+                      ? ` · Supersedes #${rec.supersedes_id}`
+                      : ' · Initial root event'}
+                  </p>
+                </motion.li>
+              ))}
+            </motion.ol>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveThread(null)}
+                className="btn btn-quiet w-full sm:w-auto"
+              >
+                Close audit ledger
+              </button>
+            </div>
+          </Sheet>
         )}
 
-        {/* Modal 2: Raise New Complaint (UI Rule 1 Enforced!) */}
+        {/* Raise new complaint (UI Rule 1 enforced) */}
         {isRaiseModalOpen && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="raise-complaint-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-          >
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-2 border-ink bg-paper p-5 sm:p-6">
-              <div className="flex items-start justify-between border-b border-ink pb-3">
-                <div>
-                  <span className="font-mono text-label font-bold text-ink">
-                    STATUTORY ENFORCEMENT ESCALATION
-                  </span>
-                  <h2 id="raise-complaint-title" className="text-title">
-                    Raise Manufacturer Complaint
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRaiseModalOpen(false)
-                    setSearchParams({})
-                  }}
-                  className="flex min-h-target items-center px-3 font-mono text-body hover:text-mute"
+          <Sheet key="raise" labelledBy="raise-complaint-title" onClose={closeRaise} width="sm:max-w-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="raise-complaint-title" className="text-title">
+                Raise manufacturer complaint
+              </h2>
+              <CloseButton onClick={closeRaise} />
+            </div>
+
+            {/* UI Rule 1 statutory safeguard notice */}
+            <div className="mt-4 rounded-ctl bg-sunken/60 p-4 text-secondary text-mute">
+              <p className="font-semibold text-ink">UI Rule 1 — Mandatory human confirmation</p>
+              <p className="mt-1">
+                Under the Legal Metrology (Packaged Commodities) Rules, 2011, a complaint can ONLY
+                be raised from a verdict that an officer has explicitly confirmed. The system
+                strictly forbids and excludes unconfirmed machine recommendations.
+              </p>
+            </div>
+
+            {raiseFormError && (
+              <div className="mt-4">
+                <Notice role="alert" title={raiseFormError} />
+              </div>
+            )}
+
+            <form onSubmit={(e) => { void handleRaiseSubmit(e) }} className="mt-5 space-y-4">
+              {/* Scan selector: ONLY lists CONFIRMED scans */}
+              <div>
+                <label htmlFor="select-scan" className="block text-label text-mute">
+                  Select confirmed inspection scan *
+                </label>
+                <select
+                  id="select-scan"
+                  value={selectedScanId}
+                  onChange={(e) => handleScanSelectChange(e.target.value)}
+                  required
+                  className="input mt-1.5 font-mono"
                 >
-                  ✕
-                </button>
+                  <option value="">Choose an officer-confirmed scan</option>
+                  {confirmedEligibleSubmissions.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.id} — Confirmed {sub.verdict ? verdictLabel(sub.verdict) : ''} ({sub.product_category || 'Commodity'})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-label text-mute">
+                  Showing {confirmedEligibleSubmissions.length} inspections with confirmed verdicts. Unconfirmed machine scans are omitted.
+                </p>
               </div>
 
-              {/* UI Rule 1 Statutory Safeguard Notice */}
-              <div className="mt-4 border-l-4 border-ink bg-paper p-3 text-secondary text-mute">
-                <p className="font-semibold text-ink">
-                  UI Rule 1 — Mandatory Human Confirmation:
-                </p>
-                <p className="mt-0.5 text-label">
-                  Under the Legal Metrology (Packaged Commodities) Rules, 2011, a complaint can ONLY
-                  be raised from a verdict that an officer has explicitly confirmed. The system
-                  strictly forbids and excludes unconfirmed machine recommendations.
-                </p>
+              <div>
+                <label htmlFor="mfr-name" className="block text-label text-mute">
+                  Declared manufacturer name *
+                </label>
+                <input
+                  id="mfr-name"
+                  type="text"
+                  value={manufacturerName}
+                  onChange={(e) => setManufacturerName(e.target.value)}
+                  required
+                  placeholder="e.g. Apex Agro Refining Private Limited"
+                  className="input mt-1.5"
+                />
               </div>
 
-              {raiseFormError && (
-                <div
-                  role="alert"
-                  className="mt-4 border-2 border-seal bg-paper p-3 text-secondary text-seal"
-                >
-                  <p className="font-semibold">{raiseFormError}</p>
-                </div>
-              )}
-
-              <form onSubmit={(e) => { void handleRaiseSubmit(e) }} className="mt-4 space-y-4">
-                {/* Scan selector: ONLY lists CONFIRMED scans */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="select-scan" className="block text-label text-mute">
-                    Select Confirmed Inspection Scan *
-                  </label>
-                  <select
-                    id="select-scan"
-                    value={selectedScanId}
-                    onChange={(e) => handleScanSelectChange(e.target.value)}
-                    required
-                    className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 font-mono text-body text-ink"
-                  >
-                    <option value="">-- Choose an officer-confirmed scan --</option>
-                    {confirmedEligibleSubmissions.map((sub) => (
-                      <option key={sub.id} value={sub.id}>
-                        {sub.id} — Confirmed {sub.verdict || 'REVIEW'} ({sub.product_category || 'Commodity'})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 font-mono text-label text-mute">
-                    * Showing {confirmedEligibleSubmissions.length} inspections with confirmed verdicts. Unconfirmed machine scans are omitted.
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="mfr-name" className="block text-label text-mute">
-                    Declared Manufacturer Name *
+                  <label htmlFor="rule-id" className="block text-label text-mute">
+                    Rule ID / clause reference *
                   </label>
                   <input
-                    id="mfr-name"
+                    id="rule-id"
                     type="text"
-                    value={manufacturerName}
-                    onChange={(e) => setManufacturerName(e.target.value)}
+                    value={ruleId}
+                    onChange={(e) => setRuleId(e.target.value)}
                     required
-                    placeholder="e.g. Apex Agro Refining Private Limited"
-                    className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 text-body text-ink"
+                    placeholder="e.g. rule-6-1-d"
+                    className="input mt-1.5 font-mono"
                   />
                 </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="rule-id" className="block text-label text-mute">
-                      Rule ID / Clause Reference *
-                    </label>
-                    <input
-                      id="rule-id"
-                      type="text"
-                      value={ruleId}
-                      onChange={(e) => setRuleId(e.target.value)}
-                      required
-                      placeholder="e.g. rule-6-1-d"
-                      className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 font-mono text-body text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="field-select" className="block text-label text-mute">
-                      Declaration Field *
-                    </label>
-                    <select
-                      id="field-select"
-                      value={field}
-                      onChange={(e) => setField(e.target.value as DeclarationField)}
-                      required
-                      className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 font-mono text-body text-ink"
-                    >
-                      {DECLARATION_FIELDS.map((f) => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="measured-value" className="block text-label text-mute">
-                      Measured Value (observed) *
-                    </label>
-                    <input
-                      id="measured-value"
-                      type="text"
-                      value={measuredValue}
-                      onChange={(e) => setMeasuredValue(e.target.value)}
-                      required
-                      placeholder="e.g. 480g"
-                      className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 text-body text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="required-value" className="block text-label text-mute">
-                      Required Value (declared) *
-                    </label>
-                    <input
-                      id="required-value"
-                      type="text"
-                      value={requiredValue}
-                      onChange={(e) => setRequiredValue(e.target.value)}
-                      required
-                      placeholder="e.g. 500g"
-                      className="mt-1 min-h-target w-full border border-ink bg-paper px-3 py-2 text-body text-ink"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 border-t border-ink pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRaiseModalOpen(false)
-                      setSearchParams({})
-                    }}
-                    className="min-h-target px-4 py-2 text-label text-mute hover:text-ink"
+                <div>
+                  <label htmlFor="field-select" className="block text-label text-mute">
+                    Declaration field *
+                  </label>
+                  <select
+                    id="field-select"
+                    value={field}
+                    onChange={(e) => setField(e.target.value as DeclarationField)}
+                    required
+                    className="input mt-1.5 font-mono"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!selectedScanId || raiseSubmitting}
-                    className={`min-h-target border px-6 py-2 text-label font-medium ${
-                      selectedScanId && !raiseSubmitting
-                        ? 'border-ink bg-ink text-paper hover:bg-ink/90'
-                        : 'cursor-not-allowed border-hairline bg-hairline text-mute'
-                    }`}
-                  >
-                    {raiseSubmitting ? 'Submitting…' : 'Submit Formal Complaint'}
-                  </button>
+                    {DECLARATION_FIELDS.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
                 </div>
-              </form>
-            </div>
-          </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="measured-value" className="block text-label text-mute">
+                    Measured value (observed) *
+                  </label>
+                  <input
+                    id="measured-value"
+                    type="text"
+                    value={measuredValue}
+                    onChange={(e) => setMeasuredValue(e.target.value)}
+                    required
+                    placeholder="e.g. 480g"
+                    className="input mt-1.5"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="required-value" className="block text-label text-mute">
+                    Required value (declared) *
+                  </label>
+                  <input
+                    id="required-value"
+                    type="text"
+                    value={requiredValue}
+                    onChange={(e) => setRequiredValue(e.target.value)}
+                    required
+                    placeholder="e.g. 500g"
+                    className="input mt-1.5"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
+                <button type="button" onClick={closeRaise} className="btn btn-ghost">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedScanId || raiseSubmitting}
+                  className="btn btn-primary"
+                >
+                  {raiseSubmitting ? 'Submitting…' : 'Submit formal complaint'}
+                </button>
+              </div>
+            </form>
+          </Sheet>
         )}
 
-        {/* Modal 3: Lifecycle Transition (Append-only event creation) */}
+        {/* Lifecycle transition (append-only event creation) */}
         {transitionTarget && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="transition-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          <Sheet
+            key="transition"
+            labelledBy="transition-title"
+            onClose={() => setTransitionTarget(null)}
+            width="sm:max-w-lg"
           >
-            <div className="w-full max-w-lg border-2 border-ink bg-paper p-5 sm:p-6">
-              <div className="flex items-start justify-between border-b border-ink pb-3">
-                <div>
-                  <span className="font-mono text-label text-mute">
-                    APPEND-ONLY LIFECYCLE PROGRESSION
-                  </span>
-                  <h2 id="transition-title" className="text-section font-semibold">
-                    Record {statusLabel(transitionTarget.toStatus)}
-                  </h2>
-                </div>
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="transition-title" className="font-sans text-section">
+                Record {statusLabel(transitionTarget.toStatus).toLowerCase()}
+              </h2>
+              <CloseButton onClick={() => setTransitionTarget(null)} />
+            </div>
+
+            <form onSubmit={handleTransitionSubmit} className="mt-3 space-y-4">
+              <p className="text-secondary text-mute">
+                Recording this transition writes a new immutable event row superseding{' '}
+                <span className="font-mono font-medium text-ink [overflow-wrap:anywhere]">
+                  #{transitionTarget.record.id}
+                </span>
+                .
+              </p>
+
+              <div>
+                <label htmlFor="action-note" className="block text-label text-mute">
+                  {transitionTarget.toStatus === 'acknowledged'
+                    ? 'Manufacturer acknowledgement reference and details *'
+                    : transitionTarget.toStatus === 'resolved'
+                      ? 'Resolution summary and corrective undertaking *'
+                      : 'Rejection grounds and verification findings *'}
+                </label>
+                <textarea
+                  id="action-note"
+                  rows={3}
+                  value={actionNote}
+                  onChange={(e) => setActionNote(e.target.value)}
+                  required
+                  placeholder={
+                    transitionTarget.toStatus === 'acknowledged'
+                      ? 'Enter manufacturer notice reference and date of receipt...'
+                      : transitionTarget.toStatus === 'resolved'
+                        ? 'Detail the manufacturer undertaking, revised packaging artwork, or batch withdrawal...'
+                        : 'State why the escalation was dismissed or certificate under which exemption was granted...'
+                  }
+                  className="input mt-1.5"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setTransitionTarget(null)}
-                  className="flex min-h-target items-center px-3 font-mono text-body hover:text-mute"
+                  className="btn btn-ghost"
                 >
-                  ✕
+                  Cancel
+                </button>
+                <button type="submit" disabled={!actionNote.trim()} className="btn btn-primary">
+                  Append {statusLabel(transitionTarget.toStatus).toLowerCase()} record
                 </button>
               </div>
-
-              <form onSubmit={handleTransitionSubmit} className="mt-4 space-y-3">
-                <p className="text-secondary text-mute">
-                  Recording this transition writes a new immutable event row superseding{' '}
-                  <span className="font-mono font-bold text-ink">
-                    #{transitionTarget.record.id}
-                  </span>
-                  .
-                </p>
-
-                <div>
-                  <label htmlFor="action-note" className="block text-label text-mute">
-                    {transitionTarget.toStatus === 'acknowledged'
-                      ? 'Manufacturer Acknowledgement Reference & Details *'
-                      : transitionTarget.toStatus === 'resolved'
-                        ? 'Resolution Summary & Corrective Undertaking *'
-                        : 'Rejection Grounds & Verification Findings *'}
-                  </label>
-                  <textarea
-                    id="action-note"
-                    rows={3}
-                    value={actionNote}
-                    onChange={(e) => setActionNote(e.target.value)}
-                    required
-                    placeholder={
-                      transitionTarget.toStatus === 'acknowledged'
-                        ? 'Enter manufacturer notice reference and date of receipt...'
-                        : transitionTarget.toStatus === 'resolved'
-                          ? 'Detail the manufacturer undertaking, revised packaging artwork, or batch withdrawal...'
-                          : 'State why the escalation was dismissed or certificate under which exemption was granted...'
-                    }
-                    className="mt-1 w-full border border-ink bg-paper px-3 py-2 text-body text-ink"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 border-t border-ink pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setTransitionTarget(null)}
-                    className="min-h-target px-4 py-2 text-label text-mute hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!actionNote.trim()}
-                    className="min-h-target border border-ink bg-ink px-4 py-2 text-label font-medium text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-hairline"
-                  >
-                    Append {statusLabel(transitionTarget.toStatus)} Record
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+            </form>
+          </Sheet>
         )}
 
-        {/* Modal 4: Reopen Complaint (UI Rule 3: Append-only superseding event) */}
+        {/* Reopen complaint (UI Rule 3: append-only superseding event) */}
         {reopenTarget && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reopen-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          <Sheet
+            key="reopen"
+            labelledBy="reopen-title"
+            onClose={() => setReopenTarget(null)}
+            width="sm:max-w-lg"
           >
-            <div className="w-full max-w-lg border-2 border-ink bg-paper p-5 sm:p-6">
-              <div className="flex items-start justify-between border-b border-ink pb-3">
-                <div>
-                  <span className="font-mono text-label text-mute">
-                    UI RULE 3 — APPEND-ONLY ARCHITECTURE
-                  </span>
-                  <h2 id="reopen-title" className="text-section font-semibold">
-                    Reopen Complaint #{reopenTarget.id}
-                  </h2>
-                </div>
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="reopen-title" className="font-sans text-section [overflow-wrap:anywhere]">
+                Reopen complaint #{reopenTarget.id}
+              </h2>
+              <CloseButton onClick={() => setReopenTarget(null)} />
+            </div>
+
+            <div className="mt-3 rounded-ctl bg-sunken/60 p-4 text-secondary text-mute">
+              <p className="text-body font-medium text-ink">{reopenTarget.manufacturer_name}</p>
+              <p className="font-mono text-label [overflow-wrap:anywhere]">
+                Previous status: {statusLabel(reopenTarget.status)} · Supersedes #{reopenTarget.id}
+              </p>
+              <p className="mt-1.5">
+                Reopening does not modify the existing record in place. It appends a new
+                superseding event in raised status to the audit trail.
+              </p>
+            </div>
+
+            {reopenError && (
+              <div className="mt-3">
+                <Notice role="alert" title={reopenError} />
+              </div>
+            )}
+
+            <form onSubmit={handleReopenSubmit} className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="reopen-justification" className="block text-label text-mute">
+                  Reopening justification / new investigation evidence *
+                </label>
+                <textarea
+                  id="reopen-justification"
+                  rows={3}
+                  value={reopenJustification}
+                  onChange={(e) => setReopenJustification(e.target.value)}
+                  required
+                  placeholder="Detail subsequent inspection findings or persistence of package shortfall..."
+                  className="input mt-1.5"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+                <button type="button" onClick={() => setReopenTarget(null)} className="btn btn-ghost">
+                  Cancel
+                </button>
                 <button
-                  type="button"
-                  onClick={() => setReopenTarget(null)}
-                  className="flex min-h-target items-center px-3 font-mono text-body hover:text-mute"
+                  type="submit"
+                  disabled={!reopenJustification.trim()}
+                  className="btn btn-primary"
                 >
-                  ✕
+                  Append reopened complaint (raised)
                 </button>
               </div>
-
-              <div className="mt-3 border border-hairline bg-paper p-3 text-secondary text-mute">
-                <p className="text-body font-medium text-ink">
-                  {reopenTarget.manufacturer_name}
-                </p>
-                <p className="font-mono text-label">
-                  Previous status: {statusLabel(reopenTarget.status)} • Supersedes #{reopenTarget.id}
-                </p>
-                <p className="mt-1 text-label">
-                  Reopening does not modify the existing record in place. It appends a new
-                  superseding event in RAISED status to the audit trail.
-                </p>
-              </div>
-
-              {reopenError && (
-                <p className="mt-2 text-label text-seal">{reopenError}</p>
-              )}
-
-              <form onSubmit={handleReopenSubmit} className="mt-4 space-y-3">
-                <div>
-                  <label htmlFor="reopen-justification" className="block text-label text-mute">
-                    Reopening Justification / New Investigation Evidence *
-                  </label>
-                  <textarea
-                    id="reopen-justification"
-                    rows={3}
-                    value={reopenJustification}
-                    onChange={(e) => setReopenJustification(e.target.value)}
-                    required
-                    placeholder="Detail subsequent inspection findings or persistence of package shortfall..."
-                    className="mt-1 w-full border border-ink bg-paper px-3 py-2 text-body text-ink"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 border-t border-ink pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setReopenTarget(null)}
-                    className="min-h-target px-4 py-2 text-label text-mute hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!reopenJustification.trim()}
-                    className="min-h-target border border-ink bg-ink px-4 py-2 text-label font-medium text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-hairline"
-                  >
-                    Append Reopened Complaint (RAISED)
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+            </form>
+          </Sheet>
         )}
-      </main>
+      </AnimatePresence>
     </div>
   )
 }

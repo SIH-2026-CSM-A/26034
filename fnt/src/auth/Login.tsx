@@ -1,7 +1,11 @@
+import { motion } from 'framer-motion'
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import { setToken } from '../services/auth'
+import { Logo } from '../ui/Logo'
+import { rise, stagger } from '../ui/motion'
+import { Notice } from '../ui/Notice'
 
 /**
  * What the server said, never a sentence of ours. A rejected sign-in is a 401
@@ -58,76 +62,81 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b-2 border-ink bg-paper">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3">
-          <span className="text-label text-mute">PCCS</span>
-          <span className="text-label text-mute">Officer Sign-in</span>
-        </div>
-      </header>
+    <div className="aurora flex flex-col">
+      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center px-4 py-10">
+        <motion.div variants={stagger} initial="hidden" animate="shown">
+          <motion.div variants={rise} className="flex items-center gap-3">
+            <Logo className="h-10 w-10" />
+            <div>
+              <p className="font-display text-body font-semibold leading-tight tracking-tight">PCCS</p>
+              <p className="text-label text-mute">Packaged Commodity Compliance System</p>
+            </div>
+          </motion.div>
 
-      <main className="mx-auto max-w-[440px] px-4 py-12">
-        <h1 className="text-title">Sign in</h1>
-        <p className="mt-1 text-secondary text-mute">
-          Legal Metrology officer credentials. Your jurisdiction and role come from the
-          token the server issues, not from anything entered here.
-        </p>
+          <motion.div variants={rise} className="card mt-6 p-5 shadow-e2 sm:p-7">
+            <h1 className="text-title">Sign in</h1>
+            <p className="mt-1 text-secondary text-mute">
+              Legal Metrology officer credentials. Your jurisdiction and role come from the
+              token the server issues, not from anything entered here.
+            </p>
 
-        {error && (
-          <div className="mt-6 border border-seal bg-paper p-4" role="alert">
-            <p className="text-body font-semibold text-seal">Sign-in refused</p>
-            <p className="mt-1 font-mono text-secondary text-mute">{error}</p>
-          </div>
-        )}
+            {error && (
+              <div className="mt-5">
+                <Notice title="Sign-in refused" role="alert">
+                  <span className="font-mono">{error}</span>
+                </Notice>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-body font-medium">
-              Username
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="mt-2 block min-h-target w-full border border-hairline bg-paper px-3 py-2 font-mono text-body"
-            />
-          </div>
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              <div>
+                <label htmlFor="username" className="block text-secondary font-medium">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="input mt-1.5 font-mono"
+                />
+              </div>
 
-          <div>
-            <label htmlFor="password" className="block text-body font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 block min-h-target w-full border border-hairline bg-paper px-3 py-2 font-mono text-body"
-            />
-          </div>
+              <div>
+                <label htmlFor="password" className="block text-secondary font-medium">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input mt-1.5 font-mono"
+                />
+              </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="min-h-target w-full border border-ink bg-ink px-4 py-2 font-mono text-body text-paper hover:bg-ink/90 disabled:opacity-60"
-          >
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-        <p className="mt-8 border-t border-hairline pt-4 text-secondary text-mute">
-          Not an officer?{' '}
-          <Link to="/consumer" className="text-ink underline underline-offset-2">
-            Check a package label without signing in
-          </Link>
-          .
-        </p>
+              <button type="submit" disabled={submitting} className="btn btn-primary w-full text-body">
+                {submitting && (
+                  <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" />
+                )}
+                {submitting ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          </motion.div>
+
+          <motion.p variants={rise} className="mt-6 text-center text-secondary text-mute">
+            Not an officer?{' '}
+            <Link to="/consumer" className="font-medium text-accent underline-offset-4 hover:underline">
+              Check a package label without signing in
+            </Link>
+          </motion.p>
+        </motion.div>
       </main>
     </div>
   )

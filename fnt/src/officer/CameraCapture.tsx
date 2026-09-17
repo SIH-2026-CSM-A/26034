@@ -1,12 +1,15 @@
 ﻿import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import { awaitScanOutcome } from '../services/scans'
 import { decodeFromImageSource, type BarcodeResult } from '../services/barcode'
 import type { components } from '../services/generated/schema'
+import { Notice } from '../ui/Notice'
+import { rise, spring, stagger } from '../ui/motion'
+import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictBanner } from './components/VerdictBanner'
 import { WardSelect } from './WardSelect'
-import type { Verdict as FixtureVerdict } from '../fixtures/contracts'
 
 type CalibrationMethod = components['schemas']['CalibrationMethod']
 type ProductCategory = components['schemas']['ProductCategory']
@@ -18,6 +21,14 @@ const PRODUCT_CATEGORIES: ReadonlyArray<{ value: ProductCategory; label: string 
   { value: 'cosmetics', label: 'Cosmetics' },
   { value: 'medical_device', label: 'Medical Device' },
 ]
+
+// Entrances only. A panel that waited for the previous one to leave would hold a
+// verdict back by the length of an exit, so nothing at this level animates out.
+const enter = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: spring.glide,
+}
 
 export function CameraCapture() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -46,7 +57,6 @@ export function CameraCapture() {
   const [scanResult, setScanResult] = useState<ScanDetail | null>(null)
 
   // Scoped SVG pattern ID per DESIGN.md and responsive duplicate protection
-  const hatchPatternId = useId()
   const referenceGridId = useId()
 
   const stopCamera = useCallback(() => {
@@ -247,65 +257,30 @@ export function CameraCapture() {
   }, [capturedUrl])
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      {/* Officer Surface Masthead */}
-      <header className="border-b-2 border-ink bg-paper">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3">
-          <span className="font-mono text-label font-semibold text-ink">PCCS</span>
-          <span className="text-label text-mute">Camera Capture</span>
-          <div className="ml-auto flex items-center gap-4">
-            <Link
-              to="/officer/new"
-              className="flex min-h-target items-center text-label text-mute hover:text-ink"
-            >
-              Upload file
-            </Link>
-            <Link
-              to="/officer/queue"
-              className="flex min-h-target items-center text-label text-mute hover:text-ink"
-            >
-              ← Review queue
-            </Link>
+    <div className="aurora">
+      <OfficerHeader currentTitle="Camera" />
+
+      <main className="mx-auto max-w-[960px] px-4 pb-28 pt-6 md:pb-16">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div className="max-w-[600px]">
+            <h1 className="text-title">Package camera capture</h1>
+            <p className="mt-1 text-secondary text-mute">
+              Capture a clear, well-lit photograph of the package principal display panel (PDP) for
+              legal metrology compliance review.
+            </p>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[640px] px-4 py-6 sm:py-8">
-        <div className="mb-4">
-          <h1 className="text-section font-semibold sm:text-title">Package camera capture</h1>
-          <p className="mt-1 text-secondary text-mute">
-            Capture a clear, well-lit photograph of the package principal display panel (PDP) for
-            legal metrology compliance review.
-          </p>
+          <Link to="/officer/new" className="btn btn-quiet">
+            Upload file
+          </Link>
         </div>
 
-        {/* STEP 1: LIVE CAPTURE */}
-        {step === 'capture' && (
-          <div className="space-y-4">
-            {cameraError && (
-              <div className="border border-seal bg-paper p-4">
-                <p className="text-body font-semibold text-seal">Camera error</p>
-                <p className="mt-1 font-mono text-secondary text-mute">{cameraError}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="min-h-target border border-ink bg-paper px-4 py-2 text-label font-medium hover:bg-mute/10"
-                  >
-                    Retry camera
-                  </button>
-                  <Link
-                    to="/officer/new"
-                    className="flex min-h-target items-center border border-hairline px-4 py-2 text-label text-mute hover:border-ink hover:text-ink"
-                  >
-                    Switch to file upload →
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Video Viewfinder Container */}
-            <div className="relative aspect-[3/4] w-full overflow-hidden border-2 border-ink bg-ink">
+        {/* STEPS 1 AND 2 share one frame: the still replaces the video in place. */}
+        {step !== 'result' && (
+          <div className="md:grid md:grid-cols-[minmax(0,400px)_minmax(0,1fr)] md:items-start md:gap-8">
+            <motion.div
+              {...enter}
+              className="relative aspect-[3/4] max-h-[calc(100svh-18rem)] min-h-[340px] w-full overflow-hidden rounded-sheet bg-ink shadow-e2 md:sticky md:top-20 md:max-h-none"
+            >
               <video
                 ref={videoRef}
                 autoPlay
@@ -322,69 +297,68 @@ export function CameraCapture() {
                 aria-label="Package framing guide"
               >
                 <defs>
-                  {/* 45-degree hatch for guide regions, scoped per DESIGN.md */}
-                  <pattern
-                    id={hatchPatternId}
-                    width="12"
-                    height="12"
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <path
-                      d="M-3 3 3 -3M0 12 12 0M9 15 15 9"
-                      fill="none"
-                      stroke="#A8AFAC"
-                      strokeWidth="2"
-                    />
-                  </pattern>
                   <pattern
                     id={referenceGridId}
                     width="8"
                     height="8"
                     patternUnits="userSpaceOnUse"
                   >
-                    <rect width="8" height="8" fill="none" stroke="#DCDFDB" strokeWidth="0.75" />
+                    <rect
+                      width="8"
+                      height="8"
+                      fill="none"
+                      strokeWidth="0.75"
+                      className="stroke-paper/70"
+                    />
                   </pattern>
                 </defs>
 
-                {/* Framing corner brackets for Principal Display Panel */}
-                <g stroke="#DCDFDB" strokeWidth="4" fill="none" strokeLinecap="square">
-                  {/* Top-left */}
-                  <path d="M 28 58 L 28 28 L 58 28" />
-                  {/* Top-right */}
-                  <path d="M 302 28 L 332 28 L 332 58" />
-                  {/* Bottom-left */}
-                  <path d="M 28 422 L 28 452 L 58 452" />
-                  {/* Bottom-right */}
-                  <path d="M 302 452 L 332 452 L 332 422" />
-                </g>
-
-                {/* Centre crosshair mark */}
-                <g stroke="#DCDFDB" strokeWidth="1.5" strokeOpacity="0.8">
-                  <line x1="170" y1="240" x2="190" y2="240" />
-                  <line x1="180" y1="230" x2="180" y2="250" />
-                </g>
+                {/* Each bracket is drawn twice, ink under paper, so it holds on a
+                    bright label and a dark one, in either theme. */}
+                {(['stroke-ink/40', 'stroke-paper'] as const).map((tone, layer) => (
+                  <g
+                    key={tone}
+                    className={tone}
+                    strokeWidth={layer === 0 ? 7 : 3.5}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {/* Top-left */}
+                    <path d="M 28 64 L 28 44 Q 28 28 44 28 L 64 28" />
+                    {/* Top-right */}
+                    <path d="M 296 28 L 316 28 Q 332 28 332 44 L 332 64" />
+                    {/* Bottom-left */}
+                    <path d="M 28 416 L 28 436 Q 28 452 44 452 L 64 452" />
+                    {/* Bottom-right */}
+                    <path d="M 296 452 L 316 452 Q 332 452 332 436 L 332 416" />
+                    {/* Centre crosshair mark */}
+                    <path d="M 170 240 L 190 240 M 180 230 L 180 250" strokeWidth={layer === 0 ? 4 : 1.5} />
+                  </g>
+                ))}
 
                 {/* Reference Object Placement Guide (Bottom Right) */}
                 {calibrationMethod === 'reference_object' && (
                   <g>
+                    <rect x="230" y="350" width="92" height="92" rx="10" className="fill-ink/35" />
                     <rect
                       x="230"
                       y="350"
                       width="92"
                       height="92"
+                      rx="10"
                       fill={`url(#${referenceGridId})`}
-                      stroke="#DCDFDB"
                       strokeWidth="2"
                       strokeDasharray="4 4"
+                      className="stroke-paper"
                     />
                     <text
                       x="276"
                       y="400"
                       textAnchor="middle"
-                      fill="#DCDFDB"
-                      fontFamily="monospace"
                       fontSize="10"
                       fontWeight="bold"
+                      className="fill-paper font-mono"
                     >
                       COIN / CARD
                     </text>
@@ -392,331 +366,415 @@ export function CameraCapture() {
                 )}
               </svg>
 
-              {/* Status pill on live view */}
-              <div className="absolute top-3 left-3 flex items-center gap-2 bg-ink/80 px-2.5 py-1 text-paper">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${cameraActive ? 'bg-attest' : 'bg-seal'}`}
-                  aria-hidden="true"
-                />
-                <span className="font-mono text-label uppercase tracking-wide">
-                  {cameraActive ? 'Live Preview' : 'Camera Standby'}
-                </span>
-              </div>
-            </div>
+              {/* The frozen frame. It arrives at full opacity — it is the frame the
+                  video was already showing — and only the flash over it moves. */}
+              <AnimatePresence>
+                {step === 'preview' && capturedUrl && (
+                  <motion.div
+                    key="still"
+                    exit={{ opacity: 0 }}
+                    transition={spring.glide}
+                    className="pointer-events-none absolute inset-0"
+                  >
+                    <img
+                      src={capturedUrl}
+                      alt="Captured package principal display panel"
+                      className="h-full w-full object-cover"
+                    />
+                    <motion.div
+                      aria-hidden="true"
+                      initial={{ opacity: 0.8 }}
+                      animate={{ opacity: 0 }}
+                      transition={spring.glide}
+                      className="absolute inset-0 bg-paper"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {/* Shutter Capture Button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleCapture}
-                disabled={!cameraActive}
-                className={`flex min-h-target w-full items-center justify-center gap-3 border-2 border-ink px-6 py-4 font-mono text-body font-semibold ${
-                  cameraActive
-                    ? 'bg-ink text-paper hover:bg-ink/90 active:bg-ink/80'
-                    : 'cursor-not-allowed border-mute bg-mute/20 text-mute'
-                }`}
-                aria-label="Capture photograph"
-              >
-                <span
-                  className="inline-block h-4 w-4 rounded-full border-2 border-paper"
-                  aria-hidden="true"
-                />
-                <span>Capture Photograph</span>
-              </button>
-            </div>
-
-            {/* Capture Configuration Accordion / Options */}
-            <div className="space-y-4 pt-2">
-              {/* Reference Object Calibration */}
-              <div className="border border-hairline bg-paper p-4">
-                <label htmlFor="calibration-method" className="block text-body font-medium">
-                  Calibration reference object
-                </label>
-                <p className="mt-0.5 text-secondary text-mute">
-                  Physical reference object in frame enables millimetre scale rectification.
-                </p>
-                <select
-                  id="calibration-method"
-                  value={calibrationMethod}
-                  onChange={(e) => setCalibrationMethod(e.target.value as CalibrationMethod)}
-                  className="mt-2 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
-                >
-                  <option value="none">None (uncalibrated capture)</option>
-                  <option value="reference_object">Reference coin / card in frame</option>
-                </select>
-
-                {calibrationMethod === 'reference_object' && (
-                  <div className="mt-3 border-t border-hairline pt-3">
-                    <label htmlFor="reference-type" className="block text-label text-mute">
-                      Reference object type
-                    </label>
-                    <select
-                      id="reference-type"
-                      value={referenceType}
-                      onChange={(e) => setReferenceType(e.target.value)}
-                      className="mt-1 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
-                    >
-                      <option value="coin">Standard Indian Coin (e.g. ₹5)</option>
-                      <option value="card">Standard Credit/ID Card (85.6 mm)</option>
-                    </select>
-                  </div>
+              {/* Status pill. Shape carries live against standby: a solid dot or a ring. */}
+              <div className="glass absolute left-3 top-3 flex items-center gap-2 rounded-full px-3 py-1.5 text-ink">
+                {step === 'preview' ? (
+                  <span className="font-mono text-label">Captured frame</span>
+                ) : (
+                  <>
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full border-2 border-ink ${
+                        cameraActive ? 'animate-pulse bg-ink' : ''
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-mono text-label">
+                      {cameraActive ? 'Live preview' : 'Camera standby'}
+                    </span>
+                  </>
                 )}
               </div>
 
-              {/* Product Category */}
-              <div className="border border-hairline bg-paper p-4">
-                <label htmlFor="category-select" className="block text-body font-medium">
-                  Product category (optional)
-                </label>
-                <p className="mt-0.5 text-secondary text-mute">
-                  Leave unselected to allow the automated pipeline to propose category from text evidence.
-                </p>
-                <select
-                  id="category-select"
-                  value={productCategory}
-                  onChange={(e) => setProductCategory(e.target.value as ProductCategory | '')}
-                  className="mt-2 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
+              <AnimatePresence>
+                {step === 'capture' && cameraError && (
+                  <motion.div
+                    key="camera-error"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={spring.glide}
+                    className="absolute inset-x-3 top-14"
+                  >
+                    <Notice
+                      role="alert"
+                      title="Camera error"
+                      action={
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={startCamera} className="btn btn-primary">
+                            Retry camera
+                          </button>
+                          <Link to="/officer/new" className="btn btn-quiet">
+                            Switch to file upload →
+                          </Link>
+                        </div>
+                      }
+                    >
+                      <span className="font-mono">{cameraError}</span>
+                    </Notice>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Controls live inside the frame, in thumb reach. */}
+              {step === 'capture' ? (
+                <motion.div
+                  key="shutter"
+                  {...enter}
+                  className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4"
                 >
-                  <option value="">Auto-detect / Propose category from package</option>
-                  {PRODUCT_CATEGORIES.map((cat) => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* GHMC ward — where the package was inspected */}
-              <div className="border border-hairline bg-paper p-4">
-                <label htmlFor="camera-ward" className="block text-body font-medium">
-                  Ward / jurisdiction (optional)
-                </label>
-                <p className="mt-0.5 text-secondary text-mute">
-                  The GHMC ward this package was inspected in. Recorded on the scan and shown on
-                  the jurisdiction map.
-                </p>
-                <WardSelect
-                  id="camera-ward"
-                  value={ward}
-                  onChange={setWard}
-                  className="mt-2 block min-h-target w-full border border-hairline bg-paper p-2 font-mono text-body"
-                />
-              </div>
-
-              {/* Statutory Carve-out Checkbox */}
-              <div className="border border-hairline bg-paper p-4">
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={institutionalConfirmed}
-                    onChange={(e) => setInstitutionalConfirmed(e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-hairline text-ink focus:ring-ink"
-                  />
-                  <div>
-                    <span className="text-body font-medium">
-                      Institutional or industrial consumer package
+                  {/* Stands down for the reference guide, which needs the same corner. */}
+                  {cameraActive && !cameraError && calibrationMethod !== 'reference_object' && (
+                    <span className="glass rounded-full px-3 py-1.5 text-label text-ink">
+                      Fit the principal display panel inside the brackets
                     </span>
-                    <p className="text-secondary text-mute">
-                      Rule 3 carve-out: packaged commodity intended solely for institutional or industrial consumers.
+                  )}
+                  <motion.button
+                    type="button"
+                    onClick={handleCapture}
+                    disabled={!cameraActive}
+                    whileTap={{ scale: 0.92 }}
+                    transition={spring.snap}
+                    className="glass flex h-[76px] w-[76px] items-center justify-center rounded-full border border-paper/60 shadow-e3 disabled:cursor-not-allowed disabled:opacity-45"
+                    aria-label="Capture photograph"
+                  >
+                    <span
+                      className="h-[60px] w-[60px] rounded-full border-2 border-paper bg-ink"
+                      aria-hidden="true"
+                    />
+                  </motion.button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="confirm"
+                  {...enter}
+                  className="absolute inset-x-0 bottom-0 flex items-center gap-2 p-3"
+                >
+                  <motion.button
+                    type="button"
+                    onClick={handleRetake}
+                    disabled={submitting}
+                    whileTap={{ scale: 0.92 }}
+                    transition={spring.snap}
+                    aria-label="Retake photo"
+                    className="glass flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-ink disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true" className="h-5 w-5" fill="none">
+                      <path
+                        d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1M4 3.5v3h3"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </motion.button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmSubmit}
+                    disabled={submitting}
+                    aria-busy={submitting}
+                    className="btn btn-primary min-h-[56px] min-w-0 flex-1 whitespace-normal rounded-full px-4 text-center leading-tight shadow-e3 disabled:opacity-100"
+                  >
+                    {submitting && (
+                      <svg
+                        viewBox="0 0 16 16"
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 animate-spin"
+                        fill="none"
+                      >
+                        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
+                        <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    )}
+                    <span className={submitting ? 'font-mono' : ''}>
+                      {submitting
+                        ? waitedSeconds > 0
+                          ? `Evaluating on the server… ${waitedSeconds}s`
+                          : 'Submitting scan to pipeline...'
+                        : 'Confirm & Submit scan'}
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </motion.div>
+
+            <div className="mt-5 md:mt-0">
+              {/* STEP 1: capture configuration */}
+              {step === 'capture' && (
+                <motion.div
+                  key="options"
+                  variants={stagger}
+                  initial="hidden"
+                  animate="shown"
+                  className="space-y-4"
+                >
+                  {/* Reference Object Calibration */}
+                  <motion.div variants={rise} className="card p-4 sm:p-5">
+                    <label htmlFor="calibration-method" className="block text-body font-medium">
+                      Calibration reference object
+                    </label>
+                    <p className="mt-0.5 text-secondary text-mute">
+                      Physical reference object in frame enables millimetre scale rectification.
+                    </p>
+                    <select
+                      id="calibration-method"
+                      value={calibrationMethod}
+                      onChange={(e) => setCalibrationMethod(e.target.value as CalibrationMethod)}
+                      className="input mt-2"
+                    >
+                      <option value="none">None (uncalibrated capture)</option>
+                      <option value="reference_object">Reference coin / card in frame</option>
+                    </select>
+
+                    {calibrationMethod === 'reference_object' && (
+                      <div className="mt-3 border-t border-hairline pt-3">
+                        <label htmlFor="reference-type" className="block text-label text-mute">
+                          Reference object type
+                        </label>
+                        <select
+                          id="reference-type"
+                          value={referenceType}
+                          onChange={(e) => setReferenceType(e.target.value)}
+                          className="input mt-1"
+                        >
+                          <option value="coin">Standard Indian Coin (e.g. ₹5)</option>
+                          <option value="card">Standard Credit/ID Card (85.6 mm)</option>
+                        </select>
+                      </div>
+                    )}
+                  </motion.div>
+
+                  {/* Product Category */}
+                  <motion.div variants={rise} className="card p-4 sm:p-5">
+                    <label htmlFor="category-select" className="block text-body font-medium">
+                      Product category (optional)
+                    </label>
+                    <p className="mt-0.5 text-secondary text-mute">
+                      Leave unselected to allow the automated pipeline to propose category from text evidence.
+                    </p>
+                    <select
+                      id="category-select"
+                      value={productCategory}
+                      onChange={(e) => setProductCategory(e.target.value as ProductCategory | '')}
+                      className="input mt-2"
+                    >
+                      <option value="">Auto-detect / Propose category from package</option>
+                      {PRODUCT_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                  </motion.div>
+
+                  {/* GHMC ward — where the package was inspected */}
+                  <motion.div variants={rise} className="card p-4 sm:p-5">
+                    <label htmlFor="camera-ward" className="block text-body font-medium">
+                      Ward / jurisdiction (optional)
+                    </label>
+                    <p className="mt-0.5 text-secondary text-mute">
+                      The GHMC ward this package was inspected in. Recorded on the scan and shown on
+                      the jurisdiction map.
+                    </p>
+                    <WardSelect id="camera-ward" value={ward} onChange={setWard} className="input mt-2" />
+                  </motion.div>
+
+                  {/* Statutory Carve-out Checkbox */}
+                  <motion.div variants={rise} className="card p-4 sm:p-5">
+                    <label className="flex min-h-target cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={institutionalConfirmed}
+                        onChange={(e) => setInstitutionalConfirmed(e.target.checked)}
+                        className="mt-1 h-5 w-5 shrink-0 accent-ink"
+                      />
+                      <div>
+                        <span className="text-body font-medium">
+                          Institutional or industrial consumer package
+                        </span>
+                        <p className="text-secondary text-mute">
+                          Rule 3 carve-out: packaged commodity intended solely for institutional or industrial consumers.
+                        </p>
+                      </div>
+                    </label>
+                  </motion.div>
+                </motion.div>
+              )}
+
+              {/* STEP 2: PREVIEW AND RETAKE */}
+              {step === 'preview' && capturedUrl && (
+                <motion.div key="review" {...enter} className="space-y-4">
+                  <div>
+                    <h2 className="font-sans text-section">Review captured photograph</h2>
+                    <p className="mt-1 text-secondary text-mute">
+                      Inspect image quality before submission. Ensure declarations on the principal display panel are sharp, legible, and unglared.
                     </p>
                   </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* STEP 2: PREVIEW AND RETAKE */}
-        {step === 'preview' && capturedUrl && (
-          <div className="space-y-4">
-            <div className="border border-hairline bg-paper p-3">
-              <span className="font-mono text-label uppercase tracking-wider text-mute">
-                Review Captured Photograph
-              </span>
-              <p className="mt-1 text-secondary text-ink">
-                Inspect image quality before submission. Ensure declarations on the principal display panel are sharp, legible, and unglared.
-              </p>
-            </div>
+                  {/* Capture Details Summary */}
+                  <dl className="card divide-y divide-hairline/70 px-4 font-mono text-secondary sm:px-5">
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-mute">Barcode:</dt>
+                      <dd className="text-right text-ink [overflow-wrap:anywhere]">
+                        {barcode === 'pending'
+                          ? 'reading…'
+                          : barcode
+                            ? `${barcode.value} · ${barcode.symbology}${barcode.checkDigitVerifies ? '' : ' · check digit does not verify'}`
+                            : 'none read in frame'}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-mute">Calibration:</dt>
+                      <dd className="text-ink">{calibrationMethod}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-mute">Category:</dt>
+                      <dd className="text-ink">{productCategory ? productCategory : 'Auto-detect'}</dd>
+                    </div>
+                  </dl>
 
-            {/* Frozen Frame Display */}
-            <div className="relative aspect-[3/4] w-full overflow-hidden border-2 border-ink bg-ink">
-              <img
-                src={capturedUrl}
-                alt="Captured package principal display panel"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute top-3 left-3 bg-ink px-2.5 py-1 text-paper">
-                <span className="font-mono text-label uppercase">Captured Frame</span>
-              </div>
-            </div>
-
-            {/* Capture Details Summary */}
-            <div className="border border-hairline bg-paper p-3 font-mono text-secondary">
-              <div className="flex justify-between border-b border-hairline pb-1.5">
-                <span className="text-mute">Barcode:</span>
-                <span className="text-right text-ink">
-                  {barcode === 'pending'
-                    ? 'reading…'
-                    : barcode
-                      ? `${barcode.value} · ${barcode.symbology}${barcode.checkDigitVerifies ? '' : ' · check digit does not verify'}`
-                      : 'none read in frame'}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-hairline pb-1.5 pt-1.5">
-                <span className="text-mute">Calibration:</span>
-                <span className="text-ink">{calibrationMethod}</span>
-              </div>
-              <div className="flex justify-between pt-1.5">
-                <span className="text-mute">Category:</span>
-                <span className="text-ink">
-                  {productCategory ? productCategory : 'Auto-detect'}
-                </span>
-              </div>
-            </div>
-
-            {submissionError && (
-              <div className="border border-seal bg-paper p-4">
-                <p className="text-body font-semibold text-seal">Scan submission error</p>
-                <p className="mt-1 font-mono text-secondary text-mute">{submissionError}</p>
-                <button
-                  type="button"
-                  onClick={handleConfirmSubmit}
-                  className="mt-3 min-h-target border border-ink bg-paper px-4 py-2 text-label font-medium hover:bg-mute/10"
-                >
-                  Retry submission
-                </button>
-              </div>
-            )}
-
-            {/* Preview Action Buttons */}
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleRetake}
-                disabled={submitting}
-                className="flex min-h-target flex-1 items-center justify-center border border-ink bg-paper px-4 py-3 font-mono text-body text-ink hover:bg-mute/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                ← Retake photo
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmSubmit}
-                disabled={submitting}
-                className="flex min-h-target flex-1 items-center justify-center border border-ink bg-ink px-4 py-3 font-mono text-body text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-mute disabled:border-mute"
-              >
-                {submitting
-                  ? waitedSeconds > 0
-                    ? `Evaluating on the server… ${waitedSeconds}s`
-                    : 'Submitting scan to pipeline...'
-                  : 'Confirm & Submit scan'}
-              </button>
+                  {submissionError && (
+                    <Notice
+                      role="alert"
+                      title="Scan submission error"
+                      action={
+                        <button type="button" onClick={handleConfirmSubmit} className="btn btn-quiet">
+                          Retry submission
+                        </button>
+                      }
+                    >
+                      <span className="font-mono">{submissionError}</span>
+                    </Notice>
+                  )}
+                </motion.div>
+              )}
             </div>
           </div>
         )}
 
         {/* STEP 3: SUBMISSION RESULT */}
         {step === 'result' && scanResult && (
-          <div className="space-y-6">
-            <div className="border border-hairline bg-paper p-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-hairline pb-4">
-                <div>
-                  <span className="text-label text-mute">Inspection Reference</span>
-                  <p className="font-mono text-body font-semibold text-ink">{scanResult.id}</p>
-                </div>
-                <span className="border border-ink px-2 py-1 font-mono text-label text-ink">
-                  v{scanResult.rule_set_version}
+          <motion.div
+            variants={stagger}
+            initial="hidden"
+            animate="shown"
+            className="mx-auto max-w-[640px] space-y-6"
+          >
+            <motion.div
+              variants={rise}
+              className="card flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5"
+            >
+              <div className="min-w-0">
+                <span className="text-label text-mute">Inspection Reference</span>
+                <p className="font-mono text-body font-semibold text-ink [overflow-wrap:anywhere]">
+                  {scanResult.id}
+                </p>
+              </div>
+              <span className="rounded-full border border-hairline bg-sunken/60 px-3 py-1 font-mono text-label text-ink">
+                v{scanResult.rule_set_version}
+              </span>
+            </motion.div>
+
+            {/* Verdict Banner or Status. Not a staggered child: the banner brings its
+                own entrance and is never queued behind a sibling. */}
+            <div>
+              {scanResult.verdict ? (
+                <VerdictBanner verdict={scanResult.verdict} />
+              ) : scanResult.quality ? (
+                <Notice title="Capture refused — no verdict">
+                  <p className="text-body text-ink">{scanResult.quality.instruction}</p>
+                  <p className="mt-1 font-mono text-label text-mute">
+                    Reason code: {scanResult.quality.reason_code}
+                  </p>
+                </Notice>
+              ) : (
+                <Notice title={`STATUS: ${scanResult.status.toUpperCase()}`}>
+                  {scanResult.status === 'failed'
+                    ? 'Evaluation did not finish. No finding about the package was made.'
+                    : 'No verdict was issued for this scan.'}
+                </Notice>
+              )}
+            </div>
+
+            {/* Category Proposal block */}
+            <motion.div variants={rise} className="card p-4 sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-label text-mute">Confirmed Category</span>
+                <span className="font-mono text-body font-medium text-ink">
+                  {scanResult.product_category
+                    ? scanResult.product_category.toUpperCase()
+                    : 'None (Unconfirmed)'}
                 </span>
               </div>
 
-              {/* Verdict Banner or Status */}
-              <div className="mt-6">
-                {scanResult.verdict ? (
-                  <VerdictBanner verdict={scanResult.verdict as FixtureVerdict} />
-                ) : scanResult.quality ? (
-                  <div className="border border-seal bg-paper p-4">
-                    <span className="font-mono text-label uppercase text-seal">
-                      Capture refused — no verdict
-                    </span>
-                    <p className="mt-1 text-body">{scanResult.quality.instruction}</p>
-                    <p className="mt-1 font-mono text-label text-mute">
-                      Reason code: {scanResult.quality.reason_code}
+              <div className="mt-3 border-t border-hairline pt-3">
+                <span className="text-label text-mute">Category Proposal</span>
+                {scanResult.category_proposal ? (
+                  <div className="mt-2 rounded-ctl border border-dashed border-mute bg-sunken/60 p-3.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-ink px-2 py-0.5 font-mono text-label font-medium text-ink">
+                        PROPOSAL
+                      </span>
+                      <span className="text-label font-medium text-ink">
+                        Suggested category (pending officer confirmation)
+                      </span>
+                    </div>
+                    <p className="mt-2 font-mono text-body font-semibold text-ink">
+                      {scanResult.category_proposal.category}
+                    </p>
+                    <p className="mt-1 text-secondary text-mute">
+                      Confidence: {(scanResult.category_proposal.confidence * 100).toFixed(0)}% •{' '}
+                      {scanResult.category_proposal.reason}
+                    </p>
+                    <p className="mt-2 text-label text-mute">
+                      A proposal is not a confirmation. Officer review is required to confirm category on the ledger.
                     </p>
                   </div>
                 ) : (
-                  <div className="border border-dashed border-mute p-4">
-                    <span className="font-mono text-label text-mute">
-                      STATUS: {scanResult.status.toUpperCase()}
-                    </span>
-                    <p className="mt-1 text-secondary text-mute">
-                      {scanResult.status === 'failed'
-                        ? 'Evaluation did not finish. No finding about the package was made.'
-                        : 'No verdict was issued for this scan.'}
-                    </p>
-                  </div>
+                  <p className="mt-1 font-mono text-secondary text-mute">
+                    None — no category proposal generated
+                  </p>
                 )}
               </div>
+            </motion.div>
 
-              {/* Category Proposal block */}
-              <div className="mt-6 border border-hairline p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-label text-mute">Confirmed Category</span>
-                  <span className="font-mono text-body font-medium text-ink">
-                    {scanResult.product_category
-                      ? scanResult.product_category.toUpperCase()
-                      : 'None (Unconfirmed)'}
-                  </span>
-                </div>
-
-                <div className="mt-3 border-t border-hairline pt-3">
-                  <span className="text-label text-mute">Category Proposal</span>
-                  {scanResult.category_proposal ? (
-                    <div className="mt-2 border border-dashed border-query bg-paper p-3">
-                      <div className="flex items-center gap-2">
-                        <span className="border border-query px-1.5 py-0.5 font-mono text-label font-medium text-query">
-                          PROPOSAL
-                        </span>
-                        <span className="text-label font-medium text-query">
-                          Suggested category (pending officer confirmation)
-                        </span>
-                      </div>
-                      <p className="mt-2 font-mono text-body font-semibold text-ink">
-                        {scanResult.category_proposal.category}
-                      </p>
-                      <p className="mt-1 text-secondary text-mute">
-                        Confidence: {(scanResult.category_proposal.confidence * 100).toFixed(0)}% •{' '}
-                        {scanResult.category_proposal.reason}
-                      </p>
-                      <p className="mt-2 text-label text-mute">
-                        A proposal is not a confirmation. Officer review is required to confirm category on the ledger.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-1 font-mono text-secondary text-mute">
-                      None — no category proposal generated
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Navigation CTAs */}
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to={`/officer/verdicts/${scanResult.id}`}
-                  className="flex min-h-target flex-1 items-center justify-center border border-ink bg-ink px-4 py-2 font-mono text-body text-paper hover:bg-ink/90"
-                >
-                  Open Review Ledger →
-                </Link>
-                <button
-                  type="button"
-                  onClick={resetAll}
-                  className="min-h-target flex-1 border border-ink bg-paper px-4 py-2 font-mono text-body text-ink hover:bg-mute/10"
-                >
-                  Capture another package
-                </button>
-              </div>
-            </div>
-          </div>
+            {/* Navigation CTAs */}
+            <motion.div variants={rise} className="flex flex-col gap-3 sm:flex-row">
+              <Link to={`/officer/verdicts/${scanResult.id}`} className="btn btn-primary flex-1">
+                Open Review Ledger →
+              </Link>
+              <button type="button" onClick={resetAll} className="btn btn-quiet flex-1">
+                Capture another package
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </main>
     </div>

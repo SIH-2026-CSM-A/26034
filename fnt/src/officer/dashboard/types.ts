@@ -1,14 +1,14 @@
 ﻿import type { components } from '../../services/generated/schema';
 
-export type Verdict = components['schemas']['Verdict'] | 'POTENTIAL VIOLATION';
-export type DensityBand = 'HIGH' | 'MEDIUM' | 'LOW';
+export type Verdict = components['schemas']['Verdict'];
 
 export interface RecordDetail {
   id: string;
   timestamp: string;
   category: string;
   clause: string;
-  verdict: Verdict;
+  /** Null when the scan carries no verdict. Never defaulted to one. */
+  verdict: Verdict | null;
   storeName: string;
   jurisdictionWard: string;
 }
@@ -52,4 +52,6 @@ export interface DashboardData {
   unknownWardScans: number;
   clauses: ClauseDrilldown[];
   timeline: DailyBucket[];
+  /** Counts over the scans this page loaded. `noVerdict` is scans still processing, refused or failed. */
+  totals: { scans: number; pass: number; review: number; potentialViolation: number; noVerdict: number };
 }

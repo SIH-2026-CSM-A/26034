@@ -1,6 +1,10 @@
+import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
+import { CountUp } from '../ui/CountUp'
+import { rise, spring, stagger } from '../ui/motion'
+import { Notice } from '../ui/Notice'
 import { OfficerHeader } from './components/OfficerHeader'
 
 type VendorResponse = components['schemas']['VendorResponse']
@@ -31,6 +35,27 @@ function vendorTypeLabel(type: VendorType): string {
     case 'godown':
       return 'Godown / Storage'
   }
+}
+
+const TYPE_FILTERS: ReadonlyArray<{ value: VendorType | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'All' },
+  { value: 'kirana', label: 'Kirana' },
+  { value: 'supermarket', label: 'Supermarket' },
+  { value: 'godown', label: 'Godown' },
+]
+
+function jurisdictionLine(vendor: VendorResponse): string {
+  return [vendor.jurisdiction.district, vendor.jurisdiction.region, vendor.jurisdiction.state]
+    .filter(Boolean)
+    .join(', ')
+}
+
+function TypeChip({ type }: { type: VendorType }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-hairline bg-sunken/60 px-2.5 py-1 text-label text-mute">
+      {vendorTypeLabel(type)}
+    </span>
+  )
 }
 
 export function VendorSubmissions() {
@@ -69,7 +94,6 @@ export function VendorSubmissions() {
     }
   }, [])
 
-  // Unique districts for filter dropdown
   const districts = useMemo(() => {
     const set = new Set<string>()
     for (const v of vendors) {
@@ -78,7 +102,6 @@ export function VendorSubmissions() {
     return Array.from(set).sort()
   }, [vendors])
 
-  // Metrics
   const metrics = useMemo(() => {
     const byType: Record<string, number> = { kirana: 0, supermarket: 0, godown: 0 }
     for (const v of vendors) {
@@ -92,7 +115,6 @@ export function VendorSubmissions() {
     }
   }, [vendors])
 
-  // Filtered rows
   const filteredVendors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return vendors.filter((v) => {
@@ -108,218 +130,262 @@ export function VendorSubmissions() {
     })
   }, [vendors, searchQuery, vendorTypeFilter, districtFilter])
 
+  const filtersActive = Boolean(searchQuery) || vendorTypeFilter !== 'ALL' || districtFilter !== 'ALL'
+  const tiles: ReadonlyArray<{ label: string; value: number }> = [
+    { label: 'Total premises', value: metrics.total },
+    { label: 'Kirana stores', value: metrics.kirana },
+    { label: 'Supermarkets', value: metrics.supermarket },
+    { label: 'Godowns / storage', value: metrics.godown },
+  ]
+
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      <OfficerHeader currentTitle="Vendor Submissions" />
+    <div className="aurora">
+      <OfficerHeader currentTitle="Vendor submissions" />
 
-      <main className="mx-auto max-w-[1280px] px-4 pb-16 pt-4">
-        {/* Masthead & Title */}
-        <div className="border-b border-ink pb-4">
-          <h1 className="text-title">Vendor Register &amp; Jurisdictional Premises</h1>
-          <p className="mt-1 text-secondary text-mute">
-            Registered trading premises within this officer&apos;s jurisdiction under the Legal
-            Metrology (Packaged Commodities) Rules, 2011.
-          </p>
+      <main className="mx-auto max-w-[1280px] px-4 pb-28 pt-6 md:pb-16">
+        <h1 className="text-title">Vendor register and jurisdictional premises</h1>
+        <p className="mt-2 max-w-[720px] text-secondary text-mute">
+          Registered trading premises within this officer&apos;s jurisdiction under the Legal
+          Metrology (Packaged Commodities) Rules, 2011.
+        </p>
 
-          {/* Metric Strip */}
-          <div className="mt-4 grid grid-cols-2 gap-3 border border-hairline bg-paper p-3 sm:grid-cols-4">
-            <div className="border-r border-hairline/60 pr-2">
-              <span className="block text-label text-mute">Total Premises</span>
-              <span className="font-mono text-title font-semibold">{metrics.total}</span>
-            </div>
-            <div className="border-r border-hairline/60 pr-2">
-              <span className="block text-label text-mute">Kirana Stores</span>
-              <span className="font-mono text-title font-semibold">{metrics.kirana}</span>
-            </div>
-            <div className="border-r border-hairline/60 pr-2">
-              <span className="block text-label text-mute">Supermarkets</span>
-              <span className="font-mono text-title font-semibold">{metrics.supermarket}</span>
-            </div>
-            <div>
-              <span className="block text-label text-mute">Godowns / Storage</span>
-              <span className="font-mono text-title font-semibold">{metrics.godown}</span>
-            </div>
+        {/* A count is only shown once the register has answered; a zero before that is a claim. */}
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          animate="shown"
+          className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4"
+        >
+          {tiles.map((tile) => (
+            <motion.div key={tile.label} variants={rise} className="card p-4 sm:p-5">
+              <span className="block text-label text-mute">{tile.label}</span>
+              <span className="mt-1 block font-display text-display text-ink">
+                {loading ? (
+                  <span className="skeleton block h-[1.05em] w-14" />
+                ) : fetchError ? (
+                  <span className="text-mute" aria-label="Not available">
+                    —
+                  </span>
+                ) : (
+                  <CountUp value={tile.value} />
+                )}
+              </span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <section aria-label="Filters" className="card mt-6 flex flex-col gap-4 p-5 sm:p-6">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-label text-mute">Search premise</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, district, or state..."
+                className="input"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-label text-mute">District jurisdiction</span>
+              <select
+                value={districtFilter}
+                onChange={(e) => setDistrictFilter(e.target.value)}
+                className="input"
+              >
+                <option value="ALL">All districts</option>
+                {districts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
 
-        {/* Filters */}
-        <section aria-label="Filters" className="mt-6 flex flex-wrap items-end gap-3 border-b border-hairline pb-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">Search Premise</span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, district, or state..."
-              className="min-h-target w-64 border border-ink bg-paper px-3 py-1.5 text-body placeholder:text-mute"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">Vendor Premise Type</span>
-            <select
-              value={vendorTypeFilter}
-              onChange={(e) => setVendorTypeFilter(e.target.value as VendorType | 'ALL')}
-              className="min-h-target border border-ink bg-paper px-3 py-1.5 text-body"
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              role="group"
+              aria-label="Vendor premise type"
+              className="isolate flex w-full gap-1 rounded-full bg-sunken p-1 sm:w-auto"
             >
-              <option value="ALL">All Premise Types</option>
-              <option value="kirana">Kirana Store</option>
-              <option value="supermarket">Supermarket</option>
-              <option value="godown">Godown / Storage</option>
-            </select>
-          </label>
+              {TYPE_FILTERS.map((option) => {
+                const active = vendorTypeFilter === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setVendorTypeFilter(option.value)}
+                    className={`relative min-h-target flex-1 whitespace-nowrap rounded-full px-2.5 text-secondary sm:px-4 transition-colors duration-base ease-out ${
+                      active ? 'font-medium text-ink' : 'text-mute hover:text-ink'
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="vendor-type-pill"
+                        transition={spring.snap}
+                        className="absolute inset-0 -z-10 rounded-full bg-surface shadow-e1"
+                      />
+                    )}
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">District Jurisdiction</span>
-            <select
-              value={districtFilter}
-              onChange={(e) => setDistrictFilter(e.target.value)}
-              className="min-h-target border border-ink bg-paper px-3 py-1.5 text-body"
-            >
-              <option value="ALL">All Districts</option>
-              {districts.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {(searchQuery || vendorTypeFilter !== 'ALL' || districtFilter !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('')
-                setVendorTypeFilter('ALL')
-                setDistrictFilter('ALL')
-              }}
-              className="min-h-target border border-hairline px-3 py-1.5 text-label text-mute hover:border-ink hover:text-ink"
-            >
-              Reset filters
-            </button>
-          )}
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('')
+                  setVendorTypeFilter('ALL')
+                  setDistrictFilter('ALL')
+                }}
+                className="btn btn-ghost px-4"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
         </section>
 
-        {/* List Header */}
-        <div className="mt-4 flex items-center justify-between">
-          <span className="font-mono text-label text-mute">
-            Showing {filteredVendors.length} of {vendors.length} premises
-          </span>
-          <span className="text-label text-mute">
-            Legal Metrology (Packaged Commodities) Rules, 2011
-          </span>
-        </div>
-
-        {/* Loading / Error / Empty / Table */}
         {loading ? (
-          <div className="mt-6 border border-dashed border-mute p-8 text-center text-body text-mute">
-            Loading vendor register…
-          </div>
-        ) : fetchError ? (
-          <div
-            role="alert"
-            className="mt-6 border-2 border-seal bg-paper p-4 text-body text-seal"
-          >
-            {fetchError}
-          </div>
-        ) : filteredVendors.length === 0 ? (
-          <div className="mt-6 border border-dashed border-mute p-8 text-center text-body text-mute">
-            No vendor premises recorded in this jurisdiction.
-          </div>
-        ) : (
-          <div className="mt-4">
-            {/* Desktop Table */}
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full border-collapse text-left">
-                <caption className="sr-only">
-                  Registered vendor premises and statutory jurisdiction
-                </caption>
-                <thead>
-                  <tr className="border-y-2 border-ink text-label">
-                    <th scope="col" className="w-[30%] px-3 py-2">
-                      Vendor / Premise
-                    </th>
-                    <th scope="col" className="w-[20%] px-3 py-2">
-                      Premise Type
-                    </th>
-                    <th scope="col" className="w-[30%] px-3 py-2">
-                      Jurisdiction (District, State)
-                    </th>
-                    <th scope="col" className="w-[20%] px-3 py-2 text-right">
-                      Registered At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredVendors.map((vendor) => (
-                    <tr
-                      key={vendor.id}
-                      className="border-b border-hairline transition-colors hover:bg-focus-tint/20"
-                    >
-                      {/* Vendor name */}
-                      <td className="px-3 py-3 align-top">
-                        <p className="text-body font-medium text-ink">{vendor.name}</p>
-                        <p className="font-mono text-label text-mute">{vendor.id}</p>
-                      </td>
-
-                      {/* Type */}
-                      <td className="px-3 py-3 align-top">
-                        <span className="border border-hairline px-1.5 py-0.5 font-mono text-label uppercase text-mute">
-                          {vendorTypeLabel(vendor.vendor_type)}
-                        </span>
-                      </td>
-
-                      {/* Jurisdiction */}
-                      <td className="px-3 py-3 align-top">
-                        <p className="text-body text-ink">
-                          {[vendor.jurisdiction.district, vendor.jurisdiction.region, vendor.jurisdiction.state]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                      </td>
-
-                      {/* Registered at */}
-                      <td className="px-3 py-3 text-right align-top font-mono text-label text-mute">
-                        {formatTimestamp(vendor.created_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="mt-6" aria-busy="true" aria-label="Loading vendor register">
+            <div className="skeleton h-4 w-48" />
+            <div className="card mt-3 hidden overflow-hidden lg:block">
+              <div className="h-[41px] border-b border-hairline" />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-6 border-b border-hairline/70 px-5 py-4 last:border-b-0">
+                  <div className="w-[30%] space-y-2">
+                    <div className="skeleton h-5 w-3/4" />
+                    <div className="skeleton h-3.5 w-1/2" />
+                  </div>
+                  <div className="w-[20%]">
+                    <div className="skeleton h-6 w-24 rounded-full" />
+                  </div>
+                  <div className="skeleton h-5 w-[26%]" />
+                  <div className="skeleton ml-auto h-4 w-32" />
+                </div>
+              ))}
             </div>
-
-            {/* Mobile Cards */}
-            <div className="space-y-4 lg:hidden">
-              {filteredVendors.map((vendor) => (
-                <article
-                  key={vendor.id}
-                  className="border-b-2 border-ink pb-4 pt-2"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <h2 className="text-body font-semibold text-ink">{vendor.name}</h2>
-                      <span className="mt-0.5 inline-block border border-hairline px-1.5 py-0.5 font-mono text-label uppercase text-mute">
-                        {vendorTypeLabel(vendor.vendor_type)}
-                      </span>
-                    </div>
-                    <span className="font-mono text-label text-mute">
-                      {formatTimestamp(vendor.created_at)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-hairline pt-2">
-                    <p className="text-secondary text-mute">
-                      Jurisdiction:{' '}
-                      {[vendor.jurisdiction.district, vendor.jurisdiction.region, vendor.jurisdiction.state]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </p>
-                    <p className="mt-1 font-mono text-label text-mute">{vendor.id}</p>
-                  </div>
-                </article>
+            <div className="mt-3 space-y-3 lg:hidden">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="card p-5">
+                  <div className="skeleton h-5 w-2/3" />
+                  <div className="skeleton mt-2 h-6 w-24 rounded-full" />
+                  <div className="skeleton mt-4 h-4 w-4/5" />
+                  <div className="skeleton mt-2 h-3.5 w-1/2" />
+                </div>
               ))}
             </div>
           </div>
+        ) : fetchError ? (
+          <div className="mt-6">
+            <Notice role="alert" title="The vendor register did not load">
+              {fetchError}
+            </Notice>
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <span className="font-mono text-label text-mute">
+                Showing {filteredVendors.length} of {vendors.length} premises
+              </span>
+              <span className="text-label text-mute">
+                Legal Metrology (Packaged Commodities) Rules, 2011
+              </span>
+            </div>
+
+            {filteredVendors.length === 0 ? (
+              <div className="mt-3">
+                {vendors.length === 0 ? (
+                  <Notice title="No vendor premises recorded in this jurisdiction." />
+                ) : (
+                  <Notice title="No premises match these filters.">
+                    Clear the search or choose another premise type or district.
+                  </Notice>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3">
+                <div className="card hidden overflow-hidden lg:block">
+                  <table className="w-full border-collapse text-left">
+                    <caption className="sr-only">
+                      Registered vendor premises and statutory jurisdiction
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-hairline text-label text-mute">
+                        <th scope="col" className="w-[30%] px-5 py-3 font-medium">
+                          Vendor / premise
+                        </th>
+                        <th scope="col" className="w-[20%] px-5 py-3 font-medium">
+                          Premise type
+                        </th>
+                        <th scope="col" className="w-[30%] px-5 py-3 font-medium">
+                          Jurisdiction (district, state)
+                        </th>
+                        <th scope="col" className="w-[20%] px-5 py-3 text-right font-medium">
+                          Registered at
+                        </th>
+                      </tr>
+                    </thead>
+                    <motion.tbody variants={stagger} initial="hidden" animate="shown">
+                      {filteredVendors.map((vendor) => (
+                        <motion.tr
+                          key={vendor.id}
+                          variants={rise}
+                          className="border-b border-hairline/70 transition-colors duration-base ease-out last:border-b-0 hover:bg-focus-tint/40"
+                        >
+                          <td className="px-5 py-4 align-top">
+                            <p className="text-body font-medium text-ink">{vendor.name}</p>
+                            <p className="font-mono text-label text-mute [overflow-wrap:anywhere]">
+                              {vendor.id}
+                            </p>
+                          </td>
+                          <td className="px-5 py-4 align-top">
+                            <TypeChip type={vendor.vendor_type} />
+                          </td>
+                          <td className="px-5 py-4 align-top">
+                            <p className="text-body text-ink">{jurisdictionLine(vendor)}</p>
+                          </td>
+                          <td className="px-5 py-4 text-right align-top font-mono text-label text-mute">
+                            {formatTimestamp(vendor.created_at)}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </motion.tbody>
+                  </table>
+                </div>
+
+                <motion.div
+                  variants={stagger}
+                  initial="hidden"
+                  animate="shown"
+                  className="space-y-3 lg:hidden"
+                >
+                  {filteredVendors.map((vendor) => (
+                    <motion.article key={vendor.id} variants={rise} className="card p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <h2 className="min-w-0 font-sans text-body font-semibold text-ink">
+                          {vendor.name}
+                        </h2>
+                        <TypeChip type={vendor.vendor_type} />
+                      </div>
+                      <p className="mt-3 text-secondary text-mute">
+                        Jurisdiction: {jurisdictionLine(vendor)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-hairline/70 pt-3 font-mono text-label text-mute">
+                        <span className="[overflow-wrap:anywhere]">{vendor.id}</span>
+                        <span>{formatTimestamp(vendor.created_at)}</span>
+                      </div>
+                    </motion.article>
+                  ))}
+                </motion.div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

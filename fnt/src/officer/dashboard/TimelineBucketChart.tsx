@@ -1,127 +1,107 @@
-import React from 'react';
+import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { spring } from '../../ui/motion';
+import { VerdictTag } from '../components/VerdictBanner';
 import type { DailyBucket } from './types';
-
-/** Verdict colour tokens — must match StatusPill and HeatmapJurisdiction:
- *  PASS             → emerald-500
- *  REVIEW           → amber-400
- *  POTENTIAL_VIOLATION → rose-600
- */
-const CHART_COLOURS = {
-  pass: 'bg-emerald-500',
-  review: 'bg-amber-400',
-  violation: 'bg-rose-600',
-} as const;
 
 function formatDateLabel(iso: string): string {
   try {
     const d = new Date(`${iso}T00:00:00Z`);
-    return new Intl.DateTimeFormat('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'Asia/Kolkata',
-    }).format(d);
+    return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }).format(d);
   } catch {
     return iso.slice(5); // MM-DD fallback
   }
 }
 
+/**
+ * Stacked columns, one per day. Segment order is fixed — PASS at the foot, then REVIEW,
+ * then POTENTIAL VIOLATION — and the readout above names each count beside its verdict
+ * tag, so the chart never depends on telling three colours apart.
+ */
+const SEGMENTS = [
+  { key: 'potentialViolationCount', verdict: 'POTENTIAL_VIOLATION', fill: 'bg-seal' },
+  { key: 'reviewCount', verdict: 'REVIEW', fill: 'bg-query' },
+  { key: 'passCount', verdict: 'PASS', fill: 'bg-attest' },
+] as const;
+
 export const TimelineBucketChart: React.FC<{ timeline: DailyBucket[] }> = ({ timeline }) => {
-  const maxTotal = Math.max(
-    ...timeline.map((d) => d.passCount + d.reviewCount + d.potentialViolationCount),
-    1
-  );
+  const [picked, setPicked] = useState<string | null>(null);
+  const totalOf = (d: DailyBucket) => d.passCount + d.reviewCount + d.potentialViolationCount;
+  const maxTotal = Math.max(...timeline.map(totalOf), 1);
+  const pickedDay = timeline.find((d) => d.date === picked);
+
+  // The readout shows the picked day, or every day on the chart summed.
+  const shown = SEGMENTS.map((seg) => ({
+    ...seg,
+    count: pickedDay ? pickedDay[seg.key] : timeline.reduce((sum, d) => sum + d[seg.key], 0),
+  })).reverse();
+  const hasScans = timeline.some((d) => totalOf(d) > 0);
 
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm">
-      <header className="mb-4">
-        <h2 className="text-sm font-bold text-slate-900 tracking-wide uppercase leading-tight">
-          Daily Inspection Timeline
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">7-day aggregated scan verification volume</p>
+    <section className="card p-5 sm:p-6">
+      <header>
+        <h2 className="text-section">Scans per day, by verdict</h2>
+        <p className="mt-0.5 text-secondary text-mute" aria-live="polite">
+          {pickedDay ? formatDateLabel(pickedDay.date) : 'All days shown'} · tap a day for its counts
+        </p>
       </header>
 
-      {timeline.length === 0 ? (
-        <p className="text-xs text-slate-500 py-8 text-center">
-          No inspection scans recorded in this period.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {timeline.map((bucket) => {
-            const total = bucket.passCount + bucket.reviewCount + bucket.potentialViolationCount;
-            const passPct = total > 0 ? (bucket.passCount / total) * 100 : 0;
-            const reviewPct = total > 0 ? (bucket.reviewCount / total) * 100 : 0;
-            const violPct = total > 0 ? (bucket.potentialViolationCount / total) * 100 : 0;
-            // Scale bar height/opacity by volume relative to max, so quiet days are visually quieter
-            const volumeRatio = total / maxTotal;
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        {shown.map((seg) => (
+          <li key={seg.key} className="flex items-center gap-2">
+            <VerdictTag verdict={seg.verdict} />
+            <span className="font-mono text-body font-medium">{seg.count}</span>
+          </li>
+        ))}
+      </ul>
 
-            return (
-              <div key={bucket.date} className="group">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-slate-700 tabular-nums">
-                    {formatDateLabel(bucket.date)}
-                  </span>
-                  <span
-                    className="text-xs font-bold text-slate-500 tabular-nums"
-                    aria-label={`${total} total scans`}
-                  >
-                    {total} scan{total !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {/* Full-width stacked bar — always spans 100%; segments show proportions */}
-                <div
-                  className="w-full h-6 rounded-md overflow-hidden flex bg-slate-100 border border-slate-200"
-                  style={{ opacity: 0.4 + 0.6 * volumeRatio }}
-                  title={`PASS: ${bucket.passCount}  REVIEW: ${bucket.reviewCount}  POTENTIAL VIOLATION: ${bucket.potentialViolationCount}`}
+      {!hasScans ? (
+        <p className="mt-6 text-secondary text-mute">No inspection scans recorded in this period.</p>
+      ) : (
+        <div className="-mx-2 mt-5 overflow-x-auto px-2 [scrollbar-width:thin]">
+          <div className="flex h-44 min-w-full items-stretch gap-1.5" style={{ width: `max(100%, ${timeline.length * 44}px)` }}>
+            {timeline.map((bucket, i) => {
+              const total = totalOf(bucket);
+              const active = bucket.date === picked;
+              return (
+                <button
+                  key={bucket.date}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={`${formatDateLabel(bucket.date)}: ${total} scan${total === 1 ? '' : 's'}. PASS ${bucket.passCount}, REVIEW ${bucket.reviewCount}, POTENTIAL VIOLATION ${bucket.potentialViolationCount}`}
+                  onClick={() => setPicked(active ? null : bucket.date)}
+                  className={`group flex min-w-[38px] flex-1 flex-col items-center justify-end gap-1 rounded-ctl px-1 pb-1 pt-2 transition-colors duration-base ${
+                    active ? 'bg-ink/[0.06]' : 'hover:bg-ink/[0.03]'
+                  }`}
                 >
-                  {total === 0 ? (
-                    <div className="w-full h-full bg-slate-100" />
-                  ) : (
-                    <>
-                      {passPct > 0 && (
-                        <div
-                          className={`${CHART_COLOURS.pass} h-full`}
-                          style={{ width: `${passPct}%` }}
-                          aria-label={`PASS: ${bucket.passCount}`}
-                        />
-                      )}
-                      {reviewPct > 0 && (
-                        <div
-                          className={`${CHART_COLOURS.review} h-full`}
-                          style={{ width: `${reviewPct}%` }}
-                          aria-label={`REVIEW: ${bucket.reviewCount}`}
-                        />
-                      )}
-                      {violPct > 0 && (
-                        <div
-                          className={`${CHART_COLOURS.violation} h-full`}
-                          style={{ width: `${violPct}%` }}
-                          aria-label={`POTENTIAL VIOLATION: ${bucket.potentialViolationCount}`}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                  <span className="font-mono text-label text-mute">{total}</span>
+                  <span className="flex min-h-0 w-full flex-1 items-end justify-center">
+                  <motion.span
+                    className="flex w-full max-w-[36px] origin-bottom flex-col gap-0.5 overflow-hidden rounded-md"
+                    style={{ height: `${(total / maxTotal) * 100}%`, minHeight: total > 0 ? 6 : 2 }}
+                    initial={{ scaleY: 0 }}
+                    animate={{ scaleY: 1 }}
+                    transition={{ ...spring.glide, delay: Math.min(i, 14) * 0.03 }}
+                  >
+                    {total === 0 ? (
+                      <span className="h-full w-full bg-hairline" />
+                    ) : (
+                      SEGMENTS.map(
+                        (seg) =>
+                          bucket[seg.key] > 0 && (
+                            <span key={seg.key} className={`w-full ${seg.fill}`} style={{ flexGrow: bucket[seg.key] }} />
+                          ),
+                      )
+                    )}
+                  </motion.span>
+                  </span>
+                  <span className="whitespace-nowrap text-[11px] text-mute">{formatDateLabel(bucket.date)}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {/* Legend */}
-      <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap gap-4 text-xs">
-        <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-          <span className={`w-3 h-3 rounded-sm shrink-0 ${CHART_COLOURS.pass}`} />
-          PASS
-        </span>
-        <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-          <span className={`w-3 h-3 rounded-sm shrink-0 ${CHART_COLOURS.review}`} />
-          REVIEW
-        </span>
-        <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-          <span className={`w-3 h-3 rounded-sm shrink-0 ${CHART_COLOURS.violation}`} />
-          POTENTIAL VIOLATION
-        </span>
-      </div>
     </section>
   );
 };

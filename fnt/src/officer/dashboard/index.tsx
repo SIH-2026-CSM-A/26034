@@ -2,6 +2,12 @@ import { SEEDED_DEMO_OFFICER } from '../../services/demo';
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../../services/apiClient';
 import type { components } from '../../services/generated/schema';
+import { motion } from 'framer-motion';
+import { CountUp } from '../../ui/CountUp';
+import { rise, spring, stagger } from '../../ui/motion';
+import { Notice } from '../../ui/Notice';
+import { OfficerHeader } from '../components/OfficerHeader';
+import { VerdictTag } from '../components/VerdictBanner';
 import { CategoryFilterBar } from './CategoryFilterBar';
 import { HeatmapJurisdiction } from './HeatmapJurisdiction';
 import { TimelineBucketChart } from './TimelineBucketChart';
@@ -11,6 +17,7 @@ import type {
   DailyBucket,
   DashboardData,
   RecordDetail,
+  Verdict,
   WardAggregate,
 } from './types';
 import { GHMC_WARDS } from './ghmcWards';
@@ -51,7 +58,8 @@ const STANDARD_CLAUSES: ReadonlyArray<{ clauseNumber: string; description: strin
 ];
 
 function formatCategory(cat?: string | null): string {
-  if (!cat) return 'Packaged Food';
+  // No category on the scan is its own answer. Filing it under a real one would move counts.
+  if (!cat) return 'Uncategorised';
   const lower = cat.toLowerCase();
   if (lower === 'food') return 'Packaged Food';
   if (lower === 'cosmetics') return 'Personal Care';
@@ -89,7 +97,9 @@ export const OfficerDashboard: React.FC = () => {
     unknownWardScans: 0,
     clauses: [],
     timeline: [],
+    totals: { scans: 0, pass: 0, review: 0, potentialViolation: 0, noVerdict: 0 },
   });
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -229,15 +239,10 @@ export const OfficerDashboard: React.FC = () => {
       detailsMap.forEach((detail) => {
         const assignedWard = detail.ward?.trim() || 'Unassigned';
         const category = formatCategory(detail.product_category);
-        const scanVerdict =
-          detail.verdict === 'POTENTIAL_VIOLATION'
-            ? 'POTENTIAL VIOLATION'
-            : detail.verdict === 'PASS'
-            ? 'PASS'
-            : 'REVIEW';
 
         detail.findings.forEach((finding) => {
-          const clauseRef = finding.rule_snapshot?.clause_ref || 'Rule 6(1)(a)';
+          // A finding with no clause on its snapshot is grouped as exactly that, never under a real rule.
+          const clauseRef = finding.rule_snapshot?.clause_ref || 'No clause recorded';
           let clause = clauseMap.get(clauseRef);
           if (!clause) {
             clause = {
@@ -259,7 +264,7 @@ export const OfficerDashboard: React.FC = () => {
             timestamp: formatTimestamp(detail.created_at),
             category,
             clause: clauseRef,
-            verdict: scanVerdict,
+            verdict: detail.verdict ?? null,
             storeName:
               detail.source_type === 'catalogue_record'
                 ? 'E-Commerce Marketplace Listing'
@@ -291,7 +296,15 @@ export const OfficerDashboard: React.FC = () => {
         unknownWardScans,
         clauses,
         timeline,
+        totals: {
+          scans: scanList.length,
+          pass: scanList.filter((s) => s.verdict === 'PASS').length,
+          review: scanList.filter((s) => s.verdict === 'REVIEW').length,
+          potentialViolation: scanList.filter((s) => s.verdict === 'POTENTIAL_VIOLATION').length,
+          noVerdict: scanList.filter((s) => !s.verdict).length,
+        },
       });
+      setLoadedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error communicating with API.');
     } finally {
@@ -303,128 +316,156 @@ export const OfficerDashboard: React.FC = () => {
     loadDashboard();
   }, [loadDashboard]);
 
+  const tiles: ReadonlyArray<{ label: string; value: number; verdict?: Verdict }> = [
+    { label: 'Scans loaded', value: data.totals.scans },
+    { label: 'PASS', value: data.totals.pass, verdict: 'PASS' },
+    { label: 'REVIEW', value: data.totals.review, verdict: 'REVIEW' },
+    { label: 'POTENTIAL VIOLATION', value: data.totals.potentialViolation, verdict: 'POTENTIAL_VIOLATION' },
+    ...(data.totals.noVerdict > 0 ? [{ label: 'No verdict issued', value: data.totals.noVerdict }] : []),
+  ];
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50 text-slate-900 p-3 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
-
-        {/* ── Header card ── */}
-        <header className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          {/* Coloured accent bar at top */}
-          <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-rose-500" />
-
-          <div className="p-4 sm:p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  {/* Shield icon */}
-                  <svg className="w-5 h-5 text-indigo-600 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
-                  </svg>
-                  <h1 className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
-                    Legal Metrology Enforcement
-                  </h1>
-                </div>
-                <p className="text-xs text-slate-500 pl-7">
-                  SIH 2026 · PS 26034 · Rule 6 Jurisdiction Monitoring
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={loadDashboard}
-                  disabled={loading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-colors disabled:opacity-50 shadow-sm"
-                >
-                  {loading ? (
-                    <>
-                      <span className="w-3 h-3 border-2 border-slate-400 border-t-slate-700 rounded-full animate-spin" />
-                      Refreshing…
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M13.5 8A5.5 5.5 0 112.5 8M13.5 8V4.5M13.5 8H10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Refresh
-                    </>
-                  )}
-                </button>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
-                </span>
-              </div>
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center justify-between gap-3"
+    <div className="aurora">
+      <OfficerHeader currentTitle="Dashboard" />
+      <main className="mx-auto max-w-[1280px] px-4 pb-28 pt-6 md:pb-16 md:pt-10">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div>
+            <h1 className="text-title">Legal Metrology enforcement</h1>
+            <p className="mt-1 text-secondary text-mute">SIH 2026 · PS 26034 · Rule 6 jurisdiction monitoring</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* When the numbers were read, not a claim that they are streaming. */}
+            {loadedAt && !loading && (
+              <span className="font-mono text-label text-mute">
+                Loaded {loadedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })}
+              </span>
+            )}
+            <button type="button" onClick={loadDashboard} disabled={loading} className="btn btn-quiet w-[132px] px-4">
+              <svg
+                className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
               >
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-rose-500 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4.5zm0 7.5a.75.75 0 110-1.5.75.75 0 010 1.5z"/>
-                  </svg>
-                  <span>{error}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadDashboard}
-                  className="shrink-0 font-bold underline hover:text-rose-950"
-                >
+                <path d="M13.5 8A5.5 5.5 0 112.5 8M13.5 8V4.5M13.5 8H10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {loading ? 'Refreshing' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <CategoryFilterBar
+            categories={data.categories}
+            activeCategory={activeCategory}
+            onSelectCategory={setActiveCategory}
+          />
+        </div>
+
+        {error && (
+          <div className="mt-6">
+            <Notice
+              title="Unable to load the dashboard"
+              role="alert"
+              action={
+                <button type="button" onClick={loadDashboard} className="btn btn-quiet">
                   Retry
                 </button>
-              </div>
-            )}
-
-            <CategoryFilterBar
-              categories={data.categories}
-              activeCategory={activeCategory}
-              onSelectCategory={setActiveCategory}
-            />
+              }
+            >
+              {error}
+            </Notice>
           </div>
-        </header>
+        )}
 
         {loading ? (
-          <div className="p-16 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <div className="inline-flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-              <p className="text-sm font-semibold text-slate-600">
-                Loading enforcement metrics…
-              </p>
-            </div>
-          </div>
+          <DashboardSkeleton />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
-            <div className="lg:col-span-7 space-y-4 sm:space-y-6">
+          !error && (
+            <>
+              <motion.ul
+                variants={stagger}
+                initial="hidden"
+                animate="shown"
+                className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(0,1fr))] lg:grid-flow-col"
+              >
+                {tiles.map((tile, i) => (
+                  <motion.li
+                    key={tile.label}
+                    variants={rise}
+                    whileHover={{ y: -3 }}
+                    transition={spring.lift}
+                    className={`card flex min-h-[120px] flex-col justify-between p-4 sm:p-5 ${i === 0 || tile.verdict === 'POTENTIAL_VIOLATION' ? 'col-span-2 lg:col-span-1' : ''}`}
+                  >
+                    {tile.verdict ? (
+                      <span className="self-start">
+                        <VerdictTag verdict={tile.verdict} />
+                      </span>
+                    ) : (
+                      <span className="text-label text-mute">{tile.label}</span>
+                    )}
+                    <CountUp value={tile.value} className="font-display text-display" />
+                  </motion.li>
+                ))}
+              </motion.ul>
+
               {seededCount > 0 && (
-                <p className="border border-query bg-paper px-3 py-2 font-mono text-label text-query">
+                <p className="badge-seeded mt-4 rounded-ctl px-3 py-2 text-label">
                   Includes {seededCount} seeded demo scan{seededCount === 1 ? '' : 's'} (officer {SEEDED_DEMO_OFFICER}), entered to populate this dashboard, not collected in the field.
                 </p>
               )}
-              <HeatmapJurisdiction
-                wards={data.wards}
-                activeCategory={activeCategory}
-                selectedWard={selectedWard}
-                onSelectWard={(name) => setSelectedWard(name === selectedWard ? null : name)}
-                unassignedScans={data.unassignedScans}
-                unknownWardScans={data.unknownWardScans}
-              />
-              <TimelineBucketChart timeline={data.timeline} />
-            </div>
 
-            <div className="lg:col-span-5">
-              <ClauseBreakdownView
-                clauses={data.clauses}
-                activeCategory={activeCategory}
-              />
-            </div>
-          </div>
+              <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+                <div className="space-y-6 lg:col-span-8">
+                  <HeatmapJurisdiction
+                    wards={data.wards}
+                    activeCategory={activeCategory}
+                    selectedWard={selectedWard}
+                    onSelectWard={(name) => setSelectedWard(name === selectedWard ? null : name)}
+                    unassignedScans={data.unassignedScans}
+                    unknownWardScans={data.unknownWardScans}
+                  />
+                  <TimelineBucketChart timeline={data.timeline} />
+                </div>
+                <div className="lg:col-span-4">
+                  <ClauseBreakdownView clauses={data.clauses} activeCategory={activeCategory} />
+                </div>
+              </div>
+            </>
+          )
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 };
+
+/** The loaded page's boxes, empty: tile row, map card, side card. Nothing moves when data lands. */
+function DashboardSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading enforcement metrics">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={`card flex min-h-[120px] flex-col justify-between p-4 sm:p-5 ${i === 0 || i === 3 ? 'col-span-2 lg:col-span-1' : ''}`}>
+            <span className="skeleton h-6 w-24 rounded-full" />
+            <span className="skeleton h-10 w-16" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="card p-6 lg:col-span-8">
+          <span className="skeleton block h-6 w-56" />
+          <span className="skeleton mt-2 block h-4 w-72 max-w-full" />
+          <span className="skeleton mt-6 block aspect-[1000/807] w-full rounded-card" />
+        </div>
+        <div className="card space-y-3 p-6 lg:col-span-4">
+          <span className="skeleton block h-6 w-44" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span key={i} className="skeleton block h-[84px] w-full rounded-ctl" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default OfficerDashboard;

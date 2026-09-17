@@ -1,16 +1,21 @@
 import { SEEDED_DEMO_OFFICER } from '../services/demo'
+import { motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import type { components } from '../services/generated/schema'
+import { spring } from '../ui/motion'
+import { Notice } from '../ui/Notice'
+import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictTag, verdictLabel } from './components/VerdictBanner'
 
 type ScanSummary = components['schemas']['ScanSummary']
 type Verdict = components['schemas']['Verdict']
 
 /**
- * Review queue. Desktop, dense, sortable and filterable — built for clearing
- * inspections in a sitting, connected live to GET /scans via apiClient.
+ * Review queue. Sortable and filterable, connected live to GET /scans via
+ * apiClient. A row is a card on a phone and a six-column line on a desktop, and
+ * it is the shared element that opens into the verdict screen.
  *
  * Every measured or sortable value is set in mono so a column of timestamps
  * and ids read as columns rather than as ragged text.
@@ -26,12 +31,17 @@ const VERDICT_ORDER: Record<Verdict, number> = {
   PASS: 2,
 }
 
-const COLUMNS: ReadonlyArray<{ key: SortKey; label: string; className: string }> = [
-  { key: 'product', label: 'Product / Category', className: 'w-[26%]' },
-  { key: 'verdict', label: 'Verdict', className: 'w-[18%]' },
-  { key: 'status', label: 'Status', className: 'w-[14%]' },
-  { key: 'created_at', label: 'Captured', className: 'w-[18%]' },
+const COLUMNS: ReadonlyArray<{ key: SortKey; label: string }> = [
+  { key: 'product', label: 'Product / Category' },
+  { key: 'verdict', label: 'Verdict' },
+  { key: 'status', label: 'Status' },
+  { key: 'created_at', label: 'Captured' },
 ]
+
+/** One template for the column heads, the skeleton and the rows, so they cannot drift. */
+const ROW_GRID = 'grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.7fr)_minmax(0,1fr)]'
+
+const VERDICT_FILTERS: ReadonlyArray<Verdict | 'ALL'> = ['ALL', 'POTENTIAL_VIOLATION', 'REVIEW', 'PASS']
 
 function compare(a: ScanSummary, b: ScanSummary, key: SortKey): number {
   switch (key) {
@@ -127,60 +137,54 @@ export function ReviewQueue() {
   }
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b-2 border-ink">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3">
-          <span className="text-label font-bold text-ink">PCCS</span>
-          <nav aria-label="Officer primary navigation" className="flex items-center gap-3">
-            <span className="text-label font-semibold text-ink border-b-2 border-ink">Queue</span>
-            <Link to="/officer/dashboard" className="text-label text-mute hover:text-ink">
-              Dashboard
-            </Link>
-            <Link to="/officer/vendors" className="text-label text-mute hover:text-ink">
-              Vendor Submissions
-            </Link>
-            <Link to="/officer/complaints" className="text-label text-mute hover:text-ink">
-              Complaints
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-3">
-            <Link
-              to="/officer/capture"
-              className="flex min-h-target items-center border border-ink bg-paper px-3 py-1 font-mono text-label text-ink hover:bg-mute/10"
-            >
-              Camera
-            </Link>
-            <Link
-              to="/officer/new"
-              className="flex min-h-target items-center border border-ink bg-ink px-3 py-1 text-label text-paper hover:bg-ink/90"
-            >
-              + New scan
-            </Link>
-            <span className="font-mono text-label">
-              {rows.length} of {scans.length} inspections
-            </span>
+    <div className="aurora">
+      <OfficerHeader currentTitle="Queue" />
+
+      <main className="mx-auto max-w-[1280px] px-4 pb-28 pt-6 md:pb-16 md:pt-10">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+          <div>
+            <h1 className="text-title">Awaiting review</h1>
+            <p className="mt-1 text-secondary text-mute">
+              Every row is a recommendation pending officer confirmation. Live data from GET /scans.
+            </p>
           </div>
+          {!loading && !error && (
+            <p className="font-mono text-label text-mute">
+              {rows.length} of {scans.length} inspections
+            </p>
+          )}
         </div>
-      </header>
 
-      <main className="mx-auto max-w-[1280px] px-4 pb-16">
-        <h1 className="pt-6 text-title">Awaiting review</h1>
-        <p className="mt-1 text-secondary text-mute">
-          Every row is a recommendation pending officer confirmation. Live data from GET /scans.
-        </p>
-
-        <section aria-label="Filters" className="mt-6 flex flex-wrap items-end gap-4">
-          <FilterSelect
-            label="Verdict"
-            value={verdictFilter}
-            onChange={(value) => setVerdictFilter(value as Verdict | 'ALL')}
-            options={[
-              { value: 'ALL', label: 'All verdicts' },
-              { value: 'POTENTIAL_VIOLATION', label: verdictLabel('POTENTIAL_VIOLATION') },
-              { value: 'REVIEW', label: verdictLabel('REVIEW') },
-              { value: 'PASS', label: verdictLabel('PASS') },
-            ]}
-          />
+        <section aria-label="Filters" className="mt-6 flex flex-wrap items-end gap-3">
+          <div
+            role="group"
+            aria-label="Verdict"
+            className="flex w-full gap-0.5 overflow-x-auto rounded-full border border-hairline/70 bg-sunken/70 p-1 [scrollbar-width:none] sm:w-auto [&::-webkit-scrollbar]:hidden"
+          >
+            {VERDICT_FILTERS.map((value) => {
+              const active = verdictFilter === value
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setVerdictFilter(value)}
+                  className={`relative min-h-[40px] flex-1 whitespace-nowrap rounded-full px-3.5 text-label transition-colors duration-base sm:flex-none ${
+                    active ? 'text-ink' : 'text-mute hover:text-ink'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="verdict-filter-pill"
+                      transition={spring.snap}
+                      className="absolute inset-0 rounded-full bg-surface shadow-e1"
+                    />
+                  )}
+                  <span className="relative">{value === 'ALL' ? 'All' : verdictLabel(value)}</span>
+                </button>
+              )
+            })}
+          </div>
           <FilterSelect
             label="Status"
             value={statusFilter}
@@ -193,134 +197,129 @@ export function ReviewQueue() {
               { value: 'failed', label: 'Failed' },
             ]}
           />
-          <label className="flex flex-col gap-1">
-            <span className="text-label text-mute">Product / Category</span>
+          <label className="flex min-w-0 flex-1 flex-col gap-1 sm:max-w-xs">
+            <span className="sr-only">Product / Category</span>
             <input
               type="search"
               value={productQuery}
               onChange={(event) => setProductQuery(event.target.value)}
               placeholder="Filter by commodity or ID"
-              className="min-h-target w-64 border border-ink bg-paper px-3 py-2 text-body placeholder:text-mute"
+              className="input"
             />
           </label>
         </section>
 
-        {loading && (
-          <div className="mt-8 border border-hairline p-8 text-center">
-            <p className="font-mono text-body text-mute animate-pulse">Loading inspection queue from API...</p>
-          </div>
-        )}
-
         {error && (
-          <div className="mt-8 border border-seal bg-paper p-6">
-            <p className="text-body font-semibold text-seal">Unable to load review queue</p>
-            <p className="mt-1 text-secondary text-mute">{error}</p>
-            <button
-              type="button"
-              onClick={fetchScans}
-              className="mt-4 border border-ink px-4 py-2 text-label hover:bg-mute/10"
+          <div className="mt-6">
+            <Notice
+              title="Unable to load review queue"
+              role="alert"
+              action={
+                <button type="button" onClick={fetchScans} className="btn btn-quiet">
+                  Retry
+                </button>
+              }
             >
-              Retry
-            </button>
+              {error}
+            </Notice>
           </div>
         )}
 
-        {!loading && !error && (
-          <table className="mt-6 w-full border-collapse text-left">
-            <caption className="sr-only">
-              Inspections awaiting review, sortable by product, verdict, status and
-              capture time.
-            </caption>
-            <thead>
-              <tr className="border-y-2 border-ink">
-                {COLUMNS.map((column) => (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    className={`${column.className} p-0`}
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDirection === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(column.key)}
-                      className="flex min-h-target w-full items-center gap-2 px-3 py-2 text-label"
-                    >
-                      {column.label}
-                      <SortMark
-                        active={sortKey === column.key}
-                        direction={sortDirection}
-                      />
-                    </button>
-                  </th>
+        {!error && (
+          <div className="mt-6">
+            {/* Column heads double as the sort controls. Hidden below md, where a row is a card. */}
+            <div className={`hidden items-center px-5 pb-1 md:grid ${ROW_GRID}`}>
+              {COLUMNS.map((column) => (
+                <button
+                  key={column.key}
+                  type="button"
+                  onClick={() => toggleSort(column.key)}
+                  aria-label={`Sort by ${column.label}`}
+                  aria-pressed={sortKey === column.key}
+                  className="-ml-2 flex min-h-target items-center gap-2 rounded-ctl px-2 text-left text-label text-mute hover:text-ink"
+                >
+                  {column.label}
+                  <SortMark active={sortKey === column.key} direction={sortDirection} />
+                </button>
+              ))}
+              <span className="text-label text-mute">Rule set</span>
+              <span className="text-label text-mute">Inspection</span>
+            </div>
+
+            {loading ? (
+              <ul aria-busy="true" aria-label="Loading inspection queue" className="space-y-2.5">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <li key={i} className={`card grid items-center gap-x-4 gap-y-3 px-5 py-4 md:min-h-[72px] md:py-2 ${ROW_GRID}`}>
+                    <span className="skeleton col-span-2 h-5 w-40 md:col-span-1" />
+                    <span className="skeleton col-span-2 h-7 w-28 rounded-full md:col-span-1" />
+                    <span className="skeleton hidden h-4 w-20 md:block" />
+                    <span className="skeleton h-4 w-20 md:hidden" />
+                    <span className="skeleton h-4 w-28 justify-self-end md:justify-self-start" />
+                    <span className="skeleton hidden h-4 w-12 md:block" />
+                    <span className="skeleton hidden h-4 w-20 md:block" />
+                  </li>
                 ))}
-                <th scope="col" className="w-[12%] px-3 py-2 text-label">
-                  Rule Set
-                </th>
-                <th scope="col" className="px-3 py-2 text-label">
-                  Inspection
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-hairline align-middle">
-                  <td className="px-3 py-2">
-                    <span className="text-body font-medium">
-                      {row.product_category ?? (row.source_type === 'physical_label' ? 'Physical label' : 'Catalogue record')}
-                      {row.officer_id === SEEDED_DEMO_OFFICER && (
-                        <span className="ml-2 border border-query px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-query">
-                          seeded demo
-                        </span>
-                      )}
-                    </span>
-                    <span className="ml-2 font-mono text-label text-mute">
-                      {row.source_type}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.verdict ? (
-                      <VerdictTag verdict={row.verdict} />
-                    ) : (
-                      <span className="inline-block px-2 py-1 font-mono text-label text-mute border-y border-dashed border-mute">
-                        {row.status.toUpperCase()}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-secondary">
-                    {row.finalised ? 'Finalised' : row.status}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-secondary">
-                    {formatCaptured(row.created_at)}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-secondary">
-                    v{row.rule_set_version}
-                  </td>
-                  <td className="px-3 py-1">
+              </ul>
+            ) : (
+              <ul className="space-y-2.5">
+                {rows.map((row, index) => (
+                  <motion.li
+                    key={row.id}
+                    layout
+                    layoutId={`scan-${row.id}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring.glide, delay: Math.min(index, 12) * 0.03 }}
+                    className="card card-lift"
+                  >
                     <Link
                       to={`/officer/verdicts/${row.id}`}
-                      className="flex min-h-target items-center whitespace-nowrap font-mono text-label underline underline-offset-4"
+                      state={{ summary: row }}
+                      className={`grid items-center gap-x-4 gap-y-2 rounded-card px-5 py-4 md:min-h-[72px] md:py-2 ${ROW_GRID}`}
                     >
-                      {row.id.slice(0, 8)}...
+                      <span className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:col-span-1">
+                        <span className="text-body font-medium">
+                          {row.product_category ??
+                            (row.source_type === 'physical_label' ? 'Physical label' : 'Catalogue record')}
+                        </span>
+                        <span className="font-mono text-label text-mute">{row.source_type}</span>
+                        {row.officer_id === SEEDED_DEMO_OFFICER && <span className="badge-seeded">seeded demo</span>}
+                      </span>
+                      <span className="col-span-2 md:col-span-1">
+                        {row.verdict ? (
+                          <VerdictTag verdict={row.verdict} />
+                        ) : (
+                          <span className="inline-block rounded-full border border-dotted border-mute px-2.5 py-1 font-mono text-label text-mute">
+                            {row.status.toUpperCase()}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-mono text-label text-mute md:text-secondary md:text-ink">
+                        <span className="md:hidden">Status </span>
+                        {row.finalised ? 'Finalised' : row.status}
+                      </span>
+                      <span className="whitespace-nowrap text-right font-mono text-label text-mute md:text-left md:text-secondary md:text-ink">{formatCaptured(row.created_at)}</span>
+                      <span className="hidden font-mono text-secondary md:block">v{row.rule_set_version}</span>
+                      <span className="hidden items-center justify-between font-mono text-label text-mute md:flex">
+                        {row.id.slice(0, 8)}
+                        <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">
+                          <path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
                     </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {!loading && !error && rows.length === 0 && (
-          <p className="mt-6 border border-dotted border-mute p-6 text-body text-mute">
+          <Notice title={scans.length === 0 ? 'No inspections found in the queue.' : 'No inspections match these filters.'}>
             {scans.length === 0
-              ? 'No inspections found in the queue.'
-              : 'No inspections match these filters. Widen the verdict filter or clear the search.'}
-          </p>
+              ? 'Submit a scan and it will appear here.'
+              : 'Widen the verdict filter or clear the search.'}
+          </Notice>
         )}
       </main>
     </div>
@@ -333,7 +332,7 @@ export function ReviewQueue() {
 function SortMark({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) {
     return (
-      <svg viewBox="0 0 12 12" aria-hidden="true" className="h-3 w-3 text-hairline" fill="none">
+      <svg viewBox="0 0 12 12" aria-hidden="true" className="h-3 w-3 text-mute/50" fill="none">
         <path d="M6 1.5 9 5H3zM6 10.5 3 7h6z" fill="currentColor" />
       </svg>
     )
@@ -355,11 +354,11 @@ interface FilterSelectProps {
 function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-label text-mute">{label}</span>
+      <span className="sr-only">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-target border border-ink bg-paper px-3 py-2 text-body"
+        className="input w-auto pr-8"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
