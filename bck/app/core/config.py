@@ -137,6 +137,19 @@ class Settings(BaseSettings):
     cost_ceilings: dict[str, Decimal] = {EvidenceProvider.CLOUD_OCR.value: Decimal("0")}
     """Provider name to its spending ceiling. ``Decimal`` because it is money."""
 
+    consumer_scans_per_client_per_minute: int = Field(default=3, gt=0)
+    """Consumer image uploads one client address may submit in a minute. The route has no
+    login, and each accepted upload is an OCR run of the better part of a minute."""
+
+    consumer_scans_per_minute: int = Field(default=12, gt=0)
+    """Consumer image uploads accepted in a minute from all clients together. The client
+    address is a header behind a proxy, so the per-client limit alone can be walked round."""
+
+    consumer_scans_max_pending: int = Field(default=5, gt=0)
+    """Consumer evaluations that may be queued or running at once. Evaluation is serialised
+    and each queued scan holds a decoded frame in memory, so the queue itself is bounded:
+    past this the upload is refused with a 429 rather than accepted into a growing backlog."""
+
     officers: tuple[OfficerCredential, ...] = ()
     """Officers who may log in. Empty by default: a deployment that configures none has
     no accounts, rather than a default account somebody forgets to remove."""

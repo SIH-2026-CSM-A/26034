@@ -9,6 +9,9 @@ from app.contracts import DeclarationField, FieldState, Verdict
 from app.core import (
     CalibrationMethod,
     FieldFindingRow,
+    Jurisdiction,
+    Principal,
+    RoleTier,
     Scan,
     ScanSourceType,
     ScanStatus,
@@ -17,6 +20,17 @@ from app.core import (
 from app.modules.analytics import repository
 
 pytestmark = pytest.mark.postgres
+
+CONTROLLER = Principal(
+    subject="controller-mh", tier=RoleTier.STATE, jurisdiction=Jurisdiction(state="Maharashtra")
+)
+"""A state officer over the state every fixture scan defaults to."""
+
+SATARA_INSPECTOR = Principal(
+    subject="inspector-satara",
+    tier=RoleTier.DISTRICT,
+    jurisdiction=Jurisdiction(state="Maharashtra", region="Pune", district="Satara"),
+)
 
 
 async def add_scan_with_verdict(
@@ -103,7 +117,7 @@ async def test_rule_counts_distinct_scans_with_failing_findings(session: AsyncSe
             findings=(("RULE-SUPPRESSED", FieldState.FAIL, field),),
         )
 
-    assert await repository.rule_counts(session) == [("RULE-ELIGIBLE", 3)]
+    assert await repository.rule_counts(session, CONTROLLER) == [("RULE-ELIGIBLE", 3)]
 
 
 async def test_category_counts_keep_null_as_a_real_privacy_cohort(session: AsyncSession) -> None:
@@ -131,7 +145,7 @@ async def test_category_counts_keep_null_as_a_real_privacy_cohort(session: Async
             product_category="cosmetics",
         )
 
-    assert await repository.category_counts(session) == [(None, 3), ("food", 3)]
+    assert await repository.category_counts(session, CONTROLLER) == [(None, 3), ("food", 3)]
 
 
 async def test_daily_counts_use_verdict_evaluation_day(session: AsyncSession) -> None:
@@ -145,7 +159,7 @@ async def test_daily_counts_use_verdict_evaluation_day(session: AsyncSession) ->
             evaluated_at=evaluated_at,
         )
 
-    assert await repository.daily_counts(session) == [(evaluated_at.date(), 3)]
+    assert await repository.daily_counts(session, CONTROLLER) == [(evaluated_at.date(), 3)]
 
 
 async def test_jurisdiction_counts_use_scan_geography_not_finding_state(
@@ -173,4 +187,34 @@ async def test_jurisdiction_counts_use_scan_geography_not_finding_state(
             evaluated_at=timestamp,
         )
 
-    assert await repository.jurisdiction_counts(session) == [("Maharashtra", "Pune", "Satara", 3)]
+    assert await repository.jurisdiction_counts(session, CONTROLLER) == [
+        ("Maharashtra", "Pune", "Satara", 3)
+    ]
+
+
+async def test_every_aggregate_is_scoped_to_the_callers_jurisdiction(
+    session: AsyncSession,
+) -> None:
+    """A district officer's aggregates count their district and nothing beside it.
+
+    Three eligible scans in Satara and three in Kolhapur. The controller above both sees
+    six; the Satara inspector sees three in every aggregate, as a WHERE clause on the scan.
+    """
+    timestamp = datetime(2026, 9, 8, 9, tzinfo=UTC)
+    for district in ("Satara", "Kolhapur"):
+        for _ in range(3):
+            await add_scan_with_verdict(
+                session,
+                district=district,
+                created_at=timestamp,
+                evaluated_at=timestamp,
+                findings=(("RULE-SCOPED", FieldState.FAIL, DeclarationField.NET_QUANTITY),),
+            )
+
+    assert await repository.rule_counts(session, CONTROLLER) == [("RULE-SCOPED", 6)]
+    assert await repository.rule_counts(session, SATARA_INSPECTOR) == [("RULE-SCOPED", 3)]
+    assert await repository.category_counts(session, SATARA_INSPECTOR) == [(None, 3)]
+    assert await repository.daily_counts(session, SATARA_INSPECTOR) == [(timestamp.date(), 3)]
+    assert await repository.jurisdiction_counts(session, SATARA_INSPECTOR) == [
+        ("Maharashtra", "Pune", "Satara", 3)
+    ]

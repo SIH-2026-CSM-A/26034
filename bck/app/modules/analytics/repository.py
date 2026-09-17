@@ -5,6 +5,11 @@ keeps suppressed cohorts inside the repository boundary rather than returning th
 later layer to discard. Verdict rows are append-only, and these endpoints intentionally
 aggregate evaluation activity across those rows; the distinct scan count prevents joined
 duplicates from inflating any one aggregate cell.
+
+Every query takes the caller's :class:`~app.core.Principal` and narrows the scan it counts
+with :func:`~app.core.scope_to_jurisdiction` — the same predicate the scan routes apply, so
+an aggregate can never describe enforcement activity its reader could not list scan by scan.
+The parameter is required, not optional: there is no unscoped spelling of these queries.
 """
 
 from datetime import date
@@ -14,11 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.contracts import FieldState, Verdict
-from app.core import FieldFindingRow, Scan, VerdictRow
+from app.core import FieldFindingRow, Principal, Scan, VerdictRow, scope_to_jurisdiction
 from app.modules.analytics.constants import K_ANONYMITY_MIN_COHORT
 
 
-async def rule_counts(session: AsyncSession) -> list[tuple[str, int]]:
+async def rule_counts(session: AsyncSession, principal: Principal) -> list[tuple[str, int]]:
     """Return privacy-eligible distinct-scan cohorts for failing findings by rule."""
     finding_row = aliased(FieldFindingRow, name="finding")
     verdict_row = aliased(VerdictRow, name="verdict")
@@ -34,10 +39,17 @@ async def rule_counts(session: AsyncSession) -> list[tuple[str, int]]:
         .having(cohort_count >= K_ANONYMITY_MIN_COHORT)
         .order_by(cohort_count.desc(), finding_row.rule_id.asc())
     )
-    return [(rule_id, count) for rule_id, count in (await session.execute(statement)).tuples()]
+    return [
+        (rule_id, count)
+        for rule_id, count in (
+            await session.execute(scope_to_jurisdiction(statement, principal, scan_row))
+        ).tuples()
+    ]
 
 
-async def category_counts(session: AsyncSession) -> list[tuple[str | None, int]]:
+async def category_counts(
+    session: AsyncSession, principal: Principal
+) -> list[tuple[str | None, int]]:
     """Return privacy-eligible distinct-scan cohorts by confirmed product category."""
     scan_row = aliased(Scan, name="scan")
     verdict_row = aliased(VerdictRow, name="verdict")
@@ -51,10 +63,15 @@ async def category_counts(session: AsyncSession) -> list[tuple[str | None, int]]
         .having(cohort_count >= K_ANONYMITY_MIN_COHORT)
         .order_by(cohort_count.desc(), scan_row.product_category.asc().nullsfirst())
     )
-    return [(category, count) for category, count in (await session.execute(statement)).tuples()]
+    return [
+        (category, count)
+        for category, count in (
+            await session.execute(scope_to_jurisdiction(statement, principal, scan_row))
+        ).tuples()
+    ]
 
 
-async def daily_counts(session: AsyncSession) -> list[tuple[date, int]]:
+async def daily_counts(session: AsyncSession, principal: Principal) -> list[tuple[date, int]]:
     """Return privacy-eligible potential-verdict scan cohorts by UTC evaluation day."""
     scan_row = aliased(Scan, name="scan")
     verdict_row = aliased(VerdictRow, name="verdict")
@@ -69,11 +86,17 @@ async def daily_counts(session: AsyncSession) -> list[tuple[date, int]]:
         .having(cohort_count >= K_ANONYMITY_MIN_COHORT)
         .order_by(evaluation_day.asc())
     )
-    return [(day, count) for day, count in (await session.execute(statement)).tuples()]
+    return [
+        (day, count)
+        for day, count in (
+            await session.execute(scope_to_jurisdiction(statement, principal, scan_row))
+        ).tuples()
+    ]
 
 
 async def jurisdiction_counts(
     session: AsyncSession,
+    principal: Principal,
 ) -> list[tuple[str, str | None, str | None, int]]:
     """Return privacy-eligible potential-verdict cohorts by scan jurisdiction tuple."""
     scan_row = aliased(Scan, name="scan")
@@ -97,5 +120,7 @@ async def jurisdiction_counts(
     )
     return [
         (state, region, district, count)
-        for state, region, district, count in (await session.execute(statement)).tuples()
+        for state, region, district, count in (
+            await session.execute(scope_to_jurisdiction(statement, principal, scan_row))
+        ).tuples()
     ]

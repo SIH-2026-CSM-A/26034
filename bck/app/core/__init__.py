@@ -55,6 +55,7 @@ from app.core.models import (
     Scan,
     VerdictRow,
 )
+from app.core.ratelimit import SlidingWindowLimiter, consumer_scan_limiter, limit_consumer_scans
 from app.core.rbac import Jurisdiction, Principal, RoleTier, scope_to_jurisdiction
 from app.core.schema import Base
 
@@ -78,12 +79,14 @@ __all__ = [
     "ScanSourceType",
     "ScanStatus",
     "Settings",
+    "SlidingWindowLimiter",
     "Token",
     "VendorRow",
     "VendorScanRow",
     "VendorType",
     "VerdictRow",
     "auth_router",
+    "consumer_scan_limiter",
     "authenticate_officer",
     "create_access_token",
     "dispose_engine",
@@ -93,6 +96,7 @@ __all__ = [
     "get_session_factory",
     "get_settings",
     "hash_password",
+    "limit_consumer_scans",
     "principal_from_token",
     "require_tier",
     "scope_to_jurisdiction",

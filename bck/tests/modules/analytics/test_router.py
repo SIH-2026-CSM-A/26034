@@ -9,12 +9,31 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.contracts import DeclarationField, FieldState
-from app.core import get_session
+from app.core import Jurisdiction, Principal, RoleTier, create_access_token, get_session
 from app.modules.analytics.router import analytics_router
 
 from .test_repository import add_scan_with_verdict
 
 pytestmark = pytest.mark.postgres
+
+ROUTES = (
+    "/analytics/by-rule",
+    "/analytics/by-category",
+    "/analytics/over-time",
+    "/analytics/jurisdiction",
+)
+
+CONTROLLER = Principal(
+    subject="controller-mh", tier=RoleTier.STATE, jurisdiction=Jurisdiction(state="Maharashtra")
+)
+OTHER_STATE = Principal(
+    subject="controller-ka", tier=RoleTier.STATE, jurisdiction=Jurisdiction(state="Karnataka")
+)
+
+
+def auth(principal: Principal) -> dict[str, str]:
+    """A bearer header carrying a genuinely signed token for ``principal``."""
+    return {"Authorization": f"Bearer {create_access_token(principal)}"}
 
 
 @pytest_asyncio.fixture
@@ -46,7 +65,7 @@ async def test_category_endpoint_returns_typed_unconfirmed_bucket(
             product_category=None,
         )
 
-    response = await client.get("/analytics/by-category")
+    response = await client.get("/analytics/by-category", headers=auth(CONTROLLER))
 
     assert response.status_code == 200, response.text
     assert response.json() == [{"product_category": "UNCONFIRMED", "count": 3}]
@@ -68,7 +87,7 @@ async def test_rule_endpoint_returns_distinct_failing_scan_cohort(
             ),
         )
 
-    response = await client.get("/analytics/by-rule")
+    response = await client.get("/analytics/by-rule", headers=auth(CONTROLLER))
 
     assert response.status_code == 200, response.text
     assert response.json() == [{"rule_id": "RULE-API", "count": 3}]
@@ -87,7 +106,7 @@ async def test_over_time_endpoint_uses_evaluation_day(
             evaluated_at=evaluated_at,
         )
 
-    response = await client.get("/analytics/over-time")
+    response = await client.get("/analytics/over-time", headers=auth(CONTROLLER))
 
     assert response.status_code == 200, response.text
     assert response.json() == [{"day": "2026-09-08", "count": 3}]
@@ -113,7 +132,7 @@ async def test_jurisdiction_endpoint_returns_density_after_suppression(
             evaluated_at=timestamp,
         )
 
-    response = await client.get("/analytics/jurisdiction")
+    response = await client.get("/analytics/jurisdiction", headers=auth(CONTROLLER))
 
     assert response.status_code == 200, response.text
     assert response.json() == [
@@ -125,3 +144,38 @@ async def test_jurisdiction_endpoint_returns_density_after_suppression(
             "density_band": "MEDIUM",
         }
     ]
+
+
+@pytest.mark.parametrize("route", ROUTES)
+async def test_every_analytics_route_refuses_an_unauthenticated_caller(
+    client: AsyncClient, session: AsyncSession, route: str
+) -> None:
+    """No token, no aggregate — with eligible data present, so a 401 is not an empty 200."""
+    timestamp = datetime(2026, 9, 8, 9, tzinfo=UTC)
+    for _ in range(3):
+        await add_scan_with_verdict(session, created_at=timestamp, evaluated_at=timestamp)
+
+    response = await client.get(route)
+
+    assert response.status_code == 401, response.text
+
+
+@pytest.mark.parametrize("route", ROUTES)
+async def test_an_officer_of_another_state_sees_no_cell(
+    client: AsyncClient, session: AsyncSession, route: str
+) -> None:
+    """An authenticated officer outside the jurisdiction gets an empty aggregate."""
+    timestamp = datetime(2026, 9, 8, 9, tzinfo=UTC)
+    for _ in range(3):
+        await add_scan_with_verdict(
+            session,
+            created_at=timestamp,
+            evaluated_at=timestamp,
+            findings=(("RULE-API", FieldState.FAIL, DeclarationField.NET_QUANTITY),),
+        )
+
+    assert (await client.get(route, headers=auth(CONTROLLER))).json() != []
+    response = await client.get(route, headers=auth(OTHER_STATE))
+
+    assert response.status_code == 200, response.text
+    assert response.json() == []

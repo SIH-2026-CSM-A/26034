@@ -52,6 +52,8 @@ from app.core import (
     get_current_principal,
     get_session,
     get_session_factory,
+    get_settings,
+    limit_consumer_scans,
     require_tier,
 )
 from app.modules.rules import ProductCategory
@@ -416,8 +418,10 @@ def _evaluation_failed(scan_id: UUID) -> HTTPException:
 # so the repository's jurisdiction predicate keeps consumer scans out of every officer
 # view and officer scans out of the consumer read route, with no second code path.
 #
-# ponytail: no rate limit. The route accepts one image and queues one evaluation; the
-# evaluation lock already serialises the CPU. A per-IP limit at nginx is the upgrade.
+# The route is unauthenticated and each accepted upload is an OCR run of the better part of
+# a minute, so it is limited three ways: per client and overall per minute
+# (:func:`app.core.limit_consumer_scans`), and by how many consumer evaluations may be
+# queued at once, because every queued scan holds a decoded frame in memory.
 
 CONSUMER = Principal(
     subject="consumer", tier=RoleTier.STATE, jurisdiction=Jurisdiction(state="consumer")
@@ -425,8 +429,33 @@ CONSUMER = Principal(
 
 consumer_router = APIRouter(prefix="/consumer", tags=["consumer"])
 
+_consumer_pending = 0
+"""Consumer evaluations queued or running. Touched only on the event loop, so a plain int."""
 
-@consumer_router.post("/scans/image", status_code=status.HTTP_201_CREATED)
+
+def _reserve_consumer_slot() -> None:
+    """Take one place in the consumer queue, or a 429 when it is full."""
+    global _consumer_pending
+    if _consumer_pending >= get_settings().consumer_scans_max_pending:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="the scan queue is full; try again shortly",
+            headers={"Retry-After": "60"},
+        )
+    _consumer_pending += 1
+
+
+async def _release_consumer_slot() -> None:
+    """Give the place back. Queued after the evaluation, so it runs once that has ended."""
+    global _consumer_pending
+    _consumer_pending -= 1
+
+
+@consumer_router.post(
+    "/scans/image",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_consumer_scans)],
+)
 async def submit_consumer_image_scan(
     session: Session,
     background: BackgroundTasks,
@@ -438,17 +467,24 @@ async def submit_consumer_image_scan(
     category and places no reference object, so the packaged rules apply unchanged and
     no physical measurement is ever reported from their photograph.
     """
-    return await _accept_image_scan(
-        session,
-        CONSUMER,
-        background,
-        await image.read(),
-        calibration_method=CalibrationMethod.NONE,
-        reference_type=None,
-        artwork_dpi=None,
-        product_category=None,
-        institutional_or_industrial_confirmed=False,
-    )
+    _reserve_consumer_slot()
+    try:
+        detail = await _accept_image_scan(
+            session,
+            CONSUMER,
+            background,
+            await image.read(),
+            calibration_method=CalibrationMethod.NONE,
+            reference_type=None,
+            artwork_dpi=None,
+            product_category=None,
+            institutional_or_industrial_confirmed=False,
+        )
+    except BaseException:
+        await _release_consumer_slot()
+        raise
+    background.add_task(_release_consumer_slot)
+    return detail
 
 
 @consumer_router.get("/scans/{scan_id}")

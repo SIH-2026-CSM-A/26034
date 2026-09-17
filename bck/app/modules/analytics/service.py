@@ -15,6 +15,7 @@ from enum import StrEnum
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import Principal
 from app.modules.analytics import repository
 from app.modules.analytics.constants import K_ANONYMITY_MIN_COHORT
 from app.modules.analytics.schemas import (
@@ -120,21 +121,23 @@ def jurisdiction_cells(
     ]
 
 
-async def by_rule(session: AsyncSession) -> list[RuleAggregateCell]:
+async def by_rule(session: AsyncSession, principal: Principal) -> list[RuleAggregateCell]:
     """Load and map privacy-eligible failing-finding cohorts by rule identifier."""
-    return rule_cells(await repository.rule_counts(session))
+    return rule_cells(await repository.rule_counts(session, principal))
 
 
-async def by_category(session: AsyncSession) -> list[CategoryAggregateCell]:
+async def by_category(session: AsyncSession, principal: Principal) -> list[CategoryAggregateCell]:
     """Load and map privacy-eligible potential-verdict cohorts by category."""
-    return category_cells(await repository.category_counts(session))
+    return category_cells(await repository.category_counts(session, principal))
 
 
-async def over_time(session: AsyncSession) -> list[DailyAggregateCell]:
+async def over_time(session: AsyncSession, principal: Principal) -> list[DailyAggregateCell]:
     """Load and map privacy-eligible potential-verdict cohorts by evaluation day."""
-    return daily_cells(await repository.daily_counts(session))
+    return daily_cells(await repository.daily_counts(session, principal))
 
 
-async def by_jurisdiction(session: AsyncSession) -> list[JurisdictionAggregateCell]:
+async def by_jurisdiction(
+    session: AsyncSession, principal: Principal
+) -> list[JurisdictionAggregateCell]:
     """Load and map privacy-eligible potential-verdict cohorts by jurisdiction."""
-    return jurisdiction_cells(await repository.jurisdiction_counts(session))
+    return jurisdiction_cells(await repository.jurisdiction_counts(session, principal))

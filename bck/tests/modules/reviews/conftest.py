@@ -44,7 +44,7 @@ def configured(monkeypatch: pytest.MonkeyPatch) -> str:
     """Return a local PostgreSQL DSN or skip database behavior tests."""
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
-        pytest.fail("DATABASE_URL is not set; reviews persistence needs PostgreSQL")
+        pytest.skip("DATABASE_URL is not set; reviews persistence needs PostgreSQL")
     database_config = make_url(database_url)
     if database_config.drivername != "postgresql+psycopg" or database_config.host not in {
         "localhost",
