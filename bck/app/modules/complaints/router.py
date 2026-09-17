@@ -141,16 +141,15 @@ async def transition_complaint(
     A complaint this officer cannot see is a 404. A move the domain's transition table does
     not allow — out of a closed thread, or back to RAISED — is a 409, and so is a row that a
     later row already supersedes: transitioning anything but the head would fork the thread.
-    Two officers moving the same head at the same moment are separated by
-    ``uq_complaints_supersedes_id``; the loser gets the same 409.
+    That last refusal is ``uq_complaints_supersedes_id`` and nothing else — there is no
+    look-before-write in front of it, because a check two officers can both pass at the same
+    moment guards nothing the constraint does not, and the constraint also holds then.
     """
     try:
         async with session.begin():
             current = await repository.get_scoped_complaint(session, complaint_id, principal)
             if current is None:
                 raise _not_found()
-            if await repository.is_superseded(session, current.id):
-                raise _superseded()
             try:
                 record = _service.transition_complaint(
                     current, body.status, officer_id=principal.subject, note=body.note

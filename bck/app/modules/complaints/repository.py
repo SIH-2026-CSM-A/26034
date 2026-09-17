@@ -95,12 +95,6 @@ async def get_latest_complaint_for_scan(
     return history[-1]
 
 
-async def is_superseded(session: AsyncSession, complaint_id: UUID) -> bool:
-    """Whether a later row already replaces this one — that is, whether it is not a head."""
-    statement = select(ComplaintRow.id).where(ComplaintRow.supersedes_id == complaint_id)
-    return (await session.scalars(statement)).first() is not None
-
-
 def _scoped_complaints(principal: Principal) -> Select[Any]:
     """A SELECT over the complaints whose scan sits inside this principal's jurisdiction.
 
