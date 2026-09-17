@@ -57,7 +57,7 @@ CONTROLLER = Principal(
 
 
 @pytest.fixture(autouse=True)
-def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def isolated_settings(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
     """A developer's own ``.env`` must not decide what any test in this package sees.
 
     ``run_image_scan`` reads the model paths off :class:`Settings`, so the orchestrator
@@ -67,6 +67,7 @@ def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
     monkeypatch.delenv("OFFICERS", raising=False)
+    monkeypatch.setenv("CAPTURE_STORE_DIR", str(tmp_path / "captures"))
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
