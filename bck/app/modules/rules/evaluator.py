@@ -226,6 +226,32 @@ def rule7_requirements_apply(
     return declaration in condition.preserved_declarations
 
 
+RULE7_PRESERVED_DECLARATION: dict[DeclarationField, str] = {
+    DeclarationField.NET_QUANTITY: "net_weight",
+    DeclarationField.RETAIL_SALE_PRICE: "retail_sale_price",
+    DeclarationField.BEST_BEFORE_DATE: "expiry_best_before_use_by",
+    DeclarationField.CONSUMER_CARE: "consumer_care_details",
+}
+"""The declarations Rule 7(5) keeps under Rule 7's sizing, in the store's own vocabulary.
+
+The store names them as the gazette does; the pipeline names obligations by
+:class:`~app.contracts.DeclarationField`. This is the one place the two are lined up.
+"""
+
+
+def rule7_governs_field(field: DeclarationField, *, required_under_other_law: bool) -> bool:
+    """Whether Rule 7's sizing still applies to one declaration, given Rule 7(5).
+
+    ``required_under_other_law`` is an officer's confirmation and nothing else. Whether the
+    Food Safety and Standards Act or the Drugs and Cosmetics Rules also require a
+    declaration is a question of law about the package, and no label states it.
+    """
+    return rule7_requirements_apply(
+        RULE7_PRESERVED_DECLARATION.get(field, field.value.lower()),
+        required_under_other_law=required_under_other_law,
+    )
+
+
 def evaluate_rule7_height(
     *,
     panel_area: Decimal,

@@ -268,12 +268,58 @@ def detect_reference_object(
     )
 
 
+Region = tuple[int, int, int, int]
+"""``(x, y, width, height)`` in the pixel coordinates of the frame handed in."""
+
+
+def _ink_mask(gray: np.ndarray, declaration: Region | None = None) -> np.ndarray:
+    """Otsu-threshold a frame so that ink is 255, whichever way round the label is printed.
+
+    Otsu separates two classes and cannot say which one is the ink. Assuming the darker one
+    is right for black on white and wrong for white on a dark panel, where it marks the
+    whole background as ink and every margin comes back as an overlap.
+
+    Two ways to tell, by what was handed in. Around a whole frame, a declaration's own box
+    decides: inside it the ink is the minority of the pixels. For a crop with no box — one
+    numeral, padded — the border decides: a crop is cut around its ink, so whatever covers
+    most of its outermost pixels is the background.
+    """
+    _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    if declaration is not None:
+        x, y, w, h = declaration
+        sample = mask[max(0, y) : y + h, max(0, x) : x + w]
+    else:
+        sample = np.concatenate([mask[0, :], mask[-1, :], mask[:, 0], mask[:, -1]])
+    if sample.size and np.count_nonzero(sample) * 2 > sample.size:
+        mask = cv2.bitwise_not(mask)
+    return mask
+
+
+def _warp_region(region: Region, h_matrix: np.ndarray | None) -> Region:
+    """The axis-aligned box a region occupies once the frame has been rectified."""
+    x, y, w, h = region
+    if h_matrix is None:
+        return region
+    pts = np.array([[[x, y], [x + w, y], [x + w, y + h], [x, y + h]]], dtype=np.float32)
+    warped = cv2.perspectiveTransform(pts, h_matrix)[0]
+    x0, y0 = max(0, int(np.min(warped[:, 0]))), max(0, int(np.min(warped[:, 1])))
+    return x0, y0, int(np.max(warped[:, 0])) - x0, int(np.max(warped[:, 1])) - y0
+
+
+def _crop(image: np.ndarray, region: Region | None) -> np.ndarray:
+    if region is None:
+        return image
+    x, y, w, h = region
+    return image[max(0, y) : y + h, max(0, x) : x + w]
+
+
 def measure_ink_extent(
     image: np.ndarray,
     ref_image: np.ndarray | None = None,
     ref_type: str | None = None,
     is_artwork: bool = False,
     artwork_dpi: float | None = None,
+    region: Region | None = None,
 ) -> MeasurementResult:
     """Measure the true ink extent (height) of a cropped numeral image.
     Uses reference object detection for calibration, or exact DPI if artwork.
@@ -300,13 +346,19 @@ def measure_ink_extent(
             image = cv2.warpPerspective(
                 image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
             )
+            region = _warp_region(region, h_matrix) if region is not None else None
+
+    # A region is a box in the frame as photographed; it is cropped only here, after the
+    # frame has been rectified, because the homography is in whole-frame coordinates and
+    # warping a crop with it would move the crop somewhere else entirely.
+    image = _crop(image, region)
+    if image.size == 0:
+        return MeasurementRefusal(reason="The region to measure lies outside the frame.")
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
-    # Apply Otsu thresholding. Assume ink is darker than background,
-    # so we want ink to be 255 (active). We use THRESH_BINARY_INV.
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    thresh = _ink_mask(gray)
 
     # Measure true ink extent (first-to-last active pixel row)
     active_pixels = cv2.findNonZero(thresh)
@@ -466,6 +518,7 @@ def measure_width_to_height_ratio(
     ref_type: str | None = None,
     is_artwork: bool = False,
     artwork_dpi: float | None = None,
+    region: Region | None = None,
 ) -> MeasurementResult:
     """Measure the width-to-height ratio of a cropped numeral image."""
     if is_artwork:
@@ -487,12 +540,19 @@ def measure_width_to_height_ratio(
             image = cv2.warpPerspective(
                 image, h_matrix, (image.shape[1], image.shape[0]), borderValue=bw
             )
+            region = _warp_region(region, h_matrix) if region is not None else None
+
+    # A region is a box in the frame as photographed; it is cropped only here, after the
+    # frame has been rectified, because the homography is in whole-frame coordinates and
+    # warping a crop with it would move the crop somewhere else entirely.
+    image = _crop(image, region)
+    if image.size == 0:
+        return MeasurementRefusal(reason="The region to measure lies outside the frame.")
 
     # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
-    # Apply Otsu thresholding
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    thresh = _ink_mask(gray)
 
     active_pixels = cv2.findNonZero(thresh)
     if active_pixels is None:
@@ -573,19 +633,46 @@ def measure_margins(
     mid_y = y + h // 2
     mid_x = x + w // 2
 
-    # Convert numeral image to grayscale if needed
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    thresh = _ink_mask(gray, (x, y, w, h))
 
-    # Apply Otsu thresholding
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # The box holds the declaration's own print, which is not printed information
+    # *surrounding* it. A component centred inside the box is the declaration; it is lifted
+    # out of the mask and the box is redrawn around it, so clearance runs from the ink and
+    # not from however much padding the OCR polygon carried. A component centred outside
+    # that reaches in is a neighbour, stays in the mask, and is what an overlap is.
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(thresh, connectivity=8)
+    own = [
+        index
+        for index in range(1, count)
+        if x <= centroids[index][0] < x + w and y <= centroids[index][1] < y + h
+    ]
+    if own:
+        thresh[np.isin(labels, own)] = 0
+        left_edge = min(int(stats[index, cv2.CC_STAT_LEFT]) for index in own)
+        top_edge = min(int(stats[index, cv2.CC_STAT_TOP]) for index in own)
+        right_edge = max(
+            int(stats[index, cv2.CC_STAT_LEFT] + stats[index, cv2.CC_STAT_WIDTH]) for index in own
+        )
+        bottom_edge = max(
+            int(stats[index, cv2.CC_STAT_TOP] + stats[index, cv2.CC_STAT_HEIGHT]) for index in own
+        )
+        x, y, w, h = left_edge, top_edge, right_edge - left_edge, bottom_edge - top_edge
+        mid_y, mid_x = y + h // 2, x + w // 2
 
     # Distances in pixels
     distances_px = {}
 
     # Above
+    # Rule 8(1) is about the area *surrounding* the declaration. Ink counts above or below
+    # only within the declaration's own columns, and left or right only within its own rows:
+    # measured across the whole frame, a logo in the far corner becomes the nearest ink
+    # "above" and every real label fails.
+    # ponytail: the four corner blocks of the clear zone are not searched. Widening each
+    # band by the required clearance needs the numeral height, which this function is not given.
     above_slice = thresh[0:mid_y, :].copy()
-    above_slice[y:mid_y, 0:x] = 0
-    above_slice[y:mid_y, x + w :] = 0
+    above_slice[:, 0:x] = 0
+    above_slice[:, x + w :] = 0
     active_above = cv2.findNonZero(above_slice)
     if active_above is not None:
         max_y = np.max(active_above.reshape(-1, 2)[:, 1])
@@ -595,8 +682,8 @@ def measure_margins(
 
     # Below
     below_slice = thresh[mid_y:img_h, :].copy()
-    below_slice[0 : (y + h - mid_y), 0:x] = 0
-    below_slice[0 : (y + h - mid_y), x + w :] = 0
+    below_slice[:, 0:x] = 0
+    below_slice[:, x + w :] = 0
     active_below = cv2.findNonZero(below_slice)
     if active_below is not None:
         min_y = np.min(active_below.reshape(-1, 2)[:, 1])
@@ -606,8 +693,8 @@ def measure_margins(
 
     # Left
     left_slice = thresh[:, 0:mid_x].copy()
-    left_slice[0:y, x:mid_x] = 0
-    left_slice[y + h :, x:mid_x] = 0
+    left_slice[0:y, :] = 0
+    left_slice[y + h :, :] = 0
     active_left = cv2.findNonZero(left_slice)
     if active_left is not None:
         max_x = np.max(active_left.reshape(-1, 2)[:, 0])
@@ -617,8 +704,8 @@ def measure_margins(
 
     # Right
     right_slice = thresh[:, mid_x:img_w].copy()
-    right_slice[0:y, 0 : (x + w - mid_x)] = 0
-    right_slice[y + h :, 0 : (x + w - mid_x)] = 0
+    right_slice[0:y, :] = 0
+    right_slice[y + h :, :] = 0
     active_right = cv2.findNonZero(right_slice)
     if active_right is not None:
         min_x = np.min(active_right.reshape(-1, 2)[:, 0])
@@ -657,3 +744,138 @@ def measure_margins(
             )
 
     return MeasurementMarginSet(**results)
+
+
+MIN_GLYPH_AREA_PX = 4
+"""Connected components smaller than this are sensor or JPEG speckle, not print. A full
+stop in a 2 mm declaration photographed at arm's length is still a dozen pixels."""
+
+
+def segment_declaration_glyphs(
+    image: np.ndarray, declaration_bbox: Region, text: str
+) -> tuple[tuple[str, Region], ...] | MeasurementRefusal:
+    """Find each printed character of a declaration, and say which character it is.
+
+    Rule 7(3) is a rule about one character at a time and exempts four of them by name, so
+    a width-to-height figure is only evidence once it is attached to a character. OCR gives
+    the text of a line and a box around the line; this splits the box into glyphs by
+    connected components and pairs them with the text left to right.
+
+    The pairing is only made when the counts agree. Touching print, a broken stroke or a
+    misread character all leave more or fewer glyphs than characters, and at that point
+    nothing says which glyph is the "1" — so this refuses rather than guessing, and the
+    rule reports INSUFFICIENT_EVIDENCE. Pixels only: no millimetre is produced here.
+    """
+    x, y, w, h = declaration_bbox
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    window = _ink_mask(gray, declaration_bbox)[max(0, y) : y + h, max(0, x) : x + w]
+    if window.size == 0:
+        return MeasurementRefusal(reason="The declaration's region lies outside the frame.")
+
+    _, _, stats, _ = cv2.connectedComponentsWithStats(window, connectivity=8)
+    parts = sorted(
+        (int(sx), int(sy), int(sw), int(sh))
+        for sx, sy, sw, sh, area in stats[1:]
+        if area >= MIN_GLYPH_AREA_PX
+    )
+    # The dot of an "i", both marks of a colon: components stacked in one column are one glyph.
+    columns: list[list[int]] = []
+    for sx, sy, sw, sh in parts:
+        if columns and sx < columns[-1][2]:
+            left, top, right, bottom = columns[-1]
+            columns[-1] = [left, min(top, sy), max(right, sx + sw), max(bottom, sy + sh)]
+        else:
+            columns.append([sx, sy, sx + sw, sy + sh])
+
+    characters = [character for character in text if not character.isspace()]
+    if len(columns) != len(characters):
+        return MeasurementRefusal(
+            reason=(
+                f"The declaration reads as {len(characters)} characters and {len(columns)} "
+                "separate glyphs were found in its region, so no glyph can be matched to a "
+                "character — the print is touching, broken, or was misread."
+            )
+        )
+    origin_x, origin_y = max(0, x), max(0, y)
+    return tuple(
+        (character, (origin_x + left, origin_y + top, right - left, bottom - top))
+        for character, (left, top, right, bottom) in zip(characters, columns, strict=True)
+    )
+
+
+def measure_panel_dimensions(
+    image: np.ndarray,
+    panel_bbox: Region,
+    ref_image: np.ndarray | None = None,
+    ref_type: str | None = None,
+    is_artwork: bool = False,
+    artwork_dpi: float | None = None,
+) -> tuple[MeasurementResult, MeasurementResult]:
+    """Height and width of the detected principal display panel, in millimetres.
+
+    Dimensions rather than an area: Rule 7(4) turns them into an area differently for each
+    package shape, and its multipliers live in the rule store, which this module may not
+    import. Both results are refusals together or measurements together.
+    """
+    if is_artwork:
+        if artwork_dpi is None or artwork_dpi <= 0:
+            refusal = MeasurementRefusal(
+                reason="Missing or invalid artwork_dpi for exact measurement."
+            )
+            return refusal, refusal
+        _, _, width_px, height_px = panel_bbox
+        mm_per_pixel = 25.4 / artwork_dpi
+        return (
+            MeasurementExact(value=height_px * mm_per_pixel, unit="mm"),
+            MeasurementExact(value=width_px * mm_per_pixel, unit="mm"),
+        )
+
+    if ref_image is None or ref_type is None:
+        refusal = MeasurementRefusal(
+            reason="Missing reference object image or type for calibration."
+        )
+        return refusal, refusal
+    calib = detect_reference_object(ref_image, ref_type)
+    if isinstance(calib, MeasurementRefusal):
+        return calib, calib
+    mm_per_pixel, conf_interval, h_matrix = calib
+    _, _, width_px, height_px = _warp_region(panel_bbox, h_matrix)
+    if width_px <= 0 or height_px <= 0:
+        refusal = MeasurementRefusal(reason="The detected panel has no extent once rectified.")
+        return refusal, refusal
+    return (
+        MeasurementCalibrated(
+            value=height_px * mm_per_pixel,
+            confidence_interval=height_px * conf_interval,
+            unit="mm",
+            reference_object=ref_type,
+        ),
+        MeasurementCalibrated(
+            value=width_px * mm_per_pixel,
+            confidence_interval=width_px * conf_interval,
+            unit="mm",
+            reference_object=ref_type,
+        ),
+    )
+
+
+def measure_declaration_contrast(image: np.ndarray, declaration_bbox: Region) -> MeasurementResult:
+    """Contrast between a declaration's print and the label behind it, inside its own box.
+
+    Splits the box into ink and background with the same mask every other measurement here
+    uses, and hands the two pixel sets to :func:`measure_contrast_ratio`. No calibration is
+    involved and none is needed: a contrast ratio has no physical unit. It does depend on
+    the lighting the photograph was taken in, which is why it is evidence for an officer and
+    never a figure a threshold is applied to.
+    """
+    x, y, w, h = declaration_bbox
+    window = _crop(image, declaration_bbox)
+    if window.size == 0:
+        return MeasurementRefusal(reason="The declaration's region lies outside the frame.")
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    ink = _ink_mask(gray, declaration_bbox)[max(0, y) : y + h, max(0, x) : x + w] > 0
+    if not ink.any() or ink.all():
+        return MeasurementRefusal(
+            reason="The declaration's region could not be separated into print and background."
+        )
+    return measure_contrast_ratio(window[ink][:, None], window[~ink][:, None])

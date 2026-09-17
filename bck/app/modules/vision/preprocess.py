@@ -208,14 +208,12 @@ def correct_shadows(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
 
 
-def correct_perspective(image: np.ndarray) -> np.ndarray:
-    """
-    Detects document/label contours and applies perspective transformation (deskewing)
-    using cv2.warpPerspective based on the detected 4-point quad contour.
-    """
-    if image is None or image.size == 0:
-        return image
+def _label_perspective(image: np.ndarray) -> tuple[np.ndarray, tuple[int, int], float] | None:
+    """The transform that squares up the label, its output size, and the quad's frame share.
 
+    ``None`` when no four-cornered contour is found among the largest five, or the one
+    found has no extent.
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edged = cv2.Canny(blurred, 75, 200)
@@ -232,7 +230,7 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
             break
 
     if screen_cnt is None:
-        return image
+        return None
 
     pts = screen_cnt.reshape(4, 2).astype(np.float32)
 
@@ -256,7 +254,7 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
     max_height = max(int(height_a), int(height_b))
 
     if max_width <= 0 or max_height <= 0:
-        return image
+        return None
 
     dst = np.array(
         [
@@ -268,5 +266,129 @@ def correct_perspective(image: np.ndarray) -> np.ndarray:
         dtype=np.float32,
     )
 
-    m_matrix = cv2.getPerspectiveTransform(rect, dst)
-    return cv2.warpPerspective(image, m_matrix, (max_width, max_height))
+    coverage = float(cv2.contourArea(rect)) / float(image.shape[0] * image.shape[1])
+    return cv2.getPerspectiveTransform(rect, dst), (max_width, max_height), coverage
+
+
+def correct_perspective(image: np.ndarray) -> np.ndarray:
+    """
+    Detects document/label contours and applies perspective transformation (deskewing)
+    using cv2.warpPerspective based on the detected 4-point quad contour.
+    """
+    if image is None or image.size == 0:
+        return image
+
+    found = _label_perspective(image)
+    if found is None:
+        return image
+    m_matrix, size, _ = found
+    return cv2.warpPerspective(image, m_matrix, size)
+
+
+MIN_LABEL_QUAD_COVERAGE = 0.5
+"""How much of the frame a four-cornered contour must cover before it is taken for the label.
+
+``correct_perspective`` warps to the first quadrilateral among the five largest contours
+and discards everything outside it. On a real pack that quadrilateral is as often a price
+flash, a nutrition table or a barcode box as it is the label, and warping to one of those
+hands OCR a crop with most of the declarations cut away. An uncalibrated prior, like the
+quality thresholds above it, to be tuned once an evaluation set exists.
+"""
+
+
+@dataclass(frozen=True)
+class PreparedPanel:
+    """A frame made ready for OCR, and the way back to the frame as photographed.
+
+    The way back matters as much as the image. Glare and shadow correction leave geometry
+    alone, but deskewing and cylindrical unwarping move every pixel, so a polygon OCR
+    reports on the prepared image points at the wrong place on the photograph — and the
+    photograph is what the evidence record stores, what an officer's overlay is drawn on,
+    and what every measurement is taken from.
+    """
+
+    image: np.ndarray
+    perspective: np.ndarray | None = None
+    """Photographed frame to deskewed frame, where a deskew was applied."""
+
+    curvature_width: int | None = None
+    """Width of the frame the cylindrical unwarp ran on, where one was applied."""
+
+    def to_source(self, points: np.ndarray) -> np.ndarray:
+        """Map ``(N, 2)`` points on :attr:`image` back onto the photographed frame.
+
+        The stages are undone in the reverse of the order they ran. ``remap_curvature``
+        fills each output column from a source column, so its own sampling formula *is*
+        the map from a prepared point to a photographed one.
+        """
+        restored = np.asarray(points, dtype=np.float64).copy()
+        if self.curvature_width is not None:
+            centre, radius = self.curvature_width / 2.0, self.curvature_width * 0.8
+            restored[:, 0] = centre + radius * np.sin(
+                np.clip((restored[:, 0] - centre) / radius, -1.0, 1.0)
+            )
+        if self.perspective is not None:
+            restored = cv2.perspectiveTransform(
+                restored.reshape(1, -1, 2), np.linalg.inv(self.perspective)
+            )[0]
+        return restored
+
+    def restore(self, spans):
+        """The same spans with their polygons on the photographed frame.
+
+        Returns the spans untouched — the same objects — when nothing geometric ran, so a
+        scan with no deskew and no unwarp carries exactly what OCR minted.
+        """
+        if self.perspective is None and self.curvature_width is None:
+            return list(spans)
+        restored = []
+        for span in spans:
+            points = np.array(span.polygon, dtype=np.float64)
+            if points.ndim != 2 or not np.isfinite(points).all():
+                # A malformed polygon stays malformed. Pushed through a homography, a NaN
+                # comes out as a finite number, and the binder's refusal to measure around
+                # it — which is the correct outcome — would never fire.
+                restored.append(span)
+                continue
+            restored.append(
+                span.model_copy(
+                    update={
+                        "polygon": tuple((float(x), float(y)) for x, y in self.to_source(points))
+                    }
+                )
+            )
+        return restored
+
+
+def prepare_panel(image: np.ndarray, *, cylindrical: bool = False) -> PreparedPanel:
+    """Square a capture up for OCR: deskew, then — for a confirmed cylinder — unwarp.
+
+    **Geometry only, and that is a measured decision.** ``remove_glare`` and
+    ``correct_shadows`` are deliberately not run here. On the four real captures in
+    ``datasets/raw`` (2026-09-17, PP-OCRv6, no other change) each made OCR worse:
+
+    * ``remove_glare`` masks every bright, unsaturated pixel, which is a white backdrop, a
+      white label and all white print. It inpainted 55 % of one frame and took it from 47
+      spans to 4.
+    * ``correct_shadows`` took the same frame from 47 spans to 40 and another from 31 to 20.
+      None of the four has a shadow to correct, so this measures its cost and says nothing
+      about its benefit.
+
+    n=4, all clean catalogue images, so no accuracy figure follows. What does follow is that
+    neither stage may sit in front of OCR unconditionally, and nothing the quality gate
+    measures separates glare from a white label well enough to condition them on.
+
+    The unwarp is never inferred. It stretches the middle of every frame it is given, so
+    on a flat label it manufactures the distortion it exists to remove.
+    """
+    prepared = image
+    perspective = None
+    found = _label_perspective(prepared)
+    if found is not None and found[2] >= MIN_LABEL_QUAD_COVERAGE:
+        perspective, size, _ = found
+        prepared = cv2.warpPerspective(prepared, perspective, size)
+    curvature_width = None
+    if cylindrical:
+        curvature_width = prepared.shape[1]
+        prepared = remap_curvature(prepared)
+    return PreparedPanel(image=prepared, perspective=perspective, curvature_width=curvature_width)

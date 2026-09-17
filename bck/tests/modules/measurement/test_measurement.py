@@ -350,8 +350,11 @@ def test_zero_margin_is_valid():
     # 100x100 white image
     image = np.ones((100, 100), dtype=np.uint8) * 255
 
-    # Active ink (black) in top-left quadrant (0:50, 0:50)
-    image[0:50, 0:50] = 0
+    # Ink flush against the declaration directly above it and directly to its left. It used
+    # to sit in the diagonal quadrant (0:50, 0:50), which only read as flush while "above"
+    # meant "anywhere in the frame above" — the reading that fails every real label.
+    image[0:50, 50:70] = 0
+    image[50:70, 0:50] = 0
 
     # Declaration bbox flush against the ink boundary at (50, 50)
     bbox = (50, 50, 20, 20)
@@ -377,7 +380,8 @@ def test_zero_margin_calibrated_path():
     from app.modules.measurement.services import measure_margins
 
     image = np.ones((100, 100), dtype=np.uint8) * 255
-    image[0:50, 0:50] = 0
+    image[0:50, 50:70] = 0
+    image[50:70, 0:50] = 0
     bbox = (50, 50, 20, 20)
 
     ref_image = np.zeros((100, 100), dtype=np.uint8)
@@ -552,3 +556,70 @@ def test_coin_tilt_toward_the_camera_is_not_recovered():
     recov_pts = cv2.perspectiveTransform(np.array([warped_pts]), h_matrix)[0]
     width = float(np.linalg.norm(recov_pts[0] - recov_pts[1]))
     assert 0.02 < abs(width - 100.0) / 100.0 < 0.12
+
+
+def test_margins_ignore_ink_outside_the_declarations_own_band():
+    """A logo in the far corner is not "above" a declaration it is nowhere near.
+
+    Rule 8(1) clears the area *surrounding* the quantity declaration. Measured across the
+    whole frame, the nearest ink above is whatever is printed on that row anywhere on the
+    label, and every real package comes back deficient.
+    """
+    from app.modules.measurement.services import measure_margins
+
+    image = np.ones((300, 300), dtype=np.uint8) * 255
+    image[80:95, 0:40] = 0  # 5 px above the declaration's top edge, far to its left
+    results = measure_margins(image, (150, 100, 100, 40), is_artwork=True, artwork_dpi=25.4)
+    assert results.above.value == 100.0
+
+
+def test_margins_are_measured_on_light_print_over_a_dark_panel():
+    """Polarity comes from the declaration, not from an assumption that ink is dark."""
+    from app.modules.measurement.services import measure_margins
+
+    image = np.full((300, 300), 30, dtype=np.uint8)
+    image[110:130, 160:240] = 230  # the declaration's own print
+    image[40:60, 160:240] = 230  # a neighbour ending at row 59
+    results = measure_margins(image, (150, 100, 100, 40), is_artwork=True, artwork_dpi=25.4)
+    assert isinstance(results.above, MeasurementMarginExact)
+    # From the ink at row 110, not from the box at row 100: the OCR polygon's padding is
+    # not part of the declaration.
+    assert results.above.value == 50.0
+
+
+def test_glyphs_are_paired_with_characters_only_when_the_counts_agree():
+    from app.contracts import MeasurementRefusal
+    from app.modules.measurement.services import segment_declaration_glyphs
+
+    image = np.full((120, 400, 3), 255, dtype=np.uint8)
+    cv2.putText(image, "10 g", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 0), 3)
+    glyphs = segment_declaration_glyphs(image, (10, 10, 380, 100), "10 g")
+    assert [character for character, _ in glyphs] == ["1", "0", "g"]
+    (_, one), (_, zero), _ = glyphs
+    assert one[2] < zero[2], "the 1 is narrower than the 0"
+
+    misread = segment_declaration_glyphs(image, (10, 10, 380, 100), "100 g")
+    assert isinstance(misread, MeasurementRefusal)
+    assert "4 characters and 3 separate glyphs" in misread.reason
+
+
+def test_a_region_is_cropped_after_rectification_not_before():
+    """``region`` measures one numeral inside a frame, at the frame's own scale."""
+    image = np.full((200, 400), 255, dtype=np.uint8)
+    image[50:90, 100:120] = 0  # a 40 px tall bar
+    image[10:190, 300:310] = 0  # a taller neighbour the region must exclude
+    result = measure_ink_extent(image, is_artwork=True, artwork_dpi=25.4, region=(95, 45, 30, 50))
+    assert np.isclose(result.value, 40.0)
+
+
+def test_panel_dimensions_are_refusals_without_a_calibration():
+    from app.contracts import MeasurementRefusal
+    from app.modules.measurement.services import measure_panel_dimensions
+
+    image = np.full((200, 400, 3), 255, dtype=np.uint8)
+    height, width = measure_panel_dimensions(image, (10, 10, 300, 100))
+    assert isinstance(height, MeasurementRefusal) and isinstance(width, MeasurementRefusal)
+    height, width = measure_panel_dimensions(
+        image, (10, 10, 300, 100), is_artwork=True, artwork_dpi=254.0
+    )
+    assert np.isclose(height.value, 10.0) and np.isclose(width.value, 30.0)
