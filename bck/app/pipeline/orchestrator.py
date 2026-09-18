@@ -52,6 +52,7 @@ from app.modules.extraction.binder import (
     get_declaration_bbox,
 )
 from app.modules.extraction.category import DisplayCategoryTaxonomy, classify_display_category
+from app.modules.extraction.unit_sale_price import normalise_unit_sale_price
 from app.modules.measurement import (
     MeasurementMarginSet,
     PackageShape,
@@ -77,6 +78,8 @@ from app.modules.rules import (
     default_rule_set_version,
     evaluate_rule7_width,
     evaluate_rule8_free_space,
+    evaluate_unit_sale_price_basis,
+    known_unit_sale_price_bases,
     load_rules,
     not_for_retail_sale_declared,
     pdp_declaration_mandatory,
@@ -238,6 +241,7 @@ WIDTH_RATIO_CLAUSE = "Rule 7(3)"
 PLACEMENT_CLAUSE = "Rule 8(1)"
 FREE_SPACE_CLAUSE = "Rule 8(1) proviso"
 MANNER_CLAUSE = "Rule 9(1)"
+UNIT_SALE_PRICE_CLAUSE = "Rule 6(11)"
 """The clauses this module evaluates from geometry, as the store names them. Looked up by
 clause and date through :func:`~app.modules.rules.select_effective_rule` rather than by
 rule id, so an amended version of any of them is picked up without an edit here."""
@@ -847,6 +851,126 @@ def _refine(
     return refined
 
 
+def _unit_sale_price_finding(rule: RuleDefinition, context: EvidenceContext) -> FieldFinding | None:
+    """Rule 6(11): is the unit sale price declared on the basis its net quantity calls for?
+
+    A format rule, evaluated from two declarations and no arithmetic. It does not say
+    whether a unit sale price must be declared — that is another obligation, not encoded
+    — so a package bearing none is not in breach of it. On the image path an absent
+    declaration may simply be unread and stays INSUFFICIENT_EVIDENCE with the path's own
+    reason; on the listing path, where absence is a fact about the listing, the rule has
+    nothing to apply to and says so as NOT_APPLICABLE.
+
+    ``None`` leaves the builder's own finding in place.
+    """
+    field = DeclarationField.UNIT_SALE_PRICE
+    prices = context.declared.get(field, ())
+    quantities = context.declared.get(DeclarationField.NET_QUANTITY, ())
+    if not prices:
+        if context.unreadable_reason is not None:
+            return finding(
+                rule, field, FieldState.INSUFFICIENT_EVIDENCE, context.unreadable_reason, context
+            )
+        return finding(
+            rule,
+            field,
+            FieldState.NOT_APPLICABLE,
+            "no unit sale price is declared. Rule 6(11) prescribes the basis of one where "
+            "it is declared and does not itself require one, so it has nothing to apply to.",
+            context,
+        )
+    cited = tuple(dict.fromkeys(ref for price in prices for ref in price.span_refs))
+    quantity = next((q for q in quantities if q.numeric_value is not None and q.unit), None)
+    if quantity is None:
+        return finding(
+            rule,
+            field,
+            FieldState.INSUFFICIENT_EVIDENCE,
+            "a unit sale price was read, but the basis Rule 6(11) requires depends on the "
+            "net quantity, and no net quantity with a figure and a unit was resolved.",
+            context,
+            observed_value=prices[0].normalised_value,
+            evidence_span_ids=cited,
+        )
+    # The basis is read off the canonical value by the same normaliser that produced it,
+    # whichever path it came by: the binder writes "₹ 12.50 / g", a listing carries what
+    # it said. A value the normaliser cannot place — "per 100 g" — is for a person to read.
+    parsed = normalise_unit_sale_price(prices[0].normalised_value)
+    declared_basis = parsed.value.unit_basis if parsed.success and parsed.value else ""
+    if declared_basis not in known_unit_sale_price_bases():
+        return finding(
+            rule,
+            field,
+            FieldState.REVIEW_REQUIRED,
+            "the unit sale price is declared on a basis that could not be read as one Rule "
+            "6(11) names, so whether it is the prescribed one is for an officer to read.",
+            context,
+            observed_value=prices[0].normalised_value,
+            evidence_span_ids=cited,
+        )
+    evaluation = evaluate_unit_sale_price_basis(
+        declared_basis, quantity.numeric_value, quantity.unit
+    )
+    if evaluation is None:
+        return finding(
+            rule,
+            field,
+            FieldState.INSUFFICIENT_EVIDENCE,
+            f"the net quantity is declared in {quantity.unit!r}, a unit Rule 6(11) has no "
+            "limb for, so the basis it requires cannot be determined.",
+            context,
+            observed_value=prices[0].normalised_value,
+            evidence_span_ids=cited,
+        )
+    matched = evaluation.verdict is Verdict.PASS
+    return finding(
+        rule,
+        field,
+        FIELD_STATE_FROM_VERDICT[evaluation.verdict],
+        (
+            "the unit sale price is declared on the basis Rule 6(11) prescribes for a net "
+            f"quantity of {quantity.numeric_value} {quantity.unit}."
+            if matched
+            else "the unit sale price is declared per "
+            f"{evaluation.declared_basis!r}; for a net quantity of "
+            f"{quantity.numeric_value} {quantity.unit} Rule 6(11) prescribes per "
+            f"{evaluation.required_basis!r}."
+        ),
+        context,
+        observed_value=prices[0].normalised_value,
+        expected_value=f"per {evaluation.required_basis}",
+        evidence_span_ids=cited,
+    )
+
+
+def _with_unit_sale_price(
+    findings: tuple[FieldFinding, ...], rules: Sequence[RuleDefinition], context: EvidenceContext
+) -> tuple[FieldFinding, ...]:
+    """Both scan paths share this: a listing declares a unit sale price as readily as a label."""
+    rule = select_effective_rule(tuple(rules), UNIT_SALE_PRICE_CLAUSE, context.evaluation_date)
+    if rule is None:
+        return findings
+    scope = chapter_ii_scope(
+        net_quantity=context.declared.get(DeclarationField.NET_QUANTITY, ()),
+        not_for_retail_sale_observed=context.not_for_retail_sale_observed,
+        institutional_or_industrial_confirmed=context.institutional_or_industrial_confirmed,
+    )
+    fields = (DeclarationField.UNIT_SALE_PRICE,)
+    if scope_findings(rule, fields, scope, context) is not None:
+        return findings
+    if sector_findings(rule, fields, context) is not None:
+        return findings
+    replacement = _unit_sale_price_finding(rule, context)
+    if replacement is None:
+        return findings
+    return tuple(
+        replacement
+        if f.rule_snapshot.rule_id == rule.rule_id and f.field is DeclarationField.UNIT_SALE_PRICE
+        else f
+        for f in findings
+    )
+
+
 def _in_force(rule: RuleDefinition, on_date: date) -> bool:
     return rule.effective_from <= on_date and (
         rule.effective_to is None or on_date <= rule.effective_to
@@ -1124,6 +1248,7 @@ def run_image_scan(
     findings = _refine(
         build_findings(rules, context), rules, context, geometry, detection, confirmations
     )
+    findings = _with_unit_sale_price(findings, rules, context)
     # Tamper detection and the second OCR reading run on every scan and come last, after
     # every rule has been evaluated: neither is a rule, and neither may reach one. What
     # they find can only take a PASS back to an officer.
@@ -1205,7 +1330,8 @@ def run_catalogue_scan(
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=None,
     )
-    findings = build_findings(load_rules(), context)
+    rules = load_rules()
+    findings = _with_unit_sale_price(build_findings(rules, context), rules, context)
     return assemble_verdict(
         subject_ref=subject_ref,
         findings=findings,

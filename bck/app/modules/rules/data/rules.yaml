@@ -219,6 +219,57 @@ rules:
     severity: POTENTIAL_VIOLATION
     governs_declarations: [RETAIL_SALE_PRICE]
 
+  # Rule 6(11) is a FORMAT rule. It prescribes the unit basis a unit sale price is declared
+  # on and states no tolerance, no rounding increment and no permitted difference. The
+  # +/- Rs. 0.01 and Rs. 0.05 figures in older project documents are assumptions, not law,
+  # and the condition model refuses any such field.
+  #
+  # Cited to the compilation, where the text is verifiable in this corpus. The amendment
+  # that inserted it is not legible in the G.S.R. 629(E) scan here, so effective_from is the
+  # compilation's own cut-off: the latest date on which the clause is verifiably in force.
+  # An evaluation dated earlier does not apply it, which is the conservative error.
+  - rule_id: R6-11-UNIT-SALE-PRICE
+    clause_ref: Rule 6(11)
+    gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf
+    source_text: >-
+      The unit sale price shall be declared as— (i) "Rs.- per g" for pre-packaged commodities
+      with net quantity of commodity less than one kilogram; (ii) "Rs.- per kg" for
+      pre-packaged commodities with net quantity of commodity more or equal to one kilogram;
+      (iii) "Rs.- per cm" pre-packaged commodities with net length of the commodity less than
+      one meter; (iv) "Rs.- per meter" pre-packaged commodities with net length of the
+      commodity more or equal to one meter; (v) "Rs.- per number"; (vi) "Rs.- per ml" for
+      pre-packaged commodities with net volume of the commodity less than one litre;
+      (vii) "Rs.- per litre" for pre-packaged commodities with net volume of the commodity
+      more or equal to one litre.
+    status: VERIFIED
+    effective_from: 2021-10-31
+    effective_to: null
+    conditions:
+      kind: unit_sale_price_basis
+      bases:
+        - quantity_units: [g, kg]
+          threshold: 1
+          threshold_unit: kg
+          below_threshold_basis: g
+          at_or_above_threshold_basis: kg
+        - quantity_units: [cm, m]
+          threshold: 1
+          threshold_unit: m
+          below_threshold_basis: cm
+          at_or_above_threshold_basis: metre
+        - quantity_units: [ml, l]
+          threshold: 1
+          threshold_unit: l
+          below_threshold_basis: ml
+          at_or_above_threshold_basis: litre
+      # Bases are spelled as app.modules.extraction canonicalises a printed basis, so the
+      # two can be compared as strings: "per number", "per piece" and "per pc" all arrive as N.
+      count_units: [N, pcs]
+      count_basis: N
+    evidence_requirement: unit_sale_price_declaration_and_net_quantity_declaration
+    severity: POTENTIAL_VIOLATION
+    governs_declarations: [UNIT_SALE_PRICE]
+
   - rule_id: R6-1-F
     clause_ref: Rule 6(1)(f)
     gazette_ref: LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf

@@ -29,6 +29,7 @@ from .conditions import (
     PlacementCondition,
     RuleCondition,
     SectorOverrideCondition,
+    UnitSalePriceBasisCondition,
 )
 from .evaluator import (
     calculate_cylindrical_pdp_area,
@@ -79,6 +80,12 @@ from .sector import (
     rule_33_relaxation_applies,
     sector_overrides,
 )
+from .unit_sale_price import (
+    UnitSalePriceEvaluation,
+    evaluate_unit_sale_price_basis,
+    known_unit_sale_price_bases,
+    required_unit_sale_price_basis,
+)
 
 __all__ = [
     "ChapterScopeCondition",
@@ -109,6 +116,8 @@ __all__ = [
     "SectorOverrideCondition",
     "SectorRoutedError",
     "Severity",
+    "UnitSalePriceBasisCondition",
+    "UnitSalePriceEvaluation",
     "SideClearance",
     "SideOverlap",
     "SideSpace",
@@ -126,13 +135,16 @@ __all__ = [
     "evaluate_rule7_height",
     "evaluate_rule7_width",
     "evaluate_rule8_free_space",
+    "evaluate_unit_sale_price_basis",
     "is_active",
+    "known_unit_sale_price_bases",
     "load_rules",
     "load_store",
     "minimum_character_height",
     "not_for_retail_sale_declared",
     "pdp_declaration_mandatory",
     "required_declaration_location",
+    "required_unit_sale_price_basis",
     "rule7_governs_field",
     "rule7_requirements_apply",
     "rule_33_relaxation_applies",

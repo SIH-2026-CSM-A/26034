@@ -121,13 +121,46 @@ def test_every_encoded_rule_has_source_text_and_existing_gazette() -> None:
         assert (CORPUS_DIRECTORY / rule.gazette_ref).is_file()
 
 
-def test_rule_store_excludes_f18_and_rule_6_11() -> None:
-    """RUL-001 data must not include the deferred F18 or Rule 6(11) behavior."""
+def test_rule_store_excludes_f18() -> None:
+    """RUL-001 data must not include the deferred F18 behaviour."""
     rules = load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
 
     searchable = " ".join(f"{rule.rule_id} {rule.clause_ref}" for rule in rules).lower()
     assert "f18" not in searchable
-    assert "6(11)" not in searchable
+
+
+def test_rule_6_11_is_a_format_rule_and_carries_no_tolerance() -> None:
+    """The store-level guard the corpus README asked for the day Rule 6(11) was encoded.
+
+    Rule 6(11) prescribes a unit basis and states no tolerance, no rounding increment and
+    no permitted difference. The ± Rs. 0.01 and Rs. 0.05 figures in older project documents
+    are assumptions, and three things keep them out: the entry's own text, the condition
+    model's ``extra="forbid"``, and the rule model having no tolerance field to put one in.
+    """
+    import re
+
+    import pydantic
+
+    from app.modules.rules import UnitSalePriceBasisCondition
+
+    rule = next(
+        rule
+        for rule in load_rules(RULE_STORE_PATH, corpus_dir=CORPUS_DIRECTORY)
+        if rule.clause_ref == "Rule 6(11)"
+    )
+    assert isinstance(rule.conditions, UnitSalePriceBasisCondition)
+    assert {limb.threshold for limb in rule.conditions.bases} == {1}
+    assert not hasattr(rule, "tolerance") and not hasattr(rule, "rounding_increment")
+
+    text = RULE_STORE_PATH.read_text(encoding="utf-8")
+    entry = text[text.index("rule_id: R6-11-UNIT-SALE-PRICE") : text.index("rule_id: R6-1-F")]
+    body = "\n".join(line for line in entry.splitlines() if not line.lstrip().startswith("#"))
+    assert not re.search(r"toleran|rounding|permitted_difference|0\.01|0\.05", body)
+
+    with pytest.raises(pydantic.ValidationError):
+        UnitSalePriceBasisCondition.model_validate(
+            {**rule.conditions.model_dump(), "tolerance": "0.05"}
+        )
 
 
 EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
@@ -159,6 +192,7 @@ EXPECTED_RULE_GAZETTE_MAPPING: dict[str, str] = {
     "R2-KC-MULTI-PIECE-FOOD": "GSR-722E__2023-10-06__amendment-rules-2023.pdf",
     "R6-10A-GSR-128E": "GSR-128E__2026-02-13__country-of-origin-ecommerce-filter.pdf",
     "R6-10A-GSR-312E": "GSR-312E__2026-04-27__country-of-origin-second-amendment.pdf",
+    "R6-11-UNIT-SALE-PRICE": "LMPC-2011__amended-to-2021-10-31__maharashtra-compilation.pdf",
 }
 
 

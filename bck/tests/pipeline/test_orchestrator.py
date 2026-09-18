@@ -494,13 +494,13 @@ def test_a_proposed_category_is_offered_to_the_officer_and_routes_nothing() -> N
     insufficient = [f for f in findings if f.state is FieldState.INSUFFICIENT_EVIDENCE]
     gated = [f for f in insufficient if f.reason == UNCONFIRMED_CATEGORY_REASON]
 
-    assert len(findings) == 65
+    assert len(findings) == 66
     assert len(gated) == 30, (
         "the sector gate settled a different number of obligations than it did before a "
         "proposal existed. If this fell to 0, something is routing on the proposal: the "
         "confirmed category is an officer's act and a reading must never stand in for it"
     )
-    assert len(insufficient) == 52
+    assert len(insufficient) == 53
     assert result.verdict.verdict is Verdict.REVIEW
 
 
@@ -568,13 +568,13 @@ def test_a_display_category_is_carried_on_the_response_and_routes_nothing() -> N
     insufficient = [f for f in findings if f.state is FieldState.INSUFFICIENT_EVIDENCE]
     gated = [f for f in insufficient if f.reason == UNCONFIRMED_CATEGORY_REASON]
 
-    assert len(findings) == 65
+    assert len(findings) == 66
     assert len(gated) == 30, (
         "the sector gate settled a different number of obligations than it does without a "
         "display classification. A shelf label is not a legal category and must move "
         "nothing: packaged_food is not food, and household is not a ProductCategory at all"
     )
-    assert len(insufficient) == 52
+    assert len(insufficient) == 53
     assert result.verdict.verdict is Verdict.REVIEW
 
 
