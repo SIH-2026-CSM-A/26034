@@ -51,7 +51,10 @@ from app.core import (
     RoleTier,
     Scan,
     ScanSourceType,
+    VendorPrincipal,
+    VendorRow,
     get_current_principal,
+    get_current_vendor,
     get_session,
     get_session_factory,
     get_settings,
@@ -61,6 +64,8 @@ from app.core import (
 from app.modules.evidence import LocalStorageClient
 from app.modules.evidence.storage import AssetPurgedError
 from app.modules.rules import ProductCategory
+from app.modules.vendor import RoutingDecision, route_verdict
+from app.modules.vendor import repository as vendor_repository
 from app.pipeline import repository
 from app.pipeline.capture import QualityRejection
 from app.pipeline.orchestrator import (
@@ -471,18 +476,26 @@ def _held_capture(scan: Scan) -> bytes:
         ) from None
 
 
-def _as_filed(officer: Principal, scan: Scan) -> Principal:
-    """The confirming officer, over the territory the original scan was filed in.
+def _as_filed(subject: str, territory: Scan | VendorRow) -> Principal:
+    """``subject``, filing over the territory a stored row records.
 
-    A controller confirming a district scan must not lift the re-evaluation out of that
-    district's view, so the new row takes the original's jurisdiction, read from the stored
-    row — which was itself written from a verified token — and never from the request.
+    A :class:`Principal` only because ``new_scan`` files by one; the tier is the depth the
+    row records. For a re-evaluation the row is the original scan — a controller confirming
+    a district scan must not lift it out of that district's view. For a vendor scan it is
+    the premises on the register. Both were written from a verified token or by an officer,
+    and neither is the request.
     """
-    jurisdiction = Jurisdiction(state=scan.state, region=scan.region, district=scan.district)
-    tier = (
-        RoleTier.DISTRICT if scan.district else RoleTier.REGIONAL if scan.region else RoleTier.STATE
+    jurisdiction = Jurisdiction(
+        state=territory.state, region=territory.region, district=territory.district
     )
-    return Principal(subject=officer.subject, tier=tier, jurisdiction=jurisdiction)
+    tier = (
+        RoleTier.DISTRICT
+        if territory.district
+        else RoleTier.REGIONAL
+        if territory.region
+        else RoleTier.STATE
+    )
+    return Principal(subject=subject, tier=tier, jurisdiction=jurisdiction)
 
 
 @scan_router.post("/{scan_id}/category", status_code=status.HTTP_201_CREATED)
@@ -505,7 +518,7 @@ async def confirm_category(
         original = await repository.get_scan(session, scan_id, principal)
         if original is None:
             raise _not_found()
-    filed_as = _as_filed(principal, original)
+    filed_as = _as_filed(principal.subject, original)
     institutional = bool(original.capture_metadata.get(INSTITUTIONAL_KEY, False))
 
     if original.source_type is ScanSourceType.CATALOGUE_RECORD:
@@ -531,7 +544,7 @@ async def confirm_category(
             institutional,
         )
 
-    return await _accept_image_scan(
+    detail = await _accept_image_scan(
         session,
         filed_as,
         background,
@@ -545,6 +558,13 @@ async def confirm_category(
         hold_capture=True,
         re_evaluation_of=scan_id,
     )
+    # A vendor's scan stays the vendor's when it is evaluated again: the attribution is
+    # copied so the re-evaluation is theirs to read back as well as the officer's.
+    async with session.begin():
+        attribution = await vendor_repository.get_vendor_scan(session, scan_id)
+        if attribution is not None:
+            vendor_repository.attribute_scan(session, detail.id, attribution.vendor_id)
+    return detail
 
 
 def _decode(payload: bytes) -> np.ndarray:
@@ -666,3 +686,110 @@ async def get_consumer_scan(scan_id: UUID, session: Session) -> ScanDetail:
     if scan is None:
         raise _not_found()
     return await _stored(session, scan)
+
+
+# --- The vendor surface ----------------------------------------------------------------
+#
+# A registered vendor photographs their own stock and reads back what the rules say. The
+# scan is an ordinary scan: same quality gate, same rules, same verdict, and **filed in the
+# premises' territory**, read from the register — never from the request — so the district
+# inspector covering that shop sees it in ``GET /scans`` through the same jurisdiction
+# predicate as everything else. That predicate is the routing. What a vendor sees back is
+# their own submissions and nothing else, through ``vendor.repository.own_scans``.
+#
+# A vendor holds a VendorPrincipal, which no officer route accepts, so a vendor cannot
+# review, confirm a category, or read another premises' scans, structurally rather than by
+# a check in each route.
+
+vendor_scan_router = APIRouter(prefix="/vendor/scans", tags=["vendor"])
+
+Vendor = Annotated[VendorPrincipal, Depends(get_current_vendor)]
+
+
+class VendorScanView(BaseModel):
+    """A vendor's own scan, with where it was routed.
+
+    ``routing`` says which tier's queue the outcome reached and whether it calls for a
+    visit; it is ``None`` until the scan has a verdict. The verdict itself is unchanged —
+    a vendor reads the same recommendation the officer does.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    scan: ScanDetail
+    routing: RoutingDecision | None
+
+
+VENDOR_SUBJECT_PREFIX = "vendor:"
+"""On ``Scan.officer_id`` for a vendor-filed scan, so no vendor login can read as an
+officer's username."""
+
+
+async def _premises_of(session: AsyncSession, vendor: VendorPrincipal) -> VendorRow:
+    async with session.begin():
+        premises = await vendor_repository.get_vendor(session, vendor.vendor_id)
+    if premises is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="this vendor is not on the register"
+        )
+    return premises
+
+
+@vendor_scan_router.post("/image", status_code=status.HTTP_201_CREATED)
+async def submit_vendor_image_scan(
+    session: Session,
+    vendor: Vendor,
+    background: BackgroundTasks,
+    image: Annotated[UploadFile, File()],
+) -> VendorScanView:
+    """A vendor photographs a package on their own shelf; poll ``GET /vendor/scans/{id}``.
+
+    No category and no calibration: a vendor confirms nothing. The officer covering the
+    premises confirms the category on the scan the vendor filed, as on any other.
+    """
+    premises = await _premises_of(session, vendor)
+    detail = await _accept_image_scan(
+        session,
+        _as_filed(f"{VENDOR_SUBJECT_PREFIX}{vendor.subject}", premises),
+        background,
+        await image.read(),
+        calibration_method=CalibrationMethod.NONE,
+        reference_type=None,
+        artwork_dpi=None,
+        product_category=None,
+        institutional_or_industrial_confirmed=False,
+        hold_capture=True,
+    )
+    async with session.begin():
+        vendor_repository.attribute_scan(session, detail.id, vendor.vendor_id)
+    return VendorScanView(scan=detail, routing=None)
+
+
+@vendor_scan_router.get("")
+async def list_vendor_scans(session: Session, vendor: Vendor) -> list[ScanSummary]:
+    """This vendor's own submissions, newest first, and nobody else's."""
+    scans = await vendor_repository.list_own_scans(session, vendor)
+    return [
+        scan_summary(
+            scan,
+            verdict=await repository.latest_verdict(session, scan.id),
+            finalised=await repository.is_finalised(session, scan.id),
+        )
+        for scan in scans
+    ]
+
+
+@vendor_scan_router.get("/{scan_id}")
+async def get_vendor_scan(scan_id: UUID, session: Session, vendor: Vendor) -> VendorScanView:
+    """One of this vendor's scans. Another vendor's, or an officer's, is a 404."""
+    scan = await vendor_repository.get_own_scan(session, scan_id, vendor)
+    if scan is None:
+        raise _not_found()
+    detail = await _stored(session, scan)
+    routing = None
+    if detail.verdict is not None:
+        routing = route_verdict(
+            Jurisdiction(state=scan.state, region=scan.region, district=scan.district),
+            detail.verdict,
+        )
+    return VendorScanView(scan=detail, routing=routing)

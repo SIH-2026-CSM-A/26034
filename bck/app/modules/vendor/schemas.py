@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core import Jurisdiction, VendorRow, VendorType
+from app.core.auth import BCRYPT_MAX_PASSWORD_BYTES
 
 
 class VendorSchema(BaseModel):
@@ -46,3 +47,19 @@ def vendor_response(row: VendorRow) -> VendorResponse:
         jurisdiction=Jurisdiction(state=row.state, region=row.region, district=row.district),
         created_at=row.created_at,
     )
+
+
+class VendorRegistration(VendorSchema):
+    """What an officer supplies to put a premises on the register with a login.
+
+    The jurisdiction is the premises', stated in full to the district, because that is what
+    routes the vendor's scans to an officer: a scan attributed to this vendor is filed in
+    this territory. The route refuses a territory outside the registering officer's own.
+    The password is hashed before anything is stored and is never read back.
+    """
+
+    name: str = Field(min_length=1)
+    vendor_type: VendorType
+    jurisdiction: Jurisdiction
+    username: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+    password: str = Field(min_length=8, max_length=BCRYPT_MAX_PASSWORD_BYTES)

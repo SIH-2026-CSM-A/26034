@@ -18,6 +18,7 @@ This module holds no FastAPI and no configuration. It is importable by anything.
 
 from enum import StrEnum
 from typing import Any
+from uuid import UUID
 
 from pydantic import Field, model_validator
 from sqlalchemy import Select
@@ -128,6 +129,24 @@ class Principal(ContractModel):
                     f"its authority is not narrowed to one",
                 )
         return self
+
+
+class VendorPrincipal(ContractModel):
+    """An authenticated vendor: which premises on the register is speaking.
+
+    **Not a :class:`Principal`, not a subclass of one, and not a fourth tier.** A vendor has
+    no tier and no jurisdiction of their own: they may see the scans attributed to their
+    premises and nothing else, and they may confirm nothing. Keeping the type separate is
+    what makes that structural — every officer route depends on a :class:`Principal`, and
+    there is no path that turns one of these into one. A vendor token carries neither
+    ``tier`` nor ``jur``, so :func:`app.core.auth.principal_from_token` refuses it outright.
+    """
+
+    vendor_id: UUID
+    """The :class:`~app.core.market.VendorRow` this login belongs to."""
+
+    subject: str = Field(min_length=1)
+    """The vendor account's username. Carried as the token's ``sub`` claim."""
 
 
 def scope_to_jurisdiction(statement: Select[Any], principal: Principal, entity: Any) -> Select[Any]:

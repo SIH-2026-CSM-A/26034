@@ -132,6 +132,7 @@ def _detection():
         bbox = (60, 60, 680, 480)
         area = 326400
         confidence = 0.81
+        method = "heuristic"
 
     return _Detection()
 

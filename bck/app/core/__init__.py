@@ -24,10 +24,13 @@ from app.core.auth import (
     auth_router,
     authenticate_officer,
     create_access_token,
+    create_vendor_token,
     get_current_principal,
+    get_current_vendor,
     hash_password,
     principal_from_token,
     require_tier,
+    vendor_from_token,
     verify_password,
 )
 from app.core.complaints import ComplaintRow, ProductReviewRow
@@ -47,7 +50,7 @@ from app.core.enums import (
     ScanStatus,
     VendorType,
 )
-from app.core.market import VendorRow, VendorScanRow
+from app.core.market import VendorAccountRow, VendorRow, VendorScanRow
 from app.core.models import (
     EvidenceEntryRow,
     FieldFindingRow,
@@ -56,7 +59,7 @@ from app.core.models import (
     VerdictRow,
 )
 from app.core.ratelimit import SlidingWindowLimiter, consumer_scan_limiter, limit_consumer_scans
-from app.core.rbac import Jurisdiction, Principal, RoleTier, scope_to_jurisdiction
+from app.core.rbac import Jurisdiction, Principal, RoleTier, VendorPrincipal, scope_to_jurisdiction
 from app.core.schema import Base
 
 __all__ = [
@@ -81,6 +84,8 @@ __all__ = [
     "Settings",
     "SlidingWindowLimiter",
     "Token",
+    "VendorAccountRow",
+    "VendorPrincipal",
     "VendorRow",
     "VendorScanRow",
     "VendorType",
@@ -89,8 +94,10 @@ __all__ = [
     "consumer_scan_limiter",
     "authenticate_officer",
     "create_access_token",
+    "create_vendor_token",
     "dispose_engine",
     "get_current_principal",
+    "get_current_vendor",
     "get_engine",
     "get_session",
     "get_session_factory",
@@ -100,5 +107,6 @@ __all__ = [
     "principal_from_token",
     "require_tier",
     "scope_to_jurisdiction",
+    "vendor_from_token",
     "verify_password",
 ]

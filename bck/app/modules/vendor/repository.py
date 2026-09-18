@@ -15,17 +15,21 @@ or product reviews.
 import inspect
 from collections.abc import Sequence
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.core import (
     Jurisdiction,
     Principal,
+    Scan,
+    VendorAccountRow,
+    VendorPrincipal,
     VendorRow,
     VendorScanRow,
+    VendorType,
 )
 from app.modules.vendor.domain import VendorSubmission
 from app.modules.vendor.service import scope_vendor_query
@@ -196,4 +200,82 @@ async def get_scoped_vendor(
     statement = scope_vendor_query(select(VendorRow), principal, VendorRow).where(
         VendorRow.id == vendor_id
     )
+    return (await session.scalars(statement)).one_or_none()
+
+
+async def register_vendor(
+    session: AsyncSession,
+    *,
+    name: str,
+    vendor_type: VendorType,
+    jurisdiction: Jurisdiction,
+    username: str,
+    password_hash: str,
+) -> VendorRow:
+    """Stage a premises and its login together. The caller owns the transaction.
+
+    The two rows are one act: a vendor that can self-scan is a vendor with a login, and
+    staging them in one call means there is no state in which the register holds a premises
+    an officer meant to give a login to and did not. The vendor is flushed before the
+    account is staged because the two tables carry no ORM relationship, so nothing else
+    tells the unit of work which insert has to go first. ``uq_vendor_accounts_username``
+    refuses a second premises claiming the same username; that surfaces as an
+    ``IntegrityError`` at flush and is the route's to translate.
+    """
+    vendor = VendorRow(
+        id=uuid4(),
+        name=name,
+        vendor_type=vendor_type,
+        state=jurisdiction.state,
+        region=jurisdiction.region,
+        district=jurisdiction.district,
+    )
+    session.add(vendor)
+    await session.flush()
+    session.add(
+        VendorAccountRow(vendor_id=vendor.id, username=username, password_hash=password_hash)
+    )
+    await session.flush()
+    return vendor
+
+
+async def account_by_username(session: AsyncSession, username: str) -> VendorAccountRow | None:
+    """The login row for ``username``, or ``None``. The caller does the bcrypt work."""
+    statement = select(VendorAccountRow).where(VendorAccountRow.username == username)
+    return (await session.scalars(statement)).one_or_none()
+
+
+def attribute_scan(session: AsyncSession, scan_id: UUID, vendor_id: UUID) -> VendorScanRow:
+    """Stage the attribution of an existing scan to a registered vendor."""
+    row = VendorScanRow(scan_id=scan_id, vendor_id=vendor_id)
+    session.add(row)
+    return row
+
+
+def own_scans(vendor: VendorPrincipal) -> Select[Any]:
+    """A SELECT over the scans attributed to this vendor and no other.
+
+    The whole of a vendor's visibility, as one predicate: a join to the attribution table
+    and an equality on the vendor id carried in the verified token. There is no vendor id
+    parameter anywhere above this, so there is nothing for a caller to widen, and a scan
+    with no attribution — an officer's, a consumer's — matches nothing here.
+    """
+    return (
+        select(Scan)
+        .join(VendorScanRow, VendorScanRow.scan_id == Scan.id)
+        .where(VendorScanRow.vendor_id == vendor.vendor_id)
+    )
+
+
+async def list_own_scans(session: AsyncSession, vendor: VendorPrincipal) -> Sequence[Scan]:
+    """Every scan this vendor submitted, newest first."""
+    statement = own_scans(vendor).order_by(Scan.created_at.desc(), Scan.id.asc())
+    return (await session.scalars(statement)).all()
+
+
+async def get_own_scan(
+    session: AsyncSession, scan_id: UUID, vendor: VendorPrincipal
+) -> Scan | None:
+    """One of this vendor's scans, or ``None`` for absent and another vendor's alike."""
+    statement = own_scans(vendor).where(Scan.id == scan_id)
     return (await session.scalars(statement)).one_or_none()

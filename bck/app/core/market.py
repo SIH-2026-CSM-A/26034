@@ -107,3 +107,29 @@ class VendorScanRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class VendorAccountRow(Base):
+    """A vendor's login, for self-scanning the stock at their own premises.
+
+    One per vendor and keyed on the vendor, so "at most one login per premises" is the
+    primary key. A row here exists only because an officer registered the premises through
+    ``POST /vendors``; a vendor written by scan attribution alone has no login and cannot
+    acquire one by any other path.
+
+    Vendors are in a table where officers are in configuration because there are hundreds
+    of kiranas to one inspector and an environment variable is the wrong place to hold a
+    register. The password is a bcrypt hash produced by :func:`app.core.auth.hash_password`
+    and nothing here can read it back.
+    """
+
+    __tablename__ = "vendor_accounts"
+
+    vendor_id: Mapped[UUID] = mapped_column(ForeignKey("vendors.id"), primary_key=True)
+    username: Mapped[str] = mapped_column(
+        String(JURISDICTION_LEVEL_LENGTH), nullable=False, unique=True
+    )
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
