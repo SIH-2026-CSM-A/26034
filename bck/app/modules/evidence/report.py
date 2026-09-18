@@ -82,8 +82,8 @@ def generate_bsa_report(
     audit_trail: EvidenceAuditTrail,
     declarations: list[FieldDeclaration],
     confirmation: HumanConfirmation | None,
+    model_versions: dict[str, str],
     is_human_confirmed: bool = False,
-    model_versions: dict[str, str] | None = None,
 ) -> BSAReport:
     """
     Assembles the final evidence report based on the collected audit trail
@@ -97,14 +97,9 @@ def generate_bsa_report(
             "Evidence report cannot be generated: Verdict has not been human-confirmed."
         )
 
-    # Default production component versions per ARCHITECTURE.md
-    if not model_versions:
-        model_versions = {
-            "ocr_engine": "PaddleOCR-v4",
-            "pdp_detector": "YOLOv8-PDP",
-            "tamper_detector": "TruFor-v1",
-        }
-
+    # No default. The versions on a certificate are a statement of what read the package,
+    # and the caller measures them off the environment; a fallback here would put names of
+    # components this system has never run onto a document meant for a court.
     return BSAReport(
         source_image_hash=source_image_hash,
         rule_set_version=rule_set_version,
