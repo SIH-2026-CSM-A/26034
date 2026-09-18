@@ -26,7 +26,7 @@ from pydantic import Field
 
 from app.contracts import ContractModel
 from app.core.config import get_settings
-from app.core.rbac import Jurisdiction, Principal, RoleTier
+from app.core.rbac import Jurisdiction, Principal, RoleTier, VendorPrincipal
 
 BCRYPT_MAX_PASSWORD_BYTES = 72
 """bcrypt truncates silently past this length. We refuse instead — a password whose tail
@@ -36,7 +36,14 @@ REQUIRED_CLAIMS = ("sub", "tier", "jur", "exp", "iat")
 """Claims a token must carry. ``exp`` is in the list because a token without one never
 expires, and PyJWT will not check an expiry that is not there."""
 
+VENDOR_TOKEN_KIND = "vendor"
+VENDOR_REQUIRED_CLAIMS = ("sub", "kind", "vid", "exp", "iat")
+"""Claims a *vendor* token must carry. Disjoint from :data:`REQUIRED_CLAIMS` on purpose:
+an officer token has no ``kind`` and no ``vid``, a vendor token has no ``tier`` and no
+``jur``, so neither decoder can accept the other's token however it is presented."""
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+vendor_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="vendors/auth/token")
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -107,6 +114,57 @@ def create_access_token(principal: Principal, expires_in: timedelta | None = Non
         "exp": issued_at + lifetime,
     }
     return jwt.encode(claims, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def create_vendor_token(vendor: VendorPrincipal, expires_in: timedelta | None = None) -> str:
+    """Sign an access token for a vendor login. Carries no tier and no jurisdiction."""
+    settings = get_settings()
+    issued_at = datetime.now(UTC)
+    lifetime = (
+        expires_in
+        if expires_in is not None
+        else timedelta(minutes=settings.access_token_ttl_minutes)
+    )
+    claims = {
+        "sub": vendor.subject,
+        "kind": VENDOR_TOKEN_KIND,
+        "vid": str(vendor.vendor_id),
+        "iat": issued_at,
+        "exp": issued_at + lifetime,
+    }
+    return jwt.encode(claims, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def vendor_from_token(token: str) -> VendorPrincipal:
+    """Verify a vendor token and rebuild the vendor it names, or raise a 401.
+
+    The same verification :func:`principal_from_token` does — signature, algorithm
+    allowlist, expiry, required claims — against the vendor claim set. An officer token
+    fails the claim check here, and a vendor token fails it there.
+    """
+    settings = get_settings()
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"require": list(VENDOR_REQUIRED_CLAIMS)},
+        )
+    except jwt.PyJWTError as exc:
+        raise _unauthorised("could not validate credentials") from exc
+    if claims["kind"] != VENDOR_TOKEN_KIND:
+        raise _unauthorised("token is not a vendor token")
+    try:
+        return VendorPrincipal(vendor_id=claims["vid"], subject=claims["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _unauthorised("token claims do not describe a vendor") from exc
+
+
+async def get_current_vendor(
+    token: Annotated[str, Depends(vendor_oauth2_scheme)],
+) -> VendorPrincipal:
+    """FastAPI dependency: the authenticated vendor, or a 401. Never an officer."""
+    return vendor_from_token(token)
 
 
 def _unauthorised(detail: str) -> HTTPException:
