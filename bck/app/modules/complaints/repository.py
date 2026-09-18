@@ -33,6 +33,7 @@ def _row_to_record(row: ComplaintRow) -> ComplaintRecord:
         raised_by_officer_id=row.raised_by_officer_id,
         raised_at=row.raised_at,
         supersedes_id=row.supersedes_id,
+        note=row.note,
     )
 
 
@@ -48,6 +49,7 @@ def _record_to_row(record: ComplaintRecord) -> ComplaintRow:
         raised_by_officer_id=record.raised_by_officer_id,
         raised_at=record.raised_at,
         supersedes_id=record.supersedes_id,
+        note=record.note,
     )
 
 

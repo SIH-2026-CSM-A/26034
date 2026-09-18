@@ -5,10 +5,12 @@ from :attr:`~app.core.rbac.Principal.subject` on every row this router creates, 
 :class:`~app.modules.complaints.schemas.ComplaintRaiseRequest` forbids unknown fields, so
 there is no shape of request that can name a different officer.
 
-**Append-only, here as everywhere else.** There is no PUT and no DELETE on this router, and
-:func:`raise_complaint` writes a new row whose ``supersedes_id`` names the current head of
-the scan's thread — resolved from storage rather than supplied, because a caller choosing
-what their row supersedes is a caller rewriting the history it supersedes.
+**Append-only, here as everywhere else.** There is no PUT and no DELETE on this router.
+:func:`transition_complaint` moves an escalation on by writing a new row that supersedes the
+one named in the URL, and nothing is edited in place. :func:`raise_complaint` writes a new
+row whose ``supersedes_id`` names the current head of the scan's thread — resolved from
+storage rather than supplied, because a caller choosing what their row supersedes is a
+caller rewriting the history it supersedes.
 
 **Authorisation is here, not in the interface.** Every read goes through the repository,
 which joins to the scan and scopes to the caller's jurisdiction; a complaint outside it is a
@@ -19,15 +21,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import Principal, get_current_principal, get_session
 from app.modules.complaints import repository
-from app.modules.complaints.domain import UnconfirmedVerdictError
+from app.modules.complaints.domain import InvalidStatusTransitionError, UnconfirmedVerdictError
 from app.modules.complaints.schemas import (
     ComplaintRaiseRequest,
     ComplaintResponse,
     ComplaintThread,
+    ComplaintTransitionRequest,
     complaint_response,
 )
 from app.modules.complaints.service import ComplaintService
@@ -122,6 +126,47 @@ async def get_complaint(
     return ComplaintThread(
         complaint=complaint_response(record),
         history=[complaint_response(entry) for entry in history],
+    )
+
+
+@complaints_router.post("/{complaint_id}/transitions", status_code=status.HTTP_201_CREATED)
+async def transition_complaint(
+    complaint_id: UUID,
+    body: ComplaintTransitionRequest,
+    session: Session,
+    principal: Officer,
+) -> ComplaintResponse:
+    """Acknowledge, resolve or reject an escalation, as a new row superseding this one.
+
+    A complaint this officer cannot see is a 404. A move the domain's transition table does
+    not allow — out of a closed thread, or back to RAISED — is a 409, and so is a row that a
+    later row already supersedes: transitioning anything but the head would fork the thread.
+    That last refusal is ``uq_complaints_supersedes_id`` and nothing else — there is no
+    look-before-write in front of it, because a check two officers can both pass at the same
+    moment guards nothing the constraint does not, and the constraint also holds then.
+    """
+    try:
+        async with session.begin():
+            current = await repository.get_scoped_complaint(session, complaint_id, principal)
+            if current is None:
+                raise _not_found()
+            try:
+                record = _service.transition_complaint(
+                    current, body.status, officer_id=principal.subject, note=body.note
+                )
+            except InvalidStatusTransitionError as exc:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+            stored = await repository.add_complaint(session, record)
+    except IntegrityError as exc:
+        raise _superseded() from exc
+
+    return complaint_response(stored)
+
+
+def _superseded() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="a later row already supersedes this complaint; transition the head of the thread",
     )
 
 

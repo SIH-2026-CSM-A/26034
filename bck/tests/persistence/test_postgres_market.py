@@ -52,6 +52,7 @@ EXPECTED_COLUMNS: dict[str, dict[str, bool]] = {
         "raised_by_officer_id": False,
         "raised_at": False,
         "supersedes_id": True,
+        "note": True,
     },
     "product_reviews": {
         "id": False,
@@ -70,7 +71,8 @@ models with themselves and stay green through any change made to both at once. T
 the columns CORE-004 says the four tables have, and the only nullable ones are the three
 that carry meaning as NULL: a vendor's unrecorded ``region`` and ``district``, a
 complaint's ``supersedes_id`` when it supersedes nothing, and a report's ``published_at``
-while it is held.
+while it is held. ``complaints.note`` arrived with revision ``7d2e9a41c3b8`` and is nullable
+for the same kind of reason: a first row, or an acknowledgement, recorded with no comment.
 """
 
 

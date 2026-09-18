@@ -61,6 +61,7 @@ class ComplaintService:
         officer_id: str,
         new_issue_summary: str | None = None,
         at_time: datetime | None = None,
+        note: str | None = None,
     ) -> ComplaintRecord:
         """Record a status transition on an existing complaint thread."""
         return complaint.transition(
@@ -68,4 +69,5 @@ class ComplaintService:
             officer_id=officer_id,
             new_issue_summary=new_issue_summary,
             at_time=at_time,
+            note=note,
         )
