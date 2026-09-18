@@ -19,7 +19,6 @@ from sqlalchemy import select, update
 from app.core.db import get_session
 from app.core.enums import ReviewAction
 from app.core.models import EvidenceEntryRow
-from app.modules.evidence.router import evidence_router
 from tests.pipeline.conftest import INSPECTOR, OTHER_INSPECTOR, auth
 from tests.pipeline.test_image_submission import _detection
 from tests.pipeline.test_orchestrator import PANEL_SPANS, scan_panel_frame
@@ -33,7 +32,6 @@ async def client(schema: None) -> AsyncIterator[AsyncClient]:
     from app.main import create_app
 
     application = create_app()
-    application.include_router(evidence_router)
     application.dependency_overrides[get_session] = get_session
     async with AsyncClient(
         transport=ASGITransport(app=application), base_url="http://pccs.test"
@@ -195,15 +193,15 @@ async def test_another_jurisdiction_sees_no_chain_at_all(client: AsyncClient) ->
     assert hidden.status_code == 404
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "app.main does not mount evidence_router yet; that file belongs to another session. "
-        "When it does, this XPASSes and should be deleted along with the fixture above."
-    ),
-)
 def test_the_production_app_serves_the_evidence_surface() -> None:
+    """The mount in ``app.main``, read off the schema the app publishes.
+
+    Read from ``openapi()`` and not from ``app.routes``: FastAPI wraps an included router
+    in an ``_IncludedRouter`` with no ``path``, so the earlier spelling of this test raised
+    before it could look, and was xfailing on that rather than on the missing mount.
+    """
     from app.main import create_app
 
-    paths = {route.path for route in create_app().routes}
+    paths = create_app().openapi()["paths"]
     assert "/scans/{scan_id}/evidence" in paths
+    assert "/scans/{scan_id}/evidence/report" in paths

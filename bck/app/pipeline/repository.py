@@ -336,6 +336,18 @@ async def persist_quality_rejection(
         scan.status = ScanStatus.RECEIVED
 
 
+async def persist_refusal(session: AsyncSession, scan: Scan, reason: str) -> None:
+    """Store why artwork could not be evaluated and return the scan to RECEIVED.
+
+    The artwork counterpart of :func:`persist_quality_rejection`, on the same terms: the
+    submission was accepted, no evaluation was made, and the officer polling for the
+    outcome is told what was wrong with the file rather than left at a status.
+    """
+    async with session.begin():
+        scan.capture_outcome_json = CaptureOutcome(refusal=reason).model_dump_json()
+        scan.status = ScanStatus.RECEIVED
+
+
 async def panel_spans_for(session: AsyncSession, scan_id: UUID) -> tuple[PanelSpan, ...]:
     """The spans in the scan's latest evidence entry, text only, in the order written."""
     statement = (
