@@ -56,11 +56,16 @@ from app.modules.extraction.unit_sale_price import normalise_unit_sale_price
 from app.modules.measurement import (
     MeasurementMarginSet,
     PackageShape,
+    calculate_artwork_pdp_area,
+    measure_artwork_ink_extent,
     measure_declaration_contrast,
     measure_ink_extent,
     measure_margins,
     measure_panel_dimensions,
     measure_width_to_height_ratio,
+    parse_pdf_geometry,
+    parse_svg_geometry,
+    rasterise_artwork,
     segment_declaration_glyphs,
 )
 from app.modules.rules import (
@@ -71,6 +76,7 @@ from app.modules.rules import (
     SideOverlap,
     Verdict,
     WidthRatioResult,
+    calculate_cylindrical_pdp_area,
     calculate_other_shape_pdp_area,
     calculate_rectangular_pdp_area,
     chapter_ii_scope,
@@ -91,7 +97,7 @@ from app.modules.rules import (
 from app.modules.tamper import detect_tampering
 from app.modules.tamper.domain import TamperDetectionResult
 from app.modules.vision.ocr import arbitrate_field_declaration, extract_panel_text
-from app.modules.vision.pdp import PDPDetection, detect_pdp
+from app.modules.vision.pdp import ArtworkPanel, PDPDetection, detect_pdp
 from app.modules.vision.preprocess import prepare_panel, quality_gate
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
 from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, required_declarations
@@ -401,6 +407,7 @@ def _measure(
     declared: Mapping[DeclarationField, tuple[NormalisedField, ...]],
     spans: Sequence[ExtractedSpan],
     shape: PackageShape,
+    panel_area: MeasurementResult | None = None,
 ) -> _Geometry:
     """Run every measurement the rules need, around the declaration each rule is about.
 
@@ -410,11 +417,16 @@ def _measure(
     artwork each of these returns a :class:`~app.contracts.MeasurementRefusal`, which
     carries a reason and has no field that could hold a millimetre figure.
 
-    All of it is taken from the frame as photographed. The prepared image OCR read has had
-    its contrast equalised and may have been deskewed; spans are mapped back before they
-    reach here, so a box and the pixels under it are always the same picture.
+    All of it is taken from the frame as photographed. The prepared image OCR read may have
+    been deskewed; spans are mapped back before they reach here, so a box and the pixels
+    under it are always the same picture.
+
+    ``panel_area`` is supplied where the panel's area is known better than the frame can
+    say — from vector artwork — and otherwise measured from the detected panel.
     """
     common = _calibration_arguments(image, calibration)
+    if panel_area is None:
+        panel_area = _panel_area(image, detection, calibration, shape)
     regions: dict[DeclarationField, Region] = {}
     for field_type, fields in declared.items():
         region = _region_of(fields[0], spans)
@@ -436,7 +448,7 @@ def _measure(
         return _Geometry(
             quantity_region=quantity_region,
             numeral_height=quantity_region,
-            panel_area=_panel_area(image, detection, calibration, shape),
+            panel_area=panel_area,
             margins=quantity_region,
             glyph_ratios=quantity_region,
             regions=regions,
@@ -472,7 +484,7 @@ def _measure(
     return _Geometry(
         quantity_region=quantity_region,
         numeral_height=numeral_height,
-        panel_area=_panel_area(image, detection, calibration, shape),
+        panel_area=panel_area,
         margins=measure_margins(image, quantity_region, **common),
         glyph_ratios=glyph_ratios,
         regions=regions,
@@ -683,15 +695,18 @@ def _placement_finding(
 
     Never FAIL. A detector's box is where a model or a heuristic drew the panel, not where
     the panel is, so a declaration outside it is a reason for an officer to look and not
-    evidence that the package is wrong. Inside a *model's* box is the one reading that
-    supports PASS; the heuristic finds the largest block of print, which is frequently the
-    panel and sometimes the ingredients list, so it supports nothing on its own.
+    evidence that the package is wrong. Inside a *model's* box, or inside artwork submitted
+    as the panel, supports PASS; the heuristic finds the largest block of print, which is
+    frequently the panel and sometimes the ingredients list, so it supports nothing on its
+    own.
     """
     x, y, w, h = region
     px, py, pw, ph = detection.bbox
     inside = px <= x and py <= y and x + w <= px + pw and y + h <= py + ph
-    by_model = detection.method == "model"
-    if inside and by_model:
+    if inside and detection.method == "artwork":
+        state = FIELD_STATE_FROM_VERDICT[Verdict.PASS]
+        reason = "the declaration lies within the artwork submitted as the principal display panel."
+    elif inside and detection.method == "model":
         state = FIELD_STATE_FROM_VERDICT[Verdict.PASS]
         reason = "the declaration lies within the principal display panel the detector located."
     elif inside:
@@ -1170,7 +1185,122 @@ def run_image_scan(
         )
 
     settings = get_settings()
-    detection = detect_pdp(image, str(settings.pdp_weights_path))
+    return _evaluate_frame(
+        image,
+        detection=detect_pdp(image, str(settings.pdp_weights_path)),
+        calibration=calibration,
+        product_category=product_category,
+        evaluated_at=evaluated_at,
+        subject_ref=subject_ref,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+        confirmations=confirmations,
+    )
+
+
+ARTWORK_RASTER_DPI = 600.0
+"""Resolution vector artwork is rendered at before it is read. High enough that the smallest
+print Table-I can require, 1 mm, is 24 pixels tall; the figure itself is arbitrary, because
+every measurement is taken at exactly this resolution and none depends on its value."""
+
+
+@dataclass(frozen=True)
+class ArtworkRefusal:
+    """Artwork that could not be evaluated, and why. No verdict is produced from it."""
+
+    reason: str
+
+
+def run_artwork_scan(
+    file_bytes: bytes,
+    file_type: str,
+    *,
+    product_category: ProductCategory | None,
+    evaluated_at: datetime,
+    subject_ref: str,
+    institutional_or_industrial_confirmed: bool = False,
+    confirmations: PackageConfirmations = NOTHING_CONFIRMED,
+) -> ArtworkRefusal | ImageScanResult:
+    """Evaluate pre-print artwork of the principal display panel, exactly.
+
+    The one path on which a millimetre is a fact rather than an estimate. The artwork
+    states its own physical size, so the panel's area is read off the file, and the file is
+    rendered at a known resolution so every character, clearance and box measured on the
+    render is exact by construction — :class:`~app.contracts.MeasurementExact`, never
+    calibrated.
+
+    No quality gate: blur, glare and a cut-off label are defects of a capture, and there is
+    no capture. No panel detection: the artwork *is* the panel, by the submitter's own
+    statement, and is reported as an :class:`~app.modules.vision.pdp.ArtworkPanel`.
+
+    Rule 7(4) is applied by the shape an officer confirmed. A rectangular panel's area is
+    its height by its width; a cylindrical package's wrap-around label is its
+    circumference wide, which is what limb (b) asks for; any other shape takes the artwork
+    as the area considered to be the panel under limb (c).
+    """
+    kind = file_type.lower()
+    if kind == "pdf":
+        geometry = parse_pdf_geometry(file_bytes)
+    elif kind == "svg":
+        geometry = parse_svg_geometry(file_bytes)
+    else:
+        return ArtworkRefusal(reason=f"Unsupported artwork file type: {file_type}")
+    if isinstance(geometry, MeasurementRefusal):
+        return ArtworkRefusal(reason=geometry.reason)
+    height = measure_artwork_ink_extent(file_bytes, kind)
+    if isinstance(height, MeasurementRefusal):
+        return ArtworkRefusal(reason=height.reason)
+    width_mm, _ = geometry
+    height_cm, width_cm = Decimal(str(height.value)) / 10, Decimal(str(width_mm)) / 10
+
+    shape = confirmations.shape
+    if shape is PackageShape.RECTANGULAR:
+        panel_area = calculate_artwork_pdp_area(file_bytes, kind, shape)
+    elif shape is PackageShape.CYLINDRICAL:
+        panel_area = MeasurementExact(
+            value=float(calculate_cylindrical_pdp_area(height_cm, circumference=width_cm)),
+            unit="cm²",
+            rule_limb="cylindrical: the label's width is the circumference",
+        )
+    else:
+        panel_area = MeasurementExact(
+            value=float(
+                calculate_other_shape_pdp_area(legally_applicable_pdp_area=height_cm * width_cm)
+            ),
+            unit="cm²",
+            rule_limb="other: the artwork is the area considered to be the panel",
+        )
+
+    frame = rasterise_artwork(file_bytes, kind, ARTWORK_RASTER_DPI)
+    if isinstance(frame, MeasurementRefusal):
+        return ArtworkRefusal(reason=frame.reason)
+    frame_h, frame_w = frame.shape[:2]
+    return _evaluate_frame(
+        frame,
+        detection=ArtworkPanel(bbox=(0, 0, frame_w, frame_h), area=float(frame_w * frame_h)),
+        calibration=Calibration(method=CalibrationMethod.ARTWORK, artwork_dpi=ARTWORK_RASTER_DPI),
+        product_category=product_category,
+        evaluated_at=evaluated_at,
+        subject_ref=subject_ref,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+        confirmations=confirmations,
+        panel_area=panel_area,
+    )
+
+
+def _evaluate_frame(
+    image: np.ndarray,
+    *,
+    detection: PDPDetection,
+    calibration: Calibration,
+    product_category: ProductCategory | None,
+    evaluated_at: datetime,
+    subject_ref: str,
+    institutional_or_industrial_confirmed: bool,
+    confirmations: PackageConfirmations,
+    panel_area: MeasurementResult | None = None,
+) -> ImageScanResult:
+    """The tail both pixel paths share: read, bind, measure, evaluate, assemble."""
+    settings = get_settings()
     # Positional, deliberately: VIS-003 renamed these to text_detection_model_dir and
     # text_recognition_model_dir without changing their order or meaning, so a positional
     # call is correct against both signatures.
@@ -1218,6 +1348,7 @@ def run_image_scan(
         declared=declared,
         spans=spans,
         shape=confirmations.shape,
+        panel_area=panel_area,
     )
 
     context = EvidenceContext(

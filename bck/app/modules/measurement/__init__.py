@@ -5,7 +5,13 @@ from app.contracts import (
     MeasurementResult,
 )
 
-from .artwork import calculate_artwork_pdp_area, measure_artwork_ink_extent
+from .artwork import (
+    calculate_artwork_pdp_area,
+    measure_artwork_ink_extent,
+    parse_pdf_geometry,
+    parse_svg_geometry,
+    rasterise_artwork,
+)
 from .schemas import MeasurementMarginSet, PackageShape
 from .services import (
     calculate_pdp_area,
@@ -27,6 +33,9 @@ __all__ = [
     "PackageShape",
     "calculate_artwork_pdp_area",
     "measure_artwork_ink_extent",
+    "parse_pdf_geometry",
+    "parse_svg_geometry",
+    "rasterise_artwork",
     "measure_ink_extent",
     "calculate_pdp_area",
     "measure_contrast_ratio",
