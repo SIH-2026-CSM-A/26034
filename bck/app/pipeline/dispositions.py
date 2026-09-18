@@ -79,6 +79,7 @@ CONDITION_DISPOSITION: dict[str, Disposition] = {
     "chapter_ii_scope": Disposition.NOT_AN_OBLIGATION,
     "other_law_carve_out": Disposition.NOT_AN_OBLIGATION,
     "numeric_constraint": Disposition.NOT_AN_OBLIGATION,
+    "unit_sale_price_basis": Disposition.OBSERVATION,
 }
 """Every ``RuleCondition`` variant's ``kind``, and what this pipeline does with it.
 
@@ -154,6 +155,7 @@ available here either: nothing has established that the condition is unmet.
 
 RULE_DECLARATION_SCOPE: dict[str, tuple[DeclarationField, ...]] = {
     "R8-1-FREE-SPACE": (DeclarationField.NET_QUANTITY,),
+    "R6-11-UNIT-SALE-PRICE": (DeclarationField.UNIT_SALE_PRICE,),
 }
 """Rules whose own text narrows them to particular declarations.
 

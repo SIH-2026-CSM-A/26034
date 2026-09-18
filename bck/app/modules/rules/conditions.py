@@ -232,6 +232,34 @@ class NumericConstraint(StrictRuleModel):
         return self
 
 
+class UnitSalePriceBasis(StrictRuleModel):
+    """One limb of Rule 6(11): the unit basis on either side of a quantity threshold."""
+
+    quantity_units: tuple[NonEmptyText, ...] = Field(min_length=1)
+    """The canonical net-quantity units this limb speaks to, as extraction names them."""
+
+    threshold: PositiveDecimal
+    threshold_unit: NonEmptyText
+    below_threshold_basis: NonEmptyText
+    at_or_above_threshold_basis: NonEmptyText
+
+
+class UnitSalePriceBasisCondition(StrictRuleModel):
+    """Describe Rule 6(11) — the unit basis a unit sale price must be declared on.
+
+    A format rule and nothing else. It carries no tolerance, no rounding increment and no
+    permitted difference, because the gazette states none; the ± figures in older project
+    documents are assumptions, and ``extra="forbid"`` on this model is what keeps them out
+    of the store.
+    """
+
+    kind: Literal["unit_sale_price_basis"]
+    bases: tuple[UnitSalePriceBasis, ...] = Field(min_length=1)
+    count_units: tuple[NonEmptyText, ...] = Field(min_length=1)
+    """Net-quantity units that mean the commodity is sold by number."""
+    count_basis: NonEmptyText
+
+
 RuleCondition = Annotated[
     DeclarationRequiredCondition
     | TableHeightCondition
@@ -246,6 +274,7 @@ RuleCondition = Annotated[
     | SectorOverrideCondition
     | EcommerceFilterCondition
     | ChapterScopeCondition
-    | NumericConstraint,
+    | NumericConstraint
+    | UnitSalePriceBasisCondition,
     Field(discriminator="kind"),
 ]
