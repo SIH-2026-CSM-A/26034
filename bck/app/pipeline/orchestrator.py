@@ -85,7 +85,9 @@ from app.modules.rules import (
     rule_33_relaxation_applies,
     select_effective_rule,
 )
-from app.modules.vision.ocr import extract_panel_text
+from app.modules.tamper import detect_tampering
+from app.modules.tamper.domain import TamperDetectionResult
+from app.modules.vision.ocr import arbitrate_field_declaration, extract_panel_text
 from app.modules.vision.pdp import PDPDetection, detect_pdp
 from app.modules.vision.preprocess import prepare_panel, quality_gate
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
@@ -160,6 +162,17 @@ class ImageScanResult(ContractModel):
     """
 
     panel: PanelDetection
+
+    tamper_signals: tuple[TamperDetectionResult, ...] = ()
+    """Every tamper signal raised on this capture, whether or not it touched a finding.
+
+    **Evidence, never a conclusion.** A signal can move a declaration that read as present
+    to REVIEW_REQUIRED and can do nothing else — see :func:`_doubted`. Both detectors are
+    uncalibrated heuristics, and the sticker one is loud: on the four untampered captures in
+    ``datasets/raw`` it raised between 6 and 22 signals each (2026-09-17). Most of those sit
+    on text bound to no declaration and so change no finding; they are all kept here because
+    an officer looking at a suspected overlay needs to see where the detector looked.
+    """
 
     category_proposal: CategoryProposal | None = None
     """A product category read off the label, offered to an officer and acted on by nothing.
@@ -859,6 +872,100 @@ def _relaxed(found: FieldFinding) -> FieldFinding:
     )
 
 
+SECOND_READ_FIELDS = (DeclarationField.RETAIL_SALE_PRICE, DeclarationField.NET_QUANTITY)
+"""The declarations Tesseract re-reads. Its whitelist is digits, separators and the price and
+unit tokens, so it is a second opinion on a *figure* and on nothing else."""
+
+
+def _doubts(
+    image: np.ndarray,
+    declared: Mapping[DeclarationField, tuple[NormalisedField, ...]],
+    spans: Sequence[ExtractedSpan],
+    signals: Sequence[TamperDetectionResult],
+    tessdata_dir: str,
+) -> dict[DeclarationField, tuple[str, ...]]:
+    """Reasons to doubt a declaration that was read, by the declaration they bear on.
+
+    Two sources. A tamper signal bears on the declaration whose span it was raised on — and
+    a conflicting-price signal on the retail sale price whatever it was raised on, because
+    the second price is usually the one the binder did not pick. A second OCR reading that
+    disagrees with the first bears on the declaration that was re-read.
+
+    A sticker signal on text bound to nothing bears on no declaration and appears here
+    under none. It is still on :attr:`ImageScanResult.tamper_signals`.
+    """
+    by_id = {span.span_id: span for span in spans}
+    cited_by: dict[str, list[DeclarationField]] = {}
+    for field_type, fields in declared.items():
+        for field in fields:
+            for span_id in field.span_refs:
+                cited_by.setdefault(span_id, []).append(field_type)
+
+    doubts: dict[DeclarationField, list[str]] = {}
+    for signal in signals:
+        on_span = next(
+            (span.span_id for span in spans if tuple(span.polygon) == tuple(signal.region)), None
+        )
+        touched = list(cited_by.get(on_span, ()))
+        if signal.kind == "conflicting_mrp":
+            touched.append(DeclarationField.RETAIL_SALE_PRICE)
+        for field_type in dict.fromkeys(touched):
+            doubts.setdefault(field_type, []).append(
+                f"{signal.reason} (tamper heuristic, uncalibrated prior {signal.probability:.2f})"
+            )
+
+    for field_type in SECOND_READ_FIELDS:
+        for field in declared.get(field_type, ()):
+            for span_id in field.span_refs:
+                reading = arbitrate_field_declaration(
+                    image, by_id[span_id], tessdata_dir=tessdata_dir
+                )
+                if reading.needs_review:
+                    doubts.setdefault(field_type, []).append(
+                        f"a second OCR pass over the same print read "
+                        f"{reading.secondary_text!r} where the first read "
+                        f"{reading.primary_text!r}, and the figures in them do not agree"
+                    )
+    return {field_type: tuple(reasons) for field_type, reasons in doubts.items()}
+
+
+def _doubted(
+    findings: tuple[FieldFinding, ...],
+    rules: Sequence[RuleDefinition],
+    doubts: Mapping[DeclarationField, tuple[str, ...]],
+) -> tuple[FieldFinding, ...]:
+    """Send a declaration that read as present to an officer when its reading is in doubt.
+
+    **One transition exists, and it is PASS to REVIEW_REQUIRED.** A doubt is evidence about
+    our reading of the package, not about the package: it cannot show a declaration is
+    missing or wrong, so it can never produce FAIL, and it cannot clear one either. A
+    finding in any other state is returned as the same object, reason and all — the sector
+    gate's findings are recognised by their exact text, and a shortfall an officer is
+    already being sent does not need a second reason to look.
+
+    Only the rules that ask whether the declaration is *borne* are touched. A sticker over
+    the price says nothing about the free space around the quantity.
+    """
+    presence = {rule.rule_id for rule in rules if rule.conditions.kind == "declaration_required"}
+    revised = []
+    for found in findings:
+        reasons = doubts.get(found.field, ())
+        if (
+            not reasons
+            or found.state is not FieldState.PASS
+            or found.rule_snapshot.rule_id not in presence
+        ):
+            revised.append(found)
+            continue
+        note = " An officer should examine this declaration: " + "; ".join(reasons) + "."
+        revised.append(
+            found.model_copy(
+                update={"state": FieldState.REVIEW_REQUIRED, "reason": found.reason + note}
+            )
+        )
+    return tuple(revised)
+
+
 _Read = TypeVar("_Read", NormalisedField, CompetingReadings)
 """A reading of one obligation — resolved, or contested. Both carry ``field_type``.
 
@@ -1017,6 +1124,15 @@ def run_image_scan(
     findings = _refine(
         build_findings(rules, context), rules, context, geometry, detection, confirmations
     )
+    # Tamper detection and the second OCR reading run on every scan and come last, after
+    # every rule has been evaluated: neither is a rule, and neither may reach one. What
+    # they find can only take a PASS back to an officer.
+    signals = tuple(detect_tampering(image, list(spans)))
+    findings = _doubted(
+        findings,
+        rules,
+        _doubts(image, declared, spans, signals, str(settings.tesseract_tessdata_dir)),
+    )
     return ImageScanResult(
         verdict=assemble_verdict(
             subject_ref=subject_ref,
@@ -1033,6 +1149,7 @@ def run_image_scan(
         panel=PanelDetection(
             bbox=detection.bbox, area_px=detection.area, confidence=detection.confidence
         ),
+        tamper_signals=signals,
         category_proposal=proposal,
         display_category=display,
     )
