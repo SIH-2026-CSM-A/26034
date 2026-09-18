@@ -165,6 +165,40 @@ class Settings(BaseSettings):
     """Officers who may log in. Empty by default: a deployment that configures none has
     no accounts, rather than a default account somebody forgets to remove."""
 
+    evidence_image_retention_days: int | None = Field(default=None, gt=0)
+    """Days a stored product image is kept before it is eligible for purge.
+
+    No default, deliberately. No retention period for evidence is sourced anywhere in
+    ``rules-corpus/``, and a number written here would be an invented one. Unset, nothing
+    expires: :class:`~app.modules.evidence.retention.RetentionManager` treats an absent
+    window as "keep", never as zero."""
+
+    evidence_pii_retention_days: int | None = Field(default=None, gt=0)
+    """Days personal data held as evidence is kept. Same terms as the image window: unset
+    means nothing expires, and the figure is a deployment's to state."""
+
+    evidence_destructive_purge_enabled: bool = False
+    """Whether an expired asset is actually deleted from storage. Off by default: with it
+    off, the retention manager reports what it would purge and touches nothing."""
+
+    evidence_s3_endpoint_url: str | None = None
+    """S3-compatible endpoint for content-addressed evidence storage (MinIO in
+    ``docker-compose.prod.yml``). Unset means the local capture store only."""
+
+    evidence_s3_bucket: str | None = None
+    """The bucket evidence objects are written to."""
+
+    evidence_s3_access_key: str | None = None
+    """Access key for the evidence bucket."""
+
+    evidence_s3_secret_key: str | None = None
+    """Secret key for the evidence bucket. Never logged."""
+
+    evidence_timestamp_secret: str | None = Field(default=None, min_length=32)
+    """HMAC key for :class:`~app.modules.evidence.timestamp.LocalRFC3161Hook`. No default:
+    a timestamp token signed with a key anybody can read from a repository attests to
+    nothing. Held apart from ``jwt_secret`` so rotating one does not invalidate the other."""
+
     @field_validator(
         "datasets_dir",
         "rules_corpus_dir",
