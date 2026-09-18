@@ -116,8 +116,24 @@ class HeuristicTextRegion:
     method: Literal["heuristic"] = "heuristic"
 
 
-PDPDetection = PDPResult | HeuristicTextRegion
-"""Everything :func:`detect_pdp` can return. Branch on the type, or on ``method``."""
+@dataclass(frozen=True)
+class ArtworkPanel:
+    """The whole of a piece of pre-print artwork, which *is* the principal display panel.
+
+    Not a detection. Artwork is submitted as the artwork of the panel, so its extent is a
+    statement by the submitter and not a model's guess; ``confidence`` is 1.0 because there
+    was nothing to detect. Its own type so nothing downstream can mistake it for either
+    kind of detection, and its own ``method`` so a finding can say where the panel came from.
+    """
+
+    bbox: tuple[int, int, int, int]
+    area: float
+    confidence: float = 1.0
+    method: Literal["artwork"] = "artwork"
+
+
+PDPDetection = PDPResult | HeuristicTextRegion | ArtworkPanel
+"""Everything a panel can be reported as. Branch on the type, or on ``method``."""
 
 
 def _largest_text_region(image) -> HeuristicTextRegion:

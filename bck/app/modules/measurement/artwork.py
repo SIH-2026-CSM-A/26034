@@ -1,6 +1,7 @@
 import io
 
 import defusedxml.ElementTree as ET  # noqa: N817
+import numpy as np
 import pdfplumber
 
 from app.contracts import MeasurementExact, MeasurementRefusal, MeasurementResult
@@ -134,3 +135,31 @@ def calculate_artwork_pdp_area(
     area_cm2, rule_limb = _compute_rule_7_area(height_mm, width_mm, shape)
 
     return MeasurementExact(value=area_cm2, unit="cm²", rule_limb=rule_limb)
+
+
+def rasterise_artwork(
+    file_bytes: bytes, file_type: str, dpi: float
+) -> np.ndarray | MeasurementRefusal:
+    """Render vector artwork to a BGR frame at a known resolution.
+
+    The point of the resolution is that it is *known*: a frame rendered at ``dpi`` carries
+    exactly ``25.4 / dpi`` millimetres per pixel, so everything measured on it is exact and
+    nothing has to be calibrated. Only PDF renders. An SVG's size is parsed by
+    :func:`parse_svg_geometry` but nothing in this environment rasterises one, and that
+    is stated here rather than approximated.
+    """
+    if file_type.lower() != "pdf":
+        return MeasurementRefusal(
+            reason=(
+                f"{file_type} artwork cannot be rendered to pixels here, so its declarations "
+                "cannot be read; only its physical size is available."
+            )
+        )
+    try:
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            if not pdf.pages:
+                return MeasurementRefusal(reason="PDF contains no pages.")
+            rendered = pdf.pages[0].to_image(resolution=dpi).original.convert("RGB")
+    except Exception as e:
+        return MeasurementRefusal(reason=f"Failed to render PDF: {str(e)}")
+    return np.ascontiguousarray(np.asarray(rendered)[:, :, ::-1])
