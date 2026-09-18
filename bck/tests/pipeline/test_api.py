@@ -319,6 +319,13 @@ async def test_tampering_with_a_stored_payload_breaks_the_chain(
             )
         ).one()
 
+    # Whatever verdict the listing reached, rewritten to a different one. Keyed on the stored
+    # verdict rather than on a literal, so a change to what the rules make of this listing
+    # cannot turn the forgery into a no-op and this test into one that proves nothing.
+    substitute = "PASS" if scan["verdict"] != "PASS" else "REVIEW"
+    forged = row.payload_json.replace(f'"{scan["verdict"]}"', f'"{substitute}"')
+    assert forged != row.payload_json
+
     tampered = verify_chain(
         [
             EvidenceEntry(
@@ -327,7 +334,7 @@ async def test_tampering_with_a_stored_payload_breaks_the_chain(
                 payload_hash=row.payload_hash,
                 prev_hash=row.prev_hash,
                 entry_hash=row.entry_hash,
-                payload=row.payload_json.replace("POTENTIAL_VIOLATION", "PASS"),
+                payload=forged,
                 asset_type=row.asset_type,
             )
         ]

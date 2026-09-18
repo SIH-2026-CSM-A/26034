@@ -23,7 +23,9 @@ from app.pipeline.dispositions import (
 from app.pipeline.measurement_findings import measurement_findings
 from app.pipeline.rule_findings import (
     EvidenceContext,
+    commodity_condition_findings,
     declaration_findings,
+    fact_condition_findings,
     listing_findings,
     observation_findings,
     scope_findings,
@@ -89,10 +91,11 @@ def _findings_for_rule(
 ) -> list[FieldFinding]:
     """The findings one rule produces, with applicability settled before evaluation.
 
-    Two applicability questions, asked widest first. Rule 3 decides whether Chapter II
+    Three applicability questions, asked widest first. Rule 3 decides whether Chapter II
     reaches the package at all; a sector override decides whether one obligation inside it
-    has moved to another framework. Asking the narrower one first would route a package
-    outside the chapter to the Medical Devices Rules, 2017.
+    has moved to another framework; and a rule whose own text is limited by commodity —
+    Rule 6(1)(da) — decides whether this commodity can owe it. Asking a narrower one first
+    would route a package outside the chapter to the Medical Devices Rules, 2017.
     """
     disposition = disposition_of(rule)
     if disposition is Disposition.NOT_AN_OBLIGATION:
@@ -112,5 +115,11 @@ def _findings_for_rule(
     settled = sector_findings(rule, fields, context)
     if settled is not None:
         return settled
+
+    conditioned = commodity_condition_findings(rule, fields, context)
+    if conditioned is None:
+        conditioned = fact_condition_findings(rule, fields, context)
+    if conditioned is not None:
+        return conditioned
 
     return BUILDERS[disposition](rule, fields, context)

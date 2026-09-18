@@ -47,7 +47,12 @@ from app.modules.rules import (
     controlling_framework,
     evaluate_rule,
 )
-from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, SECTOR_GOVERNED_RULES
+from app.pipeline.dispositions import (
+    COMMODITY_CONDITIONED_RULES,
+    FACT_CONDITIONED_RULES,
+    FIELD_STATE_FROM_VERDICT,
+    SECTOR_GOVERNED_RULES,
+)
 from app.pipeline.rule_snapshot import snapshot_from_rule
 
 UNCONFIRMED_CATEGORY_REASON = (
@@ -248,6 +253,88 @@ def sector_findings(
             context,
         )
         for field in fields
+    ]
+
+
+def commodity_condition_findings(
+    rule: RuleDefinition, fields: tuple[DeclarationField, ...], context: EvidenceContext
+) -> list[FieldFinding] | None:
+    """Findings for a rule its own text limits by commodity, or ``None`` to carry on.
+
+    The same two cases as :func:`sector_findings`, for the same reasons. With no confirmed
+    category we do not know whether the rule's condition is met, so nothing has been
+    established about the package — INSUFFICIENT_EVIDENCE, never FAIL. With a category that
+    cannot meet the condition, the duty does not arise — NOT_APPLICABLE, never PASS: the
+    package did not satisfy the obligation, it never had it.
+    """
+    conditioned = COMMODITY_CONDITIONED_RULES.get(rule.rule_id)
+    if conditioned is None:
+        return None
+    phrase, excluded = conditioned
+
+    if context.product_category is None:
+        return [
+            finding(
+                rule,
+                field,
+                FieldState.INSUFFICIENT_EVIDENCE,
+                f"{rule.clause_ref} applies only to a commodity which {phrase}, and the "
+                f"product category has not been confirmed. Confirm the category to evaluate "
+                f"it — an unconfirmed category is not a finding about the package.",
+                context,
+            )
+            for field in fields
+        ]
+
+    if context.product_category not in excluded:
+        return None
+
+    return [
+        finding(
+            rule,
+            field,
+            FieldState.NOT_APPLICABLE,
+            f"{rule.clause_ref} applies only to a commodity which {phrase}. An officer has "
+            f"confirmed this package as {context.product_category.value}, which is not for "
+            f"human consumption, so this obligation does not arise for it.",
+            context,
+        )
+        for field in fields
+    ]
+
+
+def fact_condition_findings(
+    rule: RuleDefinition, fields: tuple[DeclarationField, ...], context: EvidenceContext
+) -> list[FieldFinding] | None:
+    """An absent declaration whose duty depends on an unestablished fact, or ``None``.
+
+    Settles a field only in the one case the ordinary builder would get wrong: the
+    declaration was looked for, is not there, and the rule requires it only on a condition
+    nobody has established. Every other case — borne, contested, or unreadable — carries on
+    to :func:`declaration_findings` unchanged, so this can only ever replace a FAIL.
+    """
+    phrase = FACT_CONDITIONED_RULES.get(rule.rule_id)
+    if phrase is None or context.unreadable_reason is not None:
+        return None
+    absent = [
+        field
+        for field in fields
+        if not context.declared.get(field) and not context.contested.get(field)
+    ]
+    if len(absent) != len(fields):
+        return None
+    return [
+        finding(
+            rule,
+            field,
+            FieldState.REVIEW_REQUIRED,
+            f"the declaration was looked for and is not present, but {rule.clause_ref} "
+            f'requires it only on a condition — "{phrase}" — that neither the record nor '
+            f"a product category establishes. Whether the duty arises for this package is "
+            f"an officer's judgement, so its absence is not reported as a shortfall.",
+            context,
+        )
+        for field in absent
     ]
 
 

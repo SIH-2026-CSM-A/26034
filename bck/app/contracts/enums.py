@@ -321,7 +321,7 @@ class ProductCategory(StrEnum):
     A member exists here because a gazette names that sector and routes an obligation
     away from these Rules for it — not because the sector is commercially interesting.
     Adding one is adding a routing target, so it comes with the provision that does the
-    routing.
+    routing. :attr:`NON_CONSUMABLE` is the single exception and says why on itself.
 
     The values are lowercase where every other vocabulary in this package is upper. That
     is deliberate and not to be tidied: they are the ``sector`` keys in the rule store's
@@ -362,4 +362,29 @@ class ProductCategory(StrEnum):
     additionally removes the power to relax, so a medical device cannot be both routed to
     the Medical Devices Rules and granted a relaxation under these ones. A carve-out, not
     a stricter path: Rule 7 Table-I stops applying rather than applying more severely.
+    """
+
+    NON_CONSUMABLE = "non_consumable"
+    """A packaged commodity that is none of the sectors above and is not for human
+    consumption — a mobile phone, a charger, a box of screws.
+
+    The one member that is **not** a routing target, and it exists because of what an
+    unconfirmed category now means. ``None`` holds every sector-governed obligation at
+    INSUFFICIENT_EVIDENCE, since a sector rule *might* move it; without this member an
+    officer looking at a phone carton has nothing to confirm, and Rules 7, 8 and 9 can
+    never be evaluated for it. Confirming this says no sector carve-out in the rule store
+    reaches the package: no rule names it as a ``sector``, so every override lookup comes
+    back empty and Chapter II applies in full — Rule 6(1)(a), (b), (c), (d), (e), Rule 6(2),
+    and Rules 7 to 9, none of which is limited to any class of commodity.
+
+    It also settles the one Rule 6(1) declaration whose own text limits it by commodity.
+    Rule 6(1)(da) requires a best-before or use-by date "if a package contains a commodity
+    which may become unfit for human consumption after a period of time". A commodity that
+    is not for human consumption cannot meet that condition, so the pipeline reports the
+    obligation NOT_APPLICABLE for this category — never PASS, and never a failure to
+    declare. See ``app.pipeline.dispositions.COMMODITY_CONDITIONED_RULES``.
+
+    Deliberately narrow. It does not cover a non-food commodity that *is* consumed, because
+    nothing in ``rules-corpus/`` says which framework governs the date marking of one, and
+    this system does not decide that from memory.
     """

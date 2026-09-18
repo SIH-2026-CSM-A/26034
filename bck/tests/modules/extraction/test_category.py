@@ -452,13 +452,18 @@ def test_display_taxonomy_competing_signals_abstain() -> None:
     assert classify_display_category(result) is None
 
 
-def test_product_category_enum_remains_strictly_three_members() -> None:
-    """Test I: ProductCategory enum remains strictly food, cosmetics, medical_device."""
-    assert len(ProductCategory) == 3
+def test_product_category_enum_is_the_three_sectors_and_non_consumable() -> None:
+    """Test I: the three sectors this module can propose, plus the one it never does.
+
+    ``NON_CONSUMABLE`` is an officer's confirmation that no sector carve-out applies. No
+    text on a label is a signal for it — the absence of an FSSAI line is not evidence of a
+    phone — so ``propose_category`` has no branch that could return it.
+    """
     assert set(ProductCategory) == {
         ProductCategory.FOOD,
         ProductCategory.COSMETICS,
         ProductCategory.MEDICAL_DEVICE,
+        ProductCategory.NON_CONSUMABLE,
     }
 
 
