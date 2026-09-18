@@ -120,6 +120,17 @@ class Settings(BaseSettings):
     protecting. Checked at startup with the other three.
     """
 
+    capture_store_dir: Path | None = Path("storage/captures")
+    """Where an officer's uploaded capture is held, content-addressed, after submission.
+
+    Held so a scan can be evaluated again once the officer confirms its product category —
+    the category proposal only exists after the first evaluation, so the confirmation can
+    only come after it, and re-evaluating needs the photograph. Blank turns holding off:
+    scans still evaluate, and a later category confirmation is refused with a 409 that says
+    the capture is not held. Consumer uploads are never held; nobody confirms a category
+    for one, and an unauthenticated route must not be a way to fill a disk.
+    """
+
     jwt_secret: str = Field(min_length=32)
     """Signing key for access tokens. Required — there is deliberately no default, and a
     key shorter than the SHA-256 block that signs with it is refused."""
@@ -161,6 +172,7 @@ class Settings(BaseSettings):
         "ocr_det_model_dir",
         "ocr_rec_model_dir",
         "tesseract_tessdata_dir",
+        "capture_store_dir",
         mode="before",
     )
     @classmethod

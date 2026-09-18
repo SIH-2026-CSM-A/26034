@@ -40,8 +40,10 @@ from fastapi import (
     UploadFile,
     status,
 )
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.contracts import CatalogueRecord
 from app.core import (
     CalibrationMethod,
     Jurisdiction,
@@ -56,6 +58,8 @@ from app.core import (
     limit_consumer_scans,
     require_tier,
 )
+from app.modules.evidence import LocalStorageClient
+from app.modules.evidence.storage import AssetPurgedError
 from app.modules.rules import ProductCategory
 from app.pipeline import repository
 from app.pipeline.capture import QualityRejection
@@ -97,24 +101,45 @@ async def submit_catalogue_scan(
         body.product_category,
         ward=body.ward,
     )
+    scan.capture_metadata = {
+        CATALOGUE_RECORD_KEY: body.record.model_dump(mode="json"),
+        INSTITUTIONAL_KEY: body.institutional_or_industrial_confirmed,
+    }
+    return await _evaluate_catalogue_scan(
+        session,
+        scan,
+        body.record,
+        body.product_category,
+        body.institutional_or_industrial_confirmed,
+    )
+
+
+async def _evaluate_catalogue_scan(
+    session: AsyncSession,
+    scan: Scan,
+    record: CatalogueRecord,
+    product_category: ProductCategory | None,
+    institutional_or_industrial_confirmed: bool,
+) -> ScanDetail:
+    """Store the scan, evaluate the listing, and write the verdict. Shared with re-evaluation."""
     async with session.begin():
         repository.add_scan(session, scan)
 
     try:
-        record = run_catalogue_scan(
-            body.record,
-            product_category=body.product_category,
+        verdict = run_catalogue_scan(
+            record,
+            product_category=product_category,
             evaluated_at=datetime.now(UTC),
             subject_ref=str(scan.id),
-            institutional_or_industrial_confirmed=body.institutional_or_industrial_confirmed,
+            institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         )
     except Exception:
         await repository.mark_failed(session, scan)
         logger.exception("catalogue scan %s failed during evaluation", scan.id)
         raise _evaluation_failed(scan.id) from None
 
-    await repository.persist_verdict(session, scan, record)
-    return scan_detail(scan, record, finalised=False)
+    await repository.persist_verdict(session, scan, verdict)
+    return scan_detail(scan, verdict, finalised=False)
 
 
 @scan_router.post("/image", status_code=status.HTTP_201_CREATED)
@@ -156,6 +181,7 @@ async def submit_image_scan(
         product_category=product_category,
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         ward=ward,
+        hold_capture=True,
     )
 
 
@@ -171,8 +197,14 @@ async def _accept_image_scan(
     product_category: ProductCategory | None,
     institutional_or_industrial_confirmed: bool,
     ward: str | None = None,
+    hold_capture: bool = False,
+    re_evaluation_of: UUID | None = None,
 ) -> ScanDetail:
-    """Store the scan at PROCESSING, queue evaluation, and return the row to poll."""
+    """Store the scan at PROCESSING, queue evaluation, and return the row to poll.
+
+    ``hold_capture`` keeps the uploaded bytes so the scan can be evaluated again once its
+    category is confirmed. It is the officer routes' to set; the consumer route never does.
+    """
     calibration = ImageCalibration(
         method=calibration_method, reference_type=reference_type, artwork_dpi=artwork_dpi
     )
@@ -184,6 +216,15 @@ async def _accept_image_scan(
         product_category,
         ward=ward,
     )
+    if hold_capture:
+        scan.image_refs = _hold_capture(image_bytes)
+    scan.capture_metadata = {
+        "reference_type": calibration.reference_type,
+        "artwork_dpi": calibration.artwork_dpi,
+        INSTITUTIONAL_KEY: institutional_or_industrial_confirmed,
+    }
+    if re_evaluation_of is not None:
+        scan.capture_metadata[RE_EVALUATION_KEY] = str(re_evaluation_of)
     async with session.begin():
         repository.add_scan(session, scan)
     await repository.mark_processing(session, scan)
@@ -372,6 +413,137 @@ async def review_scan(
         created_at=row.created_at,
         rule_set_version=verdict.rule_set_version,
         finalised=finalised,
+    )
+
+
+# --- Category confirmation --------------------------------------------------------------
+#
+# The category proposal only exists once a scan has been evaluated, so an officer can only
+# confirm a category after the fact — and a confirmed category is a precondition of rule
+# evaluation, not a label applied after it. So confirming evaluates the same capture again
+# under the confirmed category, as a NEW scan. The original row is never edited: its
+# ``product_category`` stays what it was evaluated under, which is none, and its verdict
+# stays the verdict of that evaluation. ``new_scan`` remains the only place a
+# ``Scan.product_category`` is ever written, and it is handed the officer's typed answer.
+
+CATALOGUE_RECORD_KEY = "catalogue_record"
+INSTITUTIONAL_KEY = "institutional_or_industrial_confirmed"
+RE_EVALUATION_KEY = "re_evaluation_of"
+STORAGE_KEY = "storage_key"
+"""Keys this router writes into ``Scan.capture_metadata`` and ``Scan.image_refs``."""
+
+
+class CategoryConfirmation(BaseModel):
+    """An officer's answer to "which product category is this package".
+
+    One required field and nothing else is accepted. There is no ``accept_proposal`` flag
+    and no default: the category has to be stated in the request by the officer making it,
+    so there is no spelling of this body that means "whatever the pipeline read".
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_category: ProductCategory
+
+
+def _hold_capture(image_bytes: bytes) -> list[dict[str, str]]:
+    """Keep the uploaded bytes, content-addressed, and return the scan's ``image_refs``."""
+    directory = get_settings().capture_store_dir
+    if directory is None:
+        return []
+    return [{STORAGE_KEY: LocalStorageClient(str(directory)).store_image(image_bytes)}]
+
+
+def _held_capture(scan: Scan) -> bytes:
+    """The bytes behind an image scan, or a 409 where they are not held."""
+    directory = get_settings().capture_store_dir
+    try:
+        if directory is None or not scan.image_refs:
+            raise FileNotFoundError
+        return LocalStorageClient(str(directory)).get_image(scan.image_refs[0][STORAGE_KEY])
+    except (FileNotFoundError, AssetPurgedError, KeyError):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "the capture behind this scan is not held, so it cannot be evaluated again; "
+                "photograph the package again and state the category when submitting"
+            ),
+        ) from None
+
+
+def _as_filed(officer: Principal, scan: Scan) -> Principal:
+    """The confirming officer, over the territory the original scan was filed in.
+
+    A controller confirming a district scan must not lift the re-evaluation out of that
+    district's view, so the new row takes the original's jurisdiction, read from the stored
+    row — which was itself written from a verified token — and never from the request.
+    """
+    jurisdiction = Jurisdiction(state=scan.state, region=scan.region, district=scan.district)
+    tier = (
+        RoleTier.DISTRICT if scan.district else RoleTier.REGIONAL if scan.region else RoleTier.STATE
+    )
+    return Principal(subject=officer.subject, tier=tier, jurisdiction=jurisdiction)
+
+
+@scan_router.post("/{scan_id}/category", status_code=status.HTTP_201_CREATED)
+async def confirm_category(
+    scan_id: UUID,
+    body: CategoryConfirmation,
+    session: Session,
+    background: BackgroundTasks,
+    principal: Annotated[Principal, Depends(require_tier(RoleTier.DISTRICT))],
+) -> ScanDetail:
+    """Confirm a scan's product category, and evaluate its capture again under it.
+
+    Returns a **new** scan carrying the confirmed category — for a photograph, at
+    PROCESSING, to be polled like any submission. The original is left exactly as it was.
+    An officer act: it sits behind the officer principal, and nothing the pipeline read —
+    no proposal, no display classification — is consulted here or can stand in for the
+    body's ``product_category``.
+    """
+    async with session.begin():
+        original = await repository.get_scan(session, scan_id, principal)
+        if original is None:
+            raise _not_found()
+    filed_as = _as_filed(principal, original)
+    institutional = bool(original.capture_metadata.get(INSTITUTIONAL_KEY, False))
+
+    if original.source_type is ScanSourceType.CATALOGUE_RECORD:
+        stored = original.capture_metadata.get(CATALOGUE_RECORD_KEY)
+        if stored is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="the listing behind this scan is not held; submit it again",
+            )
+        scan = repository.new_scan(
+            filed_as,
+            ScanSourceType.CATALOGUE_RECORD,
+            CalibrationMethod.NONE,
+            body.product_category,
+            ward=original.ward,
+        )
+        scan.capture_metadata = {**original.capture_metadata, RE_EVALUATION_KEY: str(scan_id)}
+        return await _evaluate_catalogue_scan(
+            session,
+            scan,
+            CatalogueRecord.model_validate(stored),
+            body.product_category,
+            institutional,
+        )
+
+    return await _accept_image_scan(
+        session,
+        filed_as,
+        background,
+        _held_capture(original),
+        calibration_method=original.calibration_method,
+        reference_type=original.capture_metadata.get("reference_type"),
+        artwork_dpi=original.capture_metadata.get("artwork_dpi"),
+        product_category=body.product_category,
+        institutional_or_industrial_confirmed=institutional,
+        ward=original.ward,
+        hold_capture=True,
+        re_evaluation_of=scan_id,
     )
 
 
