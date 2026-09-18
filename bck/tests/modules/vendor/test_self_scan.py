@@ -248,6 +248,69 @@ async def test_a_vendor_scan_carries_its_routing_once_it_has_a_verdict(client: A
     assert view["routing"] is None
 
 
+async def test_an_evaluated_vendor_scan_routes_to_the_district_tier(client: AsyncClient) -> None:
+    """A real verdict, a real routing decision: district tier, visit only on a violation."""
+    from unittest.mock import patch
+
+    from tests.pipeline.test_image_submission import _detection
+    from tests.pipeline.test_orchestrator import PANEL_SPANS, scan_panel_frame
+
+    await register(client)
+    headers = await vendor_auth(client)
+    ok, encoded = cv2.imencode(".jpg", scan_panel_frame())
+    assert ok
+    with (
+        patch("app.pipeline.orchestrator.detect_pdp", return_value=_detection()),
+        patch("app.pipeline.orchestrator.extract_panel_text", return_value=list(PANEL_SPANS)),
+    ):
+        submitted = await client.post(
+            "/vendor/scans/image",
+            files={"image": ("shelf.jpg", encoded.tobytes(), "image/jpeg")},
+            headers=headers,
+        )
+    assert submitted.status_code == 201, submitted.text
+    view = (
+        await client.get(f"/vendor/scans/{submitted.json()['scan']['id']}", headers=headers)
+    ).json()
+
+    assert view["scan"]["verdict"] is not None
+    assert view["routing"]["target_tier"] == "district"
+    assert view["routing"]["requires_visit"] is (view["scan"]["verdict"] == "POTENTIAL_VIOLATION")
+
+
+async def test_an_officers_category_confirmation_keeps_the_scan_the_vendors(
+    client: AsyncClient,
+) -> None:
+    from unittest.mock import patch
+
+    from tests.pipeline.test_image_submission import _detection
+    from tests.pipeline.test_orchestrator import PANEL_SPANS, scan_panel_frame
+
+    await register(client)
+    headers = await vendor_auth(client)
+    ok, encoded = cv2.imencode(".jpg", scan_panel_frame())
+    assert ok
+    with (
+        patch("app.pipeline.orchestrator.detect_pdp", return_value=_detection()),
+        patch("app.pipeline.orchestrator.extract_panel_text", return_value=list(PANEL_SPANS)),
+    ):
+        scan = (
+            await client.post(
+                "/vendor/scans/image",
+                files={"image": ("shelf.jpg", encoded.tobytes(), "image/jpeg")},
+                headers=headers,
+            )
+        ).json()["scan"]
+        confirmed = await client.post(
+            f"/scans/{scan['id']}/category",
+            json={"product_category": "food"},
+            headers=auth(INSPECTOR),
+        )
+    assert confirmed.status_code == 201, confirmed.text
+    listed = {s["id"] for s in (await client.get("/vendor/scans", headers=headers)).json()}
+    assert listed == {scan["id"], confirmed.json()["id"]}
+
+
 async def test_a_deleted_vendor_token_is_refused_at_submission(client: AsyncClient) -> None:
     """A signed token for a vendor id that is not on the register files nothing."""
     ghost = create_vendor_token(VendorPrincipal(vendor_id=uuid4(), subject="ghost"))

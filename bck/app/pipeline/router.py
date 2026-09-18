@@ -476,18 +476,26 @@ def _held_capture(scan: Scan) -> bytes:
         ) from None
 
 
-def _as_filed(officer: Principal, scan: Scan) -> Principal:
-    """The confirming officer, over the territory the original scan was filed in.
+def _as_filed(subject: str, territory: Scan | VendorRow) -> Principal:
+    """``subject``, filing over the territory a stored row records.
 
-    A controller confirming a district scan must not lift the re-evaluation out of that
-    district's view, so the new row takes the original's jurisdiction, read from the stored
-    row — which was itself written from a verified token — and never from the request.
+    A :class:`Principal` only because ``new_scan`` files by one; the tier is the depth the
+    row records. For a re-evaluation the row is the original scan — a controller confirming
+    a district scan must not lift it out of that district's view. For a vendor scan it is
+    the premises on the register. Both were written from a verified token or by an officer,
+    and neither is the request.
     """
-    jurisdiction = Jurisdiction(state=scan.state, region=scan.region, district=scan.district)
-    tier = (
-        RoleTier.DISTRICT if scan.district else RoleTier.REGIONAL if scan.region else RoleTier.STATE
+    jurisdiction = Jurisdiction(
+        state=territory.state, region=territory.region, district=territory.district
     )
-    return Principal(subject=officer.subject, tier=tier, jurisdiction=jurisdiction)
+    tier = (
+        RoleTier.DISTRICT
+        if territory.district
+        else RoleTier.REGIONAL
+        if territory.region
+        else RoleTier.STATE
+    )
+    return Principal(subject=subject, tier=tier, jurisdiction=jurisdiction)
 
 
 @scan_router.post("/{scan_id}/category", status_code=status.HTTP_201_CREATED)
@@ -536,7 +544,7 @@ async def confirm_category(
             institutional,
         )
 
-    return await _accept_image_scan(
+    detail = await _accept_image_scan(
         session,
         filed_as,
         background,
@@ -550,6 +558,13 @@ async def confirm_category(
         hold_capture=True,
         re_evaluation_of=scan_id,
     )
+    # A vendor's scan stays the vendor's when it is evaluated again: the attribution is
+    # copied so the re-evaluation is theirs to read back as well as the officer's.
+    async with session.begin():
+        attribution = await vendor_repository.get_vendor_scan(session, scan_id)
+        if attribution is not None:
+            vendor_repository.attribute_scan(session, detail.id, attribution.vendor_id)
+    return detail
 
 
 def _decode(payload: bytes) -> np.ndarray:
