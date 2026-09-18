@@ -7,6 +7,37 @@ them, read the file.
 
 ---
 
+## After Session 31 (2026-09-18, wiring the unreachable modules, #141 #146 #148 #149 #153 #154) — read this first
+
+The rule engine now evaluates Rule 7(3), 7(4), 8(1) free space, 8(1) placement, 9(1)(b)
+contrast and Rule 6(11) on a scan; tamper signals and a Tesseract second reading run on every
+image scan as evidence only; the evidence chain is verified on read and the BSA Part A report
+is producible behind the review gate. Each of these left one thing for the owner of a file
+this session could not touch:
+
+1. **Mount the evidence router**: `application.include_router(evidence_router)` in
+   `app/main.py`. `tests/modules/evidence/test_router.py::test_the_production_app_serves_the_
+   evidence_surface` is a strict xfail that XPASSes when it lands — delete it then.
+2. **Give `run_artwork_scan` a route** in `pipeline/router.py`: `UploadFile` → bytes + suffix →
+   the same persistence `_evaluate_image_scan` uses. It is the only path with exact millimetres.
+3. **Send `PackageConfirmations`** from the image-scan form: `shape` (rectangular / cylindrical /
+   other), `declarations_required_under_other_law` (Rule 7(5)), `rule_33_relaxation_granted`.
+   Until then those three limbs are reachable only from code.
+4. **`RetentionManager` cannot be constructed in production**: it reads
+   `evidence_image_retention_days`, `evidence_pii_retention_days` and
+   `evidence_destructive_purge_enabled`, none of which is on `Settings`. Its tests mock
+   `get_settings` with a `MagicMock` and so prove nothing. Same for the S3 client's endpoint /
+   bucket / credentials and a signing secret for `LocalRFC3161Hook`. All `core/config.py`.
+5. **`remove_glare` and `correct_shadows` stay out of the OCR path** — measured on the four real
+   captures they cut spans 47 → 4 and 47 → 40 / 31 → 20. n=4, no accuracy figure. A capture
+   with actual glare or shadow is needed before either can be conditioned on anything.
+6. `rules-corpus/README.md` still says Rule 6(11) is not encoded; the store now carries
+   `R6-11-UNIT-SALE-PRICE` with no tolerance and a store-level guard against one.
+7. The binder binds no NET_QUANTITY off `NET WEIGHT: 110g+20g EXTRA: 130g` (parle_g_130g), so
+   every quantity-anchored rule is INSUFFICIENT_EVIDENCE on that capture (`net_quantity.py`).
+8. `calculate_pdp_area` in `measurement/services.py` has no caller now that the orchestrator
+   measures the detected panel; `boto3` is declared for an S3 client nothing can configure.
+
 ## After Session 30 (2026-09-18, mentor items 3/4/5/7 + security, #140 #142 #145 #147 #150) — read this first
 
 Backend now has: authenticated + jurisdiction-scoped `/analytics/*`; a consumer upload rate
@@ -95,9 +126,10 @@ over the 81 seeded scans; browser-verified at 390 and 1280 with the network thro
 The VM serves `main` through a cloudflared quick tunnel; the hostname changes on every
 cloudflared restart, so read it from `journalctl -u cloudflared-quick` on `pccs-vm`.
 
-1. **opencv resolves to 4.10 or 5.0 at random** — three distributions share one `cv2`
-   directory and the last unpacked wins; `test_coin_oblique_synthetic_geometry` fails under
-   4.10 with height 259.93. Seven CI reruns tonight. Pin the three to one version or drop two.
+1. ~~**opencv resolves to 4.10 or 5.0 at random**~~ Fixed in #141 (Session 31): one build,
+   `opencv-contrib-python==4.10.0.84` — the one paddlex checks for by name — with the other two
+   excluded through `[tool.uv] override-dependencies`. The coin test was not a flake but a
+   tilt sign keyed off float noise, over a homography that did not rectify; both fixed.
 2. **Evaluate in a one-worker process pool.** Paddle holds the interpreter lock for up to
    21 s inside inference, so every request stalls with it. The route tests patch the
    pipeline in-process, which is why it is a thread today; a process pool needs a seam.

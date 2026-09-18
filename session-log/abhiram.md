@@ -3871,3 +3871,130 @@ and `/category` → 401, asserted with the vendor's own token on their own scan.
 VND-002 tip on `origin/main` @ `502068b`: `1198 passed` locally before the stub fix; all three
 CI checks on #150 green, merged. `ruff format --check`,
 `ruff check`, `lint-imports` (149 files, 3 contracts kept) clean on every branch.
+
+## Session 31 — 2026-09-17/18, making the rule engine run: wiring the unreachable modules (Claude Code, Fable 5.1)
+
+Brief: a repository audit traced every symbol from the route handlers outward and found most
+of the compliance logic built, tested and uncalled. Wire each; prove with a test that fails
+before and passes after; own only `pipeline/orchestrator.py`, `modules/{rules,measurement,
+vision,evidence,tamper}`, `extraction/binder.py` and their tests.
+
+Six PRs, five merged, one stacked and waiting on CI at the time of writing:
+
+| PR | What |
+|---|---|
+| #141 | One cv2 build instead of three; coin homography that rectifies; drop pypdf |
+| #146 | Rule 7(3), 7(4), 8(1), 9(1) evaluated from measured declarations |
+| #148 | Tamper signals and a second OCR reading, as evidence only |
+| #149 | Rule 6(11) encoded as a format rule, no tolerance |
+| #154 | An entry point for pre-print artwork (opened as #152, re-opened after its stacked base was deleted) |
+| #153 | Evidence surface: chain verified on read, BSA Part A report behind the human gate |
+
+### Reached now, with the caller
+
+- `evaluate_rule8_free_space`, `MeasurementMarginSet`, `measure_margins`, `get_declaration_bbox`,
+  `bbox_refusal_officer_reason` — `orchestrator._measure` / `_free_space_finding`, every image scan.
+- `evaluate_rule7_width` — `_width_ratio_finding`, one segmented glyph at a time
+  (`measurement.segment_declaration_glyphs`, new), so the named exemptions apply.
+- `calculate_rectangular_pdp_area`, `calculate_other_shape_pdp_area` — `_panel_area`, from the
+  panel `detect_pdp` found via `measure_panel_dimensions` (new). Table-I no longer bands against
+  the whole frame. `calculate_cylindrical_pdp_area` — `run_artwork_scan` only (see below).
+- `required_declaration_location`, `pdp_declaration_mandatory` — `_placement_finding`.
+- `measure_contrast_ratio` — via `measure_declaration_contrast` (new), Rule 9(1)(b), REVIEW only.
+- `declarations_governed_by_rule`, `select_effective_rule` — `_refine` looks rules up by clause
+  and date. `rule7_requirements_apply` — via `rule7_governs_field` (new), Rule 7(5).
+  `rule_33_relaxation_applies` — `_refine`, FAIL→REVIEW_REQUIRED when a relaxation is recorded.
+  `rule_3b_is_subsumed_by_rule_3a` — `chapter_ii_scope`, every scope decision.
+- `remap_curvature` and `correct_perspective`'s transform — `vision.prepare_panel` (new), which
+  also maps polygons back onto the photograph. `remove_glare` and `correct_shadows`: **not
+  wired, by measurement** — see below.
+- `arbitrate_field_declaration` → `arbitrate_mrp` → `extract_mrp_quantity` → `pytesseract` —
+  `_doubts`, on every bound price and quantity.
+- `detect_tampering` — `_evaluate_frame`, every image scan; carried on
+  `ImageScanResult.tamper_signals`.
+- `verify_chain` — `GET /scans/{id}/evidence`, on every read. `append_entry` — every report
+  export. `generate_bsa_report`, `export_compliance_report` — `POST /scans/{id}/evidence/report`.
+- `parse_pdf_geometry`, `parse_svg_geometry`, `measure_artwork_ink_extent`,
+  `calculate_artwork_pdp_area` — `run_artwork_scan` (new).
+- Rule 6(11) — `R6-11-UNIT-SALE-PRICE`, `evaluate_unit_sale_price_basis` (new), both paths.
+
+### Still unreachable, and why
+
+- `evidence_router` is not mounted: `app/main.py` is another session's. A strict xfail
+  (`test_the_production_app_serves_the_evidence_surface`) flips the day it is.
+- `run_artwork_scan` has no HTTP caller: `pipeline/router.py` is another session's.
+- `PackageConfirmations` (shape, Rule 7(5), Rule 33) has no sender — three form fields in
+  `router.py`.
+- `RetentionManager` / `purge_evidence` / `is_legal_hold`: `RetentionManager.__init__` reads
+  three settings that **do not exist in `core/config.py`**; its tests mock `get_settings` with a
+  `MagicMock`. Constructing it in production raises. `S3ContentAddressedStorageClient` and
+  `LocalRFC3161Hook` likewise need settings that do not exist. All `core/config.py`.
+- `evaluate_numeric_constraint`: no rule in the store carries a `numeric_constraint`, and the
+  only candidate (6(11)'s ± figures) was ruled out as unsourced.
+- `calculate_pdp_area` (measurement) is no longer called by the orchestrator — it measured the
+  whole frame. Exported and tested; delete or repurpose.
+- `boto3` is reachable only through the S3 client above, so it is declared for a path with no
+  configuration. The other five (reportlab, python-docx, pdfplumber, defusedxml, pytesseract)
+  are genuinely reached.
+
+### Defects found by wiring, all fixed in the PRs above
+
+1. `measure_margins` counted the declaration's own ink as intruding ink, searched the whole
+   frame width for "above", and assumed dark ink. It had never been handed a real box.
+2. The coin homography did not rectify a coin tilted in place under either sign; the old test
+   passed at 4.75 % inside a 5 % tolerance with width untested. The "flake" was the tilt sign
+   keyed off `u_x`, float noise for a vertical axis, landing on opposite sides in 4.10 and 5.0.
+3. `_extract_numeric_value("MRP Rs. 45.00")` returned `""`, so a rupee price could never agree
+   with any second reading, its own included.
+4. `generate_bsa_report` defaulted `model_versions` to `PaddleOCR-v4 / YOLOv8-PDP / TruFor-v1`,
+   components this system has never run, onto a document meant for a court.
+5. `detect_sticker_overlay` raised `ValueError` on a non-finite polygon mid-scan.
+
+### Measured, not assumed
+
+- **VIS-001's photometric stages make OCR worse** on all four real captures (PP-OCRv6, nothing
+  else changed): `remove_glare` masks every bright unsaturated pixel — white backdrop, white
+  label, white print — and inpainted 55 % of `parle_g_130g`, 47 spans → 4. `correct_shadows`
+  47 → 40 and 31 → 20. n=4, all clean catalogue images; this is cost, not benefit, and no
+  accuracy figure follows. They are not in front of OCR and the reason is in
+  `prepare_panel`'s docstring.
+- **The sticker heuristic fires 6–22 times per untampered capture** (n=4). That is why a signal
+  on text bound to no declaration changes no finding.
+- With headless cv2 5.0 as the single build the whole suite was green and **real PaddleOCR
+  refused to construct** — paddlex checks for the `opencv-contrib-python==4.10.0.84`
+  distribution by name. OCR is mocked throughout the suite; only a real call catches it.
+
+### My own errors, by name
+
+- `git checkout origin/main -- bck/app` to build a red-before run, while `origin/main` had
+  moved under me (another session fetched into the shared refs): it staged the newer main into
+  my index. Caught by `git status` showing files I never touched; fixed with `git reset`. Every
+  later before-run diffed against the branch's own base commit.
+- #146 merged on a stale base: CAT-001 (#145) landed between my rebase and my merge, its test
+  fake lacked the `method` every real detection carries, and my placement code read it. Main's
+  postgres-marked run went red for about an hour; another session and I fixed the fake
+  concurrently, theirs landed first, mine was dropped in the rebase.
+- The Tesseract stand-in first lived in `tests/pipeline/conftest.py`; VND-002's vendor test
+  drives the image path from `tests/modules/vendor` and reached the real binary. Moved to the
+  root `tests/conftest.py`.
+- First pass at glare/shadow wiring was unconditional. Only running real OCR on the corpus
+  showed the damage.
+
+### Verification
+
+Each PR body carries its own red-before / green-after run, bytecode purged and the directory
+count asserted 0. Full suite at the end, against a throwaway Postgres cluster on :54329
+(`initdb` per the memory note): 1206 passed, 0 failed, 2 errors (MinIO). ruff, format,
+lint-imports clean throughout. One real scan (real PaddleOCR, real heuristic detection,
+`parle_g_130g`) runs end to end through `run_image_scan`.
+
+### Left for later
+
+- `rules-corpus/README.md:117` still says Rule 6(11) is deliberately not encoded. That
+  directory is add-only for me.
+- `bck/Dockerfile:6-8` describes three opencv builds; `libgl1` is still needed (contrib is
+  non-headless).
+- On `parle_g_130g` OCR reads `NET WEIGHT: 110g+20g EXTRA: 130g` and the binder binds no
+  NET_QUANTITY, so every quantity-anchored rule is INSUFFICIENT_EVIDENCE on that capture. That
+  is `extraction/net_quantity.py`.
+- The throwaway cluster is stopped at session end; nothing of it is committed.
