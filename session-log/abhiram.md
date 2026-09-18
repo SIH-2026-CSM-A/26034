@@ -3841,7 +3841,7 @@ was POTENTIAL_VIOLATION for no best-before and no dimensions.
   `POTENTIAL_VIOLATION`, which only worked because the biscuit listing was wrongly PV. It now
   forges whichever verdict was reached and asserts the bytes changed.
 
-### VND-002 — #150
+### VND-002 — #150, merged
 `VendorPrincipal` (not a `Principal`, not a tier; disjoint token claim sets so neither decoder
 accepts the other's token), `POST /vendors` (officer registers a premises **with** its login,
 inside their own territory, district required), `POST /vendors/auth/token`,
@@ -3868,6 +3868,6 @@ and `/category` → 401, asserted with the vendor's own token on their own scan.
   FastAPI source says otherwise and the docstring now says what is true.
 
 ### Verification, last measured
-VND-002 tip on `origin/main` @ `502068b`: `1198 passed` locally before the stub fix, all three
-CI checks on #150 pending at the time of writing this entry. `ruff format --check`,
+VND-002 tip on `origin/main` @ `502068b`: `1198 passed` locally before the stub fix; all three
+CI checks on #150 green, merged. `ruff format --check`,
 `ruff check`, `lint-imports` (149 files, 3 contracts kept) clean on every branch.
