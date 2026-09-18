@@ -119,6 +119,7 @@ def stored_detail(
         findings=tuple(finding_from_row(row) for row in findings),
         panel_spans=tuple(panel_spans),
         quality=outcome.quality,
+        refusal=outcome.refusal,
         category_proposal=outcome.category_proposal,
         display_category=outcome.display_category,
     )

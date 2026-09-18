@@ -124,6 +124,11 @@ class ScanDetail(ScanSummary):
     no verdict and no findings, and that is the whole of what it says: we could not read
     the photograph, which is not a statement about the package."""
 
+    refusal: str | None = None
+    """Present only where artwork could not be evaluated — an unparseable file, no ink to
+    measure — in the words the parser gave. The artwork counterpart of ``quality``: a scan
+    carrying this has no verdict, and the reason is about the file, not the package."""
+
     category_proposal: CategoryProposal | None = None
     """A category read off the label for an officer to confirm, reject, or ignore.
 
@@ -260,5 +265,6 @@ class CaptureOutcome(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     quality: QualityRejection | None = None
+    refusal: str | None = None
     category_proposal: CategoryProposal | None = None
     display_category: DisplayCategoryTaxonomy | None = None

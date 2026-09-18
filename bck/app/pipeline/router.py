@@ -24,7 +24,11 @@ jurisdiction whose tier is too low for the action.
 
 import asyncio
 import logging
+from collections.abc import Callable
+from dataclasses import asdict
 from datetime import UTC, datetime
+from functools import partial
+from pathlib import PurePosixPath
 from typing import Annotated
 from uuid import UUID
 
@@ -63,14 +67,20 @@ from app.core import (
 )
 from app.modules.evidence import LocalStorageClient
 from app.modules.evidence.storage import AssetPurgedError
+from app.modules.measurement import PackageShape
 from app.modules.rules import ProductCategory
 from app.modules.vendor import RoutingDecision, route_verdict
 from app.modules.vendor import repository as vendor_repository
 from app.pipeline import repository
 from app.pipeline.capture import QualityRejection
 from app.pipeline.orchestrator import (
+    ARTWORK_RASTER_DPI,
+    NOTHING_CONFIRMED,
+    ArtworkRefusal,
     Calibration,
     ImageScanResult,
+    PackageConfirmations,
+    run_artwork_scan,
     run_catalogue_scan,
     run_image_scan,
 )
@@ -159,8 +169,16 @@ async def submit_image_scan(
     product_category: Annotated[ProductCategory | None, Form()] = None,
     institutional_or_industrial_confirmed: Annotated[bool, Form()] = False,
     ward: Annotated[str | None, Form()] = None,
+    package_shape: Annotated[PackageShape, Form()] = PackageShape.RECTANGULAR,
+    declarations_required_under_other_law: Annotated[bool, Form()] = False,
+    rule_33_relaxation_granted: Annotated[bool, Form()] = False,
 ) -> ScanDetail:
     """Accept a photographed package and evaluate it after this response has gone.
+
+    The last three fields are :class:`PackageConfirmations` — what the officer has
+    established about the package that no photograph can: which limb of Rule 7(4) sizes
+    the panel, whether Rule 7(5) disapplies Rule 7's sizing, whether a Rule 33 relaxation
+    has been recorded. Each defaults to confirming nothing.
 
     The response is the scan at PROCESSING with no verdict: the row a client polls
     ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
@@ -187,7 +205,115 @@ async def submit_image_scan(
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         ward=ward,
         hold_capture=True,
+        confirmations=PackageConfirmations(
+            shape=package_shape,
+            declarations_required_under_other_law=declarations_required_under_other_law,
+            rule_33_relaxation_granted=rule_33_relaxation_granted,
+        ),
     )
+
+
+ARTWORK_TYPES = ("pdf", "svg")
+"""What :func:`~app.pipeline.orchestrator.run_artwork_scan` parses, by file extension."""
+
+
+@scan_router.post("/artwork", status_code=status.HTTP_201_CREATED)
+async def submit_artwork_scan(
+    session: Session,
+    principal: Officer,
+    background: BackgroundTasks,
+    artwork: Annotated[UploadFile, File()],
+    product_category: Annotated[ProductCategory | None, Form()] = None,
+    institutional_or_industrial_confirmed: Annotated[bool, Form()] = False,
+    ward: Annotated[str | None, Form()] = None,
+    package_shape: Annotated[PackageShape, Form()] = PackageShape.RECTANGULAR,
+    declarations_required_under_other_law: Annotated[bool, Form()] = False,
+    rule_33_relaxation_granted: Annotated[bool, Form()] = False,
+) -> ScanDetail:
+    """Accept pre-print artwork of the principal display panel — a PDF or an SVG.
+
+    The one path on which a millimetre is exact: the file states its own physical size, so
+    every measurement is :class:`~app.contracts.MeasurementExact` and no calibration is
+    asked for. Same shape as the image route otherwise — the scan is returned at
+    PROCESSING and polled, because the render is still read by OCR.
+
+    Stored with :attr:`~app.core.CalibrationMethod.ARTWORK`, which is the typed field that
+    already means "physical sizes are known exactly", and the file type beside it in
+    ``capture_metadata``. The file is held so a category confirmation can evaluate it
+    again, exactly as a photograph is.
+    """
+    kind = PurePosixPath(artwork.filename or "").suffix.lstrip(".").lower()
+    if kind not in ARTWORK_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"artwork must be one of {', '.join(ARTWORK_TYPES)}, by file extension",
+        )
+    return await _accept_artwork_scan(
+        session,
+        principal,
+        background,
+        await artwork.read(),
+        kind,
+        product_category=product_category,
+        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+        ward=ward,
+        confirmations=PackageConfirmations(
+            shape=package_shape,
+            declarations_required_under_other_law=declarations_required_under_other_law,
+            rule_33_relaxation_granted=rule_33_relaxation_granted,
+        ),
+    )
+
+
+async def _accept_artwork_scan(
+    session: AsyncSession,
+    principal: Principal,
+    background: BackgroundTasks,
+    file_bytes: bytes,
+    kind: str,
+    *,
+    product_category: ProductCategory | None,
+    institutional_or_industrial_confirmed: bool,
+    ward: str | None,
+    confirmations: PackageConfirmations,
+    re_evaluation_of: UUID | None = None,
+) -> ScanDetail:
+    """Store the artwork scan at PROCESSING, queue its evaluation, and return the row."""
+    scan = repository.new_scan(
+        principal,
+        ScanSourceType.PHYSICAL_LABEL,
+        CalibrationMethod.ARTWORK,
+        product_category,
+        ward=ward,
+    )
+    scan.image_refs = _hold_capture(file_bytes)
+    scan.capture_metadata = {
+        ARTWORK_TYPE_KEY: kind,
+        "artwork_dpi": ARTWORK_RASTER_DPI,
+        INSTITUTIONAL_KEY: institutional_or_industrial_confirmed,
+        CONFIRMATIONS_KEY: asdict(confirmations),
+    }
+    if re_evaluation_of is not None:
+        scan.capture_metadata[RE_EVALUATION_KEY] = str(re_evaluation_of)
+    async with session.begin():
+        repository.add_scan(session, scan)
+    await repository.mark_processing(session, scan)
+
+    background.add_task(
+        _evaluate_in_background,
+        scan.id,
+        partial(
+            run_artwork_scan,
+            file_bytes,
+            kind,
+            product_category=product_category,
+            evaluated_at=datetime.now(UTC),
+            subject_ref=str(scan.id),
+            institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+            confirmations=confirmations,
+        ),
+    )
+    return scan_detail(scan, None, finalised=False)
 
 
 async def _accept_image_scan(
@@ -204,6 +330,7 @@ async def _accept_image_scan(
     ward: str | None = None,
     hold_capture: bool = False,
     re_evaluation_of: UUID | None = None,
+    confirmations: PackageConfirmations = NOTHING_CONFIRMED,
 ) -> ScanDetail:
     """Store the scan at PROCESSING, queue evaluation, and return the row to poll.
 
@@ -227,6 +354,7 @@ async def _accept_image_scan(
         "reference_type": calibration.reference_type,
         "artwork_dpi": calibration.artwork_dpi,
         INSTITUTIONAL_KEY: institutional_or_industrial_confirmed,
+        CONFIRMATIONS_KEY: asdict(confirmations),
     }
     if re_evaluation_of is not None:
         scan.capture_metadata[RE_EVALUATION_KEY] = str(re_evaluation_of)
@@ -235,16 +363,22 @@ async def _accept_image_scan(
     await repository.mark_processing(session, scan)
 
     background.add_task(
-        _evaluate_image_scan,
+        _evaluate_in_background,
         scan.id,
-        frame,
-        calibration=Calibration(
-            method=calibration.method,
-            reference_type=calibration.reference_type,
-            artwork_dpi=calibration.artwork_dpi,
+        partial(
+            run_image_scan,
+            frame,
+            calibration=Calibration(
+                method=calibration.method,
+                reference_type=calibration.reference_type,
+                artwork_dpi=calibration.artwork_dpi,
+            ),
+            product_category=product_category,
+            evaluated_at=datetime.now(UTC),
+            subject_ref=str(scan.id),
+            institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
+            confirmations=confirmations,
         ),
-        product_category=product_category,
-        institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
     )
     return scan_detail(scan, None, finalised=False)
 
@@ -259,15 +393,15 @@ async def _accept_image_scan(
 _EVALUATION_LOCK = asyncio.Lock()
 
 
-async def _evaluate_image_scan(
+async def _evaluate_in_background(
     scan_id: UUID,
-    frame: np.ndarray,
-    *,
-    calibration: Calibration,
-    product_category: ProductCategory | None,
-    institutional_or_industrial_confirmed: bool,
+    evaluate: Callable[[], QualityRejection | ArtworkRefusal | ImageScanResult],
 ) -> None:
     """Run the pipeline off the event loop and store what it says.
+
+    ``evaluate`` is the whole call, bound at submission — :func:`run_image_scan` for a
+    photograph, :func:`run_artwork_scan` for artwork — so the two paths share every line
+    that stores an outcome and differ only in what they hand the chain.
 
     Runs after the submission response has been sent, on a session of its own — the
     request's session is closed by then. The pipeline is synchronous CPU work, so it goes
@@ -282,22 +416,17 @@ async def _evaluate_image_scan(
         assert scan is not None  # written and committed by the request that queued this
         try:
             async with _EVALUATION_LOCK:
-                outcome = await asyncio.to_thread(
-                    run_image_scan,
-                    frame,
-                    calibration=calibration,
-                    product_category=product_category,
-                    evaluated_at=datetime.now(UTC),
-                    subject_ref=str(scan.id),
-                    institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
-                )
+                outcome = await asyncio.to_thread(evaluate)
         except Exception:
             await repository.mark_failed(session, scan)
-            logger.exception("image scan %s failed during evaluation", scan.id)
+            logger.exception("scan %s failed during evaluation", scan.id)
             return
 
         if isinstance(outcome, QualityRejection):
             await repository.persist_quality_rejection(session, scan, outcome)
+            return
+        if isinstance(outcome, ArtworkRefusal):
+            await repository.persist_refusal(session, scan, outcome.reason)
             return
 
         assert isinstance(outcome, ImageScanResult)
@@ -434,6 +563,8 @@ async def review_scan(
 CATALOGUE_RECORD_KEY = "catalogue_record"
 INSTITUTIONAL_KEY = "institutional_or_industrial_confirmed"
 RE_EVALUATION_KEY = "re_evaluation_of"
+ARTWORK_TYPE_KEY = "artwork_file_type"
+CONFIRMATIONS_KEY = "confirmations"
 STORAGE_KEY = "storage_key"
 """Keys this router writes into ``Scan.capture_metadata`` and ``Scan.image_refs``."""
 
@@ -520,6 +651,7 @@ async def confirm_category(
             raise _not_found()
     filed_as = _as_filed(principal.subject, original)
     institutional = bool(original.capture_metadata.get(INSTITUTIONAL_KEY, False))
+    confirmations = _confirmations_of(original)
 
     if original.source_type is ScanSourceType.CATALOGUE_RECORD:
         stored = original.capture_metadata.get(CATALOGUE_RECORD_KEY)
@@ -544,20 +676,35 @@ async def confirm_category(
             institutional,
         )
 
-    detail = await _accept_image_scan(
-        session,
-        filed_as,
-        background,
-        _held_capture(original),
-        calibration_method=original.calibration_method,
-        reference_type=original.capture_metadata.get("reference_type"),
-        artwork_dpi=original.capture_metadata.get("artwork_dpi"),
-        product_category=body.product_category,
-        institutional_or_industrial_confirmed=institutional,
-        ward=original.ward,
-        hold_capture=True,
-        re_evaluation_of=scan_id,
-    )
+    if ARTWORK_TYPE_KEY in original.capture_metadata:
+        detail = await _accept_artwork_scan(
+            session,
+            filed_as,
+            background,
+            _held_capture(original),
+            original.capture_metadata[ARTWORK_TYPE_KEY],
+            product_category=body.product_category,
+            institutional_or_industrial_confirmed=institutional,
+            ward=original.ward,
+            confirmations=confirmations,
+            re_evaluation_of=scan_id,
+        )
+    else:
+        detail = await _accept_image_scan(
+            session,
+            filed_as,
+            background,
+            _held_capture(original),
+            calibration_method=original.calibration_method,
+            reference_type=original.capture_metadata.get("reference_type"),
+            artwork_dpi=original.capture_metadata.get("artwork_dpi"),
+            product_category=body.product_category,
+            institutional_or_industrial_confirmed=institutional,
+            ward=original.ward,
+            hold_capture=True,
+            re_evaluation_of=scan_id,
+            confirmations=confirmations,
+        )
     # A vendor's scan stays the vendor's when it is evaluated again: the attribution is
     # copied so the re-evaluation is theirs to read back as well as the officer's.
     async with session.begin():
@@ -565,6 +712,18 @@ async def confirm_category(
         if attribution is not None:
             vendor_repository.attribute_scan(session, detail.id, attribution.vendor_id)
     return detail
+
+
+def _confirmations_of(scan: Scan) -> PackageConfirmations:
+    """The confirmations a scan was submitted with, so a re-evaluation keeps them."""
+    stored = scan.capture_metadata.get(CONFIRMATIONS_KEY)
+    if not stored:
+        return NOTHING_CONFIRMED
+    return PackageConfirmations(
+        shape=PackageShape(stored["shape"]),
+        declarations_required_under_other_law=bool(stored["declarations_required_under_other_law"]),
+        rule_33_relaxation_granted=bool(stored["rule_33_relaxation_granted"]),
+    )
 
 
 def _decode(payload: bytes) -> np.ndarray:
