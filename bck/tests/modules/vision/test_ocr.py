@@ -229,3 +229,18 @@ def test_parse_paddle_results_strict_zip():
     bad_data = {"dt_polys": [[[0, 0]], [[1, 1]]], "rec_texts": ["A"], "rec_scores": [0.9, 0.8]}
     with pytest.raises(ValueError):
         _parse_paddle_results(bad_data)
+
+
+def test_a_rupee_price_printed_the_ordinary_way_agrees_with_itself():
+    """ "Rs." carries a full stop that is not part of the price.
+
+    Stripping every non-digit turned "MRP Rs. 45.00" into ".45.00" — two dots, malformed,
+    empty — so the commonest way a price is printed could never agree with any second
+    reading, its own included.
+    """
+    from app.modules.vision.ocr import _extract_numeric_value, arbitrate_mrp
+
+    assert _extract_numeric_value("MRP Rs. 45.00") == "45.00"
+    assert _extract_numeric_value("M.R.P. ₹ 1,250.00") == "1250.00"
+    assert not arbitrate_mrp("MRP Rs. 45.00", "MRPRs.45.00").needs_review
+    assert arbitrate_mrp("MRP Rs. 45.00", "MRPRs.48.00").needs_review

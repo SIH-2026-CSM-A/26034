@@ -242,13 +242,21 @@ def test_detect_sticker_invalid_image_raises_value_error():
 
 def test_tamper_result_probability_bounds_validation():
     dummy_region: tuple[Point, ...] = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
-    res_0 = TamperDetectionResult(probability=0.0, region=dummy_region, reason="valid min")
-    res_1 = TamperDetectionResult(probability=1.0, region=dummy_region, reason="valid max")
+    res_0 = TamperDetectionResult(
+        kind="sticker_overlay", probability=0.0, region=dummy_region, reason="valid min"
+    )
+    res_1 = TamperDetectionResult(
+        kind="sticker_overlay", probability=1.0, region=dummy_region, reason="valid max"
+    )
     assert res_0.probability == 0.0
     assert res_1.probability == 1.0
 
     with pytest.raises(ValidationError):
-        TamperDetectionResult(probability=-0.1, region=dummy_region, reason="invalid low")
+        TamperDetectionResult(
+            kind="sticker_overlay", probability=-0.1, region=dummy_region, reason="invalid low"
+        )
 
     with pytest.raises(ValidationError):
-        TamperDetectionResult(probability=1.1, region=dummy_region, reason="invalid high")
+        TamperDetectionResult(
+            kind="sticker_overlay", probability=1.1, region=dummy_region, reason="invalid high"
+        )

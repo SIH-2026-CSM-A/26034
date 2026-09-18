@@ -253,6 +253,11 @@ def scan_panel(spans=PANEL_SPANS, **overrides):
     with (
         patch("app.pipeline.orchestrator.detect_pdp", return_value=_Detection()),
         patch("app.pipeline.orchestrator.extract_panel_text", return_value=list(spans)),
+        # These spans are placed by hand and the frame's print is somewhere else, so the
+        # sticker detector is looking at the panel's edge rather than at a declaration and
+        # raises signals that mean nothing. Tamper wiring is tested on print that is really
+        # under its polygon, in test_evidence_doubts.py.
+        patch("app.pipeline.orchestrator.detect_tampering", return_value=[]),
     ):
         return run_image_scan(frame, **kwargs)
 

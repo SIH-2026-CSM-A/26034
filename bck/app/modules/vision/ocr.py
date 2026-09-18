@@ -28,17 +28,20 @@ class ArbitrationResult:
 
 
 def _extract_numeric_value(text: str) -> str:
-    """Robustly extracts the numeric value by stripping all non-digit and non-decimal characters.
+    """The figures in a reading, in order, with currency marks and grouping commas dropped.
 
-    Handles currency symbols (₹, Rs) and abbreviations safely.
+    Figure by figure rather than by deleting everything that is not a digit or a dot. The
+    full stop in "Rs." is not part of the price, and stripping around it turned
+    "MRP Rs. 45.00" into ".45.00" — two dots, so malformed, so empty — which made every
+    rupee price printed the ordinary way disagree with itself. A single figure carrying
+    two decimal points is still malformed and still reads as nothing.
     """
     if not text:
         return ""
-    # Keep only digits and decimal points
-    cleaned = re.sub(r"[^\d.]", "", text)
-    if cleaned.count(".") > 1:
+    figures = re.findall(r"\d[\d,]*(?:\.\d+)*", text)
+    if any(figure.count(".") > 1 for figure in figures):
         return ""
-    return cleaned.strip(".")
+    return "|".join(figure.replace(",", "") for figure in figures)
 
 
 def arbitrate_mrp(

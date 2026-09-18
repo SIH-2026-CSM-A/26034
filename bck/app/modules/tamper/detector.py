@@ -171,6 +171,7 @@ def detect_conflicting_mrps(spans: list[ExtractedSpan]) -> list[TamperDetectionR
         for span, val in cluster:
             results.append(
                 TamperDetectionResult(
+                    kind="conflicting_mrp",
                     probability=PRIOR_CONFLICTING_MRP_PROBABILITY,
                     region=span.polygon,
                     reason=(
@@ -208,7 +209,9 @@ def detect_sticker_overlay(
     h, w = image.shape[:2]
 
     for span in spans:
-        if not span.polygon:
+        if not span.polygon or not np.isfinite(np.array(span.polygon, dtype=np.float64)).all():
+            # A polygon the provider emitted malformed locates nothing to examine. The
+            # binder refuses to measure around it; this declines to look under it.
             continue
         pts = np.array(span.polygon, dtype=np.int32)
         px_min, py_min = int(np.min(pts[:, 0])), int(np.min(pts[:, 1]))
@@ -258,6 +261,7 @@ def detect_sticker_overlay(
         if has_sticker_edge:
             results.append(
                 TamperDetectionResult(
+                    kind="sticker_overlay",
                     probability=PRIOR_STICKER_OVERLAY_PROBABILITY,
                     region=span.polygon,
                     reason=f"Sticker overlay detected around span '{span.text}'",
