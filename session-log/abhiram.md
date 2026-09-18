@@ -3774,3 +3774,100 @@ instruction, as Sessions 27 and 28 did.
 
 Recorded in the PR body under "Found, not fixed" and in `TODO.md`. The one that matters for
 the demo: complaint lifecycle transitions are client-side only.
+
+## Session 30 — 2026-09-17/18, four mentor items and two security gaps (Claude Code, Fable 5.1)
+
+Five PRs, each branch-and-merge on green under Abhi's standing "merge when green" instruction,
+`--admin` where the only block was `REVIEW_REQUIRED`. Lane for the session: `main.py`,
+`core/**`, `contracts/**`, migrations, `pipeline/router.py`, `modules/{vendor,complaints,analytics}`
+and their tests. One deliberate deviation, recorded under NFD-001 below.
+
+Baseline measured in-session on `origin/main` @ `7857cf3` with a disposable Postgres 18
+(`initdb` on :5457): **1091 passed, 2 skipped, 1 failed** — the opencv coin flake, gone since
+#141. Every later number below was measured the same way, never carried.
+
+### SEC-001 — #140, merged `f82c807`
+- `/analytics/*` had no auth. Now `get_current_principal` on all four, and every aggregate
+  query takes the principal and applies `scope_to_jurisdiction` to the scan it counts. Consumer
+  scans (state `"consumer"`) stop leaking into officer aggregates as a side effect.
+- Consumer upload rate limit, no new dependency: `core/ratelimit.py` sliding window per client
+  (`CF-Connecting-IP` → `X-Real-IP` → peer; never `X-Forwarded-For`) and overall, plus a pending
+  cap on queued consumer evaluations. Settings `CONSUMER_SCANS_PER_CLIENT_PER_MINUTE=3`,
+  `CONSUMER_SCANS_PER_MINUTE=12`, `CONSUMER_SCANS_MAX_PENDING=5`. Verified in
+  `fastapi/routing.py` 0.141.1 that the multipart body is parsed (`:430`) before dependencies
+  resolve (`:481`), so the 429 spares decode/queue/OCR, not the upload; nginx's 25m cap bounds
+  that and an nginx `limit_req` is still worth adding by whoever owns `fnt/nginx.conf`.
+- `tests/modules/reviews/conftest.py` used `pytest.fail` where every other DB fixture skips.
+
+### CMP-002 — #142, merged `88ebbcc`
+`POST /complaints/{id}/transitions` `{status, note}`. New superseding row, never an edit;
+officer from the principal; RESOLVED/REJECTED require a note; illegal moves 409 via the
+domain's own `VALID_TRANSITIONS`. Migration **`7d2e9a41c3b8`** (down `5b522f144ba0`):
+`complaints.note` and `uq_complaints_supersedes_id` — the fork guard is the constraint alone.
+I first wrote an `is_superseded` look-before-write; falsification showed removing it left every
+test green because the constraint already answers the same 409, so it was deleted rather than
+kept as decoration.
+
+### CAT-001 — #145, merged `ad37622`
+`POST /scans/{id}/category` `{product_category}`. The proposal exists only after evaluation, so
+confirmation evaluates the same capture again under the confirmed category **as a new scan**,
+filed in the original's territory with the confirming officer as submitter. Officer uploads are
+now held content-addressed via the existing `LocalStorageClient` under `CAPTURE_STORE_DIR`
+(default `storage/captures`) and referenced from `Scan.image_refs`; catalogue records go in
+`capture_metadata`. Consumer uploads are never held. Two AST guards: nothing assigns
+`<x>.product_category`, and `confirm_category` references no proposal/display/capture-outcome
+name. Not in place because `pipeline/repository.add_evidence_entry` always writes a genesis
+entry and a second `persist_verdict` on one scan trips `uq_evidence_entries_scan_id_sequence`
+— raised, not fixed (not my file).
+
+### NFD-001 — #147, merged `502068b`
+Research from `rules-corpus/` only (the Maharashtra compilation, `pdftotext`): for a non-food,
+non-cosmetic, non-medical packaged good every Rule 6(1) declaration and Rules 7–9 apply except
+6(1)(da), conditioned on "a commodity which may become unfit for human consumption", and two
+clauses conditioned on facts no category settles: 6(1)(aa) "in case of imported products" and
+6(1)(f) "where the sizes … are relevant". Before this a phone listing — and a biscuit listing —
+was POTENTIAL_VIOLATION for no best-before and no dimensions.
+- `ProductCategory.NON_CONSUMABLE`: named by no `sector:` rule, so Chapter II applies in full.
+- `COMMODITY_CONDITIONED_RULES` (R6-1-DA → NOT_APPLICABLE for NON_CONSUMABLE, INSUFFICIENT
+  when unconfirmed, unchanged for the sectors) and `FACT_CONDITIONED_RULES` (R6-1-AA, R6-1-F:
+  absent → REVIEW_REQUIRED, never FAIL). Each phrase is asserted to be in the rule's
+  `source_text` in the store.
+- **Lane deviation:** touched `pipeline/dispositions.py`, `pipeline/rule_findings.py`,
+  `pipeline/findings.py`, `tests/pipeline/test_api.py` and one assertion in
+  `tests/modules/extraction/test_category.py`. No other channel reaches the engine without the
+  orchestrator; none of those files was on the DO-NOT-TOUCH list or any open branch. Said so
+  in the PR.
+- `test_tampering_with_a_stored_payload_breaks_the_chain` forged by replacing
+  `POTENTIAL_VIOLATION`, which only worked because the biscuit listing was wrongly PV. It now
+  forges whichever verdict was reached and asserts the bytes changed.
+
+### VND-002 — #150
+`VendorPrincipal` (not a `Principal`, not a tier; disjoint token claim sets so neither decoder
+accepts the other's token), `POST /vendors` (officer registers a premises **with** its login,
+inside their own territory, district required), `POST /vendors/auth/token`,
+`POST /vendor/scans/image` filed in the premises' territory from the register with
+`officer_id = "vendor:<username>"`, `GET /vendor/scans[/{id}]` over
+`own_scans()` = JOIN `vendor_scans` WHERE `vendor_id = <token>`. Vendor on `/scans/{id}/review`
+and `/category` → 401, asserted with the vendor's own token on their own scan. Migration
+**`9c4b7e2d1a05`** (down `7d2e9a41c3b8`): `vendor_accounts`. Up/down/up proved.
+
+### Caught mid-session
+- #146 (geometry wiring, other session) made the orchestrator read `detection.method`; the
+  shared stub in `tests/pipeline/test_image_submission.py` had none, and #146's base predated
+  #145, so its green tick was the stale-base kind `CLAUDE.md` warns about. After my rebase
+  `test_category_confirmation` went red on `main`; one-line fix rode on #150.
+- A MinIO with other credentials appeared on :9000 mid-session and turns the two
+  `test_minio_storage` tests into 403 errors locally. Environmental; not touched.
+
+### My own errors, by name
+- `git checkout <file>` on the not-yet-committed vendor router wiped a whole rewrite. Rewrote
+  it from the transcript; committed WIP first from then on.
+- A ruff reformat between two scripted edits meant an `_as_filed` replacement silently did
+  not apply while its call site did; caught by the vendor tests, not by me.
+- Wrote "runs before the body is read" in the rate-limiter docstring before checking; the
+  FastAPI source says otherwise and the docstring now says what is true.
+
+### Verification, last measured
+VND-002 tip on `origin/main` @ `502068b`: `1198 passed` locally before the stub fix, all three
+CI checks on #150 pending at the time of writing this entry. `ruff format --check`,
+`ruff check`, `lint-imports` (149 files, 3 contracts kept) clean on every branch.

@@ -7,6 +7,35 @@ them, read the file.
 
 ---
 
+## After Session 30 (2026-09-18, mentor items 3/4/5/7 + security, #140 #142 #145 #147 #150) — read this first
+
+Backend now has: authenticated + jurisdiction-scoped `/analytics/*`; a consumer upload rate
+limit; `POST /complaints/{id}/transitions`; `POST /scans/{id}/category`; `non_consumable` as a
+confirmable category with Rule 6(1)(da)/(aa)/(f) applicability gates; vendor login and
+self-scan. Migrations `7d2e9a41c3b8` and `9c4b7e2d1a05` — run `alembic upgrade head` on the VM.
+
+1. **`fnt/` has none of it.** Wire `ComplaintTracking.tsx` to the transitions route (closes
+   Session 29 item 1); add a confirm-category control to `VerdictDetail.tsx` that offers all four
+   `ProductCategory` values (the proposer never proposes `non_consumable`, so the UI must); a
+   vendor login + scan page against `/vendors/auth/token` and `/vendor/scans`.
+2. **In-place re-evaluation is impossible**: `pipeline/repository.add_evidence_entry` always
+   writes a genesis entry. Category confirmation therefore creates a *new* scan, and a
+   confirmed package is two rows in `GET /scans`. If one row is wanted, `add_evidence_entry`
+   needs `append_entry`, and `ScanDetail` should expose `capture_metadata.re_evaluation_of`.
+3. **Held captures have no retention wiring.** `CAPTURE_STORE_DIR` (default `storage/captures`)
+   grows with every officer/vendor upload; `evidence/retention.py` has the policy and
+   `purge_image`. In Docker it is inside the container unless a volume is mounted.
+4. **Rate limiter is per process.** Fine for one uvicorn worker; Redis if a second appears.
+   `fnt/nginx.conf` still has no `limit_req`, and the 429 does not spare receiving the body.
+5. **Catalogue scans missing country-of-origin or dimensions now read REVIEW, not
+   POTENTIAL_VIOLATION.** Stored verdicts are snapshots and unaffected; the demo seed's PV count
+   will drop if it is re-run.
+6. **Rule 6(2) consumer care and Rule 26 are not in the store**, so a phone carton is not
+   checked for a consumer-care line. Adding them is a rules-module ticket, cited to the corpus.
+7. **Non-food consumables (tobacco, pet food, …) still have no confirmable category** — nothing
+   in the corpus says which framework governs their date marking, so it was not invented.
+8. The `test_minio_storage` tests error (403) on this box because a foreign MinIO is on :9000.
+
 ## After Session 29 (2026-09-17, frontend design system, #143) — read this first
 
 `fnt/DESIGN.md` is rewritten and is the source of truth; `node fnt/scripts/contrast.mjs` must
