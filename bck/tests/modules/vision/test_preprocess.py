@@ -2,6 +2,7 @@ import time
 
 import cv2
 import numpy as np
+import pytest
 
 from app.modules.vision.preprocess import (
     QualityResult,
@@ -160,3 +161,55 @@ def test_remap_curvature_performance_at_realistic_resolution():
 
     assert result.shape == large_image.shape
     assert elapsed < 0.5  # generous budget; a per-pixel Python loop would take 10s+
+
+
+def test_prepared_points_map_back_onto_the_photograph():
+    """A mark found on the prepared frame is reported where it is on the photograph.
+
+    Deskew and unwarp both move pixels, and the photograph is what the evidence record
+    stores. Drawn rather than computed: the mark is located on the prepared image by
+    looking for it, so this fails if ``to_source`` and the real transforms ever disagree.
+    """
+    from app.modules.vision.preprocess import prepare_panel
+
+    frame = np.full((900, 1200, 3), 200, dtype=np.uint8)
+    cv2.rectangle(frame, (100, 100), (1100, 800), (40, 40, 40), -1)
+    cv2.circle(frame, (830, 330), 6, (255, 255, 255), -1)
+
+    for cylindrical in (False, True):
+        prepared = prepare_panel(frame, cylindrical=cylindrical)
+        assert prepared.perspective is not None, "the panel outline covers 65 % of the frame"
+        bright = np.argwhere(cv2.cvtColor(prepared.image, cv2.COLOR_BGR2GRAY) > 250)
+        centre = bright.mean(axis=0)[::-1]
+        restored = prepared.to_source(np.array([centre]))[0]
+        assert restored == pytest.approx((830.0, 330.0), abs=2.0), cylindrical
+
+
+def test_a_small_quadrilateral_is_not_taken_for_the_label():
+    """A price flash is four-cornered too. Warping to it would crop the declarations away."""
+    from app.modules.vision.preprocess import prepare_panel
+
+    frame = np.full((900, 1200, 3), 200, dtype=np.uint8)
+    cv2.rectangle(frame, (500, 400), (700, 500), (40, 40, 40), -1)
+    prepared = prepare_panel(frame)
+    assert prepared.perspective is None
+    assert prepared.image.shape == frame.shape
+
+
+def test_spans_are_returned_untouched_when_nothing_geometric_ran():
+    from app.modules.vision.preprocess import PreparedPanel
+
+    spans = [object()]
+    assert PreparedPanel(image=np.zeros((2, 2, 3), np.uint8)).restore(spans)[0] is spans[0]
+
+
+def test_a_malformed_polygon_is_not_laundered_into_a_finite_one():
+    """Measured before the guard: a NaN vertex left the inverse homography as a number."""
+    from types import SimpleNamespace
+
+    from app.modules.vision.preprocess import prepare_panel
+
+    frame = np.full((900, 1200, 3), 200, dtype=np.uint8)
+    cv2.rectangle(frame, (100, 100), (1100, 800), (40, 40, 40), -1)
+    span = SimpleNamespace(polygon=((float("nan"), 5.0), (9.0, 5.0), (9.0, 9.0)))
+    assert prepare_panel(frame).restore([span])[0] is span

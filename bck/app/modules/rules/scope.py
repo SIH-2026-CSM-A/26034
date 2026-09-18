@@ -132,7 +132,9 @@ def chapter_ii_scope(
     one, an inferred one outranks an indicated one, and anything unestablished leaves the
     package governed.
 
-    Rule 3(b) has no branch. See :func:`rule_3b_is_subsumed_by_rule_3a`.
+    Rule 3(b) has no branch of its own while Rule 3(a) subsumes it, which
+    :func:`rule_3b_is_subsumed_by_rule_3a` reads off the store on every call. The day an
+    amendment makes it operative, a package that would have been governed is UNCERTAIN.
     """
     condition = _condition()
 
@@ -194,6 +196,24 @@ def chapter_ii_scope(
             ),
             rule_id=CHAPTER_SCOPE_RULE_ID,
             limb="Rule 3(c)",
+        )
+
+    if not rule_3b_is_subsumed_by_rule_3a():
+        # Reached only on a store amended so that Rule 3(b)'s bag threshold falls below
+        # Rule 3(a)'s. At that point a bag Rule 3(a) leaves governed may be one Rule 3(b)
+        # excludes, and nothing on a label says whether it holds cement, fertilizer or farm
+        # produce. Calling the package governed would be answering that by not asking.
+        return ScopeDecision(
+            status=ScopeStatus.UNCERTAIN,
+            reason=(
+                f"Rule 3(b) disapplies Chapter II to cement, fertilizer and agricultural farm "
+                f"produce in bags above {condition.bagged_maximum_inclusive_kg} kilogram, which "
+                f"is below the Rule 3(a) threshold of {condition.maximum_weight_inclusive_kg} "
+                f"kilogram, so Rule 3(a) no longer settles it. Whether this package is such a "
+                f"bag is not established by the label."
+            ),
+            rule_id=CHAPTER_SCOPE_RULE_ID,
+            limb="Rule 3(b)",
         )
 
     return ScopeDecision(

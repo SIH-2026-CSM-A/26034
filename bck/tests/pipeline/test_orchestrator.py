@@ -241,6 +241,7 @@ def scan_panel(spans=PANEL_SPANS, **overrides):
         bbox = (60, 60, 680, 480)
         area = 326400
         confidence = 0.81
+        method = "heuristic"
 
     kwargs = dict(
         calibration=Calibration(method=CalibrationMethod.NONE),
@@ -494,7 +495,7 @@ def test_a_proposed_category_is_offered_to_the_officer_and_routes_nothing() -> N
         "proposal existed. If this fell to 0, something is routing on the proposal: the "
         "confirmed category is an officer's act and a reading must never stand in for it"
     )
-    assert len(insufficient) == 53
+    assert len(insufficient) == 52
     assert result.verdict.verdict is Verdict.REVIEW
 
 
@@ -568,7 +569,7 @@ def test_a_display_category_is_carried_on_the_response_and_routes_nothing() -> N
         "display classification. A shelf label is not a legal category and must move "
         "nothing: packaged_food is not food, and household is not a ProductCategory at all"
     )
-    assert len(insufficient) == 53
+    assert len(insufficient) == 52
     assert result.verdict.verdict is Verdict.REVIEW
 
 

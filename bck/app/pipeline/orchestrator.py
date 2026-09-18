@@ -16,9 +16,11 @@ runs. There is no verdict for a package we could not photograph properly, and pr
 one from a bad capture is how "we could not see it" becomes "it is not there".
 """
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import TypeVar
 
 import numpy as np
@@ -31,31 +33,66 @@ from app.contracts import (
     DeclarationField,
     EvidenceProvider,
     ExtractedSpan,
+    FieldFinding,
+    FieldState,
+    MeasurementCalibrated,
+    MeasurementExact,
+    MeasurementMarginOverlapCalibrated,
+    MeasurementMarginOverlapExact,
+    MeasurementRefusal,
     MeasurementResult,
     NormalisedField,
     VerdictRecord,
 )
 from app.core import CalibrationMethod, get_settings
 from app.modules.extraction import bind_spans, propose_category
+from app.modules.extraction.binder import (
+    BboxRefusal,
+    bbox_refusal_officer_reason,
+    get_declaration_bbox,
+)
 from app.modules.extraction.category import DisplayCategoryTaxonomy, classify_display_category
 from app.modules.measurement import (
-    calculate_pdp_area,
+    MeasurementMarginSet,
+    PackageShape,
+    measure_declaration_contrast,
     measure_ink_extent,
+    measure_margins,
+    measure_panel_dimensions,
     measure_width_to_height_ratio,
+    segment_declaration_glyphs,
 )
 from app.modules.rules import (
+    FreeSpaceMeasurement,
     ProductCategory,
+    RuleDefinition,
+    SideClearance,
+    SideOverlap,
+    Verdict,
+    WidthRatioResult,
+    calculate_other_shape_pdp_area,
+    calculate_rectangular_pdp_area,
+    chapter_ii_scope,
+    declarations_governed_by_rule,
     default_rule_set_version,
+    evaluate_rule7_width,
+    evaluate_rule8_free_space,
     load_rules,
     not_for_retail_sale_declared,
+    pdp_declaration_mandatory,
+    required_declaration_location,
+    rule7_governs_field,
+    rule_33_relaxation_applies,
+    select_effective_rule,
 )
 from app.modules.vision.ocr import extract_panel_text
-from app.modules.vision.pdp import detect_pdp
-from app.modules.vision.preprocess import quality_gate
+from app.modules.vision.pdp import PDPDetection, detect_pdp
+from app.modules.vision.preprocess import prepare_panel, quality_gate
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
+from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, required_declarations
 from app.pipeline.findings import build_findings
 from app.pipeline.normalisation import normalise_declaration
-from app.pipeline.rule_findings import EvidenceContext
+from app.pipeline.rule_findings import EvidenceContext, finding, scope_findings, sector_findings
 from app.pipeline.verdict import assemble_verdict
 
 UNBOUND_DECLARATION_REASON = (
@@ -176,33 +213,650 @@ class Calibration:
     """Resolution of supplied pre-print artwork, where the basis is artwork."""
 
 
-def _measurements(image: np.ndarray, calibration: Calibration) -> Mapping[str, MeasurementResult]:
-    """Run every measurement the rules need, keyed by the condition kind that needs it.
+Region = tuple[int, int, int, int]
+"""``(x, y, width, height)`` on the frame as photographed."""
+
+GLYPH_PADDING_PX = 2
+"""Background left around a segmented glyph before it is measured. A glyph cut exactly to
+its ink — the stem of an "l" — is a uniform crop, and no threshold can find ink in one."""
+
+TABLE_HEIGHT_CLAUSE = "Rule 7(2), Table-I"
+WIDTH_RATIO_CLAUSE = "Rule 7(3)"
+PLACEMENT_CLAUSE = "Rule 8(1)"
+FREE_SPACE_CLAUSE = "Rule 8(1) proviso"
+MANNER_CLAUSE = "Rule 9(1)"
+"""The clauses this module evaluates from geometry, as the store names them. Looked up by
+clause and date through :func:`~app.modules.rules.select_effective_rule` rather than by
+rule id, so an amended version of any of them is picked up without an edit here."""
+
+
+@dataclass(frozen=True)
+class PackageConfirmations:
+    """What an officer has confirmed about the package that no photograph establishes.
+
+    Every field defaults to confirming nothing. The same shape, and the same reason, as
+    ``product_category``: each of these is a determination about the package, and a
+    pipeline that guessed one would be making it.
+    """
+
+    shape: PackageShape = PackageShape.RECTANGULAR
+    """Which limb of Rule 7(4) computes the principal display panel area."""
+
+    declarations_required_under_other_law: bool = False
+    """Rule 7(5): the package's declarations are also required by or under another law."""
+
+    rule_33_relaxation_granted: bool = False
+    """An order under Rule 33 relaxing these Rules for this package has been recorded."""
+
+
+NOTHING_CONFIRMED = PackageConfirmations()
+"""The default for every scan: a rectangular package about which nothing has been confirmed."""
+
+
+@dataclass(frozen=True)
+class _Geometry:
+    """Everything measured around the quantity declaration and the detected panel."""
+
+    quantity_region: Region | MeasurementRefusal
+    numeral_height: MeasurementResult
+    panel_area: MeasurementResult
+    margins: MeasurementMarginSet | MeasurementRefusal
+    glyph_ratios: tuple[tuple[str, MeasurementResult], ...] | MeasurementRefusal
+    regions: Mapping[DeclarationField, Region]
+    contrast: Mapping[DeclarationField, MeasurementResult]
+
+
+def _region_of(
+    field: NormalisedField, spans: Sequence[ExtractedSpan]
+) -> Region | MeasurementRefusal:
+    box = get_declaration_bbox(field, spans)
+    if isinstance(box, BboxRefusal):
+        return MeasurementRefusal(
+            reason=(
+                "the declaration could not be located on the frame, so there is nothing to "
+                f"measure around: {bbox_refusal_officer_reason(box)}."
+            )
+        )
+    min_x, min_y, max_x, max_y = box
+    x, y = math.floor(min_x), math.floor(min_y)
+    return x, y, math.ceil(max_x) - x, math.ceil(max_y) - y
+
+
+def _calibration_arguments(image: np.ndarray, calibration: Calibration) -> dict:
+    return {
+        "ref_image": image if calibration.method is CalibrationMethod.REFERENCE_OBJECT else None,
+        "ref_type": calibration.reference_type,
+        "is_artwork": calibration.method is CalibrationMethod.ARTWORK,
+        "artwork_dpi": calibration.artwork_dpi,
+    }
+
+
+def _quantity_glyphs(
+    image: np.ndarray, field: NormalisedField, spans: Sequence[ExtractedSpan]
+) -> tuple[tuple[str, Region], ...] | MeasurementRefusal:
+    """Every printed character of the quantity declaration, span by span.
+
+    Segmented per span rather than over the declaration's whole box: glyphs are paired with
+    characters left to right, which only means something along one line of print.
+    """
+    by_id = {span.span_id: span for span in spans}
+    glyphs: list[tuple[str, Region]] = []
+    for span_id in field.span_refs:
+        span = by_id[span_id]
+        region = _region_of(field.model_copy(update={"span_refs": (span_id,)}), spans)
+        if isinstance(region, MeasurementRefusal):
+            return region
+        found = segment_declaration_glyphs(image, region, span.text)
+        if isinstance(found, MeasurementRefusal):
+            return found
+        glyphs.extend(found)
+    return tuple(glyphs)
+
+
+def _padded(region: Region) -> Region:
+    x, y, w, h = region
+    return (
+        x - GLYPH_PADDING_PX,
+        y - GLYPH_PADDING_PX,
+        w + 2 * GLYPH_PADDING_PX,
+        h + 2 * GLYPH_PADDING_PX,
+    )
+
+
+def _panel_area(
+    image: np.ndarray,
+    detection: PDPDetection,
+    calibration: Calibration,
+    shape: PackageShape,
+) -> MeasurementResult:
+    """Rule 7(4): the area of the panel ``detect_pdp`` found, by the limb for this shape.
+
+    The panel, not the frame. Table-I bands a character height against this figure, and a
+    photograph is always larger than the panel in it, so the frame's area moved every
+    package into a higher band and demanded taller print than the rule does.
+
+    Measurement supplies the dimensions and the rule store supplies the formula, including
+    the 40 per cent of limbs (b) and (c): a multiplier written into this file would be one
+    no gazette backs.
+    """
+    if shape is PackageShape.CYLINDRICAL:
+        return MeasurementRefusal(
+            reason=(
+                "Rule 7(4)(b) computes a cylindrical package's panel area from the height of "
+                "the package and its circumference, and a photograph of one face shows "
+                "neither."
+            )
+        )
+    height, width = measure_panel_dimensions(
+        image, detection.bbox, **_calibration_arguments(image, calibration)
+    )
+    if isinstance(height, MeasurementRefusal):
+        return height
+    if isinstance(width, MeasurementRefusal):
+        return width
+    rectangle_cm2 = calculate_rectangular_pdp_area(
+        Decimal(str(height.value)) / 10, Decimal(str(width.value)) / 10
+    )
+    if shape is PackageShape.RECTANGULAR:
+        area, limb = rectangle_cm2, "rectangular"
+    else:
+        area = calculate_other_shape_pdp_area(legally_applicable_pdp_area=rectangle_cm2)
+        limb = "other: the area considered to be the principal display panel"
+    if isinstance(height, MeasurementCalibrated) and isinstance(width, MeasurementCalibrated):
+        relative = (
+            height.confidence_interval / height.value + width.confidence_interval / width.value
+        )
+        return MeasurementCalibrated(
+            value=float(area),
+            confidence_interval=float(area) * relative,
+            unit="cm²",
+            reference_object=height.reference_object,
+            rule_limb=limb,
+        )
+    return MeasurementExact(value=float(area), unit="cm²", rule_limb=limb)
+
+
+def _measure(
+    image: np.ndarray,
+    *,
+    calibration: Calibration,
+    detection: PDPDetection,
+    declared: Mapping[DeclarationField, tuple[NormalisedField, ...]],
+    spans: Sequence[ExtractedSpan],
+    shape: PackageShape,
+) -> _Geometry:
+    """Run every measurement the rules need, around the declaration each rule is about.
 
     Every measurement runs. None is skipped on the grounds that it will probably refuse:
     the measurement module decides whether a basis exists, and it decides it the same way
     every time by looking at what it was actually given. Without a reference object or
-    artwork each of these returns a
-    :class:`~app.contracts.MeasurementRefusal`, which carries a reason and has no field
-    that could hold a millimetre figure.
+    artwork each of these returns a :class:`~app.contracts.MeasurementRefusal`, which
+    carries a reason and has no field that could hold a millimetre figure.
+
+    All of it is taken from the frame as photographed. The prepared image OCR read has had
+    its contrast equalised and may have been deskewed; spans are mapped back before they
+    reach here, so a box and the pixels under it are always the same picture.
     """
-    is_artwork = calibration.method is CalibrationMethod.ARTWORK
-    reference = image if calibration.method is CalibrationMethod.REFERENCE_OBJECT else None
-    common = {
-        "ref_image": reference,
-        "ref_type": calibration.reference_type,
-        "is_artwork": is_artwork,
-        "artwork_dpi": calibration.artwork_dpi,
+    common = _calibration_arguments(image, calibration)
+    regions: dict[DeclarationField, Region] = {}
+    for field_type, fields in declared.items():
+        region = _region_of(fields[0], spans)
+        if not isinstance(region, MeasurementRefusal):
+            regions[field_type] = region
+
+    quantity = declared.get(DeclarationField.NET_QUANTITY, ())
+    quantity_region: Region | MeasurementRefusal = (
+        _region_of(quantity[0], spans)
+        if quantity
+        else MeasurementRefusal(
+            reason=(
+                "no net quantity declaration was bound on this capture, so there is no "
+                "declaration to measure."
+            )
+        )
+    )
+    if isinstance(quantity_region, MeasurementRefusal):
+        return _Geometry(
+            quantity_region=quantity_region,
+            numeral_height=quantity_region,
+            panel_area=_panel_area(image, detection, calibration, shape),
+            margins=quantity_region,
+            glyph_ratios=quantity_region,
+            regions=regions,
+            contrast={f: measure_declaration_contrast(image, r) for f, r in regions.items()},
+        )
+
+    glyphs = _quantity_glyphs(image, quantity[0], spans)
+    numeral_height: MeasurementResult
+    glyph_ratios: tuple[tuple[str, MeasurementResult], ...] | MeasurementRefusal
+    if isinstance(glyphs, MeasurementRefusal):
+        numeral_height, glyph_ratios = glyphs, glyphs
+    else:
+        heights = [
+            measure_ink_extent(image, region=_padded(region), **common)
+            for character, region in glyphs
+            if character.isdigit()
+        ]
+        measured = [h for h in heights if not isinstance(h, MeasurementRefusal)]
+        if measured:
+            # The shortest numeral: "the height of any numeral" is met only if every one is.
+            numeral_height = min(measured, key=lambda h: h.value)
+        else:
+            numeral_height = next(
+                iter(heights),
+                MeasurementRefusal(reason="the quantity declaration was read with no numeral."),
+            )
+        glyph_ratios = tuple(
+            (character, measure_width_to_height_ratio(image, region=_padded(region), **common))
+            for character, region in glyphs
+            if character.isalnum()
+        )
+
+    return _Geometry(
+        quantity_region=quantity_region,
+        numeral_height=numeral_height,
+        panel_area=_panel_area(image, detection, calibration, shape),
+        margins=measure_margins(image, quantity_region, **common),
+        glyph_ratios=glyph_ratios,
+        regions=regions,
+        contrast={f: measure_declaration_contrast(image, r) for f, r in regions.items()},
+    )
+
+
+def _cited(context: EvidenceContext, field: DeclarationField) -> tuple[str, ...]:
+    """The spans behind the declaration a geometric finding was measured on."""
+    declared = context.declared.get(field, ())
+    return declared[0].span_refs if declared else ()
+
+
+def _describe(result: MeasurementResult) -> str:
+    """A measured figure with its unit and, where it has one, its interval."""
+    if isinstance(result, (MeasurementMarginOverlapExact, MeasurementMarginOverlapCalibrated)):
+        text = f"overlap {result.overlap:.2f} {result.unit}"
+    else:
+        text = f"{result.value:.2f} {result.unit}"
+    interval = getattr(result, "confidence_interval", None)
+    return text if interval is None else f"{text} (±{interval:.2f})"
+
+
+def _straddles(value: float, interval: float | None, threshold: float) -> bool:
+    """Whether a calibrated figure's interval contains the threshold it is compared with."""
+    return interval is not None and abs(value - threshold) <= interval
+
+
+WITHIN_UNCERTAINTY = (
+    " The measured figure is within the calibration's own uncertainty of the requirement, "
+    "so which side of it the package falls on is not established by this capture."
+)
+
+
+def _free_space_finding(
+    rule: RuleDefinition, context: EvidenceContext, geometry: _Geometry
+) -> FieldFinding:
+    """Rule 8(1) proviso, from four measured clearances and the numeral's own height."""
+    field = DeclarationField.NET_QUANTITY
+    margins, numeral = geometry.margins, geometry.numeral_height
+    # The clearances before the numeral: with no calibration both refuse, and "there is no
+    # reference object" is the reason an officer can act on.
+    candidates: tuple[MeasurementResult, ...] = (
+        (margins,)
+        if isinstance(margins, MeasurementRefusal)
+        else (margins.above, margins.below, margins.left, margins.right)
+    )
+    refused = next((r for r in (*candidates, numeral) if isinstance(r, MeasurementRefusal)), None)
+    if refused is not None:
+        return finding(
+            rule,
+            field,
+            FieldState.INSUFFICIENT_EVIDENCE,
+            f"the measurement this rule needs was not made: {refused.reason}",
+            context,
+        )
+
+    def side(result: MeasurementResult) -> SideClearance | SideOverlap:
+        if isinstance(result, (MeasurementMarginOverlapExact, MeasurementMarginOverlapCalibrated)):
+            return SideOverlap(overlap_mm=Decimal(str(result.overlap)))
+        return SideClearance(distance_mm=Decimal(str(result.value)))
+
+    sides = {
+        "above": margins.above,
+        "below": margins.below,
+        "left": margins.left,
+        "right": margins.right,
     }
-    return {
-        "table_height": measure_ink_extent(image, **common),
-        "width_ratio": measure_width_to_height_ratio(image, **common),
-        "pdp_area": calculate_pdp_area(image, **common),
-        # Rule 8(1)'s proviso compares four clearances against the numeral's own height.
-        # measure_margins needs a declaration bounding box to measure around, and binding
-        # a declaration to a box is EXT-004. Until then there is nothing to measure from,
-        # which the rule's finding reports as INSUFFICIENT_EVIDENCE rather than as a pass.
+    evaluation = evaluate_rule8_free_space(
+        FreeSpaceMeasurement(
+            numeral_height_mm=Decimal(str(numeral.value)),
+            space_above=side(margins.above),
+            space_below=side(margins.below),
+            space_left=side(margins.left),
+            space_right=side(margins.right),
+        )
+    )
+    required = {
+        "above": evaluation.required_above_below_mm,
+        "below": evaluation.required_above_below_mm,
+        "left": evaluation.required_left_right_mm,
+        "right": evaluation.required_left_right_mm,
     }
+    uncertain = any(
+        _straddles(
+            result.value, getattr(result, "confidence_interval", None), float(required[name])
+        )
+        for name, result in sides.items()
+        if hasattr(result, "value")
+    )
+    state = FIELD_STATE_FROM_VERDICT[evaluation.verdict]
+    if evaluation.deficient_sides:
+        reason = (
+            "the free space around the quantity declaration was measured and falls short of "
+            f"the proviso on: {', '.join(evaluation.deficient_sides)}."
+        )
+        if evaluation.overlapping_sides:
+            reason += (
+                " Printed information crosses into the declaration's own space on: "
+                f"{', '.join(evaluation.overlapping_sides)}."
+            )
+    else:
+        reason = (
+            "the free space around the quantity declaration was measured on all four sides "
+            "and meets the proviso."
+        )
+    if uncertain and not evaluation.overlapping_sides:
+        state, reason = FieldState.REVIEW_REQUIRED, reason + WITHIN_UNCERTAINTY
+    return finding(
+        rule,
+        field,
+        state,
+        reason,
+        context,
+        observed_value="; ".join(
+            [f"numeral height {_describe(numeral)}"]
+            + [f"{name} {_describe(result)}" for name, result in sides.items()]
+        ),
+        expected_value=(
+            f"above and below at least {evaluation.required_above_below_mm:.2f} mm; "
+            f"left and right at least {evaluation.required_left_right_mm:.2f} mm"
+        ),
+        evidence_span_ids=_cited(context, field),
+    )
+
+
+def _width_ratio_finding(
+    rule: RuleDefinition, context: EvidenceContext, geometry: _Geometry
+) -> FieldFinding:
+    """Rule 7(3), one printed character at a time, with its named exemptions applied."""
+    field = DeclarationField.NET_QUANTITY
+    ratios = geometry.glyph_ratios
+    refused = (
+        ratios
+        if isinstance(ratios, MeasurementRefusal)
+        else next((r for _, r in ratios if isinstance(r, MeasurementRefusal)), None)
+    )
+    if refused is not None or not ratios:
+        reason = refused.reason if refused is not None else "no letter or numeral was isolated."
+        return finding(
+            rule,
+            field,
+            FieldState.INSUFFICIENT_EVIDENCE,
+            f"the measurement this rule needs was not made: {reason}",
+            context,
+        )
+
+    minimum = float(rule.conditions.minimum_width_to_height_ratio)
+    narrow: list[str] = []
+    uncertain = False
+    verdicts: list[Verdict] = []
+    for character, ratio in ratios:
+        evaluation = evaluate_rule7_width(
+            character=character,
+            width=Decimal(str(ratio.value)),
+            height=Decimal(1),
+            product_category=context.product_category,
+            evaluation_date=context.evaluation_date,
+        )
+        verdicts.append(evaluation.verdict)
+        if evaluation.ratio_result is WidthRatioResult.EXEMPT:
+            continue
+        if evaluation.ratio_result is WidthRatioResult.DOES_NOT_MEET:
+            narrow.append(f"{character!r} at {ratio.value:.2f}")
+        uncertain = uncertain or _straddles(
+            ratio.value, getattr(ratio, "confidence_interval", None), minimum
+        )
+
+    if any(v is Verdict.POTENTIAL_VIOLATION for v in verdicts):
+        verdict = Verdict.POTENTIAL_VIOLATION
+    elif any(v is Verdict.REVIEW for v in verdicts):
+        verdict = Verdict.REVIEW
+    else:
+        verdict = Verdict.PASS
+    state = FIELD_STATE_FROM_VERDICT[verdict]
+    reason = (
+        f"each letter and numeral of the quantity declaration was measured; narrower than "
+        f"one third of its height: {', '.join(narrow)}."
+        if narrow
+        else "each letter and numeral of the quantity declaration was measured, and every "
+        "one not exempted by name is at least one third as wide as it is tall."
+    )
+    if uncertain:
+        state, reason = FieldState.REVIEW_REQUIRED, reason + WITHIN_UNCERTAINTY
+    return finding(
+        rule,
+        field,
+        state,
+        reason,
+        context,
+        observed_value=", ".join(f"{character}={ratio.value:.2f}" for character, ratio in ratios),
+        expected_value=(
+            f"width at least {minimum:.2f} of height, except "
+            f"{', '.join(rule.conditions.exempt_characters)}"
+        ),
+        evidence_span_ids=_cited(context, field),
+    )
+
+
+def _placement_finding(
+    rule: RuleDefinition,
+    field: DeclarationField,
+    context: EvidenceContext,
+    region: Region,
+    detection: PDPDetection,
+) -> FieldFinding:
+    """Rule 8(1): whether a located declaration lies inside the detected panel.
+
+    Never FAIL. A detector's box is where a model or a heuristic drew the panel, not where
+    the panel is, so a declaration outside it is a reason for an officer to look and not
+    evidence that the package is wrong. Inside a *model's* box is the one reading that
+    supports PASS; the heuristic finds the largest block of print, which is frequently the
+    panel and sometimes the ingredients list, so it supports nothing on its own.
+    """
+    x, y, w, h = region
+    px, py, pw, ph = detection.bbox
+    inside = px <= x and py <= y and x + w <= px + pw and y + h <= py + ph
+    by_model = detection.method == "model"
+    if inside and by_model:
+        state = FIELD_STATE_FROM_VERDICT[Verdict.PASS]
+        reason = "the declaration lies within the principal display panel the detector located."
+    elif inside:
+        state = FieldState.REVIEW_REQUIRED
+        reason = (
+            "the declaration lies within the largest block of print on the frame. No trained "
+            "panel detector is configured, so whether that block is the principal display "
+            "panel is for an officer to say."
+        )
+    else:
+        state = FieldState.REVIEW_REQUIRED
+        reason = (
+            "the declaration was read outside the region located as the principal display "
+            "panel. That region is a detection and not a determination, so this is a reason "
+            "to look at the package and not a finding that the declaration is misplaced."
+        )
+    return finding(
+        rule,
+        field,
+        state,
+        reason,
+        context,
+        observed_value=(
+            f"declaration at {region}; panel at {tuple(detection.bbox)} ({detection.method})"
+        ),
+        expected_value=required_declaration_location(),
+        evidence_span_ids=_cited(context, field),
+    )
+
+
+def _contrast_finding(
+    rule: RuleDefinition,
+    field: DeclarationField,
+    context: EvidenceContext,
+    contrast: MeasurementResult,
+) -> FieldFinding | None:
+    """Rule 9(1)(b): the measured contrast, handed to an officer and judged by nobody here.
+
+    "Contrasts conspicuously" is the gazette's whole test and it states no figure, so no
+    ratio can be compared against the rule. The measurement is evidence; REVIEW_REQUIRED is
+    the only state it can support, in either direction.
+    """
+    if isinstance(contrast, MeasurementRefusal):
+        return None
+    return finding(
+        rule,
+        field,
+        FieldState.REVIEW_REQUIRED,
+        "the contrast between this declaration's print and its background was measured. "
+        "Rule 9(1)(b) requires a colour that contrasts conspicuously and states no figure, so "
+        "whether this one does is an officer's judgement. The ratio depends on the lighting of "
+        "the capture.",
+        context,
+        observed_value=f"contrast ratio {contrast.value:.2f}:1 (relative luminance)",
+        evidence_span_ids=_cited(context, field),
+    )
+
+
+def _refine(
+    findings: tuple[FieldFinding, ...],
+    rules: Sequence[RuleDefinition],
+    context: EvidenceContext,
+    geometry: _Geometry,
+    detection: PDPDetection,
+    confirmations: PackageConfirmations,
+) -> tuple[FieldFinding, ...]:
+    """Replace the findings geometry can now answer, and leave every other one alone.
+
+    :func:`~app.pipeline.findings.build_findings` answers a geometric rule with what it can
+    see from a condition kind and one scalar: that no observation was gathered, or that a
+    figure exists and needs a person. This holds the declarations' boxes, the panel and the
+    per-character measurements, so it can evaluate those rules — but only where the two
+    applicability gates left them open. A finding Rule 3 or a sector override settled is
+    about which law governs the package, and no measurement outranks that.
+    """
+    on_date = context.evaluation_date
+    scope = chapter_ii_scope(
+        net_quantity=context.declared.get(DeclarationField.NET_QUANTITY, ()),
+        not_for_retail_sale_observed=context.not_for_retail_sale_observed,
+        institutional_or_industrial_confirmed=context.institutional_or_industrial_confirmed,
+    )
+    required = required_declarations([r for r in rules if _in_force(r, on_date)])
+    replaced: dict[tuple[str, DeclarationField], FieldFinding] = {}
+
+    def open_fields(clause: str) -> tuple[RuleDefinition | None, tuple[DeclarationField, ...]]:
+        rule = select_effective_rule(tuple(rules), clause, on_date)
+        if rule is None:
+            return None, ()
+        fields = declarations_governed_by_rule(rule, required)
+        if scope_findings(rule, fields, scope, context) is not None:
+            return rule, ()
+        if sector_findings(rule, fields, context) is not None:
+            return rule, ()
+        return rule, fields
+
+    rule, fields = open_fields(FREE_SPACE_CLAUSE)
+    if rule is not None and DeclarationField.NET_QUANTITY in fields:
+        replaced[rule.rule_id, DeclarationField.NET_QUANTITY] = _free_space_finding(
+            rule, context, geometry
+        )
+
+    for clause in (TABLE_HEIGHT_CLAUSE, WIDTH_RATIO_CLAUSE):
+        rule, fields = open_fields(clause)
+        if rule is None:
+            continue
+        for field in fields:
+            if not rule7_governs_field(
+                field,
+                required_under_other_law=confirmations.declarations_required_under_other_law,
+            ):
+                replaced[rule.rule_id, field] = finding(
+                    rule,
+                    field,
+                    FieldState.NOT_APPLICABLE,
+                    "an officer has confirmed this package's declarations are also required "
+                    "by or under another law. Rule 7(5) then disapplies Rule 7's sizing to "
+                    "every declaration but net quantity, retail sale price, the expiry or "
+                    "best-before date and consumer care details, and this is none of those.",
+                    context,
+                )
+            elif field is not DeclarationField.NET_QUANTITY:
+                # One height was measured, on the quantity declaration. Letting it answer
+                # for the address or the date would report print nobody measured as passing.
+                replaced[rule.rule_id, field] = finding(
+                    rule,
+                    field,
+                    FieldState.INSUFFICIENT_EVIDENCE,
+                    "the measurement this rule needs was not made: character size is measured "
+                    "on the quantity declaration only, and this declaration's print was not "
+                    "measured.",
+                    context,
+                )
+            elif clause == WIDTH_RATIO_CLAUSE:
+                replaced[rule.rule_id, field] = _width_ratio_finding(rule, context, geometry)
+
+    rule, fields = open_fields(PLACEMENT_CLAUSE)
+    if rule is not None and pdp_declaration_mandatory(context.product_category, on_date):
+        for field in fields:
+            if field in geometry.regions:
+                replaced[rule.rule_id, field] = _placement_finding(
+                    rule, field, context, geometry.regions[field], detection
+                )
+
+    rule, fields = open_fields(MANNER_CLAUSE)
+    if rule is not None:
+        for field in fields:
+            if field in geometry.contrast:
+                found = _contrast_finding(rule, field, context, geometry.contrast[field])
+                if found is not None:
+                    replaced[rule.rule_id, field] = found
+
+    refined = tuple(replaced.get((f.rule_snapshot.rule_id, f.field), f) for f in findings)
+    if confirmations.rule_33_relaxation_granted and rule_33_relaxation_applies(
+        context.product_category, on_date
+    ):
+        refined = tuple(_relaxed(f) for f in refined)
+    return refined
+
+
+def _in_force(rule: RuleDefinition, on_date: date) -> bool:
+    return rule.effective_from <= on_date and (
+        rule.effective_to is None or on_date <= rule.effective_to
+    )
+
+
+def _relaxed(found: FieldFinding) -> FieldFinding:
+    """A shortfall on a package with a recorded Rule 33 relaxation goes to an officer.
+
+    Only FAIL moves, and only to REVIEW_REQUIRED. Which provisions an order relaxes is on the
+    order, not on the label, so this cannot clear the finding — it can only decline to
+    recommend action on a provision the Central Government may have relaxed.
+    """
+    if found.state is not FieldState.FAIL:
+        return found
+    return found.model_copy(
+        update={
+            "state": FieldState.REVIEW_REQUIRED,
+            "reason": found.reason
+            + " An order under Rule 33 relaxing these Rules for this package has been "
+            "recorded; whether it reaches this provision is on the order.",
+        }
+    )
 
 
 _Read = TypeVar("_Read", NormalisedField, CompetingReadings)
@@ -242,6 +896,7 @@ def run_image_scan(
     evaluated_at: datetime,
     subject_ref: str,
     institutional_or_industrial_confirmed: bool = False,
+    confirmations: PackageConfirmations = NOTHING_CONFIRMED,
 ) -> QualityRejection | ImageScanResult:
     """Evaluate a photographed package, or refuse the capture and say why.
 
@@ -288,8 +943,18 @@ def run_image_scan(
     # Positional, deliberately: VIS-003 renamed these to text_detection_model_dir and
     # text_recognition_model_dir without changing their order or meaning, so a positional
     # call is correct against both signatures.
+    #
+    # OCR reads the prepared frame — deskewed where the label's outline was found, unwarped
+    # where an officer has said the package is a cylinder — and every polygon is mapped back
+    # onto the photograph before anything else sees it. The photograph is what the evidence
+    # record stores and what every measurement below is taken from.
+    prepared = prepare_panel(image, cylindrical=confirmations.shape is PackageShape.CYLINDRICAL)
     spans = tuple(
-        extract_panel_text(image, str(settings.ocr_det_model_dir), str(settings.ocr_rec_model_dir))
+        prepared.restore(
+            extract_panel_text(
+                prepared.image, str(settings.ocr_det_model_dir), str(settings.ocr_rec_model_dir)
+            )
+        )
     )
 
     # Classification, spatial role binding and normalisation are one call: extraction
@@ -315,13 +980,27 @@ def run_image_scan(
 
     declared = by_obligation(extraction.fields)
     contested = by_obligation(extraction.disagreements)
+    geometry = _measure(
+        image,
+        calibration=calibration,
+        detection=detection,
+        declared=declared,
+        spans=spans,
+        shape=confirmations.shape,
+    )
 
     context = EvidenceContext(
         rule_set_version=default_rule_set_version(),
         evaluation_date=evaluated_at.date(),
         declared=declared,
         contested=contested,
-        measurements=_measurements(image, calibration),
+        # Table-I is the one geometric rule build_findings evaluates itself, from these two
+        # figures. The rest of what was measured is evaluated in _refine, which holds the
+        # boxes and the per-character readings this mapping has no shape for.
+        measurements={
+            "table_height": geometry.numeral_height,
+            "pdp_area": geometry.panel_area,
+        },
         product_category=product_category,
         source_is_listing=False,
         # Read across every span, not only the bound ones. Whether the binder places the
@@ -334,7 +1013,10 @@ def run_image_scan(
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=UNBOUND_DECLARATION_REASON,
     )
-    findings = build_findings(load_rules(), context)
+    rules = load_rules()
+    findings = _refine(
+        build_findings(rules, context), rules, context, geometry, detection, confirmations
+    )
     return ImageScanResult(
         verdict=assemble_verdict(
             subject_ref=subject_ref,

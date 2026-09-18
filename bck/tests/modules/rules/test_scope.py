@@ -263,3 +263,23 @@ def test_the_decision_names_the_rule_that_made_it() -> None:
         chapter_ii_scope(),
     ):
         assert decision.rule_id == CHAPTER_SCOPE_RULE_ID
+
+
+def test_an_operative_rule_3b_stops_a_package_being_called_governed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The day an amendment drops Rule 3(b)'s bag threshold below Rule 3(a)'s, scope asks.
+
+    ``chapter_ii_scope`` has no Rule 3(b) branch because Rule 3(a) subsumes it. That is a
+    fact about two figures in the store, so it is read on every call: with the figures
+    crossed, a package Rule 3(a) leaves alone may be a bag Rule 3(b) excludes, and the only
+    honest answer is that the label does not say.
+    """
+    from app.modules.rules import scope
+
+    amended = scope._condition().model_copy(update={"bagged_maximum_inclusive_kg": Decimal(10)})
+    monkeypatch.setattr(scope, "_condition", lambda: amended)
+
+    decision = chapter_ii_scope()
+    assert decision.status is ScopeStatus.UNCERTAIN
+    assert decision.limb == "Rule 3(b)"
