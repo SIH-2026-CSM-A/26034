@@ -1,3 +1,4 @@
+import pydantic
 import pytest
 
 from app.modules.evidence.report import (
@@ -27,6 +28,7 @@ def test_confirmation_gate_enforcement():
                 officer_action="CONFIRM",
             ),
             is_human_confirmed=False,
+            model_versions={"ocr_engine": "test"},
         )
 
     # Case 2: confirmation details are missing
@@ -40,6 +42,7 @@ def test_confirmation_gate_enforcement():
             declarations=[],
             confirmation=None,
             is_human_confirmed=True,
+            model_versions={"ocr_engine": "test"},
         )
 
 
@@ -97,20 +100,19 @@ def test_valid_report_generation():
     assert isinstance(report.model_versions, dict)
     assert len(report.model_versions) > 0
 
-    # Test with default model versions
-    report_default = generate_bsa_report(
-        source_image_hash=source_hash,
-        rule_set_version=rules_ver,
-        audit_trail=audit,
-        declarations=decls,
-        confirmation=conf,
-        is_human_confirmed=True,
-        model_versions=None,
-    )
-    assert report_default.model_versions is not None
-    assert isinstance(report_default.model_versions, dict)
-    assert len(report_default.model_versions) > 0
-    assert "ocr_engine" in report_default.model_versions
+    # No default model versions. The names a certificate carries are a statement of what
+    # read the package; the fallback this used to have named components this system has
+    # never run, and a document meant for a court may not carry those.
+    with pytest.raises(pydantic.ValidationError):
+        generate_bsa_report(
+            source_image_hash=source_hash,
+            rule_set_version=rules_ver,
+            audit_trail=audit,
+            declarations=decls,
+            confirmation=conf,
+            is_human_confirmed=True,
+            model_versions=None,
+        )
 
     # Verify field comparisons
     assert len(report.declarations) == 2
