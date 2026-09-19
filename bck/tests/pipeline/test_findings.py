@@ -647,6 +647,52 @@ def test_a_panel_area_astride_a_band_edge_reaches_the_officer(height_mm, expecte
         assert all("1.5 mm" in f.reason and "2.5 mm" in f.reason for f in findings)
 
 
+@pytest.mark.parametrize(
+    ("height_mm", "interval_mm", "expected_state"),
+    [
+        (2.61, 0.13, FieldState.REVIEW_REQUIRED),
+        (2.45, 0.13, FieldState.REVIEW_REQUIRED),
+        (2.70, 0.13, FieldState.PASS),
+        (2.40, 0.05, FieldState.FAIL),
+    ],
+)
+def test_a_character_height_astride_the_requirement_reaches_the_officer(
+    height_mm, interval_mm, expected_state
+) -> None:
+    """The height's own interval is consulted, the same way the area's is.
+
+    The demo capture: 2.61 ± 0.13 mm against 2.5 mm spans the requirement, so the
+    measurement cannot distinguish compliance from non-compliance at its own precision
+    and says so, REVIEW_REQUIRED. 2.45 ± 0.13 mm is short at its point value and clears
+    at its upper end: also REVIEW_REQUIRED, never FAIL on an interval alone. Both ends
+    clear is PASS; both ends short is FAIL.
+    """
+    calibrated = {
+        "table_height": MeasurementCalibrated(
+            value=height_mm,
+            confidence_interval=interval_mm,
+            unit="mm",
+            reference_object="10-rupee coin",
+        ),
+        "pdp_area": MeasurementCalibrated(
+            value=102.0, confidence_interval=1.0, unit="cm²", reference_object="10-rupee coin"
+        ),
+    }
+    findings = findings_for_rule(
+        findings_for(measurements=calibrated, product_category=ProductCategory.FOOD),
+        "R7-2-TABLE-I",
+    )
+    assert findings
+    assert {f.state for f in findings} == {expected_state}
+    assert all(f.expected_value == "2.5 mm" for f in findings)
+    if expected_state is FieldState.REVIEW_REQUIRED:
+        assert all(
+            f"{height_mm:.2f} ± {interval_mm:.2f} mm" in f.reason
+            and "2.5 mm requirement" in f.reason
+            for f in findings
+        )
+
+
 def test_a_panel_area_within_one_band_is_banded_at_its_value() -> None:
     """The control: 102 ± 1 cm² is wholly in the 100–500 band, and a 2.0 mm character FAILs."""
     calibrated = {
