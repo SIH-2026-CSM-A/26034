@@ -7,6 +7,25 @@ them, read the file.
 
 ---
 
+## After Session 32 (2026-09-19, final consolidation, #156 #157 #158, VM on 93c6812) — read this first
+
+Session 31's four handoff items are done: `evidence_router` mounted, `POST /scans/artwork`
+routed, `PackageConfirmations` sent from both forms, and retention / S3 / timestamp settings on
+`core/config.py` (no default retention window — none is sourced). `fnt/` has Session 30's
+backend: transitions, category confirmation with `non_consumable`, `/vendor/*`, recapture. The VM
+serves `93c6812` at head `9c4b7e2d1a05`.
+
+1. **No UI for `POST /scans/artwork`.** The exact-millimetre path is reachable by API only.
+2. **No purge job.** `RetentionManager` constructs from settings; nothing schedules it, and
+   `CAPTURE_STORE_DIR` still grows. `EVIDENCE_*_RETENTION_DAYS` are unset on the VM (keep).
+3. **`calculate_pdp_area` has no caller**; `evaluate_numeric_constraint` has no rule.
+4. **Vendor rows on the VM** are only creatable by an officer through the register form; none
+   exists yet, so `/vendor/login` on the tunnel has nothing to sign in as.
+5. `scripts/generate-api.mjs` prefers a running server on :8000; regenerate with `OPENAPI_URL`
+   pointed at a dead port or the client silently regresses to whatever that server serves.
+6. The two scans and the category confirmation filed on the VM during verification are by an
+   officer `verify2` that no longer exists in `.env`; they are real captures, badge-less.
+
 ## After Session 31 (2026-09-18, wiring the unreachable modules, #141 #146 #148 #149 #153 #154) — read this first
 
 The rule engine now evaluates Rule 7(3), 7(4), 8(1) free space, 8(1) placement, 9(1)(b)

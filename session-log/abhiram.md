@@ -3998,3 +3998,87 @@ lint-imports clean throughout. One real scan (real PaddleOCR, real heuristic det
   NET_QUANTITY, so every quantity-anchored rule is INSUFFICIENT_EVIDENCE on that capture. That
   is `extraction/net_quantity.py`.
 - The throwaway cluster is stopped at session end; nothing of it is committed.
+
+## Session 32 — 2026-09-18/19, final consolidation: mount, settings, frontend, deploy (Claude Code, Fable 5.1)
+
+Three PRs merged with `--admin` on the standing "merge when green" instruction, then a VM deploy.
+Baseline on `d3c7007` measured in-session: 1246 passed, 1 xfailed, 2 errors (the foreign MinIO on
+:9000). Every falsification below ran with bytecode purged and the directory count asserted 0.
+
+| PR | What |
+|---|---|
+| #156 | `evidence_router` mounted; `POST /scans/artwork`; `package_shape` / `declarations_required_under_other_law` / `rule_33_relaxation_granted` form fields; OpenAPI paths 23 → 26 |
+| #157 | Eight `EVIDENCE_*` settings; `RetentionManager(storage, settings)`, `S3ContentAddressedStorageClient.from_settings`, `LocalRFC3161Hook.from_settings`; MagicMock settings gone |
+| #158 | Complaint transitions, category confirmation with `non_consumable`, vendor surface, recapture wired, real server errors, Rule 3 carve-out reset, code-split |
+
+### Reached now
+
+- `GET /scans/{id}/evidence` (chain verified on read) and `POST /scans/{id}/evidence/report`
+  (BSA s.63(4) Part A, behind the review gate) — the admissibility claim can be produced.
+- `POST /scans/artwork`: PDF/SVG → `run_artwork_scan`, the one exact-millimetre path. Stored as
+  `CalibrationMethod.ARTWORK` with the file type in `capture_metadata`; held for re-evaluation;
+  a parser refusal is read back at RECEIVED with `ScanDetail.refusal`.
+- `PackageConfirmations` from the image and artwork forms, stored on the scan, carried into a
+  category re-evaluation. Rule 7(4)'s limb, Rule 7(5) and Rule 33 apply on a real scan.
+- Retention, S3 and the timestamp hook construct from a validated `Settings`. No retention window
+  is defaulted: none is sourced in `rules-corpus/` (grepped), so unset means keep.
+- From `fnt/`: transitions, category confirmation, `/vendor/*` (own token key, own client, own
+  401 landing, no officer navigation, no review or category controls), vendor registration.
+
+### Corrected claims
+
+- `test_the_production_app_serves_the_evidence_surface` was a strict xfail that could never flip:
+  `create_app().routes` holds `_IncludedRouter` wrappers with no `.path`, so it was xfailing on an
+  `AttributeError`. Rewritten against `openapi()["paths"]`, proved red without the mount.
+- The frontend's "Reopen complaint" simulated a transition `VALID_TRANSITIONS` forbids (resolved
+  and rejected are terminal). Removed, not wired.
+- `fnt/src/services/generated/schema.d.ts` had been generated against a stale server on :8000
+  (17 paths). `scripts/generate-api.mjs` prefers a running server; regenerate with `OPENAPI_URL`
+  on a dead port.
+
+### Verification
+
+- Backend full suite per PR, throwaway Postgres on :54329: #156 1252 passed (one 0.5 s wall-clock
+  vision test failed under my concurrent lint and passed 3/3 alone; `vision/` untouched), #157
+  1259 passed, 1 xfailed, 2 MinIO errors. Falsifications: 3 defects → exactly their tests (#156),
+  2 defects → 1 and 4 red (#157).
+- Frontend: `tsc -b`, `oxlint`, `vite build` clean; largest chunk 185 kB from 531 kB. Playwright
+  against a local backend with real PaddleOCR: transitions persist across reload with no local
+  ids; vendor registered; officer scan 13 s; recapture focuses `review-note`; category confirm
+  moves to the new scan reading `FOOD · OFFICER CONFIRMED`; vendor context redirected off
+  `/officer`, scanned at 390 px with no overflow, result carries no review or category control;
+  vendor token on `GET /scans` → 401. One defect found only by the browser: the username
+  `pattern` attribute was an invalid v-mode regex in Chromium.
+- Migrations `7d2e9a41c3b8` (down `5b522f144ba0`) and `9c4b7e2d1a05` (down `7d2e9a41c3b8`):
+  up, down two, up, `alembic check` clean, on the throwaway cluster.
+- Deploy: `pccs-vm` pulled `93c6812`, both images rebuilt `--no-cache`, `--force-recreate`; both
+  migrations ran at backend startup; `alembic current` = `9c4b7e2d1a05 (head)`; five containers up,
+  four healthy (frontend has no healthcheck); tunnel
+  `https://locally-progress-major-bare.trycloudflare.com` serves 26 API paths. Playwright against
+  the tunnel: 12 public and 24 officer page loads at 390/1280 × light/dark, 0 console errors,
+  0 overflow, 0 unresolved spinners, no forbidden words, no millimetre figure. Real consumer scan
+  59–64 s, real officer scan 29–45 s, category confirmed through the tunnel. Local: `pccs-ui4`
+  taken down with `-v`, `26034-deploy-frontend-1` restarted on :80.
+
+### My own errors, by name
+
+- Added a temporary officer `verify2` to the VM `.env` with a plain bcrypt hash; compose
+  interpolates `$2b$12$` and every sign-in was refused while the backend reported the officer
+  present. The other hashes were written `$$`. Fixed, verified in the container, and `verify2`
+  removed with the backend recreated afterwards.
+- The first tunnel sweep signed in on one Playwright page and swept on another; `sessionStorage`
+  is per tab, so 24 officer routes rendered the login page and reported zero problems. Caught by
+  every route logging exactly 325 chars. Re-run with sign-in on the sweeping page.
+- A patch script asserted on a no-op substitution after the file edits and exited before writing,
+  so the unpatched sweep ran a second time, filing two more real scans on the VM by `verify2`.
+
+### Still unreachable, and why
+
+- `evaluate_numeric_constraint`: no rule carries a `numeric_constraint`; unchanged.
+- `calculate_pdp_area` (measurement): no caller; delete or repurpose.
+- `remove_glare` / `correct_shadows`: out of the OCR path by measurement (Session 31).
+- No purge scheduler and nothing constructs the S3 client on a request path: #157 makes them
+  constructible from settings, which was the gap; wiring a job is a decision, not a fix.
+- No UI for `POST /scans/artwork` yet.
+- The authenticated vendor flow was proved locally against the same build, not through the tunnel:
+  registering a premises through the UI would leave a fabricated vendor in the live register.
