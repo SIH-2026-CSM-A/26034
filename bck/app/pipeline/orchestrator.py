@@ -97,7 +97,7 @@ from app.modules.rules import (
 from app.modules.tamper import detect_tampering
 from app.modules.tamper.domain import TamperDetectionResult
 from app.modules.vision.ocr import arbitrate_field_declaration, extract_panel_text
-from app.modules.vision.pdp import ArtworkPanel, PDPDetection, detect_pdp
+from app.modules.vision.pdp import ArtworkPanel, OfficerMarkedPanel, PDPDetection, detect_pdp
 from app.modules.vision.preprocess import prepare_panel, quality_gate
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
 from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, required_declarations
@@ -132,6 +132,8 @@ class PanelDetection(ContractModel):
     bbox: tuple[int, int, int, int]
     area_px: int
     confidence: float
+    method: str
+    """Where the box came from: a model, the largest block of print, artwork, or an officer."""
 
 
 class ImageScanResult(ContractModel):
@@ -271,6 +273,12 @@ class PackageConfirmations:
     rule_33_relaxation_granted: bool = False
     """An order under Rule 33 relaxing these Rules for this package has been recorded."""
 
+    panel_bbox: tuple[int, int, int, int] | None = None
+    """Where the officer marked the principal display panel on the capture, as ``(x, y, w, h)``
+    in the photograph's own pixels. Rule 7(2) Table-I bands against its area, measured
+    through the same calibration as every other millimetre. ``None`` marks nothing, and the
+    panel is then whatever ``detect_pdp`` reports."""
+
 
 NOTHING_CONFIRMED = PackageConfirmations()
 """The default for every scan: a rectangular package about which nothing has been confirmed."""
@@ -374,7 +382,8 @@ def _panel_area(
         # The heuristic region is the largest block of print, which on a tabletop capture
         # is the frame with the coin in it. Table-I's band is a legal threshold, so an area
         # the system did not measure must not select one. The character height is still
-        # measured and reported; only the band is refused.
+        # measured and reported; only the band is refused. An officer's mark is not this
+        # case: it is a stated boundary, measured below like a model's.
         return MeasurementRefusal(
             reason=(
                 "the principal display panel was not detected: no trained panel detector is "
@@ -707,10 +716,10 @@ def _placement_finding(
 
     Never FAIL. A detector's box is where a model or a heuristic drew the panel, not where
     the panel is, so a declaration outside it is a reason for an officer to look and not
-    evidence that the package is wrong. Inside a *model's* box, or inside artwork submitted
-    as the panel, supports PASS; the heuristic finds the largest block of print, which is
-    frequently the panel and sometimes the ingredients list, so it supports nothing on its
-    own.
+    evidence that the package is wrong. Inside a *model's* box, inside artwork submitted
+    as the panel, or inside the panel an officer marked, supports PASS; the heuristic finds
+    the largest block of print, which is frequently the panel and sometimes the
+    ingredients list, so it supports nothing on its own.
     """
     x, y, w, h = region
     px, py, pw, ph = detection.bbox
@@ -721,6 +730,16 @@ def _placement_finding(
     elif inside and detection.method == "model":
         state = FIELD_STATE_FROM_VERDICT[Verdict.PASS]
         reason = "the declaration lies within the principal display panel the detector located."
+    elif inside and detection.method == "officer":
+        state = FIELD_STATE_FROM_VERDICT[Verdict.PASS]
+        reason = "the declaration lies within the principal display panel the officer marked."
+    elif detection.method == "officer":
+        state = FieldState.REVIEW_REQUIRED
+        reason = (
+            "the declaration was read outside the panel the officer marked. The mark is the "
+            "officer's own, so this is a reason to look at the package and at the mark, and "
+            "not a finding that the declaration is misplaced."
+        )
     elif inside:
         state = FieldState.REVIEW_REQUIRED
         reason = (
@@ -1197,9 +1216,18 @@ def run_image_scan(
         )
 
     settings = get_settings()
+    if confirmations.panel_bbox is not None:
+        # The officer has said where the panel is. That statement outranks any detector,
+        # trained or not, for the same reason a confirmed category outranks a proposal.
+        _, _, marked_w, marked_h = confirmations.panel_bbox
+        detection: PDPDetection = OfficerMarkedPanel(
+            bbox=confirmations.panel_bbox, area=float(marked_w * marked_h)
+        )
+    else:
+        detection = detect_pdp(image, str(settings.pdp_weights_path))
     return _evaluate_frame(
         image,
-        detection=detect_pdp(image, str(settings.pdp_weights_path)),
+        detection=detection,
         calibration=calibration,
         product_category=product_category,
         evaluated_at=evaluated_at,
@@ -1415,7 +1443,10 @@ def _evaluate_frame(
         spans=spans,
         unclassified_spans=tuple(extraction.unclassified_spans),
         panel=PanelDetection(
-            bbox=detection.bbox, area_px=detection.area, confidence=detection.confidence
+            bbox=detection.bbox,
+            area_px=detection.area,
+            confidence=detection.confidence,
+            method=detection.method,
         ),
         tamper_signals=signals,
         category_proposal=proposal,

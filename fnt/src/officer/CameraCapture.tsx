@@ -9,6 +9,7 @@ import type { components } from '../services/generated/schema'
 import { Notice } from '../ui/Notice'
 import { rise, spring, stagger } from '../ui/motion'
 import { OfficerHeader } from './components/OfficerHeader'
+import { PanelMarker, type PanelMark } from './components/PanelMarker'
 import { VerdictBanner } from './components/VerdictBanner'
 import { WardSelect } from './WardSelect'
 import { REFERENCE_OBJECTS, type ReferenceType } from './referenceObjects'
@@ -64,6 +65,7 @@ export function CameraCapture() {
   const [packageShape, setPackageShape] = useState<PackageShape>('rectangular')
   const [otherLawDeclarations, setOtherLawDeclarations] = useState<boolean>(false)
   const [rule33Relaxation, setRule33Relaxation] = useState<boolean>(false)
+  const [panelMark, setPanelMark] = useState<PanelMark | null>(null)
 
   // API submission state
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -189,6 +191,7 @@ export function CameraCapture() {
         const url = URL.createObjectURL(blob)
         setCapturedBlob(blob)
         setCapturedUrl(url)
+        setPanelMark(null)
         setStep('preview')
         setSubmissionError(null)
       },
@@ -241,6 +244,12 @@ export function CameraCapture() {
       formData.append('package_shape', packageShape)
       formData.append('declarations_required_under_other_law', String(otherLawDeclarations))
       formData.append('rule_33_relaxation_granted', String(rule33Relaxation))
+      if (panelMark) {
+        formData.append('panel_x', String(panelMark.x))
+        formData.append('panel_y', String(panelMark.y))
+        formData.append('panel_width', String(panelMark.width))
+        formData.append('panel_height', String(panelMark.height))
+      }
 
       const { data, error: apiError, response } = await apiClient.POST('/scans/image', {
         body: formData as unknown as BodySubmitImage,
@@ -270,6 +279,7 @@ export function CameraCapture() {
     packageShape,
     otherLawDeclarations,
     rule33Relaxation,
+    panelMark,
   ])
 
   const resetAll = useCallback(() => {
@@ -407,19 +417,23 @@ export function CameraCapture() {
                     key="still"
                     exit={{ opacity: 0 }}
                     transition={spring.glide}
-                    className="pointer-events-none absolute inset-0"
+                    className="absolute inset-0"
                   >
-                    <img
+                    <PanelMarker
                       src={capturedUrl}
-                      alt="Captured package principal display panel"
-                      className="h-full w-full object-cover"
+                      alt="The captured photograph"
+                      mark={panelMark}
+                      onChange={setPanelMark}
+                      disabled={submitting}
+                      className="h-full w-full rounded-none"
+                      caption={false}
                     />
                     <motion.div
                       aria-hidden="true"
                       initial={{ opacity: 0.8 }}
                       animate={{ opacity: 0 }}
                       transition={spring.glide}
-                      className="absolute inset-0 bg-paper"
+                      className="pointer-events-none absolute inset-0 bg-paper"
                     />
                   </motion.div>
                 )}
@@ -781,7 +795,33 @@ export function CameraCapture() {
                       <dt className="text-mute">Shape:</dt>
                       <dd className="text-ink">{packageShape}</dd>
                     </div>
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-mute">Panel mark:</dt>
+                      <dd className="text-right text-ink">
+                        {panelMark
+                          ? `${panelMark.width} × ${panelMark.height} px at (${panelMark.x}, ${panelMark.y})`
+                          : 'none — drag over the panel on the photograph'}
+                      </dd>
+                    </div>
                   </dl>
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                    <p className="max-w-[52ch] text-secondary text-mute">
+                      The mark states where the principal display panel is; it selects the Rule 7(2)
+                      Table-I band for the required character height. Its area in cm² is measured
+                      through the reference object when the scan runs. Optional: without it, Table-I
+                      reports that the panel area was not measured.
+                    </p>
+                    {panelMark && (
+                      <button
+                        type="button"
+                        onClick={() => setPanelMark(null)}
+                        disabled={submitting}
+                        className="btn btn-quiet min-h-[44px]"
+                      >
+                        Clear mark
+                      </button>
+                    )}
+                  </div>
 
                   {submissionError && (
                     <Notice

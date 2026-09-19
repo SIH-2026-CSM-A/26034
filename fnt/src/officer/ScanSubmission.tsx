@@ -9,6 +9,7 @@ import { spring } from '../ui/motion'
 import { Notice } from '../ui/Notice'
 import { FieldStateChip } from './components/FieldStateChip'
 import { OfficerHeader } from './components/OfficerHeader'
+import { PanelMarker, type PanelMark } from './components/PanelMarker'
 import { VerdictBanner } from './components/VerdictBanner'
 import { WardSelect } from './WardSelect'
 import { REFERENCE_OBJECTS, type ReferenceType } from './referenceObjects'
@@ -73,6 +74,7 @@ export function ScanSubmission() {
   const [packageShape, setPackageShape] = useState<PackageShape>('rectangular')
   const [otherLawDeclarations, setOtherLawDeclarations] = useState<boolean>(false)
   const [rule33Relaxation, setRule33Relaxation] = useState<boolean>(false)
+  const [panelMark, setPanelMark] = useState<PanelMark | null>(null)
 
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [waitedSeconds, setWaitedSeconds] = useState<number>(0)
@@ -82,6 +84,7 @@ export function ScanSubmission() {
   // Preview only. Vector and PDF artwork has no bitmap to show, so it keeps the file name alone.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   useEffect(() => {
+    setPanelMark(null)
     if (!file || !file.type.startsWith('image/')) {
       setPreviewUrl(null)
       return
@@ -151,6 +154,12 @@ export function ScanSubmission() {
           if (calibrationMethod === 'artwork' && artworkDpi) {
             formData.append('artwork_dpi', artworkDpi)
           }
+          if (panelMark) {
+            formData.append('panel_x', String(panelMark.x))
+            formData.append('panel_y', String(panelMark.y))
+            formData.append('panel_width', String(panelMark.width))
+            formData.append('panel_height', String(panelMark.height))
+          }
           const { data, error: apiError, response } = await apiClient.POST('/scans/image', {
             body: formData as unknown as BodySubmitImage,
           })
@@ -177,6 +186,7 @@ export function ScanSubmission() {
       calibrationMethod,
       referenceType,
       artworkDpi,
+      panelMark,
       productCategory,
       ward,
       institutionalConfirmed,
@@ -447,7 +457,7 @@ export function ScanSubmission() {
                   }}
                   className="absolute inset-0 h-full w-full cursor-pointer rounded-card opacity-0"
                 />
-                {previewUrl && (
+                {previewUrl && mode !== 'photograph' && (
                   <motion.img
                     key={previewUrl}
                     src={previewUrl}
@@ -479,6 +489,22 @@ export function ScanSubmission() {
                 {file && <p className="text-label text-mute">Tap to choose a different file</p>}
               </div>
             </div>
+
+            {/* The officer marks the panel on the photograph; the mark is one more confirmation. */}
+            {mode === 'photograph' && previewUrl && (
+              <motion.div key={previewUrl} {...reveal} className="card p-5 sm:p-6">
+                <h2 className="text-body font-medium">Mark the principal display panel</h2>
+                <div className="mt-4">
+                  <PanelMarker
+                    src={previewUrl}
+                    alt="The selected photograph"
+                    mark={panelMark}
+                    onChange={setPanelMark}
+                    disabled={submitting}
+                  />
+                </div>
+              </motion.div>
+            )}
 
             {/* Calibration Method — a photograph needs a scale reference; artwork carries its own. */}
             {mode === 'photograph' && (

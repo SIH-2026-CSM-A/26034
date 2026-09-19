@@ -132,7 +132,24 @@ class ArtworkPanel:
     method: Literal["artwork"] = "artwork"
 
 
-PDPDetection = PDPResult | HeuristicTextRegion | ArtworkPanel
+@dataclass(frozen=True)
+class OfficerMarkedPanel:
+    """The principal display panel as an officer drew it on the capture.
+
+    Not a detection. The officer has stated where the panel is, which is the same
+    confirmation this system already requires before any enforcement act, so the box is a
+    determination and not a guess; ``confidence`` is 1.0 because nothing was detected. Its
+    own type and its own ``method`` so a finding can say the panel came from an officer
+    and not from a model or the largest block of print.
+    """
+
+    bbox: tuple[int, int, int, int]
+    area: float
+    confidence: float = 1.0
+    method: Literal["officer"] = "officer"
+
+
+PDPDetection = PDPResult | HeuristicTextRegion | ArtworkPanel | OfficerMarkedPanel
 """Everything a panel can be reported as. Branch on the type, or on ``method``."""
 
 

@@ -31,6 +31,14 @@
       "relative_image_path": "datasets/raw/cosmetics/cosmetics_himalaya_neem_turmeric_face_wash_150ml/cosmetics_himalaya_neem_turmeric_face_wash_150ml_001.jpg",
       "annotation_path": "datasets/annotations/cosmetics/cosmetics_himalaya_neem_turmeric_face_wash_150ml_001.json",
       "sha256": "da0a79e77e177b36fd76478a017d58263932684223724fb5515dfc042d13f8ae"
+    },
+    {
+      "sample_id": "food_mdh_kitchen_king_100g_001",
+      "sku_id": "food_mdh_kitchen_king_100g",
+      "category": "food",
+      "relative_image_path": "datasets/raw/food/food_mdh_kitchen_king_100g/food_mdh_kitchen_king_100g_001.png",
+      "annotation_path": "datasets/annotations/food/food_mdh_kitchen_king_100g_001.json",
+      "sha256": "afdcc9a463227cbaa94361548add800d64ca27d210295a172e80b81f24cdac35"
     }
   ]
 }
