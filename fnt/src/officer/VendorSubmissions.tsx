@@ -320,7 +320,7 @@ export function VendorSubmissions() {
                     id="vendor-username"
                     required
                     autoComplete="off"
-                    pattern="[A-Za-z0-9._-]+"
+                    pattern="[A-Za-z0-9._\-]+"
                     maxLength={120}
                     value={registration.username}
                     onChange={(e) => setRegistration({ ...registration, username: e.target.value })}
