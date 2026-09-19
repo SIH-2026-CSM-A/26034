@@ -72,8 +72,8 @@ services:
       - backend
     restart: unless-stopped
 
-  # Object storage for evidence images. Nothing in bck/ constructs
-  # S3ContentAddressedStorageClient yet — this is provisioned ahead of that wiring.
+  # Object storage for evidence images. The backend reaches it through the four
+  # EVIDENCE_S3_* settings in bck/.env (see bck/.env.example); unset, captures stay local.
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data --console-address ":9001"

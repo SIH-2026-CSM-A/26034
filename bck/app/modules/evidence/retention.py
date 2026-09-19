@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from app.contracts.enums import Verdict
 from app.contracts.records import VerdictRecord
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.enums import ReviewAction
 from app.core.models import ReviewRow
 
@@ -42,13 +42,16 @@ class RetentionManager:
     and executing auditable purges.
     """
 
-    def __init__(self, storage_client: EvidenceStorageClient):
+    def __init__(self, storage_client: EvidenceStorageClient, settings: Settings | None = None):
         self.storage_client = storage_client
-        self.settings = get_settings()
+        self.settings = get_settings() if settings is None else settings
 
-    def get_retention_days(self, asset_type: EvidenceAssetType) -> int:
+    def get_retention_days(self, asset_type: EvidenceAssetType) -> int | None:
         """
         Returns the retention window for a given asset class from configuration.
+
+        ``None`` where the deployment has stated no window for that class. No window is
+        sourced in the rules corpus, so none is defaulted here.
         """
         if asset_type == EvidenceAssetType.PERSONAL_DATA:
             return self.settings.evidence_pii_retention_days
@@ -57,13 +60,19 @@ class RetentionManager:
     def should_purge(self, entry: EvidenceEntry, current_time: datetime) -> bool:
         """
         Determines if an entry has exceeded its retention window.
+
+        An entry whose asset class has no configured window never expires: an unstated
+        retention period means keep, not purge.
         """
         if entry.is_purged:
             return False
 
+        retention_days = self.get_retention_days(entry.asset_type)
+        if retention_days is None:
+            return False
+
         # Parse entry timestamp
         entry_time = datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
-        retention_days = self.get_retention_days(entry.asset_type)
 
         expiry_date = entry_time + timedelta(days=retention_days)
         return current_time >= expiry_date

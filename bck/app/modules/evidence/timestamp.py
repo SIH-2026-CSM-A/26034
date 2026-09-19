@@ -3,6 +3,8 @@ import hmac
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 
+from app.core.config import Settings
+
 
 class TimestampAuthorityHook(ABC):
     """Abstract base class for timestamping evidence."""
@@ -26,6 +28,15 @@ class LocalRFC3161Hook(TimestampAuthorityHook):
         if not secret_key:
             raise ValueError("secret_key is required for LocalRFC3161Hook")
         self._secret_key = secret_key.encode("utf-8")
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "LocalRFC3161Hook":
+        """The hook keyed as the deployment configured, or a ``LookupError`` naming the key."""
+        if not settings.evidence_timestamp_secret:
+            raise LookupError(
+                "the local timestamp authority is not configured; set EVIDENCE_TIMESTAMP_SECRET"
+            )
+        return cls(settings.evidence_timestamp_secret)
 
     def get_timestamp_token(self, data_hash: str) -> dict:
         """

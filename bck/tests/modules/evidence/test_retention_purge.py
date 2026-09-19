@@ -6,6 +6,7 @@ import pytest
 
 from app.contracts.enums import FieldState, Verdict
 from app.contracts.records import FieldFinding, RuleParameterSnapshot, VerdictRecord
+from app.core.config import Settings
 from app.modules.evidence.chain import (
     append_entry,
     create_genesis_entry,
@@ -25,15 +26,23 @@ def storage_client():
         yield LocalStorageClient(base_path=tmpdir)
 
 
+def settings(**overrides) -> Settings:
+    """A real, validated ``Settings`` — the object production hands the manager."""
+    return Settings(
+        _env_file=None, jwt_secret="test-signing-key-not-used-anywhere-real", **overrides
+    )
+
+
 @pytest.fixture
 def retention_manager(storage_client):
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_image_retention_days = 365
-        mock_settings.evidence_pii_retention_days = 90
-        mock_settings.evidence_destructive_purge_enabled = True
-        mock_get.return_value = mock_settings
-        yield RetentionManager(storage_client=storage_client)
+    return RetentionManager(
+        storage_client,
+        settings(
+            evidence_image_retention_days=365,
+            evidence_pii_retention_days=90,
+            evidence_destructive_purge_enabled=True,
+        ),
+    )
 
 
 @pytest.fixture
@@ -242,134 +251,108 @@ def test_legal_hold_prevents_purge(
 def test_retention_config_consumption(storage_client):
     """AC: Retention windows come from config and change eligibility."""
     # Mock settings
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_image_retention_days = 10
-        mock_get.return_value = mock_settings
+    rm = RetentionManager(storage_client, settings(evidence_image_retention_days=10))
 
-        rm = RetentionManager(storage_client)
+    # Entry from 11 days ago -> should purge
+    old_time = (datetime.now(UTC) - timedelta(days=11)).isoformat()
+    e0 = create_genesis_entry("Data", old_time, EvidenceAssetType.PRODUCT_IMAGE)
 
-        # Entry from 11 days ago -> should purge
-        old_time = (datetime.now(UTC) - timedelta(days=11)).isoformat()
-        e0 = create_genesis_entry("Data", old_time, EvidenceAssetType.PRODUCT_IMAGE)
+    assert rm.should_purge(e0, datetime.now(UTC)) is True
 
-        assert rm.should_purge(e0, datetime.now(UTC)) is True
+    # Entry from 5 days ago -> should not purge
+    recent_time = (datetime.now(UTC) - timedelta(days=5)).isoformat()
+    e1 = create_genesis_entry("Data", recent_time, EvidenceAssetType.PRODUCT_IMAGE)
 
-        # Entry from 5 days ago -> should not purge
-        recent_time = (datetime.now(UTC) - timedelta(days=5)).isoformat()
-        e1 = create_genesis_entry("Data", recent_time, EvidenceAssetType.PRODUCT_IMAGE)
-
-        assert rm.should_purge(e1, datetime.now(UTC)) is False
+    assert rm.should_purge(e1, datetime.now(UTC)) is False
 
 
 def test_differential_retention_windows(storage_client):
     """AC: Different asset classes use their configured windows."""
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_image_retention_days = 100
-        mock_settings.evidence_pii_retention_days = 10
-        mock_get.return_value = mock_settings
+    rm = RetentionManager(
+        storage_client, settings(evidence_image_retention_days=100, evidence_pii_retention_days=10)
+    )
+    now = datetime.now(UTC)
 
-        rm = RetentionManager(storage_client)
-        now = datetime.now(UTC)
+    # PII from 20 days ago -> should purge
+    pii_time = (now - timedelta(days=20)).isoformat()
+    e_pii = create_genesis_entry("PII", pii_time, EvidenceAssetType.PERSONAL_DATA)
+    assert rm.should_purge(e_pii, now) is True
 
-        # PII from 20 days ago -> should purge
-        pii_time = (now - timedelta(days=20)).isoformat()
-        e_pii = create_genesis_entry("PII", pii_time, EvidenceAssetType.PERSONAL_DATA)
-        assert rm.should_purge(e_pii, now) is True
-
-        # Image from 20 days ago -> should NOT purge
-        img_time = (now - timedelta(days=20)).isoformat()
-        e_img = create_genesis_entry("Image", img_time, EvidenceAssetType.PRODUCT_IMAGE)
-        assert rm.should_purge(e_img, now) is False
+    # Image from 20 days ago -> should NOT purge
+    img_time = (now - timedelta(days=20)).isoformat()
+    e_img = create_genesis_entry("Image", img_time, EvidenceAssetType.PRODUCT_IMAGE)
+    assert rm.should_purge(e_img, now) is False
 
 
 def test_safety_flag(storage_client, sample_record, evidence_chain):
     """AC: Destructive purge requires explicit configuration flag."""
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_destructive_purge_enabled = False
-        mock_settings.evidence_image_retention_days = 1
-        mock_get.return_value = mock_settings
+    rm = RetentionManager(
+        storage_client,
+        settings(evidence_destructive_purge_enabled=False, evidence_image_retention_days=1),
+    )
+    e0 = evidence_chain[0]
+    # Store data that matches the payload hash of e0
+    storage_client.store_image(
+        e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
+    )
 
-        rm = RetentionManager(storage_client)
-        e0 = evidence_chain[0]
-        # Store data that matches the payload hash of e0
-        storage_client.store_image(
-            e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
-        )
+    # Force expired
+    e0 = e0.model_copy(update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()})
 
-        # Force expired
-        e0 = e0.model_copy(
-            update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
-        )
+    # Build a valid chain (e0 -> e1) and purge e0 referencing e1
+    e1 = append_entry(e0, "Data 1", datetime.now(UTC).isoformat(), EvidenceAssetType.PRODUCT_IMAGE)
+    result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
 
-        # Build a valid chain (e0 -> e1) and purge e0 referencing e1
-        e1 = append_entry(
-            e0, "Data 1", datetime.now(UTC).isoformat(), EvidenceAssetType.PRODUCT_IMAGE
-        )
-        result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
-
-        assert result[0] is False
-        assert storage_client.get_image(e0.storage_key) == (
-            e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
-        )
+    assert result[0] is False
+    assert storage_client.get_image(e0.storage_key) == (
+        e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
+    )
 
 
 def test_purge_creates_audit_record(storage_client, sample_record, evidence_chain):
     """AC: Purge workflow returns True to signal that an audit record must be appended."""
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_destructive_purge_enabled = True
-        mock_settings.evidence_image_retention_days = 1
-        mock_get.return_value = mock_settings
+    rm = RetentionManager(
+        storage_client,
+        settings(evidence_destructive_purge_enabled=True, evidence_image_retention_days=1),
+    )
+    e0 = evidence_chain[0]
+    # Store data that matches the payload hash of e0
+    storage_client.store_image(
+        e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
+    )
 
-        rm = RetentionManager(storage_client)
-        e0 = evidence_chain[0]
-        # Store data that matches the payload hash of e0
-        storage_client.store_image(
-            e0.payload if isinstance(e0.payload, bytes) else e0.payload.encode("utf-8")
-        )
+    # Force expired
+    e0 = e0.model_copy(update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()})
 
-        # Force expired
-        e0 = e0.model_copy(
-            update={"timestamp": (datetime.now(UTC) - timedelta(days=2)).isoformat()}
-        )
+    # Build a valid chain (e0 -> e1) and purge e0 referencing e1
+    e1 = append_entry(
+        e0,
+        "Data 1",
+        datetime.now(UTC).isoformat(),
+        EvidenceAssetType.PRODUCT_IMAGE,
+    )
+    result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
 
-        # Build a valid chain (e0 -> e1) and purge e0 referencing e1
-        e1 = append_entry(
-            e0,
-            "Data 1",
-            datetime.now(UTC).isoformat(),
-            EvidenceAssetType.PRODUCT_IMAGE,
-        )
-        result = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
-
-        assert result[0] is True
-        # Check that it's actually purged in storage
-        with pytest.raises(AssetPurgedError):
-            storage_client.get_image(e0.storage_key)
+    assert result[0] is True
+    # Check that it's actually purged in storage
+    with pytest.raises(AssetPurgedError):
+        storage_client.get_image(e0.storage_key)
 
 
 def test_purge_no_audit_on_missing_asset(storage_client, sample_record):
     """AC: When purge_image returns False (asset not found), no audit record is written."""
-    with patch("app.modules.evidence.retention.get_settings") as mock_get:
-        mock_settings = MagicMock()
-        mock_settings.evidence_destructive_purge_enabled = True
-        mock_settings.evidence_image_retention_days = 1
-        mock_get.return_value = mock_settings
+    rm = RetentionManager(
+        storage_client,
+        settings(evidence_destructive_purge_enabled=True, evidence_image_retention_days=1),
+    )
+    # Entry exists in chain but not in storage
+    e0 = create_genesis_entry("Missing", "2000-01-01T00:00:00Z", EvidenceAssetType.PRODUCT_IMAGE)
+    e1 = append_entry(e0, "Next", "2000-01-01T00:00:00Z", EvidenceAssetType.PRODUCT_IMAGE)
 
-        rm = RetentionManager(storage_client)
-        # Entry exists in chain but not in storage
-        e0 = create_genesis_entry(
-            "Missing", "2000-01-01T00:00:00Z", EvidenceAssetType.PRODUCT_IMAGE
-        )
-        e1 = append_entry(e0, "Next", "2000-01-01T00:00:00Z", EvidenceAssetType.PRODUCT_IMAGE)
+    success, audit_entry = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
 
-        success, audit_entry = rm.purge_evidence(e0, e1, sample_record, None, datetime.now(UTC))
-
-        assert success == "asset_not_found"
-        assert audit_entry is None
+    assert success == "asset_not_found"
+    assert audit_entry is None
 
 
 def test_legal_hold_matrix(retention_manager, sample_record):

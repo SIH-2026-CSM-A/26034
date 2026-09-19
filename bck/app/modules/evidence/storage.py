@@ -4,6 +4,7 @@ from pathlib import Path
 
 import boto3
 
+from app.core.config import Settings
 from app.modules.evidence.domain import derive_storage_key
 
 
@@ -104,6 +105,31 @@ class S3ContentAddressedStorageClient(EvidenceStorageClient):
             aws_secret_access_key=secret_key,
         )
         self.bucket_name = bucket_name
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "S3ContentAddressedStorageClient":
+        """The client a deployment configured, or a ``LookupError`` naming what it did not.
+
+        All four ``EVIDENCE_S3_*`` settings or none: a bucket with no credentials is not a
+        half-configured store, it is a misconfiguration to name at startup.
+        """
+        names = (
+            "evidence_s3_endpoint_url",
+            "evidence_s3_bucket",
+            "evidence_s3_access_key",
+            "evidence_s3_secret_key",
+        )
+        missing = [name.upper() for name in names if not getattr(settings, name)]
+        if missing:
+            raise LookupError(
+                "evidence object storage is not configured; set " + ", ".join(missing)
+            )
+        return cls(
+            endpoint_url=settings.evidence_s3_endpoint_url,
+            bucket_name=settings.evidence_s3_bucket,
+            access_key=settings.evidence_s3_access_key,
+            secret_key=settings.evidence_s3_secret_key,
+        )
 
     def store_image(self, image_bytes: bytes) -> str:
         sha256_hash = hashlib.sha256(image_bytes).hexdigest()
