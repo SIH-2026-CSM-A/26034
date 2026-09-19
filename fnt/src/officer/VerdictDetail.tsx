@@ -1,8 +1,9 @@
 import { SEEDED_DEMO_OFFICER } from '../services/demo'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { serverMessage, thrownMessage } from '../services/errors'
 import type { components } from '../services/generated/schema'
 import { FieldStateChip } from './components/FieldStateChip'
 import { Notice } from '../ui/Notice'
@@ -30,6 +31,9 @@ const PRODUCT_CATEGORIES: ReadonlyArray<{ value: ProductCategory; label: string 
   { value: 'food', label: 'Food' },
   { value: 'cosmetics', label: 'Cosmetics' },
   { value: 'medical_device', label: 'Medical Device' },
+  // The reader never proposes this one — there is no licence line to read it off — so
+  // the control has to offer it, or a non-consumable can never be confirmed at all.
+  { value: 'non_consumable', label: 'Non-consumable' },
 ]
 
 function rowLabel(finding: FieldFinding): string {
@@ -183,6 +187,7 @@ const DISPOSITIONS: ReadonlyArray<{ action: ReviewAction; label: string }> = [
 
 export function VerdictDetail() {
   const { subjectRef } = useParams<{ subjectRef: string }>()
+  const navigate = useNavigate()
   const handedOver = (useLocation().state as { summary?: ScanSummary } | null)?.summary
   const summary = handedOver && handedOver.id === subjectRef ? handedOver : null
   const [scan, setScan] = useState<ScanDetail | null>(null)
@@ -190,8 +195,12 @@ export function VerdictDetail() {
   const [error, setError] = useState<string | null>(null)
   const [focusedIndex, setFocusedIndex] = useState(0)
 
-  // Category Confirmation State (UI Rule 4)
-  const [confirmedCategory, setConfirmedCategory] = useState<ProductCategory | null>(null)
+  // Category confirmation (UI Rule 4). `scan.product_category` is the officer's confirmed
+  // answer as the server holds it; this is only what the select currently shows.
+  const [pendingCategory, setPendingCategory] = useState<ProductCategory | ''>('')
+  const [confirmingCategory, setConfirmingCategory] = useState(false)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
+  const noteRef = useRef<HTMLInputElement>(null)
 
   // Officer Confirmation Surface State (UI Rule 1: NO pre-selection)
   const [selectedAction, setSelectedAction] = useState<ReviewAction | null>(null)
@@ -214,33 +223,67 @@ export function VerdictDetail() {
     setError(null)
 
     try {
-      const { data, error: apiError } = await apiClient.GET('/scans/{scan_id}', {
+      const { data, error: apiError, response } = await apiClient.GET('/scans/{scan_id}', {
         params: {
           path: { scan_id: subjectRef },
         },
       })
 
       if (apiError || !data) {
-        setError('Failed to fetch')
+        setError(serverMessage(apiError, response))
         setScan(null)
       } else {
         setScan(data)
         setError(null)
-        if (data.product_category) {
-          setConfirmedCategory(data.product_category as ProductCategory)
-        }
+        setPendingCategory((data.product_category as ProductCategory | null) ?? '')
         const insufficientIdx = data.findings.findIndex(
           (f) => f.state === 'INSUFFICIENT_EVIDENCE',
         )
         setFocusedIndex(insufficientIdx === -1 ? 0 : insufficientIdx)
       }
-    } catch {
-      setError('Failed to fetch')
+    } catch (err) {
+      setError(thrownMessage(err))
       setScan(null)
     } finally {
       setLoading(false)
     }
   }, [subjectRef])
+
+  /**
+   * `POST /scans/{id}/category`: the officer's answer, evaluated again as a **new** scan.
+   * The original stays as it was, so the page moves to the scan that carries the
+   * confirmed category; nothing the reader proposed is consulted on the way.
+   */
+  const confirmCategory = useCallback(
+    async (category: ProductCategory) => {
+      if (!scan) return
+      setConfirmingCategory(true)
+      setCategoryError(null)
+      try {
+        const { data, error: apiError, response } = await apiClient.POST('/scans/{scan_id}/category', {
+          params: { path: { scan_id: scan.id } },
+          body: { product_category: category },
+        })
+        if (apiError || !data) {
+          setCategoryError(serverMessage(apiError, response))
+          return
+        }
+        navigate(`/officer/verdicts/${data.id}`)
+      } catch (err) {
+        setCategoryError(thrownMessage(err))
+      } finally {
+        setConfirmingCategory(false)
+      }
+    },
+    [scan, navigate],
+  )
+
+  /** A ledger row asked for a recapture: open the sheet on that disposition, cursor in the note. */
+  const requestRecapture = useCallback(() => {
+    setSelectedAction('request_recapture')
+    setSheetOpen(true)
+    window.setTimeout(() => noteRef.current?.focus(), 250)
+  }, [])
 
   useEffect(() => {
     fetchScan()
@@ -271,7 +314,7 @@ export function VerdictDetail() {
     setReviewError(null)
 
     try {
-      const { data, error: apiError } = await apiClient.POST(
+      const { data, error: apiError, response } = await apiClient.POST(
         '/scans/{scan_id}/review',
         {
           params: {
@@ -286,13 +329,13 @@ export function VerdictDetail() {
       )
 
       if (apiError || !data) {
-        setReviewError('Failed to submit review')
+        setReviewError(serverMessage(apiError, response))
       } else {
         setReviewResult(data)
         setReviewError(null)
       }
-    } catch {
-      setReviewError('Failed to submit review')
+    } catch (err) {
+      setReviewError(thrownMessage(err))
     } finally {
       setSubmittingReview(false)
     }
@@ -379,14 +422,14 @@ export function VerdictDetail() {
 
             {/* Category confirmation control (UI Rule 4) */}
             <section aria-label="Category classification" className="card mt-6 p-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
                   <span className="text-label text-mute">Confirmed Product Category</span>
                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
                     <p className="font-mono text-body font-semibold">
-                      {confirmedCategory ? confirmedCategory.toUpperCase() : 'None (Unconfirmed)'}
+                      {scan.product_category ? scan.product_category.toUpperCase() : 'None (Unconfirmed)'}
                     </p>
-                    {confirmedCategory ? (
+                    {scan.product_category ? (
                       <span className="rounded-full border border-ink/40 px-2 py-0.5 font-mono text-label text-ink">
                         OFFICER CONFIRMED
                       </span>
@@ -396,29 +439,59 @@ export function VerdictDetail() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-label text-mute">
-                    Sector-specific rules remain held under INSUFFICIENT_EVIDENCE until an officer confirms the category.
+                  <p className="mt-1 max-w-[60ch] text-label text-mute">
+                    Rule 7, 8 and 9 findings stay at INSUFFICIENT_EVIDENCE until an officer confirms the
+                    category. Confirming evaluates the held capture again as a new scan; this one is
+                    left as it was.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <label htmlFor="select-category" className="text-label text-mute">
-                    Override / Correct:
-                  </label>
-                  <select
-                    id="select-category"
-                    value={confirmedCategory ?? ''}
-                    onChange={(e) => setConfirmedCategory((e.target.value as ProductCategory) || null)}
-                    className="input w-auto font-mono text-label"
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label htmlFor="select-category" className="block text-label text-mute">
+                      {scan.product_category ? 'Correct to' : 'Confirm as'}
+                    </label>
+                    <select
+                      id="select-category"
+                      value={pendingCategory}
+                      onChange={(e) => setPendingCategory(e.target.value as ProductCategory | '')}
+                      disabled={confirmingCategory || scan.finalised}
+                      className="input mt-1 w-auto font-mono text-label"
+                    >
+                      <option value="">Choose a category</option>
+                      {PRODUCT_CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => pendingCategory && confirmCategory(pendingCategory)}
+                    disabled={
+                      !pendingCategory ||
+                      pendingCategory === scan.product_category ||
+                      confirmingCategory ||
+                      scan.finalised
+                    }
+                    className="btn btn-primary font-mono text-label"
                   >
-                    <option value="">Unconfirmed</option>
-                    {PRODUCT_CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
+                    {confirmingCategory ? 'Re-evaluating…' : 'Confirm and re-evaluate'}
+                  </button>
                 </div>
               </div>
+              {scan.finalised && (
+                <p className="mt-2 text-label text-mute">
+                  This scan's review is finalised. Its category cannot be changed on this row.
+                </p>
+              )}
+              {categoryError && (
+                <div className="mt-3">
+                  <Notice role="alert" title="The category was not confirmed">
+                    <span className="font-mono">{categoryError}</span>
+                  </Notice>
+                </div>
+              )}
 
               <div className="mt-4 border-t border-hairline pt-3">
                 <span className="text-label text-mute">Reader Category Proposal</span>
@@ -456,20 +529,21 @@ export function VerdictDetail() {
                       </div>
                     )}
                     <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmedCategory(scan.category_proposal?.category ?? null)}
-                        className={`btn font-mono text-label ${
-                          confirmedCategory === scan.category_proposal.category ? 'btn-primary' : 'btn-quiet'
-                        }`}
-                      >
-                        {confirmedCategory === scan.category_proposal.category
-                          ? '✓ Confirmed as proposed'
-                          : `Confirm proposal: ${scan.category_proposal.category}`}
-                      </button>
-                      {confirmedCategory && confirmedCategory !== scan.category_proposal.category && (
+                      {scan.product_category === scan.category_proposal.category ? (
+                        <span className="font-mono text-label text-ink">✓ Confirmed as proposed</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => confirmCategory(scan.category_proposal!.category)}
+                          disabled={confirmingCategory || scan.finalised}
+                          className="btn btn-quiet font-mono text-label"
+                        >
+                          Confirm proposal: {scan.category_proposal.category}
+                        </button>
+                      )}
+                      {scan.product_category && scan.product_category !== scan.category_proposal.category && (
                         <span className="font-mono text-label text-query">
-                          (Corrected to {confirmedCategory.toUpperCase()})
+                          (Corrected to {scan.product_category.toUpperCase()})
                         </span>
                       )}
                     </div>
@@ -530,6 +604,7 @@ export function VerdictDetail() {
                     finding={finding}
                     focused={index === focusedIndex}
                     onFocus={() => setFocusedIndex(index)}
+                    onRequestRecapture={scan.finalised || reviewResult ? undefined : requestRecapture}
                   />
                 ))}
               </motion.ul>
@@ -721,6 +796,7 @@ export function VerdictDetail() {
                       Officer note {selectedAction === 'confirm' ? '(optional)' : '(required)'}:
                     </label>
                     <input
+                      ref={noteRef}
                       id="review-note"
                       type="text"
                       placeholder={
@@ -800,9 +876,11 @@ interface LedgerRowProps {
   finding: FieldFinding
   focused: boolean
   onFocus: () => void
+  /** Opens the determination sheet on "request recapture"; absent once the review is finalised. */
+  onRequestRecapture?: () => void
 }
 
-function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
+function LedgerRow({ finding, focused, onFocus, onRequestRecapture }: LedgerRowProps) {
   const isInsufficient = finding.state === 'INSUFFICIENT_EVIDENCE'
 
   return (
@@ -843,10 +921,11 @@ function LedgerRow({ finding, focused, onFocus }: LedgerRowProps) {
         <span className="text-secondary text-mute">{finding.reason}</span>
       </button>
 
-      {isInsufficient && (
+      {isInsufficient && onRequestRecapture && (
         <div className="px-4 pb-4 sm:px-5">
           <button
             type="button"
+            onClick={onRequestRecapture}
             className="btn btn-primary w-full text-label sm:w-auto"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="none">

@@ -1,6 +1,7 @@
-import { motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { apiClient } from '../services/apiClient'
+import { serverMessage, thrownMessage } from '../services/errors'
 import type { components } from '../services/generated/schema'
 import { CountUp } from '../ui/CountUp'
 import { rise, spring, stagger } from '../ui/motion'
@@ -9,6 +10,15 @@ import { OfficerHeader } from './components/OfficerHeader'
 
 type VendorResponse = components['schemas']['VendorResponse']
 type VendorType = components['schemas']['VendorType']
+type VendorRegistration = components['schemas']['VendorRegistration']
+
+const EMPTY_REGISTRATION: VendorRegistration = {
+  name: '',
+  vendor_type: 'kirana',
+  jurisdiction: { state: '', region: '', district: '' },
+  username: '',
+  password: '',
+}
 
 function formatTimestamp(iso: string): string {
   try {
@@ -66,6 +76,44 @@ export function VendorSubmissions() {
   const [searchQuery, setSearchQuery] = useState('')
   const [vendorTypeFilter, setVendorTypeFilter] = useState<VendorType | 'ALL'>('ALL')
   const [districtFilter, setDistrictFilter] = useState<string>('ALL')
+
+  // Registration: `POST /vendors`. The officer states the premises and its credentials;
+  // the server files it under the officer's own jurisdiction or refuses.
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registration, setRegistration] = useState<VendorRegistration>(EMPTY_REGISTRATION)
+  const [registering, setRegistering] = useState(false)
+  const [registerError, setRegisterError] = useState<string | null>(null)
+  const [registered, setRegistered] = useState<VendorResponse | null>(null)
+
+  async function handleRegister(event: FormEvent) {
+    event.preventDefault()
+    setRegistering(true)
+    setRegisterError(null)
+    try {
+      const { data, error, response } = await apiClient.POST('/vendors', {
+        body: {
+          ...registration,
+          jurisdiction: {
+            state: registration.jurisdiction.state.trim(),
+            region: registration.jurisdiction.region?.trim() || null,
+            district: registration.jurisdiction.district?.trim() || null,
+          },
+        },
+      })
+      if (error || !data) {
+        setRegisterError(serverMessage(error, response))
+        return
+      }
+      setVendors((prev) => [data, ...prev])
+      setRegistered(data)
+      setRegistration(EMPTY_REGISTRATION)
+      setRegisterOpen(false)
+    } catch (err) {
+      setRegisterError(thrownMessage(err))
+    } finally {
+      setRegistering(false)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -143,11 +191,166 @@ export function VendorSubmissions() {
       <OfficerHeader currentTitle="Vendor submissions" />
 
       <main className="mx-auto max-w-[1280px] px-4 pb-28 pt-6 md:pb-16">
-        <h1 className="text-title">Vendor register and jurisdictional premises</h1>
-        <p className="mt-2 max-w-[720px] text-secondary text-mute">
-          Registered trading premises within this officer&apos;s jurisdiction under the Legal
-          Metrology (Packaged Commodities) Rules, 2011.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-title">Vendor register and jurisdictional premises</h1>
+            <p className="mt-2 max-w-[720px] text-secondary text-mute">
+              Registered trading premises within this officer&apos;s jurisdiction under the Legal
+              Metrology (Packaged Commodities) Rules, 2011. A registered vendor signs in at
+              <span className="font-mono"> /vendor/login</span> to self-check its own stock.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRegisterOpen((open) => !open)}
+            aria-expanded={registerOpen}
+            className={`btn ${registerOpen ? 'btn-quiet' : 'btn-primary'}`}
+          >
+            {registerOpen ? 'Close' : 'Register a vendor'}
+          </button>
+        </div>
+
+        {registered && !registerOpen && (
+          <div className="mt-4">
+            <Notice role="status" title={`Registered: ${registered.name}`}>
+              Filed under {jurisdictionLine(registered)} · id{' '}
+              <span className="font-mono">{registered.id.slice(0, 8)}</span>. Give the premises the
+              username and password you entered; the password is not shown again.
+            </Notice>
+          </div>
+        )}
+
+        <AnimatePresence initial={false}>
+          {registerOpen && (
+            <motion.form
+              key="register"
+              onSubmit={handleRegister}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={spring.glide}
+              className="card mt-4 overflow-hidden p-5"
+            >
+              <p className="text-secondary text-mute">
+                The premises is filed under your jurisdiction. Fill it to the depth the server
+                asks for; a premises outside your territory is refused.
+              </p>
+              {registerError && (
+                <div className="mt-3">
+                  <Notice role="alert" title="Registration refused">
+                    <span className="font-mono">{registerError}</span>
+                  </Notice>
+                </div>
+              )}
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="vendor-name" className="block text-label text-mute">
+                    Trading name
+                  </label>
+                  <input
+                    id="vendor-name"
+                    required
+                    value={registration.name}
+                    onChange={(e) => setRegistration({ ...registration, name: e.target.value })}
+                    className="input mt-1"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vendor-type" className="block text-label text-mute">
+                    Premises type
+                  </label>
+                  <select
+                    id="vendor-type"
+                    value={registration.vendor_type}
+                    onChange={(e) => setRegistration({ ...registration, vendor_type: e.target.value as VendorType })}
+                    className="input mt-1"
+                  >
+                    {TYPE_FILTERS.filter((t) => t.value !== 'ALL').map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="vendor-state" className="block text-label text-mute">
+                    State
+                  </label>
+                  <input
+                    id="vendor-state"
+                    required
+                    value={registration.jurisdiction.state}
+                    onChange={(e) =>
+                      setRegistration({ ...registration, jurisdiction: { ...registration.jurisdiction, state: e.target.value } })
+                    }
+                    className="input mt-1"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vendor-region" className="block text-label text-mute">
+                    Region
+                  </label>
+                  <input
+                    id="vendor-region"
+                    value={registration.jurisdiction.region ?? ''}
+                    onChange={(e) =>
+                      setRegistration({ ...registration, jurisdiction: { ...registration.jurisdiction, region: e.target.value } })
+                    }
+                    className="input mt-1"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vendor-district" className="block text-label text-mute">
+                    District
+                  </label>
+                  <input
+                    id="vendor-district"
+                    value={registration.jurisdiction.district ?? ''}
+                    onChange={(e) =>
+                      setRegistration({ ...registration, jurisdiction: { ...registration.jurisdiction, district: e.target.value } })
+                    }
+                    className="input mt-1"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vendor-username" className="block text-label text-mute">
+                    Sign-in username
+                  </label>
+                  <input
+                    id="vendor-username"
+                    required
+                    autoComplete="off"
+                    pattern="[A-Za-z0-9._\-]+"
+                    maxLength={120}
+                    value={registration.username}
+                    onChange={(e) => setRegistration({ ...registration, username: e.target.value })}
+                    className="input mt-1 font-mono"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vendor-password" className="block text-label text-mute">
+                    Sign-in password (8+ characters)
+                  </label>
+                  <input
+                    id="vendor-password"
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    minLength={8}
+                    value={registration.password}
+                    onChange={(e) => setRegistration({ ...registration, password: e.target.value })}
+                    className="input mt-1 font-mono"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button type="submit" disabled={registering} className="btn btn-primary">
+                  {registering ? 'Registering…' : 'Register premises'}
+                </button>
+              </div>
+            </motion.form>
+          )}
+        </AnimatePresence>
 
         {/* A count is only shown once the register has answered; a zero before that is a claim. */}
         <motion.div

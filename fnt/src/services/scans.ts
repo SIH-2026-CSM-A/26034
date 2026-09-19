@@ -64,7 +64,10 @@ export async function awaitScanOutcome(
         return detail
       }
     } else if (++failedReads >= MAX_CONSECUTIVE_READ_FAILURES) {
-      throw new Error('Failed to fetch')
+      throw new Error(
+        `The server did not answer ${MAX_CONSECUTIVE_READ_FAILURES} reads in a row. ` +
+          'Evaluation continues on the server; open this scan from the ledger later.',
+      )
     }
     const elapsed = Date.now() - started
     if (elapsed > POLL_DEADLINE_MS) {
