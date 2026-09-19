@@ -48,10 +48,19 @@ def two_prices() -> Label:
 
 
 def stickered() -> Label:
-    """A bright paper rectangle under the price, with the panel's dark surface around it."""
+    """A bright paper rectangle under the price, with the panel's dark surface around it.
+
+    The paper runs 7 px past the print on every side. That is what a sticker looks like to
+    the detector — a step that encloses the span — and it is the only shape it reports: a
+    bright edge on one side, which is what this fixture used to draw, is a printed rule.
+    """
     label = Label().write(QUANTITY, (250, 250), span_id="s-quantity")
-    cv2.rectangle(label.frame, (240, 410), (640, 480), (235, 235, 235), -1)
-    return label.write("MRP Rs. 45.00", (250, 420), span_id="s-mrp")
+    label.write("MRP Rs. 45.00", (250, 420), span_id="s-mrp")
+    (x0, y0), _, (x1, y1), _ = (tuple(int(v) for v in pt) for pt in label.spans[-1].polygon)
+    print_ = label.frame[y0:y1, x0:x1].copy()
+    cv2.rectangle(label.frame, (x0 - 7, y0 - 7), (x1 + 7, y1 + 7), (235, 235, 235), -1)
+    label.frame[y0:y1, x0:x1] = print_
+    return label
 
 
 def test_a_clean_label_raises_no_signal_and_the_price_passes() -> None:

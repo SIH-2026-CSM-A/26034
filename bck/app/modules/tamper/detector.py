@@ -17,8 +17,6 @@ PRIOR_STICKER_OVERLAY_PROBABILITY: float = 0.85
 
 # Computer vision heuristics.
 # Empirical defaults awaiting dataset tuning against SIH research references.
-CV_CANNY_LOW: int = 50
-CV_CANNY_HIGH: int = 150
 CV_STEP_DISCONTINUITY_THRESHOLD: float = 35.0
 CV_PADDING: int = 10
 CV_BORDER_MARGIN: int = 5
@@ -189,8 +187,10 @@ def detect_sticker_overlay(
     """Detects physical sticker overlay tampering along span crop boundaries.
 
     Uses directional step-discontinuity analysis comparing mean pixel intensity just inside
-    the border vs. just outside the border across the four sides of the span crop boundary
-    to detect true physical sticker paper edges while rejecting neighboring text glyphs.
+    the border vs. just outside the border on each of the four sides of the span crop
+    boundary, and reports a sticker only where the step encloses the span — present on all
+    four sides, in the same direction — which is what a patch of other paper looks like and
+    a printed rule, border or highlighted block does not.
 
     Returns:
         list[TamperDetectionResult]: A list of tamper findings for detected sticker overlays.
@@ -233,32 +233,35 @@ def detect_sticker_overlay(
         if m < 2:
             continue
 
-        # Directional step-discontinuity analysis:
-        # Compare mean pixel intensity just inside vs just outside perimeter borders.
-        # Gradient thresholds and border margin parameters are uncalibrated heuristics
-        # awaiting empirical dataset tuning against SIH research references.
+        # Directional step-discontinuity analysis: mean intensity of the band just outside
+        # the span against the band just inside it, on each of the four sides. The step
+        # threshold and border margin are uncalibrated heuristics.
         sides = [
             (gray[0:m, :], gray[m : 2 * m, :]),  # Top
             (gray[ch - m : ch, :], gray[ch - 2 * m : ch - m, :]),  # Bottom
             (gray[:, 0:m], gray[:, m : 2 * m]),  # Left
             (gray[:, cw - m : cw], gray[:, cw - 2 * m : cw - m]),  # Right
         ]
+        steps = [
+            float(np.mean(outer)) - float(np.mean(inner))
+            for outer, inner in sides
+            if outer.size and inner.size
+        ]
 
-        edges = cv2.Canny(gray, CV_CANNY_LOW, CV_CANNY_HIGH)
+        # A sticker is a patch of other paper with the print on it: its edge runs round
+        # the span on every side, and the patch is lighter than what surrounds it on every
+        # side or darker on every side. A step on one side is a table rule, the edge of a
+        # highlighted block or the border of a printed box — on the first real capture
+        # (2026-09-19) any-one-side read 24 stickers on an untouched carton. Every side, one
+        # direction, is what a patch looks like and a rule does not.
+        # ponytail: the edge has to lie within CV_PADDING px of the span. A sticker with a
+        # wider margin than that around its print is not seen, and was not seen before.
+        enclosed = len(steps) == 4 and (
+            all(step > CV_STEP_DISCONTINUITY_THRESHOLD for step in steps)
+            or all(step < -CV_STEP_DISCONTINUITY_THRESHOLD for step in steps)
+        )
 
-        has_sticker_edge = False
-        for outer, inner in sides:
-            if outer.size == 0 or inner.size == 0:
-                continue
-            mean_outer = float(np.mean(outer))
-            mean_inner = float(np.mean(inner))
-            step_diff = abs(mean_outer - mean_inner)
-
-            if step_diff > CV_STEP_DISCONTINUITY_THRESHOLD and np.count_nonzero(edges) > 0:
-                has_sticker_edge = True
-                break
-
-        if has_sticker_edge:
+        if enclosed:
             results.append(
                 TamperDetectionResult(
                     kind="sticker_overlay",

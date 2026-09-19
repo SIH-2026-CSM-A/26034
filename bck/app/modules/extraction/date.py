@@ -89,14 +89,21 @@ def normalise_date(
 
     # Determine Date Type
     date_type = None
-    if "MFG" in upper_raw or "MANUFACTURE" in upper_raw:
+    if "MFG" in upper_raw or "MFD" in upper_raw or "MANUFACTURE" in upper_raw:
         date_type = DateType.MANUFACTURED
-    elif "PKD" in upper_raw or "PACKED" in upper_raw:
+    elif "PKD" in upper_raw or "PACKED" in upper_raw or "PACKAGING" in upper_raw:
         date_type = DateType.PACKED
     elif "BEST BEFORE" in upper_raw or "USE BY" in upper_raw:
         date_type = DateType.BEST_BEFORE
     elif "EXP" in upper_raw or "EXPIRY" in upper_raw:
         date_type = DateType.EXPIRY
+
+    # A month and a two-digit year — "9/44" — is also a house number, a plot number and a
+    # licence fragment. On its own it is not a date; beside a word that says it is one, it
+    # is. The first real capture (2026-09-19) read "9/44 Kirti Nagar Industrial Area" as
+    # September 2044, twice, and the package passed on it. A four-digit year stands alone.
+    names_a_date = date_type is not None or bool(re.search(r"\b(?:DATE|DT|DOM|DOP)\b", upper_raw))
+    year_pat = r"20\d{2}|\d{2}" if names_a_date else r"20\d{2}"
 
     # Check for relative expressions, e.g., "Best before 6 months from packing"
     # Named comment for regex over 80 characters:
@@ -177,7 +184,7 @@ def normalise_date(
     # Named comment for regex over 80 characters:
     # Captures MM/YYYY or MM/YY date formats across string for ambiguity detection
     # Intentionally long to check numeric month boundaries and separators.
-    my_pat = r"(?:\b|^)(?:0?[1-9]|1[012])[\.\/\-](?:20\d{2}|\d{2})(?:\b|$)"
+    my_pat = rf"(?:\b|^)(?:0?[1-9]|1[012])[\.\/\-](?:{year_pat})(?:\b|$)"
     my_dates = re.findall(my_pat, raw_without_full)
 
     # Named comment for regex over 80 characters:
@@ -267,7 +274,7 @@ def normalise_date(
     # Named comment for regex over 80 characters:
     # Matches MM/YYYY or MM/YY date formats with word boundary checks.
     # Intentionally long to validate month range 01-12 and 2-or-4 digit year suffixes.
-    m_my = re.search(r"(?:\b|^)(0?[1-9]|1[012])[\.\/\-](20\d{2}|\d{2})(?:\b|$)", raw)
+    m_my = re.search(rf"(?:\b|^)(0?[1-9]|1[012])[\.\/\-]({year_pat})(?:\b|$)", raw)
     if m_my:
         m, y_str = int(m_my.group(1)), m_my.group(2)
         y = int(y_str) if len(y_str) == 4 else 2000 + int(y_str)

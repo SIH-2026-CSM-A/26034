@@ -338,6 +338,18 @@ def fact_condition_findings(
     ]
 
 
+ONE_VALUE_FIELDS = frozenset({DeclarationField.MANUFACTURE_DATE, DeclarationField.BEST_BEFORE_DATE})
+"""Obligations a package meets with exactly one value, so that two different bound values
+are not two declarations but one reading that also caught something else.
+
+The first real capture (2026-09-19) bound MANUFACTURE_DATE four times — "2044-09 |
+2044-09 | 2024-07-15 | 2026-07-14", two from an address line and one from the use-by
+date — and reported PASS on the lot. NAME_AND_ADDRESS is not here: a package legitimately
+bears a manufacturer, a packer and an importer. Nor is NET_QUANTITY: a bilingual
+disagreement over it is :class:`~app.contracts.CompetingReadings`, handled above.
+"""
+
+
 def declaration_findings(
     rule: RuleDefinition, fields: tuple[DeclarationField, ...], context: EvidenceContext
 ) -> list[FieldFinding]:
@@ -380,6 +392,23 @@ def _one_declaration(
         )
 
     values = context.declared.get(field, ())
+    if field in ONE_VALUE_FIELDS:
+        distinct = tuple(dict.fromkeys(value.normalised_value for value in values))
+        if len(distinct) > 1:
+            return finding(
+                rule,
+                field,
+                FieldState.INSUFFICIENT_EVIDENCE,
+                f"text on the panel was bound to this declaration {len(values)} times and the "
+                f"values do not agree: {' | '.join(distinct)}. A package bears one such date, "
+                f"so all but one of these is something else — a plot number, the other date — "
+                f"and the reading cannot say which. No value is reported, and nothing follows "
+                f"from one.",
+                context,
+                evidence_span_ids=tuple(
+                    dict.fromkeys(ref for value in values for ref in value.span_refs)
+                ),
+            )
     if values:
         # Every bound value for this obligation, and every span behind all of them. One
         # finding, because one obligation, but it cites the whole of what was read.
