@@ -4272,3 +4272,78 @@ One PR, `fnt/` only, merged with `--admin` on the standing "merge when green" in
   calibration can see it was not achieved.
 - A photograph of a real package with a ₹10 coin in frame, on a pack whose net quantity binds, is
   still the missing input for a Table-I finding with a millimetre figure. Nothing in `fnt/` blocks it.
+
+## Session 36 — 2026-09-19, the three defects on the first real calibrated capture (Claude Code, Fable 5.1)
+
+One PR, `bck/` only, merged with `--admin` on the standing "merge when green" instruction as
+`4387166` (#166); the VM backend rebuilt from it `--no-cache` and `--force-recreate`d at
+11:49 UTC. The input: `/mnt/c/Users/drona/Downloads/mdh-kitchen-king-coin.jpg`, an untouched MDH
+Kitchen King 100 g carton, back panel flat, ₹10 coin beside it, shot straight down, 1214 × 1295 px
+— the first photograph with a reference object this system has ever been given. Scan `91893092`
+on it had returned POTENTIAL_VIOLATION.
+
+### What the three defects actually were
+
+- **The coin detector chose the carton.** `detect_reference_object(img, "coin_10")` run directly on
+  the file returned 0.0191 mm/px and a 54° homography — it did not refuse. `max(contours,
+  key=cv2.contourArea)` is the carton's outline (725 × 1157 px), and an ellipse fitted to a
+  rectangle scores 0.89 on the area ratio against the 0.80 floor. So the carton was a 1414 px coin,
+  27 mm across the frame, and a 2.5 mm numeral became 0.48 mm. The reference type had persisted
+  and had reached detection; nothing was lost downstream. The coin is now the largest contour whose
+  points lie on the ellipse fitted to them (mean radial residual ≤ 0.015 over the full
+  `CHAIN_APPROX_NONE` contour — the four corners of a box fit one ellipse exactly with
+  `CHAIN_APPROX_SIMPLE`), clearing the old area ratio, at least 40 px across. The 40 is
+  `2 × UNCALIBRATED_QUANTISATION_PRIOR_PX / PRIOR_CONFIDENCE_COIN`, not a chosen number. On the
+  file: coin at (1029, 756), 252.6 × 258.3 px, residual 0.003, **0.1045 mm/px**; carton residual
+  0.10; all four coin-less corpus photographs refuse.
+- **A sticker was any one side stepping.** Mean intensity 5–10 px out against 0–5 px out, on any
+  single side of the span, plus a `Canny > 0` guard that any print satisfies. That is a table rule,
+  a highlighted block's edge, a printed box border. Now: all four sides, same direction. Signals on
+  the five images with local PaddleOCR 3.7.0 spans, before → after: MDH 24 → 0; curcuma 21 → 0;
+  neem 6 → 0; parle 130 g 22 → 0; parle 65 g 7 → 0. n = 5, no rate. The pipeline's stickered
+  fixture drew paper 60 px past the print on one side and short on another; it now runs 7 px past
+  on every side.
+- **"2044-09" was the address.** `9/44 Kirti Nagar Industrial Area,` — printed twice — parsed as
+  month 9, year 2044 under bare `MM/YY`, and the two real dates are OCR'd apart from their
+  `Date of Packaging` / `Use By` labels so both were untyped and both defaulted to
+  MANUFACTURE_DATE; `_one_declaration` joined the four and said PASS. Now a two-digit year needs a
+  word that names a date, `MFD` and `PACKAGING` type a date, and a date obligation bound to values
+  that disagree is INSUFFICIENT_EVIDENCE with no observed value (`ONE_VALUE_FIELDS`, dates only).
+
+### Verification
+
+- Each fix reinstated in turn, `pycache` purged by absolute path, no `-x`: 3 / 2 / 4 / 1 tests red,
+  the control green. Restoring `services.py` whole from main was a *collection* error on the new
+  constant, not the assertion — the selection line alone was reverted for that one.
+- Local 1142 / 136 / 2 errors vs `origin/main` 1130 / 136 / 2 at `2ee8f4b` in a throwaway
+  worktree; the +12 is the 12 new tests. The 2 errors are `test_minio_storage.py` reaching a live
+  `:9000` on this machine; identical on main. CI: 1277 passed / 3 skipped.
+- **Resubmitted through the tunnel as `inspector1`: scan `e0535e34`, verdict REVIEW.** Table-I
+  NET_QUANTITY PASS at 2.508 mm (the digits; the whole "100g" is 3.3 mm with the descender). Free
+  space PASS on all four sides. MANUFACTURE_DATE INSUFFICIENT_EVIDENCE "2024-07-15 | 2026-07-14",
+  BEST_BEFORE_DATE unbound. Zero sticker signals. Three REVIEW_REQUIRED, all evidence: Tesseract
+  re-read `1g`, contrast ratio 13.1:1, heuristic panel placement.
+
+### Found by measuring
+
+- **The Table-I PASS is by 0.008 mm, and that margin is an artefact.** The heuristic panel is the
+  frame, (29, 23, 1156, 1249) → 152 cm² through the corrected scale, the 100–500 cm² band, 2.5 mm
+  required. The carton's own outline is 70 × 119 mm = 83 cm², the 50–100 band, 1.5 mm. A slightly
+  smaller print on this compliant pack would have been a FAIL from the coin and the tabletop being
+  inside the "panel". `detect_pdp` with no weights; raised, not fixed.
+- A flat coin reads as 12° tilted: 252.6 vs 258.3 px from rim shadow, and MEA-007's rectification
+  then shrinks the carton's width from 75.8 mm to 69.5 mm at 600 px from the coin.
+- COMMON_OR_GENERIC_NAME PASS now carries every unclassified span joined into `observed_value`,
+  nutrition table and all. Pre-existing; the stickers had hidden it under REVIEW.
+- A large round glyph or logo passes the new coin test; stated in a `ponytail:` comment.
+
+### My own errors, by name
+
+- Estimated the numeral at ~6 mm from the OCR box height before measuring the ink. It is 2.5 mm.
+- First falsification of `services.py` restored the whole file and read a collection error as red.
+
+### Raised, not fixed
+
+The panel-area artefact above; the spurious coin tilt; same-line label→value pairing for dates
+(would turn both date obligations on this pack into typed PASSes); `id_card` / `ean_13` from
+Session 35; `capture_metadata` absent from `ScanDetail`.

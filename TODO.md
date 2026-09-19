@@ -7,12 +7,30 @@ them, read the file.
 
 ---
 
-## After Session 35 (2026-09-19, reference-object values on both officer forms, #164, VM frontend on 06698e0) — read this first
+## After Session 36 (2026-09-19, first real calibrated capture, #166, VM backend on 4387166) — read this first
+
+1. ~~Table-I has no millimetre figure to show.~~ It has one: MDH Kitchen King with a ₹10 coin, scan
+   `e0535e34`, 0.1045 mm/px, numeral 2.51 mm, verdict REVIEW. The photo is
+   `/mnt/c/Users/drona/Downloads/mdh-kitchen-king-coin.jpg`; it belongs in `datasets/raw` as the
+   first calibrated capture.
+2. **The heuristic panel nearly failed a compliant pack.** `detect_pdp` with no weights returns the
+   frame, 152 cm² here against the carton's 83 cm², one band up: 2.5 mm required, 2.508 measured.
+   Either train / configure a panel detector or refuse Table-I when `detection.method` is
+   heuristic. `bck/`, `pipeline/orchestrator.py::_panel_area` or `vision/pdp.py`.
+3. **A flat coin reads as tilted** (252.6 × 258.3 px → 12°, widths shrink 8 % at 600 px from the
+   coin). Treat `b/a ≥ ~0.98` as flat in `measurement/services.py`. Yashashvi's module.
+4. **Date labels split from values.** `Date of Packaging` | `15 JUL 2024` are two spans; a same-line
+   label→value pairing in `extraction/binder.py` types both dates and turns two
+   INSUFFICIENT_EVIDENCE into two PASSes on this pack. Sitanshu's module.
+5. COMMON_OR_GENERIC_NAME binds every unclassified span into one `observed_value`. `extraction/`.
+6. Item 3 below (`id_card` / `ean_13`) is unchanged; `coin_10` no longer fails the same way.
+
+## After Session 35 (2026-09-19, reference-object values on both officer forms, #164, VM frontend on 06698e0)
 
 1. ~~Neither officer form can calibrate.~~ Done in Session 35 (#164): both send `coin_10` /
    `id_card` / `ean_13` from one list, `fnt/src/officer/referenceObjects.ts`. Proved from the
    persisted row on `pccs-vm` for a scan submitted through the deployed `/officer/new`.
-2. **Table-I still has no millimetre figure to show**, and it is not the form. Two inputs are
+2. ~~**Table-I still has no millimetre figure to show**~~ Done in Session 36 (#166). It was not the form. Two inputs are
    missing: a photograph with a ₹10 coin in frame (none in the corpus; `coin_10` correctly refuses
    all four catalogue images) and a pack whose net quantity `extraction/net_quantity.py` binds
    (both Parle-G packs read `NET WEIGHT:55g+10g*EXTRA=65g` and bind nothing). Take the photo, pick
