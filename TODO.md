@@ -7,11 +7,28 @@ them, read the file.
 
 ---
 
+## After Session 35 (2026-09-19, reference-object values on both officer forms, #164, VM frontend on 06698e0) — read this first
+
+1. ~~Neither officer form can calibrate.~~ Done in Session 35 (#164): both send `coin_10` /
+   `id_card` / `ean_13` from one list, `fnt/src/officer/referenceObjects.ts`. Proved from the
+   persisted row on `pccs-vm` for a scan submitted through the deployed `/officer/new`.
+2. **Table-I still has no millimetre figure to show**, and it is not the form. Two inputs are
+   missing: a photograph with a ₹10 coin in frame (none in the corpus; `coin_10` correctly refuses
+   all four catalogue images) and a pack whose net quantity `extraction/net_quantity.py` binds
+   (both Parle-G packs read `NET WEIGHT:55g+10g*EXTRA=65g` and bind nothing). Take the photo, pick
+   a pack with a plain `500 g`, submit with `coin_10` + a category, read `GET /scans/{id}`.
+3. **`id_card` and `ean_13` calibrate against frames with no reference object** (`bck/`,
+   `measurement/services.py`). The largest four-point contour on a package photo is the package,
+   and its width is taken as 85.60 mm or 37.29 mm — a confident, wrong scale. `coin_10` does not
+   fail this way. Raised in #164, not fixed.
+4. The reference-detection refusal never reaches `GET /scans/{id}`; an officer who asked for
+   calibration cannot see it was not achieved. `bck/`.
+
 ## After Session 34 (2026-09-19, package confirmations on `/officer/camera`, #162, VM frontend on 99869d8) — read this first
 
 1. ~~`CameraCapture.tsx` sends no package confirmations.~~ Done in Session 34 (#162): all three,
    behind a disclosure, reset per package.
-2. **Neither officer form can calibrate.** Both forms send `reference_type` as `coin` / `card`;
+2. ~~**Neither officer form can calibrate.**~~ Done in Session 35 (#164). Both forms sent `reference_type` as `coin` / `card`;
    `detect_reference_object` accepts only `coin_10`, `id_card`, `ean_13`. Until the option values
    match, every camera or upload scan is uncalibrated and Rule 7(2) Table-I can never reach the
    panel-area limb. Two option values in `fnt/`; check the tests that pin them.
