@@ -7,7 +7,25 @@ them, read the file.
 
 ---
 
-## After Session 38 (2026-09-19, an officer marks the principal display panel, #170, VM on f998e2e) — read this first
+## After Session 39 (2026-09-19, panel area is width × height × scale², #172, VM backend on f8144f0) — read this first
+
+1. ~~Panel area depended on where the mark sat.~~ Done in Session 39 (#172): a coin at b/a ≥ 0.97
+   is flat and builds no homography; the 12° on the MDH capture was a rim shadow, proved against
+   the label's own edges. Three tunnel marks `fe939a0b` / `12bab7e2` / `c8547ba7`: 102.3, 112.7,
+   118.4 cm² for +0 / +10.1 / +15.8 % px². Table-I now bands across the area's interval
+   (REVIEW_REQUIRED across an edge when the height meets one band and not the other).
+2. **The unresolved tilt is not in the confidence interval.** Below the floor a real tilt up to
+   14° is up to 8 % on a length 600 px from the coin; `PRIOR_CONFIDENCE_COIN` is 5 %. Needs a
+   distance-from-coin term in every calibrated interval: `detect_reference_object` must expose
+   the coin centre and focal length to its four callers. `bck/`, `measurement/services.py`.
+3. **The character height's own interval is not consulted by Table-I.** 2.61 ± 0.13 mm against
+   2.5 mm is PASS today. Applying the same interval logic makes the demo capture REVIEW_REQUIRED
+   — decide before doing it. `pipeline/measurement_findings.py`.
+4. **`datasets/raw/food/food_mdh_kitchen_king_100g` annotates `numeral_height_mm` 2.51**, the
+   figure the spurious homography produced; flat it is 2.61. Owner's directory.
+5. Items 3–4 of Session 38 below are unchanged.
+
+## After Session 38 (2026-09-19, an officer marks the principal display panel, #170, VM on f998e2e)
 
 1. ~~Table-I on the pixel path needs a trained panel detector to say anything.~~ Done in
    Session 38 (#170): the officer drags the panel on `/officer/new` and `/officer/camera`;
@@ -15,8 +33,7 @@ them, read the file.
    Scan `6efb8a2b` (marked, 97.8 cm², PASS at 1.5 mm) and `b368bd28` (unmarked, #168's refusal)
    on the MDH capture through the tunnel. A trained detector is still the upgrade for the
    unmarked path; `datasets/raw` now has the calibrated capture with a coin bbox to train against.
-2. **Table-I `observed_value` is the unrounded float** (`2.5083775157266324 mm`). Round where
-   the finding is built, not where it is displayed. `bck/`, `pipeline/measurement_findings.py`.
+2. ~~Table-I `observed_value` is the unrounded float.~~ Done in Session 39 (#172): two decimals.
 3. **The mark has no keyboard path.** Optional today. Four number inputs behind a disclosure
    would do; `fnt/src/officer/components/PanelMarker.tsx`.
 4. Items 3–6 of Session 36 below are unchanged.
