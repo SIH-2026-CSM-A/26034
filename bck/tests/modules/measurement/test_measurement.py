@@ -667,3 +667,74 @@ def test_coin_detection_refuses_a_coin_too_small_to_carry_its_prior():
     small = int(MIN_COIN_DIAMETER_PX) - 10
     result = detect_reference_object(_frame_with_box(coin_diameter_px=small), "coin_10")
     assert isinstance(result, MeasurementRefusal)
+
+
+@pytest.mark.parametrize("axis_ratio", [1.0, 0.99, 0.98])
+def test_a_near_circular_coin_is_flat_and_builds_no_homography(axis_ratio):
+    """A coin within the fit's own error of round is lying flat, and rectifies nothing.
+
+    ``arccos`` has infinite slope at 1: a 2 % axis-ratio error is a 12° tilt. On the first
+    calibrated capture a coin lying on the table fitted at 0.978 while the label beside it,
+    in the same plane, showed no tilt about that axis at all — and rectifying by the 12°
+    moved an officer's panel mark across a Table-I band edge. Below
+    ``FLAT_COIN_AXIS_RATIO`` there is no tilt to rectify, so ``h_matrix`` is ``None`` and
+    every caller measures the frame as photographed.
+    """
+    import cv2
+    import numpy as np
+
+    from app.contracts import MeasurementRefusal
+    from app.modules.measurement.services import detect_reference_object
+
+    img = np.zeros((1000, 1000), dtype=np.uint8)
+    cv2.ellipse(img, (500, 500), (100, int(round(100 * axis_ratio))), 0, 0, 360, 255, -1)
+    res = detect_reference_object(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), "coin_10")
+    assert not isinstance(res, MeasurementRefusal), res
+    scale, _, h_matrix = res
+    assert h_matrix is None
+    assert abs(27.0 / scale - 200.0) / 200.0 <= 0.01
+
+
+def test_a_clearly_oblique_coin_still_rectifies():
+    """The floor is a floor: a coin at 0.90 (26°) is tilted and is rectified."""
+    import cv2
+    import numpy as np
+
+    from app.modules.measurement.services import detect_reference_object
+
+    img = np.zeros((1000, 1000), dtype=np.uint8)
+    cv2.ellipse(img, (500, 500), (100, 90), 0, 0, 360, 255, -1)
+    _, _, h_matrix = detect_reference_object(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), "coin_10")
+    assert h_matrix is not None
+
+
+def test_panel_area_beside_a_flat_coin_scales_with_pixel_area():
+    """Two marks on one flat capture: the cm² ratio is the px² ratio, wherever they sit.
+
+    This is the defect as an officer met it. Same photograph, same coin, two marks over
+    the same carton face whose pixel areas differed by 14 % came out 18 % apart in cm² and
+    on opposite sides of the 100 cm² band edge, because a spurious 12° homography scaled the
+    frame by its distance from the coin. With the coin read as flat the area is width ×
+    height × scale², and the mark further from the coin is not measured smaller.
+    """
+    import cv2
+    import numpy as np
+
+    from app.contracts import MeasurementCalibrated
+    from app.modules.measurement.services import measure_panel_dimensions
+
+    frame = np.full((1300, 1300), 255, dtype=np.uint8)
+    # The coin as the capture read it: 2 % off round, on the right of the frame.
+    cv2.ellipse(frame, (1030, 757), (126, int(round(126 * 0.978))), 12, 0, 360, 40, -1)
+    frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+    def area_cm2(mark):
+        height, width = measure_panel_dimensions(frame, mark, ref_image=frame, ref_type="coin_10")
+        assert isinstance(height, MeasurementCalibrated), height
+        assert isinstance(width, MeasurementCalibrated), width
+        return height.value * width.value / 100
+
+    near, far = (146, 80, 922, 1176), (86, 38, 776, 1207)
+    pixel_ratio = (776 * 1207) / (922 * 1176)
+    measured_ratio = area_cm2(far) / area_cm2(near)
+    assert abs(measured_ratio / pixel_ratio - 1) < 0.005, (measured_ratio, pixel_ratio)

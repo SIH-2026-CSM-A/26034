@@ -31,6 +31,25 @@ PRIOR_CONFIDENCE_COIN = 0.05
 PRIOR_CONFIDENCE_EAN = 0.10
 
 MIN_PLANARITY_THRESHOLD = 0.85
+
+FLAT_COIN_AXIS_RATIO = 0.97
+"""A coin whose minor-to-major axis ratio is at or above this is lying flat: no tilt is
+inferred from it and no homography is built.
+
+The tilt is ``arccos(b / a)``, whose slope at 1 is infinite: a 1 % axis-ratio error is 8°
+of tilt, 2 % is 12°, 3 % is 14°. An ellipse fit cannot tell those from round. On the first
+calibrated capture (2026-09-19) a ₹10 coin lying on the table fitted at 0.978 with a
+radial residual of 0.003 — a near-perfect ellipse, "tilted" 12° about a vertical axis —
+while the label printed on the carton beside it, in the same plane, had left and right
+edges of 1153 and 1151 px: no tilt about that axis at all. The rim's shadow on one side is
+the whole 2 %. Rectifying by those 12° scaled the frame by ``sin(12°) · d / f``, 7 % at
+600 px from the coin, so two officer's marks over one carton face whose pixel areas were
+14 % apart came out 18 % apart in cm², on opposite sides of the 100 cm² Table-I edge.
+
+ponytail: one capture plus margin; recalibrate once an evaluation set exists. A tilt left
+unresolved below this ratio is still a real uncertainty on any length away from the coin,
+up to ``sin(14°) · d / f`` of it, and is not carried in the confidence interval today. The
+upgrade is a distance-from-coin term in every calibrated interval."""
 MIN_ELLIPSE_FIT_SCORE = 0.80
 
 MIN_COIN_DIAMETER_PX = 2 * UNCALIBRATED_QUANTISATION_PRIOR_PX / PRIOR_CONFIDENCE_COIN
@@ -120,14 +139,12 @@ def detect_reference_object(
     (mm_per_pixel, confidence_interval, homography_matrix).
     Returns MeasurementRefusal if the object cannot be detected.
 
-    Note on homography: the ``coin_10`` path returns scale only, with
-    ``h_matrix`` set to ``None``. A circle under perspective projects to an
-    ellipse with no corner correspondences, so any matrix built from its
-    bounding box maps arbitrary points — callers must handle ``None`` and
-    skip rectification. The consequence is that a coin-calibrated measurement
-    on an oblique capture is not perspective-corrected, and
-    ``PRIOR_CONFIDENCE_COIN`` does not cover that error. Recovering a real
-    homography from the coin by fitting an ellipse is MEA-007.
+    Note on homography: the ``coin_10`` path fits an ellipse and reads the tilt off its
+    axis ratio, which is a measurement only once the ratio is below
+    ``FLAT_COIN_AXIS_RATIO``. A rounder coin is flat and ``h_matrix`` is ``None``, which
+    every caller must handle by measuring the frame as photographed. The tilt's *direction*
+    is never recoverable from the ellipse (see :func:`resolve_coin_tilt_ambiguity`), and
+    ``PRIOR_CONFIDENCE_COIN`` covers neither that nor a tilt left unresolved.
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
@@ -180,23 +197,27 @@ def detect_reference_object(
             a, b = h / 2.0, w / 2.0
             u = np.array([np.sin(angle_rad), np.cos(angle_rad), 0.0])
 
-        # The coin is a circle tilted in place, so its major axis is the one diameter left
-        # unforeshortened: that is the axis it tilted about, and b/a is the cosine of the tilt.
-        theta, u = resolve_coin_tilt_ambiguity(float(np.arccos(b / a)), u)
-        k_u = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
-        r_tilt = np.eye(3) + np.sin(theta) * k_u + (1.0 - np.cos(theta)) * (k_u @ k_u)
+        h_matrix = None
+        if b / a < FLAT_COIN_AXIS_RATIO:
+            # The coin is a circle tilted in place, so its major axis is the one diameter
+            # left unforeshortened: that is the axis it tilted about, and b/a is the cosine
+            # of the tilt. A rounder coin than the floor is flat: its "tilt" is fit error.
+            theta, u = resolve_coin_tilt_ambiguity(float(np.arccos(b / a)), u)
+            k_u = np.array([[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]])
+            r_tilt = np.eye(3) + np.sin(theta) * k_u + (1.0 - np.cos(theta)) * (k_u @ k_u)
 
-        # A pseudo-camera centred on the coin, focal length = image diagonal, with the coin's
-        # plane at depth f so one plane unit is one pixel when fronto-parallel. The plane
-        # maps to the image as K [r1 r2 t]; rectifying it is undoing that and re-imaging the
-        # same plane untilted, K [e1 e2 t]. Scale at the coin centre is preserved exactly.
-        h_img, w_img = gray.shape
-        f_val = np.sqrt(w_img**2 + h_img**2)
-        k_mat = np.array([[f_val, 0.0, xc], [0.0, f_val, yc], [0.0, 0.0, 1.0]])
-        depth = np.array([0.0, 0.0, f_val])
-        tilted = np.column_stack([r_tilt[:, 0], r_tilt[:, 1], depth])
-        fronto = np.column_stack([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], depth])
-        h_matrix = k_mat @ fronto @ np.linalg.inv(tilted) @ np.linalg.inv(k_mat)
+            # A pseudo-camera centred on the coin, focal length = image diagonal, with the
+            # coin's plane at depth f so one plane unit is one pixel when fronto-parallel.
+            # The plane maps to the image as K [r1 r2 t]; rectifying it is undoing that and
+            # re-imaging the same plane untilted, K [e1 e2 t]. Scale at the coin centre is
+            # preserved exactly.
+            h_img, w_img = gray.shape
+            f_val = np.sqrt(w_img**2 + h_img**2)
+            k_mat = np.array([[f_val, 0.0, xc], [0.0, f_val, yc], [0.0, 0.0, 1.0]])
+            depth = np.array([0.0, 0.0, f_val])
+            tilted = np.column_stack([r_tilt[:, 0], r_tilt[:, 1], depth])
+            fronto = np.column_stack([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], depth])
+            h_matrix = k_mat @ fronto @ np.linalg.inv(tilted) @ np.linalg.inv(k_mat)
 
         diameter_px = a * 2.0
         scale = REF_DIMS["coin_10"]["diameter_mm"] / diameter_px

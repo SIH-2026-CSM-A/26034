@@ -285,7 +285,7 @@ def test_a_calibrated_measurement_is_compared_rather_than_refused() -> None:
     assert findings, "Table-I produced no finding with a calibrated measurement"
     assert {f.state for f in findings} <= {FieldState.PASS, FieldState.FAIL}
     assert all(f.expected_value and "mm" in f.expected_value for f in findings)
-    assert all(f.observed_value == "2.0 mm" for f in findings)
+    assert all(f.observed_value == "2.00 mm" for f in findings)
 
 
 def test_a_declaration_absent_from_a_listing_is_a_finding_about_the_listing() -> None:
@@ -585,3 +585,81 @@ def test_scope_settles_before_the_contested_branch_where_both_are_review() -> No
     assert {f.state for f in findings} == {FieldState.REVIEW_REQUIRED}
     assert all("Rule 3(c)" in f.reason for f in findings)
     assert not any("do not agree" in f.reason for f in findings)
+
+
+def test_a_measured_height_is_reported_to_the_precision_it_has() -> None:
+    """``observed_value`` is a figure an officer reads, not a float's repr.
+
+    Scan ``6efb8a2b`` carried ``2.5083775157266324 mm`` beside a 5 % confidence interval.
+    Two decimals is already finer than the interval; sixteen is noise dressed as precision.
+    """
+    calibrated = {
+        "table_height": MeasurementCalibrated(
+            value=2.5083775157266324,
+            confidence_interval=0.125,
+            unit="mm",
+            reference_object="10-rupee coin",
+        ),
+        "pdp_area": MeasurementCalibrated(
+            value=60.0, confidence_interval=1.0, unit="cm2", reference_object="10-rupee coin"
+        ),
+    }
+    findings = findings_for_rule(
+        findings_for(measurements=calibrated, product_category=ProductCategory.FOOD),
+        "R7-2-TABLE-I",
+    )
+    assert findings
+    assert all(f.observed_value == "2.51 mm" for f in findings)
+
+
+@pytest.mark.parametrize(
+    ("height_mm", "expected_state"),
+    [
+        (2.0, FieldState.REVIEW_REQUIRED),
+        (3.0, FieldState.PASS),
+        (1.2, FieldState.FAIL),
+    ],
+)
+def test_a_panel_area_astride_a_band_edge_reaches_the_officer(height_mm, expected_state) -> None:
+    """Table-I is banded across the area's interval, not at its point value.
+
+    102 ± 10 cm² lies across the 100 cm² edge: 1.5 mm required below it, 2.5 mm above. A
+    2.0 mm character meets one band and not the other, and which band applies is exactly
+    what the measurement cannot say — so it is the officer's call, REVIEW_REQUIRED, never
+    FAIL. A 3.0 mm character passes both bands and a 1.2 mm one fails both, so the
+    interval changes nothing for them.
+    """
+    calibrated = {
+        "table_height": MeasurementCalibrated(
+            value=height_mm, confidence_interval=0.01, unit="mm", reference_object="10-rupee coin"
+        ),
+        "pdp_area": MeasurementCalibrated(
+            value=102.0, confidence_interval=10.0, unit="cm²", reference_object="10-rupee coin"
+        ),
+    }
+    findings = findings_for_rule(
+        findings_for(measurements=calibrated, product_category=ProductCategory.FOOD),
+        "R7-2-TABLE-I",
+    )
+    assert findings
+    assert {f.state for f in findings} == {expected_state}
+    if expected_state is FieldState.REVIEW_REQUIRED:
+        assert all("1.5 mm" in f.reason and "2.5 mm" in f.reason for f in findings)
+
+
+def test_a_panel_area_within_one_band_is_banded_at_its_value() -> None:
+    """The control: 102 ± 1 cm² is wholly in the 100–500 band, and a 2.0 mm character FAILs."""
+    calibrated = {
+        "table_height": MeasurementCalibrated(
+            value=2.0, confidence_interval=0.01, unit="mm", reference_object="10-rupee coin"
+        ),
+        "pdp_area": MeasurementCalibrated(
+            value=102.0, confidence_interval=1.0, unit="cm²", reference_object="10-rupee coin"
+        ),
+    }
+    findings = findings_for_rule(
+        findings_for(measurements=calibrated, product_category=ProductCategory.FOOD),
+        "R7-2-TABLE-I",
+    )
+    assert {f.state for f in findings} == {FieldState.FAIL}
+    assert all(f.expected_value == "2.5 mm" for f in findings)
