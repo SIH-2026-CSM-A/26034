@@ -11,6 +11,7 @@ import { rise, spring, stagger } from '../ui/motion'
 import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictBanner } from './components/VerdictBanner'
 import { WardSelect } from './WardSelect'
+import { REFERENCE_OBJECTS, type ReferenceType } from './referenceObjects'
 
 type CalibrationMethod = components['schemas']['CalibrationMethod']
 type ProductCategory = components['schemas']['ProductCategory']
@@ -53,7 +54,7 @@ export function CameraCapture() {
 
   // Calibration & capture metadata
   const [calibrationMethod, setCalibrationMethod] = useState<CalibrationMethod>('none')
-  const [referenceType, setReferenceType] = useState<string>('coin')
+  const [referenceType, setReferenceType] = useState<ReferenceType>('coin_10')
   const [productCategory, setProductCategory] = useState<ProductCategory | ''>('')
   const [ward, setWard] = useState<string>('')
   const [institutionalConfirmed, setInstitutionalConfirmed] = useState<boolean>(false)
@@ -582,7 +583,7 @@ export function CameraCapture() {
                       className="input mt-2"
                     >
                       <option value="none">None (uncalibrated capture)</option>
-                      <option value="reference_object">Reference coin / card in frame</option>
+                      <option value="reference_object">Reference object in frame (coin, card or barcode)</option>
                     </select>
 
                     {calibrationMethod === 'reference_object' && (
@@ -593,11 +594,14 @@ export function CameraCapture() {
                         <select
                           id="reference-type"
                           value={referenceType}
-                          onChange={(e) => setReferenceType(e.target.value)}
+                          onChange={(e) => setReferenceType(e.target.value as ReferenceType)}
                           className="input mt-1"
                         >
-                          <option value="coin">Standard Indian Coin (e.g. ₹5)</option>
-                          <option value="card">Standard Credit/ID Card (85.6 mm)</option>
+                          {REFERENCE_OBJECTS.map((ref) => (
+                            <option key={ref.value} value={ref.value}>
+                              {ref.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     )}
