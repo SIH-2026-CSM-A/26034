@@ -332,6 +332,65 @@ def test_a_contested_declaration_is_review_required_not_insufficient_evidence() 
     )
 
 
+def _date(value: str, span: str) -> NormalisedField:
+    return NormalisedField(
+        field_type=DeclarationField.MANUFACTURE_DATE,
+        span_refs=(span,),
+        normalised_value=value,
+        numeric_value=None,
+        unit=None,
+        parse_confidence=0.9,
+    )
+
+
+def test_two_manufacture_dates_that_disagree_are_insufficient_evidence() -> None:
+    """A package bears one manufacture date. Two different bound values are not two
+    declarations; one of them is something else, and the reading cannot say which.
+
+    The first real capture (2026-09-19) bound MANUFACTURE_DATE four times — "2044-09 |
+    2044-09 | 2024-07-15 | 2026-07-14" — and R6-1-D reported PASS with all four joined in
+    ``observed_value``. Two were an address line; one was the use-by date. Nothing about
+    that reading establishes the declaration, so the finding is INSUFFICIENT_EVIDENCE,
+    carries no observed value, and is not FAIL: the date may well be there.
+    """
+    findings = findings_for_rule(
+        findings_for(
+            declared={
+                DeclarationField.MANUFACTURE_DATE: (
+                    _date("2024-07-15", "span-packed"),
+                    _date("2026-07-14", "span-use-by"),
+                )
+            },
+            product_category=ProductCategory.FOOD,
+        ),
+        "R6-1-D",
+    )
+
+    assert findings, "R6-1-D produced no finding for a manufacture date"
+    assert {f.state for f in findings} == {FieldState.INSUFFICIENT_EVIDENCE}
+    assert all(f.observed_value is None for f in findings)
+    assert all("2024-07-15 | 2026-07-14" in f.reason for f in findings)
+
+
+def test_the_same_manufacture_date_read_twice_still_passes() -> None:
+    """The control for the test above: two spans, one value — bilingual print, or a date
+    repeated on two faces — is one declaration read twice, and remains present."""
+    findings = findings_for_rule(
+        findings_for(
+            declared={
+                DeclarationField.MANUFACTURE_DATE: (
+                    _date("2024-07-15", "span-en"),
+                    _date("2024-07-15", "span-hi"),
+                )
+            },
+            product_category=ProductCategory.FOOD,
+        ),
+        "R6-1-D",
+    )
+    assert findings
+    assert {f.state for f in findings} == {FieldState.PASS}
+
+
 def test_a_contested_declaration_outranks_a_resolved_one() -> None:
     """The contested branch sits **above** ``if values:``, and that ordering is the guard.
 

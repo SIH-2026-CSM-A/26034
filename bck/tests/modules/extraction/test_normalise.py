@@ -148,6 +148,21 @@ DATE_TEST_CASES = [
     ("15 MAR 2026", None, "2026-03-15", False, None, True, None),
     ("EXP 12/2028", DateType.EXPIRY, "2028-12", False, None, True, None),
     ("MFG 10.11.2025", DateType.MANUFACTURED, "2025-11-10", False, None, True, None),
+    ("MFD 09/24", DateType.MANUFACTURED, "2024-09", False, None, True, None),
+    ("Date of Packaging 15 JUL 2024", DateType.PACKED, "2024-07-15", False, None, True, None),
+    ("DT. 9/25", None, "2025-09", False, None, True, None),
+    # A month and a two-digit year with nothing saying it is a date is a plot number. The
+    # first real capture (2026-09-19) read this address line as September 2044, twice.
+    (
+        "9/44 Kirti Nagar Industrial Area,",
+        None,
+        None,
+        False,
+        None,
+        False,
+        ReasonCode.UNPARSEABLE_FORMAT,
+    ),
+    ("09/24", None, None, False, None, False, ReasonCode.UNPARSEABLE_FORMAT),
     ("PKD MAY 2025", DateType.PACKED, "2025-05", False, None, True, None),
     ("BEST BEFORE 06/2027", DateType.BEST_BEFORE, "2027-06", False, None, True, None),
     # Relative date without packing date -> MISSING_PACKING_DATE

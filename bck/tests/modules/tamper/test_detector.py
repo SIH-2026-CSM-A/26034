@@ -260,3 +260,43 @@ def test_tamper_result_probability_bounds_validation():
         TamperDetectionResult(
             kind="sticker_overlay", probability=1.1, region=dummy_region, reason="invalid high"
         )
+
+
+def test_detect_sticker_printed_table_row_is_not_a_sticker():
+    """A span between two printed rules steps on two sides; a sticker encloses all four.
+
+    The first real capture (2026-09-19) — an untouched MDH carton — raised 24 sticker
+    signals under the any-one-side rule, most of them rows of the nutrition table: the
+    rule above and the rule below each step the band just outside the span against the
+    band just inside it. Left and right, the row runs on unchanged. That is a table, and
+    it must not be reported as a patch of other paper.
+    """
+    img = np.full((60, 200, 3), 200, dtype=np.uint8)
+    cv2.putText(img, "Total Fat (g)", (12, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    img[16:20, :] = 30  # the rule above, inside the 5–10 px band the detector compares
+    img[44:48, :] = 30  # the rule below
+    span = ExtractedSpan(
+        span_id="s1",
+        text="Total Fat (g)",
+        polygon=((10.0, 26.0), (160.0, 26.0), (160.0, 40.0), (10.0, 40.0)),
+        confidence=0.9,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="panel",
+    )
+    assert detect_sticker_overlay(img, [span]) == []
+
+
+def test_detect_sticker_highlighted_block_corner_is_not_a_sticker():
+    """Print at the corner of a highlighted block steps on two adjacent sides only."""
+    img = np.full((80, 200, 3), 200, dtype=np.uint8)
+    img[0:50, 0:120] = 60  # a dark highlighted block; the span sits in its bottom-right corner
+    cv2.putText(img, "INGREDIENTS", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    span = ExtractedSpan(
+        span_id="s1",
+        text="INGREDIENTS",
+        polygon=((28.0, 28.0), (113.0, 28.0), (113.0, 43.0), (28.0, 43.0)),
+        confidence=0.9,
+        source_provider=EvidenceProvider.PADDLEOCR,
+        region_id="panel",
+    )
+    assert detect_sticker_overlay(img, [span]) == []

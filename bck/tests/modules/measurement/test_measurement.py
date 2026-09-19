@@ -10,7 +10,12 @@ from app.contracts import (
     MeasurementRefusal,
 )
 from app.modules.measurement.schemas import PackageShape
-from app.modules.measurement.services import calculate_pdp_area, measure_ink_extent
+from app.modules.measurement.services import (
+    MIN_COIN_DIAMETER_PX,
+    calculate_pdp_area,
+    detect_reference_object,
+    measure_ink_extent,
+)
 
 
 def test_measurement_without_calibration_fails():
@@ -623,3 +628,42 @@ def test_panel_dimensions_are_refusals_without_a_calibration():
         image, (10, 10, 300, 100), is_artwork=True, artwork_dpi=254.0
     )
     assert np.isclose(height.value, 10.0) and np.isclose(width.value, 30.0)
+
+
+def _frame_with_box(coin_diameter_px: int | None) -> np.ndarray:
+    """A package outline filling the frame, and optionally a coin lying flat beside it.
+
+    The first real calibrated capture (2026-09-19): a carton's back panel, a ₹10 coin in
+    the same plane, shot straight down. Its box was 725 × 1157 px in a 1214 px frame.
+    """
+    frame = np.full((640, 600), 235, dtype=np.uint8)
+    cv2.rectangle(frame, (30, 30), (390, 610), 40, 3)
+    cv2.putText(frame, "NET QTY 100 g", (60, 300), cv2.FONT_HERSHEY_SIMPLEX, 1.0, 40, 2)
+    if coin_diameter_px is not None:
+        cv2.circle(frame, (490, 320), coin_diameter_px // 2, 120, -1, cv2.LINE_AA)
+    return cv2.GaussianBlur(frame, (5, 5), 0)
+
+
+def test_coin_detection_refuses_a_frame_whose_largest_outline_is_the_package():
+    """No coin in frame: refuse. The package outline is a rectangle, and a rectangle's
+    contour clears the ellipse *area* ratio at 0.9 — which is how the first real capture
+    was calibrated on its own carton as a 1414 px coin."""
+    result = detect_reference_object(_frame_with_box(coin_diameter_px=None), "coin_10")
+    assert isinstance(result, MeasurementRefusal)
+    assert "Failed to detect reference" in result.reason
+
+
+def test_coin_detection_picks_the_coin_over_the_larger_package_outline():
+    diameter = 120
+    result = detect_reference_object(_frame_with_box(coin_diameter_px=diameter), "coin_10")
+    assert not isinstance(result, MeasurementRefusal)
+    mm_per_px, _, _ = result
+    assert np.isclose(mm_per_px, 27.0 / diameter, rtol=0.05)
+
+
+def test_coin_detection_refuses_a_coin_too_small_to_carry_its_prior():
+    """Below MIN_COIN_DIAMETER_PX the one-pixel edge quantisation alone exceeds the 5 %
+    the coin prior claims, so a scale from it would state a confidence it does not have."""
+    small = int(MIN_COIN_DIAMETER_PX) - 10
+    result = detect_reference_object(_frame_with_box(coin_diameter_px=small), "coin_10")
+    assert isinstance(result, MeasurementRefusal)

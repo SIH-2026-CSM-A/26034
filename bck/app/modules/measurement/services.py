@@ -33,6 +33,64 @@ PRIOR_CONFIDENCE_EAN = 0.10
 MIN_PLANARITY_THRESHOLD = 0.85
 MIN_ELLIPSE_FIT_SCORE = 0.80
 
+MIN_COIN_DIAMETER_PX = 2 * UNCALIBRATED_QUANTISATION_PRIOR_PX / PRIOR_CONFIDENCE_COIN
+"""Below this a coin cannot carry the confidence its prior claims. Each edge of the
+diameter is located to one pixel, so the diameter to two; at 40 px that alone is the whole
+5 % of ``PRIOR_CONFIDENCE_COIN``, and a smaller coin would be handed a confidence interval
+narrower than its own quantisation."""
+
+MAX_ELLIPSE_RADIAL_RESIDUAL = 0.015
+"""Mean of ``|r - 1|`` over a contour, ``r`` being each point's radius in the fitted
+ellipse's own frame (1 on the ellipse). This is what tells a coin from a box. On the first
+calibrated capture (2026-09-19) the ₹10 coin fits at 0.003; a rectangle with rounded
+corners at 0.04; the package itself at 0.10 — on an area ratio of 0.89, which cleared
+``MIN_ELLIPSE_FIT_SCORE``. The area ratio says how big the ellipse is, not whether the
+points lie on it, and ``max(contours, key=cv2.contourArea)`` handed the package back as a
+1414 px coin: 27 mm across a 1214 px frame, and a 5.5 mm numeral reported as 0.48 mm."""
+
+
+def _radial_residual(
+    contour: np.ndarray, centre: tuple[float, float], axes: tuple[float, float], angle_deg: float
+) -> float:
+    pts = contour.reshape(-1, 2).astype(np.float64) - np.asarray(centre)
+    c, s = np.cos(np.deg2rad(angle_deg)), np.sin(np.deg2rad(angle_deg))
+    x = pts[:, 0] * c + pts[:, 1] * s
+    y = -pts[:, 0] * s + pts[:, 1] * c
+    r = np.sqrt((2 * x / axes[0]) ** 2 + (2 * y / axes[1]) ** 2)
+    return float(np.mean(np.abs(r - 1.0)))
+
+
+def _largest_elliptical_contour(contours):
+    """The largest contour whose points lie on the ellipse fitted to them, or ``None``.
+
+    Full contours are required (``CHAIN_APPROX_NONE``): the four corners of a box all lie
+    on one ellipse and fit it with no residual at all.
+
+    ponytail: a round glyph or logo passes this too — the outline of a large "O" is an
+    ellipse. Nothing here tells a coin from one; a trained detector, or an officer marking
+    the coin on the capture, is the upgrade path. What it does refuse is the package
+    outline, any rectangle, and anything too small to calibrate on.
+    """
+    best = None
+    for cnt in contours:
+        if len(cnt) < 5:
+            continue
+        (xc, yc), (w, h), angle_deg = cv2.fitEllipse(cnt)
+        if w <= 0 or h <= 0 or max(w, h) < MIN_COIN_DIAMETER_PX:
+            continue
+        contour_area = cv2.contourArea(cnt)
+        ellipse_area = np.pi * w * h / 4.0
+        if contour_area == 0:
+            continue
+        fit = min(ellipse_area, contour_area) / max(ellipse_area, contour_area)
+        if fit < MIN_ELLIPSE_FIT_SCORE:
+            continue
+        if _radial_residual(cnt, (xc, yc), (w, h), angle_deg) > MAX_ELLIPSE_RADIAL_RESIDUAL:
+            continue
+        if best is None or contour_area > best[0]:
+            best = (contour_area, cnt, (xc, yc), (w, h), angle_deg, fit)
+    return None if best is None else best[1:]
+
 
 def resolve_coin_tilt_ambiguity(theta: float, axis: np.ndarray) -> tuple[float, np.ndarray]:
     """Settle the two ambiguities an ellipse fit leaves, by convention and stably.
@@ -97,20 +155,22 @@ def detect_reference_object(
     if ref_type == "coin_10":
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(blurred, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
         if not contours:
             return MeasurementRefusal(reason="Failed to detect reference: No contours found.")
 
-        best_cnt = max(contours, key=cv2.contourArea)
-        if len(best_cnt) < 5:
+        coin = _largest_elliptical_contour(contours)
+        if coin is None:
             return MeasurementRefusal(
-                reason="Failed to detect reference: too few points for ellipse fit."
+                reason=(
+                    "Failed to detect reference: no outline in the frame is a coin — an "
+                    f"ellipse at least {MIN_COIN_DIAMETER_PX:.0f} px across whose edge lies "
+                    "on the ellipse fitted to it. The largest outline is usually the "
+                    "package, and a package is not a coin."
+                )
             )
-
-        (xc, yc), (w, h), angle_deg = cv2.fitEllipse(best_cnt)
-        if w == 0 or h == 0:
-            return MeasurementRefusal(reason="Failed to detect reference: Degenerate ellipse fit.")
+        best_cnt, (xc, yc), (w, h), angle_deg, fit_confidence = coin
 
         angle_rad = np.deg2rad(angle_deg)
         if w > h:
@@ -119,22 +179,6 @@ def detect_reference_object(
         else:
             a, b = h / 2.0, w / 2.0
             u = np.array([np.sin(angle_rad), np.cos(angle_rad), 0.0])
-
-        ellipse_area = np.pi * a * b
-        contour_area = cv2.contourArea(best_cnt)
-        if ellipse_area == 0 or contour_area == 0:
-            return MeasurementRefusal(
-                reason=("Failed to detect reference: Zero area contour or ellipse.")
-            )
-
-        fit_confidence = min(ellipse_area, contour_area) / max(ellipse_area, contour_area)
-        if fit_confidence < MIN_ELLIPSE_FIT_SCORE:
-            return MeasurementRefusal(
-                reason=(
-                    "Failed to detect reference: "
-                    f"Ellipse fit not confident (score {fit_confidence:.2f})."
-                )
-            )
 
         # The coin is a circle tilted in place, so its major axis is the one diameter left
         # unforeshortened: that is the axis it tilted about, and b/a is the cosine of the tilt.
