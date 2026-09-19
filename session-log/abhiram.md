@@ -4413,3 +4413,94 @@ the refused Table-I.
 - Session 36's other items are unchanged: the spurious 12° coin tilt, same-line date pairing,
   `COMMON_OR_GENERIC_NAME` binding every unclassified span, `id_card` / `ean_13` false-positive
   calibration, the reference-detection refusal never reaching the scan detail.
+
+## Session 38 — 2026-09-19, an officer marks the principal display panel (#170) (Claude Code, Fable 5.1)
+
+One PR across `bck/`, `fnt/` and `datasets/`, merged with `--admin` on the standing "merge when
+green" instruction as `f998e2e` (#170); both VM images rebuilt from it `--no-cache` and
+`--force-recreate`d, backend created 13:57 UTC, frontend 13:58. The input was Session 37's
+closing line: Table-I on every photograph is INSUFFICIENT_EVIDENCE until something says where
+the panel is.
+
+### What changed
+
+- **The officer says where the panel is.** `POST /scans/image` takes `panel_x`, `panel_y`,
+  `panel_width`, `panel_height` in image pixels, all four or none (a partial mark is a 422, and
+  so is a box off the image). It is the fourth `PackageConfirmations` field, in
+  `capture_metadata` beside the other three, replayed by `confirm_category` through
+  `_confirmations_of`. **No migration**: `capture_metadata` is a `Json` column.
+- `run_image_scan` wraps the mark as `OfficerMarkedPanel` (`vision/pdp.py`, `method="officer"`,
+  beside `ArtworkPanel` for the same reason — a statement, not a detection). `_panel_area`
+  measures it through `measure_panel_dimensions`, i.e. the same `detect_reference_object`
+  homography the numeral goes through; with no calibration that refuses, so a mark on an
+  uncalibrated photograph is still no millimetre. The Table-I reason now states the area.
+  Placement PASSes inside an officer's mark, REVIEW_REQUIRED outside, never FAIL.
+  `PanelDetection` carries `method`. Without a mark, #168's path is byte-identical.
+- `/scans/artwork` takes no mark: the artwork is the panel and supplies its own exact area.
+- `fnt/src/officer/components/PanelMarker.tsx`: one pointer drag, `touch-action: none`,
+  `object-contain` with the letterbox computed, the mark in image pixels with the outside
+  dimmed, a clear button, and the text saying what the mark is for. `/officer/new` gets a card
+  under the file picker sized to the photograph; on `/officer/camera` the still is the surface.
+  Optional; a new file or a retake clears it. `schema.d.ts` regenerated.
+- `datasets/raw/food/food_mdh_kitchen_king_100g/food_mdh_kitchen_king_100g_001.png` — the MDH
+  capture, first calibrated sample. **The file is a PNG under a `.jpg` name**; filed as `.png`,
+  bytes untouched, sha256 `afdcc9a4…` from the file. Annotated from the photograph;
+  `numeral_height_mm` 2.51 is the pipeline's calibrated figure this session; the coin bbox is
+  the detector's own contour (903, 628, 254 × 259 px); `pdp` is the carton face at
+  (68, 22, 808, 1244) through the calibration, 128.6 × 77.4 mm, 99.6 cm². `git add -f`ed.
+
+### Verification
+
+- Six new tests, each red under the defect it guards against, `__pycache__` purged by absolute
+  path, count asserted zero, no `-x`: mark ignored → all three geometry tests; officer mark
+  measured in pixels and called exact → the banding test and the no-millimetre test (the latter
+  only at `_panel_area` — on the finding the height refuses first and hides it, and the
+  docstring says so); placement → its test; `_confirmations_of` dropping the mark, a partial mark
+  accepted, an off-image mark accepted → one route test each. Manifest sha256 last digit
+  changed → both hash guards red.
+- Full suite against a throwaway Postgres (initdb on :5456, so the postgres-marked tests ran):
+  `origin/main` at `c542607` in a throwaway worktree 1279 passed / 2 errors; branch 1285 / 2.
+  +6 is the six tests; the errors are `test_minio_storage.py` on `:9000`, identical on main.
+  CI: 1284 passed / 3 skipped (Session 37: 1278 / 3). `datasets` 32 passed. `ruff`,
+  `ruff format --check`, `lint-imports` 3 kept, `oxlint`, `tsc -b && vite build` clean.
+- Playwright, Chromium 390 × 844 with touch, against the built bundle: `/officer/new` drag →
+  `panel_x=146 panel_y=80 panel_width=922 panel_height=1176` in the multipart body;
+  `/officer/camera` with a fake device → `384, 0, 1152 × 1080`. Zero page errors.
+- **Through the tunnel as `inspector1`, `coin_10` + Food, same file both times.**
+  Marked, drawn in the UI at 390 px over the carton (72, 26, 800 × 1236): scan `6efb8a2b`,
+  verdict REVIEW, Table-I **PASS**, observed 2.5083775157266324 mm, expected **1.5 mm**, reason
+  "…for the measured principal display panel area of **97.8 cm²**"; placement PASS
+  "(officer)". Unmarked, via the API: scan `b368bd28`, verdict REVIEW, Table-I
+  **INSUFFICIENT_EVIDENCE**, observed 2.5083775157266324 mm, no expected value, #168's reason
+  verbatim; placement REVIEW_REQUIRED "(heuristic)".
+
+### My own errors, by name
+
+- The camera form posted no mark on the first Playwright pass: `handleConfirmSubmit`'s
+  dependency list lacked `panelMark` and closed over `null`. The upload form had it. Found by
+  reading the multipart body, not the screen — the screen showed the mark.
+- The upload page's marker shipped one build with a fixed `60svh` surface that letterboxed the
+  photograph in dark bars; a failed assertion in the edit script had skipped the removal and
+  printed nothing about it. The surface now takes the photograph's own aspect ratio.
+- A guard test I wrote could not go red on the claim in its name (the height refusal masks the
+  panel measurement on the finding). Reworked to assert at `_panel_area` and said so in the
+  docstring, per CLAUDE.md, rather than leaving a decorative green.
+
+### Found by measuring
+
+- The band is a few millimetres of drag away on this carton: 99.6 cm² hugging the red edge,
+  92–96 cm² tight to the printed face, 97.8 cm² as drawn in the UI. All 50–100, all 1.5 mm.
+- `vite` dev under `rtk` listens but returns empty responses; `vite preview` serves **HTTPS**
+  on this project (camera), so Playwright needs `ignoreHTTPSErrors`. The build's own dist is
+  what the tunnel check ran against anyway.
+- The tunnel's `/api/openapi.json` reported the old schema for about a minute after
+  `--force-recreate` while the backend was `health: starting`; the container's own `:8000`
+  had the new one. Read the container before calling a deploy stale.
+
+### Raised, not fixed
+
+- Table-I `observed_value` is the unrounded float; pre-existing.
+- A keyboard cannot draw the mark; the field is optional and the form submits without it.
+- Session 36's items are unchanged: the 12° coin tilt, same-line date pairing,
+  `COMMON_OR_GENERIC_NAME` binding every unclassified span, `id_card` / `ean_13`,
+  `capture_metadata` absent from `ScanDetail`.
