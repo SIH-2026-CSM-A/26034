@@ -7,6 +7,20 @@ them, read the file.
 
 ---
 
+## After Session 34 (2026-09-19, package confirmations on `/officer/camera`, #162, VM frontend on 99869d8) — read this first
+
+1. ~~`CameraCapture.tsx` sends no package confirmations.~~ Done in Session 34 (#162): all three,
+   behind a disclosure, reset per package.
+2. **Neither officer form can calibrate.** Both forms send `reference_type` as `coin` / `card`;
+   `detect_reference_object` accepts only `coin_10`, `id_card`, `ean_13`. Until the option values
+   match, every camera or upload scan is uncalibrated and Rule 7(2) Table-I can never reach the
+   panel-area limb. Two option values in `fnt/`; check the tests that pin them.
+3. **Rule 7(4) emits no finding by design** (`pdp_area` → `NOT_AN_OBLIGATION`). The shape an
+   officer confirms is visible on a read-back only through Table-I, and only on a calibrated
+   capture with a bound `NET_QUANTITY`. If a demo needs the shape shown, that is a `bck/` decision.
+4. Tunnel URL: root journal on `pccs-vm`, unit `cloudflared-quick.service`. `~/cloudflared.log`
+   is dead since 2026-09-08.
+
 ## After Session 33 (2026-09-19, artwork mode on `/officer/new`, #160, VM frontend on bc987a5) — read this first
 
 1. **Every SVG artwork is a refusal.** `rasterise_artwork` renders PDF only; the UI shows the

@@ -4134,3 +4134,66 @@ One PR, `fnt/**` only, merged with `--admin` on the standing "merge when green" 
 - `ghmcWards.ts` lists two wards numbered 37 (Rein Bazar, Kurmaguda, both South), so
   `WardSelect` renders duplicate React keys and warns on every page that mounts it.
 - Console errors on `/officer/new` are exactly that warning, nothing else.
+
+## Session 34 — 2026-09-19, package confirmations on the camera capture screen (Claude Code, Fable 5.1)
+
+One PR, `fnt/src/officer/CameraCapture.tsx` only, merged with `--admin` on the standing "merge when
+green" instruction as `99869d8` (#162); the VM frontend rebuilt from it. `bck/` untouched.
+
+### Reached now
+
+- `/officer/camera` sends `package_shape`, `declarations_required_under_other_law` and
+  `rule_33_relaxation_granted` on `POST /scans/image`, so a live capture and an upload of the same
+  package are evaluated under the same confirmations. Controls and wording copied from
+  `ScanSubmission.tsx`; on the camera screen they sit behind a native `<details>` disclosure
+  below the Rule 3 carve-out, closed by default, and reset with it in `resetAll`. The preview
+  summary shows the shape about to be submitted.
+
+### Verification
+
+- `tsc -b`, `oxlint`, `vite build` exit 0. Three CI checks green on a base equal to `origin/main`.
+- Playwright (Chromium 1.62.1 via a CJS script against the global package, 390 × 844, touch,
+  service workers blocked) against the built bundle on `vite preview` and a real backend from
+  `a43e03f` (`uv run uvicorn` on :8010, real PaddleOCR, the dev Postgres on :5433 at
+  `9c4b7e2d1a05 (head)`), Chromium's fake camera fed an MJPEG of `food_parle_g_gluco_biscuits_130g`.
+  Three round trips, each read back with `GET /scans/{id}` and `psql` on the scan row's
+  `capture_metadata->'confirmations'`: cylindrical + Rule 7(5) stored as such; after "Capture
+  another package" the controls are back to defaults and the next row stores rectangular +
+  neither; a third with Food, coin calibration and shape `other` stores `other`. Overflow 0 px in
+  every state; 0 console errors on the production build.
+- **No finding carries Rule 7(4).** `pipeline/dispositions.py` maps `pdp_area` to
+  `NOT_AN_OBLIGATION`: the rule is a method of computation and emits nothing. The shape reaches
+  a finding only through Rule 7(2) Table-I, and only once a numeral height has been measured. On
+  these captures Table-I refuses first: with no category, the sector gate; with Food, no
+  `NET_QUANTITY` binds on this pack (Session 31 item 7). So the confirmation's arrival is proved
+  from the persisted row — the thing `_confirmations_of` reads on re-evaluation — and by two
+  submissions storing two different shapes.
+- Deploy: `pccs-vm` pulled `99869d8`, `frontend` rebuilt `--no-cache` and `--force-recreate`d
+  at 09:26 UTC. The tunnel's `OfficerRoutes-DLE1Edo3.js` chunk carries `camera-package-shape`
+  and `/api/openapi.json` serves 26 paths; officer login on the tunnel returns 200.
+
+### Found by measuring
+
+- The quick tunnel is `cloudflared-quick.service` running as root; its URL is in the root journal
+  only. `~/cloudflared.log` ends on 2026-09-08 and `systemctl is-active cloudflared` reports
+  `inactive` because that unit does not exist. Session 32's URL
+  (`locally-progress-major-bare`) is still the live one.
+- `vite preview` is HTTPS too (`basicSsl` applies to it), so the backend's
+  `CORS_ALLOWED_ORIGINS` has to name `https://localhost:4173`, not `http`.
+
+### My own errors, by name
+
+- Wrote `OFFICERS` for the throwaway backend without `jurisdiction`; settings validation refused
+  it at boot. The shape of an entry is in `core/config.py::OfficerCredential`, not guessable.
+- Started the backend allowing an `http://` preview origin before checking that preview is HTTPS.
+- Read a tunnel URL out of the session log and a dead `~/cloudflared.log` before checking the
+  service; the first "tunnel down" reading was a stale URL, not an outage.
+
+### Raised, not fixed
+
+- **Neither officer form can calibrate.** Both `CameraCapture.tsx` and `ScanSubmission.tsx` send
+  `reference_type` as `coin` / `card`; `measurement/services.py::detect_reference_object`
+  recognises `coin_10`, `id_card` and `ean_13` and refuses anything else with
+  `Failed to detect reference object of type: coin.` Two option values, but a separate ticket.
+- The two-wards-numbered-37 warning (Session 33) is unchanged; it is stripped from the production
+  build, which is why this session's console was clean.
