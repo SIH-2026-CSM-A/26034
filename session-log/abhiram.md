@@ -4082,3 +4082,55 @@ Baseline on `d3c7007` measured in-session: 1246 passed, 1 xfailed, 2 errors (the
 - No UI for `POST /scans/artwork` yet.
 - The authenticated vendor flow was proved locally against the same build, not through the tunnel:
   registering a premises through the UI would leave a fabricated vendor in the live register.
+
+## Session 33 — 2026-09-19, a UI for `POST /scans/artwork` (Claude Code, Fable 5.1)
+
+One PR, `fnt/**` only, merged with `--admin` on the standing "merge when green" instruction as
+`bc987a5` (#160); the VM frontend rebuilt from it. `bck/` untouched.
+
+### Reached now
+
+- `/officer/new` has two sources on one screen: **Photograph** (`/scans/image`) and **Pre-print
+  artwork** (`/scans/artwork`, PDF or SVG). Same submit-then-poll. The result reads the millimetre
+  findings back as a Measurements card; on the artwork path each figure is exact and the caption
+  says no confidence interval applies. A parser refusal at RECEIVED (`ScanDetail.refusal`) renders
+  on the hatch-and-mute treatment as a statement about the file, never a finding about the package.
+- Both modes send `package_shape`, `declarations_required_under_other_law` and
+  `rule_33_relaxation_granted`. Session 32 wrote that the forms sent them; the forms did not.
+  `CameraCapture.tsx` still does not.
+- Client regenerated with `OPENAPI_URL` on port 1: zero diff, 26 paths.
+
+### Verification
+
+- `tsc -b`, `oxlint`, `vite build` exit 0. Vocabulary sweep: only the two pre-existing hits in
+  backend docstrings inside `schema.d.ts`.
+- Playwright (Chromium, via a Node script against the global `playwright` package — the 1.60
+  `playwright cli` wants `chrome-for-testing` and has no `find`) against a real backend from
+  `a7fc331` with real PaddleOCR through the Vite proxy, signed in on the navigating page, 390 and
+  1280 px. Real vector PDF (120 × 80 mm, net quantity at a 4 mm cap height): REVIEW, Measurements
+  card reading `4.064 mm` measured against `1.5 mm` required for Rule 7(2) Table-I, no interval;
+  38 s and 36 s. Real SVG with `width="120mm"`: refusal in 2 s, reason `svg artwork cannot be
+  rendered to pixels here…`. Overflow 0 px on every state at both widths.
+- Every SVG is a refusal today: `rasterise_artwork` renders PDF only. The SVG half of the mode is
+  therefore a refusal path, shown as one.
+- Without a product category the backend returns Rule 7(2) Table-I as INSUFFICIENT EVIDENCE with
+  no figure, so the runs select Food. A first run without it showed only the Rule 8(1) proviso row;
+  that is the backend declining to band a height without a category, not a UI condition.
+- Deploy: `pccs-vm` pulled `bc987a5`, `frontend` rebuilt `--no-cache` and recreated; the tunnel
+  bundle carries the new strings and `/api/openapi.json` still serves 26 paths. Not verified through
+  the tunnel as an officer: no officer password is documented and the vendor surface has no scan
+  submission screen of this kind.
+
+### My own errors, by name
+
+- `pgrep -f verify.mjs` in a kill loop matched the shell running it and killed my own command
+  (exit 144) — the memory about `pkill -f` applies to `pgrep` in a loop too. Re-done with
+  `ps | grep "[v]erify"`.
+- The first Playwright pass used the main checkout's `node_modules` via symlink; it predates
+  `framer-motion` and `tsc` reported 27 errors that were not mine. `npm ci` in the worktree.
+
+### Raised, not fixed
+
+- `ghmcWards.ts` lists two wards numbered 37 (Rein Bazar, Kurmaguda, both South), so
+  `WardSelect` renders duplicate React keys and warns on every page that mounts it.
+- Console errors on `/officer/new` are exactly that warning, nothing else.
