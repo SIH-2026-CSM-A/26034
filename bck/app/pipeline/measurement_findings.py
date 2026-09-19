@@ -93,13 +93,20 @@ def _table_height(
     """
     panel = context.measurements.get("pdp_area")
     if panel is None or isinstance(panel, MeasurementRefusal):
-        return _refused(
-            rule,
-            fields,
-            context,
-            "the character height was measured but the principal display panel area was "
-            "not, and Table-I bands the height against that area.",
-        )
+        # The height is real and is the officer's to use; it is the band that is missing.
+        why = panel.reason if isinstance(panel, MeasurementRefusal) else NO_ATTEMPT
+        return [
+            finding(
+                rule,
+                field,
+                FieldState.INSUFFICIENT_EVIDENCE,
+                "the character height was measured but the principal display panel area was "
+                f"not, and Table-I bands the height against that area: {why}",
+                context,
+                observed_value=f"{height.value} {height.unit}",
+            )
+            for field in fields
+        ]
 
     evaluation = evaluate_rule7_height(
         panel_area=Decimal(str(panel.value)),
