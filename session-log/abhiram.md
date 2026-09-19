@@ -4197,3 +4197,78 @@ green" instruction as `99869d8` (#162); the VM frontend rebuilt from it. `bck/` 
   `Failed to detect reference object of type: coin.` Two option values, but a separate ticket.
 - The two-wards-numbered-37 warning (Session 33) is unchanged; it is stripped from the production
   build, which is why this session's console was clean.
+
+## Session 35 — 2026-09-19, the reference-object values the backend accepts (Claude Code, Fable 5.1)
+
+One PR, `fnt/` only, merged with `--admin` on the standing "merge when green" instruction as
+`06698e0` (#164); the VM frontend rebuilt from it at 10:08 UTC. `bck/` untouched.
+
+### Reached now
+
+- Both officer forms send `reference_type` as `coin_10`, `id_card` or `ean_13` — the three strings
+  `measurement/services.py::detect_reference_object` matches — instead of `coin` / `card`. One list,
+  `fnt/src/officer/referenceObjects.ts`, carries the values with the dimension `REF_DIMS` scales
+  from (₹10 coin 27.0 mm; ID-1 card 85.60 × 53.98 mm; EAN-13 37.29 mm); both forms render it and
+  type their state from it. No frontend test pinned the old values: `fnt/` has no test runner.
+
+### Verification
+
+- `tsc -b`, `oxlint`, `vite build` exit 0. Three CI checks green.
+- Deploy: `pccs-vm` pulled `06698e0`, `frontend` rebuilt `--no-cache`, `--force-recreate`d; the
+  tunnel's `OfficerRoutes-Dfp2O0mB.js` carries `coin_10`, `id_card`, `ean_13` and no `value:"coin"`.
+- End to end through the tunnel, as `inspector1`: Playwright (Chromium 1.62.1, 390 × 844, service
+  workers blocked) signed in, opened `/officer/new`, chose reference-object calibration — the
+  select offers the three values above and defaults to `coin_10` — uploaded
+  `food_parle_g_gluco_biscuits_65g_001.jpg`, chose Food, submitted (201, 0 console errors). The
+  persisted row on the VM, read with `psql` in the `db` container: `calibration_method =
+  reference_object`, `capture_metadata->>'reference_type' = coin_10`, `product_category = food`,
+  `status = complete`. Scan `9c817ce8…`.
+- **The calibrated path still returns no millimetre figure, and here is why, in order.** (1) No
+  photograph of a package with a ₹10 coin in frame exists in the corpus or on this machine, which
+  has no camera; every corpus photo is an e-commerce catalogue image with no reference object.
+  Run locally on the four, `detect_reference_object(img, "coin_10")` refuses each one — ellipse fit
+  scores 0.15, 0.74, 0.77 against the 0.80 floor — which is the correct answer for a frame with no
+  coin. (2) Independently of calibration, Rule 7(2) Table-I / NET_QUANTITY on scan `9c817ce8…` is
+  `INSUFFICIENT_EVIDENCE`: "no net quantity declaration was bound on this capture, so there is no
+  declaration to measure." OCR read the pack as `NET WEIGHT:55g+10g*EXTRA=65g`, and
+  `extraction/net_quantity.py` binds nothing from it (the 130 g pack fails the same way; Session 31).
+  So the panel-area limb needs two things this session could not supply from `fnt/`: a real coin
+  in frame, and a pack whose quantity the binder accepts. The form's contribution — the value the
+  backend matches on — is proved from the persisted row.
+- `cosmetics_himalaya_curcuma…` through the tunnel with `coin_10` + Cosmetics: the quality gate
+  refused it, `INCOMPLETE_LABEL`, coverage 0.039. `parle_g_130g` with `coin_10` + Food: same
+  Table-I outcome as the 65 g pack.
+
+### Found by measuring
+
+- **`id_card` and `ean_13` calibrate against frames that contain no reference object.** On the
+  four corpus photos, none with a card or barcode in frame, `detect_reference_object(img,
+  "id_card")` returns a confident scale on three (0.276, 1.585 mm/px …) and `"ean_13"` on all four
+  (0.075–0.092 mm/px). The branch takes the largest four-point contour — on a package photo, the
+  package — and treats its width as 85.60 mm or 37.29 mm. A millimetre finding built on that
+  would be wrong by the ratio of pack width to card width, with a confidence interval that says
+  otherwise. The coin branch does not fail this way because a pack is not an ellipse. `bck/`;
+  raised in #164's body, not fixed.
+- The calibration outcome never reaches `GET /scans/{id}`: with no `NET_QUANTITY` bound, Table-I's
+  reason is about the declaration, and a refused reference detection is not surfaced anywhere.
+- The old values did not refuse with `Failed to detect reference object of type: coin.` as
+  Session 34 wrote — that string is inside the `ean_13` branch. An unknown type falls through to
+  `Rectification failed: unable to identify adequately planar panel`. Same outcome, wrong quote.
+- `GET /scans/{id}` returns `status` in lower case (`processing`, `complete`, `received`).
+- Playwright's `request.postData()` is `null` for a multipart body carrying a file, so "what did
+  the form send" cannot be read off the request in Chromium. The persisted row is the proof.
+
+### My own errors, by name
+
+- First poll loop compared `status` to `PROCESSING` and broke out on the first `processing`; the
+  "complete after 5 s" it printed was a loop that never ran. Fixed to a case-insensitive compare.
+- Tried to prove the posted `reference_type` from the Playwright request body before checking that
+  Chromium exposes one for multipart uploads. It does not; the `psql` read was the second attempt.
+
+### Raised, not fixed
+
+- The `id_card` / `ean_13` false-positive calibration above.
+- Surfacing the reference-detection refusal on the scan detail, so an officer who asked for
+  calibration can see it was not achieved.
+- A photograph of a real package with a ₹10 coin in frame, on a pack whose net quantity binds, is
+  still the missing input for a Table-I finding with a millimetre figure. Nothing in `fnt/` blocks it.
