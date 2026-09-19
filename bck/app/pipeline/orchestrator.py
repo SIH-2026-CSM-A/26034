@@ -370,6 +370,18 @@ def _panel_area(
                 "neither."
             )
         )
+    if detection.method == "heuristic":
+        # The heuristic region is the largest block of print, which on a tabletop capture
+        # is the frame with the coin in it. Table-I's band is a legal threshold, so an area
+        # the system did not measure must not select one. The character height is still
+        # measured and reported; only the band is refused.
+        return MeasurementRefusal(
+            reason=(
+                "the principal display panel was not detected: no trained panel detector is "
+                "configured, and the largest block of print is not a measured panel, so its "
+                "area cannot band the requirement."
+            )
+        )
     height, width = measure_panel_dimensions(
         image, detection.bbox, **_calibration_arguments(image, calibration)
     )

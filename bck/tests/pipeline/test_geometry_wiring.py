@@ -245,6 +245,23 @@ def test_a_heuristic_region_never_passes_placement() -> None:
     assert found.state is FieldState.REVIEW_REQUIRED
 
 
+def test_a_heuristic_region_cannot_band_table_i_but_the_height_is_still_reported() -> None:
+    """The largest block of print is not a measured panel, so no band; the numeral is real."""
+
+    class Heuristic(Detection):
+        method = "heuristic"
+
+    result = scan(spacious(), detection=Heuristic)
+    table = finding_for(result, "R7-2-TABLE-I")
+    assert table.state is FieldState.INSUFFICIENT_EVIDENCE
+    assert table.state is not FieldState.FAIL
+    assert "panel was not detected" in table.reason
+    assert table.expected_value is None
+    assert float(table.observed_value.split()[0]) == pytest.approx(3.9)
+    # Rule 8(1)'s clearances are measured from the declaration's own ink, not the panel.
+    assert finding_for(result, "R8-1-FREE-SPACE").state is FieldState.PASS
+
+
 def test_rule_9_contrast_is_measured_and_judged_by_nobody() -> None:
     found = finding_for(scan(spacious()), "R9-1-MANNER")
     assert found.state is FieldState.REVIEW_REQUIRED
