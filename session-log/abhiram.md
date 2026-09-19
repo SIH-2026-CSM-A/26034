@@ -4540,7 +4540,7 @@ areas 14 % apart, cm² 18 % apart, on opposite sides of a legal threshold.
   numeral's own distance from the coin. `datasets/raw/.../food_mdh_kitchen_king_100g_001`
   annotates `numeral_height_mm` 2.51 from that figure; it is now the wrong number and is in a
   directory this session does not own. Raised, not fixed.
-- Session 38's `76 × 1207 → 92.6 cm² / 1.5 mm` demo mark is 102.3 ± 10.2 cm² and the 2.5 mm
+- Session 38's `776 × 1207 → 92.6 cm² / 1.5 mm` demo mark is 102.3 ± 10.2 cm² and the 2.5 mm
   band. The interval spans 100 cm², both bands pass at 2.61 mm, so PASS stands.
 
 ### Verification
