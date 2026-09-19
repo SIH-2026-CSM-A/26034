@@ -7,7 +7,21 @@ them, read the file.
 
 ---
 
-## After Session 37 (2026-09-19, a heuristic panel cannot band Table-I, #168, VM backend on 9f1bbfb) — read this first
+## After Session 38 (2026-09-19, an officer marks the principal display panel, #170, VM on f998e2e) — read this first
+
+1. ~~Table-I on the pixel path needs a trained panel detector to say anything.~~ Done in
+   Session 38 (#170): the officer drags the panel on `/officer/new` and `/officer/camera`;
+   `panel_x/y/width/height` is a fourth `PackageConfirmations` field, persisted and replayed.
+   Scan `6efb8a2b` (marked, 97.8 cm², PASS at 1.5 mm) and `b368bd28` (unmarked, #168's refusal)
+   on the MDH capture through the tunnel. A trained detector is still the upgrade for the
+   unmarked path; `datasets/raw` now has the calibrated capture with a coin bbox to train against.
+2. **Table-I `observed_value` is the unrounded float** (`2.5083775157266324 mm`). Round where
+   the finding is built, not where it is displayed. `bck/`, `pipeline/measurement_findings.py`.
+3. **The mark has no keyboard path.** Optional today. Four number inputs behind a disclosure
+   would do; `fnt/src/officer/components/PanelMarker.tsx`.
+4. Items 3–6 of Session 36 below are unchanged.
+
+## After Session 37 (2026-09-19, a heuristic panel cannot band Table-I, #168, VM backend on 9f1bbfb)
 
 1. ~~The heuristic panel nearly failed a compliant pack.~~ Done in Session 37 (#168): Table-I is
    INSUFFICIENT_EVIDENCE when `detection.method` is heuristic, the measured height stays in
