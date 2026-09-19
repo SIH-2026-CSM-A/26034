@@ -7,7 +7,19 @@ them, read the file.
 
 ---
 
-## After Session 36 (2026-09-19, first real calibrated capture, #166, VM backend on 4387166) — read this first
+## After Session 37 (2026-09-19, a heuristic panel cannot band Table-I, #168, VM backend on 9f1bbfb) — read this first
+
+1. ~~The heuristic panel nearly failed a compliant pack.~~ Done in Session 37 (#168): Table-I is
+   INSUFFICIENT_EVIDENCE when `detection.method` is heuristic, the measured height stays in
+   `observed_value`. Scan `e45190eb` on the MDH capture shows it. `R8-1-FREE-SPACE` was checked
+   and has no panel dependency.
+2. **Table-I on the pixel path now needs a trained panel detector to say anything.** A refusal is
+   the honest output, and it is also every photograph until `PDP_WEIGHTS_PATH` points at a model
+   trained on panel boxes. Stock YOLO weights are worse than none (see CLAUDE.md). `datasets/raw`
+   has one calibrated capture to annotate.
+3. Items 3–6 of Session 36 below are unchanged.
+
+## After Session 36 (2026-09-19, first real calibrated capture, #166, VM backend on 4387166)
 
 1. ~~Table-I has no millimetre figure to show.~~ It has one: MDH Kitchen King with a ₹10 coin, scan
    `e0535e34`, 0.1045 mm/px, numeral 2.51 mm, verdict REVIEW. The photo is

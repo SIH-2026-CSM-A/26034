@@ -4347,3 +4347,69 @@ on it had returned POTENTIAL_VIOLATION.
 The panel-area artefact above; the spurious coin tilt; same-line label→value pairing for dates
 (would turn both date obligations on this pack into typed PASSes); `id_card` / `ean_13` from
 Session 35; `capture_metadata` absent from `ScanDetail`.
+
+## Session 37 — 2026-09-19, a heuristic panel cannot band Table-I (#168) (Claude Code, Fable 5.1)
+
+One PR, `bck/` only, merged with `--admin` on the standing "merge when green" instruction as
+`9f1bbfb` (#168); the VM backend rebuilt from it `--no-cache` and `--force-recreate`d, image
+created 12:31 UTC, and the container's `orchestrator.py` grepped for the new string from outside.
+The input was Session 36's finding, not a new one: scan `e0535e34` passed Rule 7(2) Table-I by
+0.008 mm on an area that was the frame.
+
+### What the defect was
+
+`detect_pdp` with no weights configured returns `HeuristicTextRegion`, the largest block of print,
+and on a tabletop capture that is the carton, the ₹10 coin and the table. `_panel_area` measured
+it as a panel: (29, 23, 1156, 1249) through 0.1045 mm/px is 152 cm², the 100–500 cm² band, 2.5 mm
+required. The carton's back panel is 83 cm², the 50–100 band, 1.5 mm. The measured numeral is
+2.508 mm. A compliant pack passed by the width of a rounding error, and a slightly smaller print
+would have failed on the coin and the tabletop.
+
+The band is a legal threshold, so an area the system did not measure must not select one.
+`_panel_area` now returns a `MeasurementRefusal` when `detection.method == "heuristic"`, with the
+reason naming what is missing; every pixel path routes through it, artwork supplies its own exact
+area, and a model detection is unchanged. `_table_height` in `measurement_findings.py` used to
+drop the panel refusal's reason on the floor and emit no `observed_value`; it now carries both,
+because the character height is real and it is the officer's to use. The largest contour was not
+used as a stand-in panel: that is the mistake the coin detector was making in #166.
+
+**R8-1-FREE-SPACE was checked and has no such dependency.** `measure_margins` runs from the
+declaration's own ink across the frame, banded to the declaration's own columns and rows, and
+never reads the panel box. Nothing changed there; the new test pins that it still PASSes beside
+the refused Table-I.
+
+### Verification
+
+- Falsified without `-x`, `__pycache__` purged by absolute path each time, directory count
+  asserted zero. Committed `_panel_area` restored alone: red at `table.state is
+  INSUFFICIENT_EVIDENCE`, was PASS. Committed `_table_height` restored alone: red at
+  `"panel was not detected" in table.reason`.
+- `origin/main` at `dc7ddf3` in a throwaway worktree: 1142 / 136 / 2 errors. Branch: 1143 / 136 /
+  2. The +1 is the one new test; the 2 errors are `test_minio_storage.py` reaching a live `:9000`,
+  identical on main. CI: 1278 passed / 3 skipped. `ruff`, `ruff format --check`, `lint-imports`
+  (3 kept, 0 broken) clean.
+- **Before**, scan `e0535e34` on `4387166`: Table-I PASS, observed 2.508 mm, expected 2.5 mm.
+  Free space PASS, numeral 2.51 mm (±0.13); above 2.72; below 2.72; left 6.58; right 7.00.
+- **After**, scan `e45190eb` on `9f1bbfb`, same file, `coin_10` + Food, as `inspector1`: Table-I
+  INSUFFICIENT_EVIDENCE, observed 2.508 mm, no expected value, reason "…the principal display
+  panel was not detected: no trained panel detector is configured, and the largest block of print
+  is not a measured panel, so its area cannot band the requirement." Free space byte-identical to
+  before. Verdict REVIEW both times. Both tables are on #168.
+
+### Found by measuring
+
+- `GET /scans/{id}` takes the full UUID only; the eight-character prefix returns a 422. The list
+  endpoint resolves a prefix.
+- `rtk` truncates a multi-line grep to `[+N more]` even under `tail -n1`; the last `## Session`
+  heading had to be read with Python. The same truncation dropped the `rev-parse` line from the
+  deploy output, so the deployed commit was verified in a second `ssh`.
+
+### Raised, not fixed
+
+- Table-I on every photograph is now INSUFFICIENT_EVIDENCE until a trained panel detector is
+  configured. That is the correct output and it is also the whole of Rule 7(2) on the pixel path.
+  Training one against annotated panel boxes is the upgrade; `datasets/raw` has one calibrated
+  capture.
+- Session 36's other items are unchanged: the spurious 12° coin tilt, same-line date pairing,
+  `COMMON_OR_GENERIC_NAME` binding every unclassified span, `id_card` / `ean_13` false-positive
+  calibration, the reference-detection refusal never reaching the scan detail.
