@@ -122,7 +122,7 @@ def _table_height(
             field,
             FIELD_STATE_FROM_VERDICT[evaluation.verdict],
             "the measured character height was compared against the Table-I band for the "
-            "measured principal display panel area.",
+            f"measured principal display panel area of {panel.value:.1f} {panel.unit}.",
             context,
             observed_value=f"{height.value} {height.unit}",
             expected_value=None if required is None else f"{required} mm",

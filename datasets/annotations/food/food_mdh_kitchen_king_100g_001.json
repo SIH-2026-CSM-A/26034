@@ -1,0 +1,146 @@
+{
+  "sample_id": "food_mdh_kitchen_king_100g_001",
+  "sku_id": "food_mdh_kitchen_king_100g",
+  "image_filename": "food_mdh_kitchen_king_100g_001.png",
+  "category": "food",
+  "difficulty_tags": [
+    "calibrated",
+    "multiscript"
+  ],
+  "known_issues": [],
+  "reference_object": {
+    "present": true,
+    "object_type": "coin_10",
+    "known_dimension_mm": 27.0,
+    "confidence_interval_mm": null,
+    "bbox": [0.7438, 0.4849, 0.953, 0.6849]
+  },
+  "pdp": {
+    "shape": "rectangular",
+    "height_cm": 12.9,
+    "width_cm": 7.7,
+    "circumference_cm": null,
+    "total_surface_area_cm2": null,
+    "area_cm2": 99.6,
+    "is_measurable": true,
+    "rule7_band": "50_lt_A_le_100",
+    "rule7_min_height_mm": 1.5
+  },
+  "declarations": {
+    "manufacturer_or_packer": {
+      "declared": true,
+      "raw_text": "Manufactured & Packed by: Mahashian Di Hatti Pvt. Ltd. 9/44 Kirti Nagar Industrial Area, New Delhi - 110 015, India",
+      "normalised_value": {
+        "name": "Mahashian Di Hatti Pvt. Ltd.",
+        "address": "9/44 Kirti Nagar Industrial Area, New Delhi - 110 015, India"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(a) Explanation III: in respect of packages containing food articles the provisions of this clause do not apply, and the Food Safety and Standards Act, 2006 and the rules made thereunder apply instead (R6-1-A-EXPL-III-FOOD). The declaration is present, with an FSSAI licence number (Lic. No. 10018011005811) beside it, but the LMPC obligation is displaced and must not be scored PASS."
+    },
+    "commodity_name": {
+      "declared": true,
+      "raw_text": "Kitchen King (MIXED SPICES POWDER)",
+      "normalised_value": {
+        "generic_name": "Mixed spices powder"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "net_quantity": {
+      "declared": true,
+      "raw_text": "Net Quantity: 100 g",
+      "normalised_value": {
+        "value": 100.0,
+        "unit": "g"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": 2.51,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "date_of_manufacture_or_packing": {
+      "declared": true,
+      "raw_text": "Date of Packaging : 15 JUL 2024 / Use By : 14 JUL 2026",
+      "normalised_value": {
+        "date_of_packaging": "2024-07",
+        "use_by": "2026-07"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(d) first proviso: for packages containing food articles the provisions of the food law apply in place of this sub-clause (R6-1-D source text). The obligation is displaced. Both a packaging date and a use-by date are printed and legible in any event."
+    },
+    "retail_sale_price_mrp": {
+      "declared": true,
+      "raw_text": "MRP ₹ (incl. of all taxes) : 75.00",
+      "normalised_value": {
+        "amount": 75.0,
+        "currency": "INR",
+        "inclusive_of_all_taxes": true
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "unit_sale_price": {
+      "declared": true,
+      "raw_text": "Unit Sale Price ₹ per g : 0.75",
+      "normalised_value": {
+        "amount": 0.75,
+        "currency": "INR",
+        "per": "g"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "consumer_care_details": {
+      "declared": true,
+      "raw_text": "Consumer Care Cell: 9/44 Kirti Nagar Industrial Area, New Delhi - 110 015 Toll Free No. 1800 11 6263 E-mail: mdhcare@mdhspices.com Website: www.mdhspices.com",
+      "normalised_value": {
+        "name": "Consumer Care Cell, Mahashian Di Hatti Pvt. Ltd.",
+        "address": "9/44 Kirti Nagar Industrial Area, New Delhi - 110 015",
+        "telephone": "1800 11 6263",
+        "email": "mdhcare@mdhspices.com"
+      },
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "PASS",
+      "non_compliance_reason": null
+    },
+    "country_of_origin": {
+      "declared": false,
+      "raw_text": null,
+      "normalised_value": null,
+      "bbox": null,
+      "polygon": null,
+      "numeral_height_mm": null,
+      "letter_height_mm": null,
+      "expected_field_state": "NOT_APPLICABLE",
+      "non_compliance_reason": "Rule 6(1)(aa) requires the country of origin or manufacture or assembly to be mentioned 'in case of imported products' (R6-1-AA source text). The manufacturer's address is New Delhi, India, with an FSSAI licence; it is not an imported product, so the clause does not apply."
+    }
+  },
+  "ground_truth_verdict": "PASS",
+  "notes": "Back panel of an MDH Kitchen King mixed spices powder carton, 100 g, lying flat on a dark granite tabletop with a Rs 10 coin flat in the same plane to its right, shot straight down at 1214 x 1295 px. The file is a PNG despite the .jpg name it arrived under, so it is filed as .png; the bytes are untouched and the sha256 is theirs. The first calibrated field capture in this corpus. Calibration: the coin is the largest elliptical contour, at normalised bbox above, 252.6 x 258.3 px, 0.1045 mm/px through app.modules.measurement.detect_reference_object; the detector reads the flat coin as 12 degrees tilted from rim shadow, which is a known artefact (session log, Session 36). pdp dimensions are the carton face marked at (68, 22, 808, 1244) px through measure_panel_dimensions with that calibration: 128.6 x 77.4 mm, 99.6 cm2, the 50-100 cm2 band. The mark hugs the red carton edge; a mark tighter to the printed face measures 92-96 cm2 in the same band. net_quantity.numeral_height_mm is the pipeline's calibrated measurement of the '100' digits on this session's run, 2.508 mm (+/- 0.13); the 'g' with its descender is not a numeral. The pipeline's verdict on this capture is REVIEW because of evidence items (contrast ratio handed to the officer, a second reader disagreeing on one span), none of which is a defect of the package; every obligation is present and legible, so the package's own verdict is PASS. Batch KK2407 printed; Rule 26 does not reach a 100 g pack.",
+  "image_sha256": "afdcc9a463227cbaa94361548add800d64ca27d210295a172e80b81f24cdac35"
+}

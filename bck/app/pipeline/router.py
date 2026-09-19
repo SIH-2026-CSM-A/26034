@@ -172,13 +172,20 @@ async def submit_image_scan(
     package_shape: Annotated[PackageShape, Form()] = PackageShape.RECTANGULAR,
     declarations_required_under_other_law: Annotated[bool, Form()] = False,
     rule_33_relaxation_granted: Annotated[bool, Form()] = False,
+    panel_x: Annotated[int | None, Form(ge=0)] = None,
+    panel_y: Annotated[int | None, Form(ge=0)] = None,
+    panel_width: Annotated[int | None, Form(gt=0)] = None,
+    panel_height: Annotated[int | None, Form(gt=0)] = None,
 ) -> ScanDetail:
     """Accept a photographed package and evaluate it after this response has gone.
 
-    The last three fields are :class:`PackageConfirmations` — what the officer has
+    The last seven fields are :class:`PackageConfirmations` — what the officer has
     established about the package that no photograph can: which limb of Rule 7(4) sizes
     the panel, whether Rule 7(5) disapplies Rule 7's sizing, whether a Rule 33 relaxation
-    has been recorded. Each defaults to confirming nothing.
+    has been recorded, and where on the capture the principal display panel is. Each
+    defaults to confirming nothing. The panel mark is four numbers in the uploaded image's
+    own pixels, all four or none; a partial mark is a malformed request, and so is one
+    that runs off the image.
 
     The response is the scan at PROCESSING with no verdict: the row a client polls
     ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
@@ -209,8 +216,23 @@ async def submit_image_scan(
             shape=package_shape,
             declarations_required_under_other_law=declarations_required_under_other_law,
             rule_33_relaxation_granted=rule_33_relaxation_granted,
+            panel_bbox=_panel_mark(panel_x, panel_y, panel_width, panel_height),
         ),
     )
+
+
+def _panel_mark(
+    x: int | None, y: int | None, width: int | None, height: int | None
+) -> tuple[int, int, int, int] | None:
+    """The officer's panel mark as one box, or nothing; two or three of its numbers is a 422."""
+    if x is None and y is None and width is None and height is None:
+        return None
+    if x is None or y is None or width is None or height is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="a panel mark needs panel_x, panel_y, panel_width and panel_height together",
+        )
+    return (x, y, width, height)
 
 
 ARTWORK_TYPES = ("pdf", "svg")
@@ -341,6 +363,16 @@ async def _accept_image_scan(
         method=calibration_method, reference_type=reference_type, artwork_dpi=artwork_dpi
     )
     frame = _decode(image_bytes)
+    if confirmations.panel_bbox is not None:
+        x, y, w, h = confirmations.panel_bbox
+        frame_h, frame_w = frame.shape[:2]
+        if x + w > frame_w or y + h > frame_h:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"the panel mark ({x}, {y}, {w}, {h}) runs off the {frame_w}x{frame_h} image"
+                ),
+            )
     scan = repository.new_scan(
         principal,
         ScanSourceType.PHYSICAL_LABEL,
@@ -719,10 +751,14 @@ def _confirmations_of(scan: Scan) -> PackageConfirmations:
     stored = scan.capture_metadata.get(CONFIRMATIONS_KEY)
     if not stored:
         return NOTHING_CONFIRMED
+    marked = stored.get("panel_bbox")
     return PackageConfirmations(
         shape=PackageShape(stored["shape"]),
         declarations_required_under_other_law=bool(stored["declarations_required_under_other_law"]),
         rule_33_relaxation_granted=bool(stored["rule_33_relaxation_granted"]),
+        # JSON has no tuple, so the mark comes back as a list; scans before the mark
+        # existed have no key at all.
+        panel_bbox=None if marked is None else tuple(int(v) for v in marked),
     )
 
 

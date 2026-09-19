@@ -19,6 +19,7 @@ What is here now:
 | `food_parle_g_gluco_biscuits_130g_001` | 110 g + 20 g extra = 130 g | food |
 | `cosmetics_himalaya_curcuma_face_wash_150ml_001` | 150 ml ℮ | cosmetics |
 | `cosmetics_himalaya_neem_turmeric_face_wash_150ml_001` | 150 ml ℮ | cosmetics |
+| `food_mdh_kitchen_king_100g_001` | 100 g — calibrated, ₹10 coin in frame | food |
 
 Four SKUs, one image each — not two SKUs with two views. The `cosmetics/` and `food/`
 directories were swapped: `raw/cosmetics/cosmetics_himalaya_face_wash_100ml_*` held Parle-G

@@ -177,3 +177,61 @@ async def test_the_panel_text_is_read_back_beside_the_findings(client: AsyncClie
         submitted = await _submit(client, frame)
     detail = await _read(client, submitted["id"])
     assert [s["text"] for s in detail["panel_spans"]] == [s.text for s in PANEL_SPANS]
+
+
+MARK = {"panel_x": "10", "panel_y": "20", "panel_width": "300", "panel_height": "200"}
+
+
+async def _submit_marked(client: AsyncClient, data: dict):
+    return await client.post(
+        "/scans/image",
+        files={"image": ("capture.jpg", _jpeg(scan_panel_frame()), "image/jpeg")},
+        data={"calibration_method": "none", **data},
+        headers=auth(INSPECTOR),
+    )
+
+
+async def test_a_panel_mark_reaches_the_pipeline_and_survives_re_evaluation(
+    client: AsyncClient,
+) -> None:
+    """The mark is a confirmation: stored with the scan, replayed when the capture is."""
+    with patch.object(router, "run_image_scan", return_value=_blur_rejection()) as pipeline:
+        submitted = await _submit_marked(client, MARK)
+        assert submitted.status_code == 201, submitted.text
+        assert pipeline.call_args.kwargs["confirmations"].panel_bbox == (10, 20, 300, 200)
+
+        confirmed = await client.post(
+            f"/scans/{submitted.json()['id']}/category",
+            json={"product_category": "food"},
+            headers=auth(INSPECTOR),
+        )
+        assert confirmed.status_code == 201, confirmed.text
+        assert pipeline.call_count == 2
+        assert pipeline.call_args.kwargs["confirmations"].panel_bbox == (10, 20, 300, 200)
+
+
+async def test_a_partial_panel_mark_is_a_malformed_request(client: AsyncClient) -> None:
+    with patch.object(router, "run_image_scan", return_value=_blur_rejection()) as pipeline:
+        response = await _submit_marked(client, {"panel_x": "10", "panel_y": "20"})
+    assert response.status_code == 422, response.text
+    assert "together" in response.text
+    assert pipeline.call_count == 0
+
+
+async def test_a_panel_mark_off_the_image_is_a_malformed_request(client: AsyncClient) -> None:
+    """The frame is 800 x 600; a box ending at x = 810 is not on it."""
+    with patch.object(router, "run_image_scan", return_value=_blur_rejection()) as pipeline:
+        response = await _submit_marked(client, {**MARK, "panel_x": "510"})
+    assert response.status_code == 422, response.text
+    assert "runs off the 800x600 image" in response.text
+    assert pipeline.call_count == 0
+
+
+def _blur_rejection() -> router.QualityRejection:
+    return router.QualityRejection(
+        reason_code=QualityReason.BLUR_EXCEEDED,
+        instruction="capture again",
+        blur_score=0.0,
+        glare_ratio=0.0,
+        coverage_ratio=1.0,
+    )

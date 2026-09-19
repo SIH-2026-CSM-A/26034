@@ -59,10 +59,13 @@ export interface paths {
          * Submit Image Scan
          * @description Accept a photographed package and evaluate it after this response has gone.
          *
-         *     The last three fields are :class:`PackageConfirmations` — what the officer has
+         *     The last seven fields are :class:`PackageConfirmations` — what the officer has
          *     established about the package that no photograph can: which limb of Rule 7(4) sizes
          *     the panel, whether Rule 7(5) disapplies Rule 7's sizing, whether a Rule 33 relaxation
-         *     has been recorded. Each defaults to confirming nothing.
+         *     has been recorded, and where on the capture the principal display panel is. Each
+         *     defaults to confirming nothing. The panel mark is four numbers in the uploaded image's
+         *     own pixels, all four or none; a partial mark is a malformed request, and so is one
+         *     that runs off the image.
          *
          *     The response is the scan at PROCESSING with no verdict: the row a client polls
          *     ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
@@ -724,6 +727,14 @@ export interface components {
              * @default false
              */
             rule_33_relaxation_granted: boolean;
+            /** Panel X */
+            panel_x?: number | null;
+            /** Panel Y */
+            panel_y?: number | null;
+            /** Panel Width */
+            panel_width?: number | null;
+            /** Panel Height */
+            panel_height?: number | null;
         };
         /** Body_submit_vendor_image_scan_vendor_scans_image_post */
         Body_submit_vendor_image_scan_vendor_scans_image_post: {

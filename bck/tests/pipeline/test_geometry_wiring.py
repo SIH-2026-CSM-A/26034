@@ -21,14 +21,22 @@ import cv2
 import numpy as np
 import pytest
 
-from app.contracts import DeclarationField, EvidenceProvider, ExtractedSpan, FieldState
+from app.contracts import (
+    DeclarationField,
+    EvidenceProvider,
+    ExtractedSpan,
+    FieldState,
+    MeasurementRefusal,
+)
 from app.core import CalibrationMethod
 from app.modules.measurement import PackageShape
 from app.modules.rules import ProductCategory
+from app.modules.vision.pdp import OfficerMarkedPanel
 from app.pipeline.orchestrator import (
     Calibration,
     ImageScanResult,
     PackageConfirmations,
+    _panel_area,
     run_image_scan,
 )
 
@@ -333,3 +341,61 @@ def test_ocr_reads_the_prepared_frame_and_spans_return_to_the_photograph(shape, 
         # tests/modules/vision; here it is stubbed out, so only the deskew is undone.
         quantity = next(span for span in result.spans if span.span_id == "s-quantity")
         assert quantity.polygon[0] == pytest.approx((250.0, 300.0), abs=2.0)
+
+
+def test_an_officer_marked_panel_bands_table_i_where_the_heuristic_could_not() -> None:
+    """The officer states where the panel is; Table-I bands against that, not the frame."""
+
+    class Heuristic(Detection):
+        method = "heuristic"
+
+    marked = PackageConfirmations(panel_bbox=PANEL)
+    result = scan(spacious(), detection=Heuristic, confirmations=marked)
+    assert result.panel.method == "officer"
+    assert result.panel.bbox == PANEL
+    table = finding_for(result, "R7-2-TABLE-I")
+    assert table.state is FieldState.PASS
+    assert table.expected_value == "1.5 mm", "70 cm2 is the 50-100 band, not the frame's"
+    assert "70.0 cm²" in table.reason
+    assert float(table.observed_value.split()[0]) == pytest.approx(3.9)
+
+
+def test_an_officer_mark_without_a_calibration_is_still_no_millimetre() -> None:
+    """A stated boundary is pixels. Without a reference object it has no area in cm².
+
+    Asserted at ``_panel_area`` as well as on the finding: on the finding alone the
+    character height refuses first and hides whatever the panel measurement did, so a
+    panel measured in pixels and called exact would still read as a clean refusal.
+    """
+    uncalibrated = Calibration(method=CalibrationMethod.NONE)
+    marked_panel = OfficerMarkedPanel(bbox=PANEL, area=float(PANEL[2] * PANEL[3]))
+    area = _panel_area(spacious().frame, marked_panel, uncalibrated, PackageShape.RECTANGULAR)
+    assert isinstance(area, MeasurementRefusal)
+    assert "reference object" in area.reason
+
+    marked = PackageConfirmations(panel_bbox=PANEL)
+    result = scan(spacious(), calibration=uncalibrated, confirmations=marked)
+    assert result.panel.method == "officer"
+    table = finding_for(result, "R7-2-TABLE-I")
+    assert table.state is FieldState.INSUFFICIENT_EVIDENCE
+    assert table.state is not FieldState.FAIL
+    assert table.observed_value is None
+    assert table.expected_value is None
+    assert "mm" not in table.reason.replace("millimetre", "")
+    assert "cm²" not in table.reason
+
+
+def test_placement_inside_an_officer_mark_passes_and_outside_it_goes_to_an_officer() -> None:
+    inside = finding_for(
+        scan(spacious(), confirmations=PackageConfirmations(panel_bbox=PANEL)),
+        "R8-1-PDP-PLACEMENT",
+    )
+    assert inside.state is FieldState.PASS
+    assert "officer marked" in inside.reason
+    assert "(officer)" in inside.observed_value
+
+    elsewhere = PackageConfirmations(panel_bbox=(100, 600, 1000, 200))
+    outside = finding_for(scan(spacious(), confirmations=elsewhere), "R8-1-PDP-PLACEMENT")
+    assert outside.state is FieldState.REVIEW_REQUIRED
+    assert outside.state is not FieldState.FAIL
+    assert "officer marked" in outside.reason
