@@ -14,6 +14,7 @@ import { WardSelect } from './WardSelect'
 
 type CalibrationMethod = components['schemas']['CalibrationMethod']
 type ProductCategory = components['schemas']['ProductCategory']
+type PackageShape = components['schemas']['PackageShape']
 type ScanDetail = components['schemas']['ScanDetail']
 type BodySubmitImage = components['schemas']['Body_submit_image_scan_scans_image_post']
 
@@ -21,6 +22,12 @@ const PRODUCT_CATEGORIES: ReadonlyArray<{ value: ProductCategory; label: string 
   { value: 'food', label: 'Food' },
   { value: 'cosmetics', label: 'Cosmetics' },
   { value: 'medical_device', label: 'Medical Device' },
+]
+
+const PACKAGE_SHAPES: ReadonlyArray<{ value: PackageShape; label: string }> = [
+  { value: 'rectangular', label: 'Rectangular — height by width' },
+  { value: 'cylindrical', label: 'Cylindrical — the label wraps the circumference' },
+  { value: 'other', label: 'Other shape' },
 ]
 
 // Entrances only. A panel that waited for the previous one to leave would hold a
@@ -50,6 +57,12 @@ export function CameraCapture() {
   const [productCategory, setProductCategory] = useState<ProductCategory | ''>('')
   const [ward, setWard] = useState<string>('')
   const [institutionalConfirmed, setInstitutionalConfirmed] = useState<boolean>(false)
+  // Package confirmations — what an officer confirms that no photograph establishes.
+  // The same three /scans/image fields the upload form sends, so a camera capture and an
+  // upload of one package cannot be evaluated under different limbs.
+  const [packageShape, setPackageShape] = useState<PackageShape>('rectangular')
+  const [otherLawDeclarations, setOtherLawDeclarations] = useState<boolean>(false)
+  const [rule33Relaxation, setRule33Relaxation] = useState<boolean>(false)
 
   // API submission state
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -224,6 +237,9 @@ export function CameraCapture() {
         'institutional_or_industrial_confirmed',
         String(institutionalConfirmed),
       )
+      formData.append('package_shape', packageShape)
+      formData.append('declarations_required_under_other_law', String(otherLawDeclarations))
+      formData.append('rule_33_relaxation_granted', String(rule33Relaxation))
 
       const { data, error: apiError, response } = await apiClient.POST('/scans/image', {
         body: formData as unknown as BodySubmitImage,
@@ -243,7 +259,17 @@ export function CameraCapture() {
     } finally {
       setSubmitting(false)
     }
-  }, [capturedBlob, calibrationMethod, referenceType, productCategory, ward, institutionalConfirmed])
+  }, [
+    capturedBlob,
+    calibrationMethod,
+    referenceType,
+    productCategory,
+    ward,
+    institutionalConfirmed,
+    packageShape,
+    otherLawDeclarations,
+    rule33Relaxation,
+  ])
 
   const resetAll = useCallback(() => {
     if (capturedUrl) {
@@ -256,6 +282,9 @@ export function CameraCapture() {
     setCameraError(null)
     // A determination about one package, never carried to the next.
     setInstitutionalConfirmed(false)
+    setPackageShape('rectangular')
+    setOtherLawDeclarations(false)
+    setRule33Relaxation(false)
     setStep('capture')
   }, [capturedUrl])
 
@@ -628,6 +657,89 @@ export function CameraCapture() {
                       </div>
                     </label>
                   </motion.div>
+
+                  {/* Package confirmations, behind a disclosure: three more controls on a
+                      camera screen, and the defaults hold for most packages. */}
+                  <motion.div variants={rise}>
+                    <details className="card group p-4 sm:p-5">
+                      <summary className="flex min-h-target cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                        <div>
+                          <span className="text-body font-medium">Package confirmations</span>
+                          <p className="text-secondary text-mute">
+                            Shape, Rule 7(5) and Rule 33. Open to change the defaults.
+                          </p>
+                        </div>
+                        <svg
+                          viewBox="0 0 20 20"
+                          aria-hidden="true"
+                          className="h-5 w-5 shrink-0 text-mute transition-transform group-open:rotate-180"
+                          fill="none"
+                        >
+                          <path
+                            d="M5 8l5 5 5-5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </summary>
+
+                      <div className="mt-3 border-t border-hairline pt-3">
+                        <label htmlFor="camera-package-shape" className="block text-body font-medium">
+                          Package shape
+                        </label>
+                        <p className="mt-0.5 text-secondary text-mute">
+                          Decides which limb of Rule 7(4) computes the principal display panel area.
+                        </p>
+                        <select
+                          id="camera-package-shape"
+                          value={packageShape}
+                          onChange={(e) => setPackageShape(e.target.value as PackageShape)}
+                          className="input mt-2"
+                        >
+                          {PACKAGE_SHAPES.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="mt-3 space-y-3 border-t border-hairline/70 pt-3">
+                          <label className="flex min-h-target cursor-pointer items-start gap-3">
+                            <input
+                              id="camera-other-law-declarations"
+                              type="checkbox"
+                              checked={otherLawDeclarations}
+                              onChange={(e) => setOtherLawDeclarations(e.target.checked)}
+                              className="mt-1 h-5 w-5 shrink-0 accent-ink"
+                            />
+                            <div>
+                              <span className="text-body font-medium">Declarations also required under another law</span>
+                              <p className="text-secondary text-mute">
+                                Rule 7(5): the package's declarations are also required by or under another law.
+                              </p>
+                            </div>
+                          </label>
+                          <label className="flex min-h-target cursor-pointer items-start gap-3">
+                            <input
+                              id="camera-rule-33-relaxation"
+                              type="checkbox"
+                              checked={rule33Relaxation}
+                              onChange={(e) => setRule33Relaxation(e.target.checked)}
+                              className="mt-1 h-5 w-5 shrink-0 accent-ink"
+                            />
+                            <div>
+                              <span className="text-body font-medium">Rule 33 relaxation granted</span>
+                              <p className="text-secondary text-mute">
+                                An order under Rule 33 relaxing these Rules for this package has been recorded.
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </details>
+                  </motion.div>
                 </motion.div>
               )}
 
@@ -660,6 +772,10 @@ export function CameraCapture() {
                     <div className="flex justify-between gap-4 py-3">
                       <dt className="text-mute">Category:</dt>
                       <dd className="text-ink">{productCategory ? productCategory : 'Auto-detect'}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-mute">Shape:</dt>
+                      <dd className="text-ink">{packageShape}</dd>
                     </div>
                   </dl>
 
