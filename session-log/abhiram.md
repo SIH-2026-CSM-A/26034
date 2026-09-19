@@ -4504,3 +4504,82 @@ the panel is.
 - Session 36's items are unchanged: the 12° coin tilt, same-line date pairing,
   `COMMON_OR_GENERIC_NAME` binding every unclassified span, `id_card` / `ean_13`,
   `capture_metadata` absent from `ScanDetail`.
+
+## Session 39 — 2026-09-19, panel area is not width × height × scale² (#172) (Claude Code, Fable 5.1)
+
+One `bck/` PR, merged with `--admin` on the standing "merge when green" instruction as `f8144f0`
+(#172); the VM backend rebuilt from it `--no-cache` and `--force-recreate`d, container created
+17:23 UTC. The input: two officer's marks over one carton face, same photograph, same `coin_10`
+calibration, 922 × 1176 px → 112.9 cm² → 2.5 mm and 776 × 1207 px → 92.6 cm² → 1.5 mm. Pixel
+areas 14 % apart, cm² 18 % apart, on opposite sides of a legal threshold.
+
+### What changed
+
+- **A coin within fit error of round is flat.** `FLAT_COIN_AXIS_RATIO = 0.97` in
+  `measurement/services.py`: at or above it no tilt is inferred and `h_matrix` is `None`, which
+  every caller already handled. Below it MEA-007's homography is built as before; the 15° and
+  30° oblique tests still rectify (cos 15° = 0.966).
+- **Table-I bands across the panel area's interval** in `pipeline/measurement_findings.py`.
+  Where `value ± confidence_interval` lies across a band edge and the height meets one band but
+  not the other, the finding is REVIEW_REQUIRED naming both requirements. Both ends PASS → PASS;
+  both fail → FAIL. Never toward FAIL.
+- **`observed_value` is two decimals** where the finding is built. Session 38's raised item.
+
+### Found by measuring
+
+- **The tilt was spurious, and the check was independent of the coin.** Reproduced locally to the
+  decimal (112.9 / 92.6). The coin fits at b/a 0.978, radial residual 0.003 — a near-perfect
+  ellipse — which `arccos` makes 12.1° about a near-vertical axis. The white label printed on the
+  carton, in the same plane, has left and right edges of 1153 and 1151 px (ratio 1.002): no tilt
+  about that axis. Its top and bottom are 707 and 723 px, about 2° about the *other* axis. The
+  slope of `arccos` at 1 is infinite; 2 % of axis ratio is 12° of tilt and a rim shadow is 2 %.
+- The homography scaled the frame by `sin(12°) · d / f`, 7 % at 600 px from the coin, so the
+  mark further from the coin measured smaller per pixel. Flat: 118.4 and 102.3 cm².
+- **The numeral went through the same homography.** Observed height on the tunnel moved from
+  2.51 mm to 2.61 mm. Session 36–38's 2.508 mm was rectified by the same spurious tilt at the
+  numeral's own distance from the coin. `datasets/raw/.../food_mdh_kitchen_king_100g_001`
+  annotates `numeral_height_mm` 2.51 from that figure; it is now the wrong number and is in a
+  directory this session does not own. Raised, not fixed.
+- Session 38's `76 × 1207 → 92.6 cm² / 1.5 mm` demo mark is 102.3 ± 10.2 cm² and the 2.5 mm
+  band. The interval spans 100 cm², both bands pass at 2.61 mm, so PASS stands.
+
+### Verification
+
+- Tests written first, `__pycache__` purged by absolute path, count asserted zero, no `-x`.
+  Red before: the three near-round coins returned a matrix; the ratio test failed at
+  `(0.842, 0.864)` on the synthetic capture; the band-edge test failed FAIL vs REVIEW_REQUIRED;
+  the rounding test and the existing `"2.0 mm"` assertion. Green after; the oblique control, the
+  3.0 → PASS / 1.2 → FAIL cases and the within-one-band control green both sides.
+- Local 1156 passed / 139 skipped / 2 errors, 10 tests new (counted by `--collect-only`, so the
+  branch minus its own tests is 1146). The errors are `test_minio_storage.py` on `:9000`, as in
+  Session 36. CI: 1294 passed / 3 skipped (Session 38: 1284 / 3; +10). `ruff`,
+  `ruff format --check`, `lint-imports` 3 kept.
+- **Through the tunnel as `inspector1`, `coin_10` + food, three marks over the carton face:**
+  `fe939a0b` 776 × 1207 at (86, 38), 936 632 px² → **102.3 cm²**; `12bab7e2` 814 × 1267 at
+  (86, 20), +10.1 % px² → **112.7 cm²**, +10.2 %; `c8547ba7` 922 × 1176 at (146, 80), +15.8 %
+  px² → **118.4 cm²**, +15.7 %. All PASS at 2.5 mm, observed `2.61 mm`. Deployed constant read
+  from inside the container before submitting.
+
+### My own errors, by name
+
+- Launched the VM rebuild as `nohup gcloud compute ssh … &` inside one Bash call; the call
+  returned and killed the local ssh, the log stopped after two lines, and a waiter on that log
+  exited as though the deploy had finished. The build was still running on the VM as an orphan;
+  found by `pgrep` there before relaunching. Detach on the VM, poll the VM.
+- Wrote the proof script against a `rule_id` key the findings do not carry; matched on the
+  reason text instead.
+
+### Raised, not fixed
+
+- **The unresolved tilt is not in the interval.** Below the floor a real tilt up to 14° would
+  scale a length 600 px from the coin by up to 8 %; `PRIOR_CONFIDENCE_COIN` (5 %) does not cover
+  it. Needs a distance-from-coin term in every calibrated interval, i.e. `detect_reference_object`
+  exposing the coin centre and focal length to its four callers. Stated in the constant's
+  `ponytail:` note.
+- **The height's own interval is not consulted.** 2.61 ± 0.13 mm against 2.5 mm is PASS. The
+  same interval logic on the height would make the demo capture REVIEW_REQUIRED; Abhi's call.
+- The floor is a step (0.969 rectified by 14°, 0.971 by nothing); the continuous form is the
+  first item.
+- `datasets/raw` annotation `numeral_height_mm` 2.51 is the rectified figure; flat it is 2.61.
+- Session 36's remaining items: same-line date pairing, `COMMON_OR_GENERIC_NAME`,
+  `id_card` / `ean_13`, `capture_metadata` absent from `ScanDetail`; Session 38's keyboard path.
