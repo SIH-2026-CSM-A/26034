@@ -7,6 +7,17 @@ them, read the file.
 
 ---
 
+## After Session 33 (2026-09-19, artwork mode on `/officer/new`, #160, VM frontend on bc987a5) — read this first
+
+1. **Every SVG artwork is a refusal.** `rasterise_artwork` renders PDF only; the UI shows the
+   refusal as a fact about the file. Rendering an SVG is a `bck/` decision (a new dependency).
+2. **`CameraCapture.tsx` still sends no package confirmations**; `/officer/new` sends all three
+   in both modes.
+3. **Two wards numbered 37** in `ghmcWards.ts` (Rein Bazar, Kurmaguda) — duplicate React keys in
+   `WardSelect`, a console warning on every page that mounts it.
+4. The artwork mode was proved locally against a real backend at `a7fc331`, not through the
+   tunnel as an officer: no officer password is documented for the VM.
+
 ## After Session 32 (2026-09-19, final consolidation, #156 #157 #158, VM on 93c6812) — read this first
 
 Session 31's four handoff items are done: `evidence_router` mounted, `POST /scans/artwork`
@@ -15,7 +26,7 @@ routed, `PackageConfirmations` sent from both forms, and retention / S3 / timest
 backend: transitions, category confirmation with `non_consumable`, `/vendor/*`, recapture. The VM
 serves `93c6812` at head `9c4b7e2d1a05`.
 
-1. **No UI for `POST /scans/artwork`.** The exact-millimetre path is reachable by API only.
+1. ~~No UI for `POST /scans/artwork`.~~ Done in Session 33 (#160): a second source on `/officer/new`.
 2. **No purge job.** `RetentionManager` constructs from settings; nothing schedules it, and
    `CAPTURE_STORE_DIR` still grows. `EVIDENCE_*_RETENTION_DAYS` are unset on the VM (keep).
 3. **`calculate_pdp_area` has no caller**; `evaluate_numeric_constraint` has no rule.
