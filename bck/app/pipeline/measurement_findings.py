@@ -21,7 +21,13 @@ describe what we saw, and carry a figure only where a real measurement was made.
 
 from decimal import Decimal
 
-from app.contracts import DeclarationField, FieldFinding, FieldState, MeasurementRefusal
+from app.contracts import (
+    DeclarationField,
+    FieldFinding,
+    FieldState,
+    MeasurementCalibrated,
+    MeasurementRefusal,
+)
 from app.modules.rules import RuleDefinition, evaluate_rule7_height
 from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT
 from app.pipeline.rule_findings import EvidenceContext, finding
@@ -56,7 +62,7 @@ def measurement_findings(
             "a measurement was taken, but resolving this rule from it needs a person: "
             f"{rule.evidence_requirement}.",
             context,
-            observed_value=f"{result.value} {result.unit}",
+            observed_value=f"{result.value:.2f} {result.unit}",
         )
         for field in fields
     ]
@@ -103,18 +109,47 @@ def _table_height(
                 "the character height was measured but the principal display panel area was "
                 f"not, and Table-I bands the height against that area: {why}",
                 context,
-                observed_value=f"{height.value} {height.unit}",
+                observed_value=f"{height.value:.2f} {height.unit}",
             )
             for field in fields
         ]
 
-    evaluation = evaluate_rule7_height(
-        panel_area=Decimal(str(panel.value)),
-        measured_height=Decimal(str(height.value)),
-        is_blown_formed_or_moulded=False,
-        product_category=context.product_category,
-        evaluation_date=context.evaluation_date,
-    )
+    def evaluate(area_cm2: float):
+        # An interval reaching below zero reaches the first band, whose lower edge is open.
+        return evaluate_rule7_height(
+            panel_area=Decimal(str(max(area_cm2, 1e-6))),
+            measured_height=Decimal(str(height.value)),
+            is_blown_formed_or_moulded=False,
+            product_category=context.product_category,
+            evaluation_date=context.evaluation_date,
+        )
+
+    evaluation = evaluate(panel.value)
+    if isinstance(panel, MeasurementCalibrated):
+        # The band is a legal threshold and the area has an interval. Where the interval
+        # lies across a band edge and the height meets one band but not the other, which
+        # band applies is exactly what the measurement cannot say: the officer's call,
+        # REVIEW_REQUIRED, never FAIL. Agreeing verdicts at both ends stand as measured.
+        low = evaluate(panel.value - panel.confidence_interval)
+        high = evaluate(panel.value + panel.confidence_interval)
+        if low.verdict != high.verdict:
+            return [
+                finding(
+                    rule,
+                    field,
+                    FieldState.REVIEW_REQUIRED,
+                    "the measured principal display panel area of "
+                    f"{panel.value:.1f} ± {panel.confidence_interval:.1f} {panel.unit} lies "
+                    f"across a Table-I band edge: {low.required_height_mm} mm is required "
+                    f"below it and {high.required_height_mm} mm above, and the measured "
+                    f"character height of {height.value:.2f} {height.unit} meets one and not "
+                    "the other.",
+                    context,
+                    observed_value=f"{height.value:.2f} {height.unit}",
+                    expected_value=f"{low.required_height_mm} mm to {high.required_height_mm} mm",
+                )
+                for field in fields
+            ]
     required = evaluation.required_height_mm
     return [
         finding(
@@ -124,7 +159,7 @@ def _table_height(
             "the measured character height was compared against the Table-I band for the "
             f"measured principal display panel area of {panel.value:.1f} {panel.unit}.",
             context,
-            observed_value=f"{height.value} {height.unit}",
+            observed_value=f"{height.value:.2f} {height.unit}",
             expected_value=None if required is None else f"{required} mm",
         )
         for field in fields
