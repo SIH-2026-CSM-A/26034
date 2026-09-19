@@ -114,42 +114,57 @@ def _table_height(
             for field in fields
         ]
 
-    def evaluate(area_cm2: float):
+    def evaluate(area_cm2: float, height_mm: float = height.value):
         # An interval reaching below zero reaches the first band, whose lower edge is open.
         return evaluate_rule7_height(
             panel_area=Decimal(str(max(area_cm2, 1e-6))),
-            measured_height=Decimal(str(height.value)),
+            measured_height=Decimal(str(max(height_mm, 1e-6))),
             is_blown_formed_or_moulded=False,
             product_category=context.product_category,
             evaluation_date=context.evaluation_date,
         )
 
     evaluation = evaluate(panel.value)
-    if isinstance(panel, MeasurementCalibrated):
-        # The band is a legal threshold and the area has an interval. Where the interval
-        # lies across a band edge and the height meets one band but not the other, which
-        # band applies is exactly what the measurement cannot say: the officer's call,
-        # REVIEW_REQUIRED, never FAIL. Agreeing verdicts at both ends stand as measured.
-        low = evaluate(panel.value - panel.confidence_interval)
-        high = evaluate(panel.value + panel.confidence_interval)
-        if low.verdict != high.verdict:
-            return [
-                finding(
-                    rule,
-                    field,
-                    FieldState.REVIEW_REQUIRED,
-                    "the measured principal display panel area of "
-                    f"{panel.value:.1f} ± {panel.confidence_interval:.1f} {panel.unit} lies "
-                    f"across a Table-I band edge: {low.required_height_mm} mm is required "
-                    f"below it and {high.required_height_mm} mm above, and the measured "
-                    f"character height of {height.value:.2f} {height.unit} meets one and not "
-                    "the other.",
-                    context,
-                    observed_value=f"{height.value:.2f} {height.unit}",
-                    expected_value=f"{low.required_height_mm} mm to {high.required_height_mm} mm",
-                )
-                for field in fields
-            ]
+    # The band is a legal threshold and both figures carry an interval. Where the verdict
+    # differs between the ends of either interval, which side of the requirement the
+    # package falls on is exactly what the measurement cannot say at its own precision:
+    # the officer's call, REVIEW_REQUIRED, never FAIL. Agreeing verdicts at every end
+    # stand as measured.
+    areas, heights = _ends(panel), _ends(height)
+    if {evaluate(a, h).verdict for a in areas for h in heights} != {evaluation.verdict}:
+        bands = sorted({evaluate(a).required_height_mm for a in areas} - {None})
+        straddled = [b for b in bands if heights[0] < b <= heights[-1]]
+        uncertain = []
+        if len(bands) > 1:
+            uncertain.append(
+                "the measured principal display panel area of "
+                f"{panel.value:.1f} ± {panel.confidence_interval:.1f} {panel.unit} lies across "
+                f"a Table-I band edge: {bands[0]} mm is required below it and {bands[-1]} mm "
+                "above"
+            )
+        if straddled:
+            uncertain.append(
+                f"the measured character height of {_with_interval(height)} lies across the "
+                f"{' and '.join(f'{b} mm' for b in straddled)} requirement"
+            )
+        else:
+            uncertain.append(
+                f"the measured character height of {_with_interval(height)} meets one band "
+                "and not the other"
+            )
+        return [
+            finding(
+                rule,
+                field,
+                FieldState.REVIEW_REQUIRED,
+                "; ".join(uncertain) + ": which side of the requirement this package falls "
+                "on is not established at the measurement's own precision.",
+                context,
+                observed_value=f"{height.value:.2f} {height.unit}",
+                expected_value=" to ".join(f"{b} mm" for b in bands),
+            )
+            for field in fields
+        ]
     required = evaluation.required_height_mm
     return [
         finding(
@@ -164,3 +179,20 @@ def _table_height(
         )
         for field in fields
     ]
+
+
+def _ends(result: object) -> tuple[float, ...]:
+    """Both ends of a calibrated figure's interval; the point value of any other."""
+    if isinstance(result, MeasurementCalibrated):
+        return (
+            result.value - result.confidence_interval,
+            result.value + result.confidence_interval,
+        )
+    return (result.value,)
+
+
+def _with_interval(result: object) -> str:
+    """``2.61 ± 0.13 mm`` for a calibrated figure, ``2.61 mm`` for any other."""
+    if isinstance(result, MeasurementCalibrated):
+        return f"{result.value:.2f} ± {result.confidence_interval:.2f} {result.unit}"
+    return f"{result.value:.2f} {result.unit}"
