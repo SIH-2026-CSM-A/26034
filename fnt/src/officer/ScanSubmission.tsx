@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { serverMessage, thrownMessage } from '../services/errors'
 import { awaitScanOutcome } from '../services/scans'
 import type { components } from '../services/generated/schema'
 import { spring } from '../ui/motion'
@@ -87,12 +88,12 @@ export function ScanSubmission() {
           String(institutionalConfirmed),
         )
 
-        const { data, error: apiError } = await apiClient.POST('/scans/image', {
+        const { data, error: apiError, response } = await apiClient.POST('/scans/image', {
           body: formData as unknown as BodySubmitImage,
         })
 
         if (apiError || !data) {
-          setError('Failed to fetch')
+          setError(serverMessage(apiError, response))
           return
         }
         // The submission is accepted before evaluation runs. Read it back until the
@@ -101,7 +102,7 @@ export function ScanSubmission() {
         setResult(await awaitScanOutcome(data.id, setWaitedSeconds))
         setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch')
+        setError(thrownMessage(err))
       } finally {
         setSubmitting(false)
       }
@@ -113,6 +114,8 @@ export function ScanSubmission() {
     setFile(null)
     setResult(null)
     setError(null)
+    // A determination about one package, never carried to the next.
+    setInstitutionalConfirmed(false)
   }
 
   const reveal = {

@@ -1,6 +1,7 @@
 import { SEEDED_DEMO_OFFICER } from '../../services/demo';
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../../services/apiClient';
+import { serverMessage } from '../../services/errors';
 import type { components } from '../../services/generated/schema';
 import { motion } from 'framer-motion';
 import { CountUp } from '../../ui/CountUp';
@@ -106,9 +107,9 @@ export const OfficerDashboard: React.FC = () => {
     setError(null);
 
     try {
-      const { data: scans, error: apiError } = await apiClient.GET('/scans');
+      const { data: scans, error: apiError, response } = await apiClient.GET('/scans');
       if (apiError) {
-        setError('Failed to fetch scans from enforcement API.');
+        setError(serverMessage(apiError, response));
         setLoading(false);
         return;
       }

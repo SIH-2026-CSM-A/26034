@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { serverMessage } from '../services/errors'
 import type { components } from '../services/generated/schema'
 import { spring } from '../ui/motion'
 import { Notice } from '../ui/Notice'
@@ -91,9 +92,9 @@ export function ReviewQueue() {
     setLoading(true)
     setError(null)
     try {
-      const { data, error: apiError } = await apiClient.GET('/scans')
+      const { data, error: apiError, response } = await apiClient.GET('/scans')
       if (apiError) {
-        setError('Failed to fetch scans from API.')
+        setError(serverMessage(apiError, response))
       } else if (data) {
         setScans(data)
       }

@@ -1,14 +1,15 @@
 import { motion } from 'framer-motion'
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiClient } from '../services/apiClient'
-import { setToken } from '../services/auth'
-import { serverMessage } from '../services/errors'
+import { serverMessage, thrownMessage } from '../services/errors'
+import { VENDOR_HOME_PATH, setVendorToken } from '../services/vendorAuth'
+import { vendorClient } from '../services/vendorClient'
 import { Logo } from '../ui/Logo'
 import { rise, stagger } from '../ui/motion'
 import { Notice } from '../ui/Notice'
 
-export function Login() {
+/** `POST /vendors/auth/token`: the credentials an officer registered the premises with. */
+export function VendorLogin() {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -20,21 +21,20 @@ export function Login() {
     setSubmitting(true)
     setError(null)
     try {
-      const { data, error: apiError, response } = await apiClient.POST('/auth/token', {
-        // The route is FastAPI's OAuth2 password flow, so the body is a form,
-        // not JSON.
+      const { data, error: apiError, response } = await vendorClient.POST('/vendors/auth/token', {
+        // FastAPI's OAuth2 password flow: a form body, not JSON.
         body: { username, password, scope: '' },
         bodySerializer: (body) => new URLSearchParams(body as Record<string, string>).toString(),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       })
       if (data) {
-        setToken(data.access_token)
-        navigate('/officer/queue', { replace: true })
+        setVendorToken(data.access_token)
+        navigate(VENDOR_HOME_PATH, { replace: true })
         return
       }
       setError(serverMessage(apiError, response))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error occurred.')
+      setError(thrownMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -48,15 +48,15 @@ export function Login() {
             <Logo className="h-10 w-10" />
             <div>
               <p className="font-display text-body font-semibold leading-tight tracking-tight">PCCS</p>
-              <p className="text-label text-mute">Packaged Commodity Compliance System</p>
+              <p className="text-label text-mute">Vendor self-check</p>
             </div>
           </motion.div>
 
           <motion.div variants={rise} className="card mt-6 p-5 shadow-e2 sm:p-7">
-            <h1 className="text-title">Sign in</h1>
+            <h1 className="text-title">Vendor sign in</h1>
             <p className="mt-1 text-secondary text-mute">
-              Legal Metrology officer credentials. Your jurisdiction and role come from the
-              token the server issues, not from anything entered here.
+              The username and password a Legal Metrology officer registered your premises with.
+              What you submit here is a self-check of your own stock; it is not an inspection.
             </p>
 
             {error && (
@@ -69,11 +69,11 @@ export function Login() {
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <div>
-                <label htmlFor="username" className="block text-secondary font-medium">
+                <label htmlFor="vendor-username" className="block text-secondary font-medium">
                   Username
                 </label>
                 <input
-                  id="username"
+                  id="vendor-username"
                   name="username"
                   type="text"
                   autoComplete="username"
@@ -83,13 +83,12 @@ export function Login() {
                   className="input mt-1.5 font-mono"
                 />
               </div>
-
               <div>
-                <label htmlFor="password" className="block text-secondary font-medium">
+                <label htmlFor="vendor-password" className="block text-secondary font-medium">
                   Password
                 </label>
                 <input
-                  id="password"
+                  id="vendor-password"
                   name="password"
                   type="password"
                   autoComplete="current-password"
@@ -99,7 +98,6 @@ export function Login() {
                   className="input mt-1.5 font-mono"
                 />
               </div>
-
               <button type="submit" disabled={submitting} className="btn btn-primary w-full text-body">
                 {submitting && (
                   <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" />
@@ -110,15 +108,12 @@ export function Login() {
           </motion.div>
 
           <motion.p variants={rise} className="mt-6 text-center text-secondary text-mute">
-            Not an officer?{' '}
-            <Link to="/consumer" className="font-medium text-accent underline-offset-4 hover:underline">
-              Check a package label without signing in
+            <Link to="/login" className="font-medium text-accent underline-offset-4 hover:underline">
+              Officer sign-in
             </Link>
-          </motion.p>
-          <motion.p variants={rise} className="mt-2 text-center text-secondary text-mute">
-            Registered vendor?{' '}
-            <Link to="/vendor/login" className="font-medium text-accent underline-offset-4 hover:underline">
-              Sign in to the vendor self-check
+            {' · '}
+            <Link to="/consumer" className="font-medium text-accent underline-offset-4 hover:underline">
+              Check a label without signing in
             </Link>
           </motion.p>
         </motion.div>

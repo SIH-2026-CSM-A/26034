@@ -6,6 +6,7 @@ import type { components } from '../services/generated/schema'
 import { CountUp } from '../ui/CountUp'
 import { rise, spring, stagger } from '../ui/motion'
 import { Notice } from '../ui/Notice'
+import { serverMessage, thrownMessage } from '../services/errors'
 import { OfficerHeader } from './components/OfficerHeader'
 import { VerdictTag, verdictLabel } from './components/VerdictBanner'
 
@@ -21,10 +22,7 @@ export type Verdict = 'PASS' | 'REVIEW' | 'POTENTIAL_VIOLATION'
 // We keep the server casing throughout to avoid mapping errors.
 export type ComplaintStatus = ComplaintStatusAPI
 
-/**
- * A complaint record as received from the API (or constructed locally for
- * append-only lifecycle transitions until the backend exposes transition endpoints).
- */
+/** A complaint record as the API returns it. Every row here was written by the server. */
 export interface ComplaintRecord {
   id: string
   scan_id: string
@@ -35,6 +33,7 @@ export interface ComplaintRecord {
   raised_by_officer_id: string
   raised_at: string
   supersedes_id: string | null
+  note: string | null
 }
 
 export interface ComplaintThread {
@@ -58,6 +57,7 @@ function apiRecordToRecord(r: ComplaintResponseAPI): ComplaintRecord {
     raised_by_officer_id: r.raised_by_officer_id,
     raised_at: r.raised_at,
     supersedes_id: r.supersedes_id ?? null,
+    note: r.note ?? null,
   }
 }
 
@@ -321,7 +321,6 @@ const DECLARATION_FIELDS: DeclarationField[] = [
 export function ComplaintTracking() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Server-fetched records merged with any local append-only transitions
   const [records, setRecords] = useState<ComplaintRecord[]>([])
   const [scans, setScans] = useState<ScanSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -367,11 +366,12 @@ export function ComplaintTracking() {
   // Modals & Flows
   const [activeThread, setActiveThread] = useState<ComplaintThread | null>(null)
   const [isRaiseModalOpen, setIsRaiseModalOpen] = useState(false)
-  const [reopenTarget, setReopenTarget] = useState<ComplaintRecord | null>(null)
   const [transitionTarget, setTransitionTarget] = useState<{
     record: ComplaintRecord
     toStatus: 'acknowledged' | 'resolved' | 'rejected'
   } | null>(null)
+  const [transitionSubmitting, setTransitionSubmitting] = useState(false)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
 
   // Raise Form State
   const [selectedScanId, setSelectedScanId] = useState<string>('')
@@ -383,10 +383,8 @@ export function ComplaintTracking() {
   const [raiseFormError, setRaiseFormError] = useState<string | null>(null)
   const [raiseSubmitting, setRaiseSubmitting] = useState(false)
 
-  // Transition & Reopen form inputs
+  // Transition form input
   const [actionNote, setActionNote] = useState<string>('')
-  const [reopenJustification, setReopenJustification] = useState<string>('')
-  const [reopenError, setReopenError] = useState<string | null>(null)
 
   // Derive threads from records and live scans
   const threads = useMemo(() => buildComplaintThreads(records, scans), [records, scans])
@@ -545,68 +543,35 @@ export function ComplaintTracking() {
   }
 
   /**
-   * Lifecycle transitions (acknowledge / resolve / reject) are append-only local state
-   * operations until the backend exposes a transition endpoint. Officer identity is not
-   * hard-coded — it is intentionally omitted from locally-constructed records and will
-   * be filled server-side when the transition endpoint is available.
+   * Acknowledge, resolve or reject: `POST /complaints/{id}/transitions`. The server
+   * writes the superseding row and returns it; the officer is the token's principal,
+   * never anything sent here. A note is required to close, and the server keeps it
+   * on the row it writes.
    */
-  const handleTransitionSubmit = (e: React.FormEvent) => {
+  const handleTransitionSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!transitionTarget) return
+    if (!transitionTarget || !actionNote.trim()) return
 
     const { record, toStatus } = transitionTarget
-    if (!actionNote.trim()) {
-      return
+    setTransitionSubmitting(true)
+    setTransitionError(null)
+    try {
+      const { data, error, response } = await apiClient.POST('/complaints/{complaint_id}/transitions', {
+        params: { path: { complaint_id: record.id } },
+        body: { status: toStatus, note: actionNote.trim() },
+      })
+      if (error || !data) {
+        setTransitionError(serverMessage(error, response))
+        return
+      }
+      setRecords((prev) => [apiRecordToRecord(data), ...prev])
+      setTransitionTarget(null)
+      setActionNote('')
+    } catch (err) {
+      setTransitionError(thrownMessage(err))
+    } finally {
+      setTransitionSubmitting(false)
     }
-
-    const newRecord: ComplaintRecord = {
-      id: `local-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
-      scan_id: record.scan_id,
-      verdict_id: record.verdict_id,
-      manufacturer_name: record.manufacturer_name,
-      issue_summary: actionNote.trim(),
-      status: toStatus,
-      // Officer identity is sourced from the authenticated session server-side;
-      // locally-created transition records carry an empty string until persisted.
-      raised_by_officer_id: '',
-      raised_at: new Date().toISOString(),
-      supersedes_id: record.id,
-    }
-
-    setRecords((prev) => [newRecord, ...prev])
-    setTransitionTarget(null)
-    setActionNote('')
-  }
-
-  /**
-   * Reopen: append a new RAISED record superseding the resolved/rejected one.
-   * Same as transitions — no backend endpoint yet; officer identity is not hard-coded.
-   */
-  const handleReopenSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!reopenTarget) return
-
-    if (!reopenJustification.trim()) {
-      setReopenError('A specific justification for reopening is required by audit rules.')
-      return
-    }
-
-    const newRecord: ComplaintRecord = {
-      id: `local-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
-      scan_id: reopenTarget.scan_id,
-      verdict_id: reopenTarget.verdict_id,
-      manufacturer_name: reopenTarget.manufacturer_name,
-      issue_summary: reopenJustification.trim(),
-      status: 'raised',
-      raised_by_officer_id: '',
-      raised_at: new Date().toISOString(),
-      supersedes_id: reopenTarget.id,
-    }
-
-    setRecords((prev) => [newRecord, ...prev])
-    setReopenTarget(null)
-    setReopenJustification('')
-    setReopenError(null)
   }
 
   const closeRaise = () => {
@@ -632,7 +597,7 @@ export function ComplaintTracking() {
             <h1 className="text-title">Complaints</h1>
             <p className="mt-1.5 text-secondary text-mute">
               Statutory manufacturer escalation tracking under Legal Metrology Rules, 2011.
-              Immutable append-only record: lifecycle progression and reopening append superseding events.
+              Immutable append-only record: every lifecycle step is a superseding event the server writes.
             </p>
           </div>
 
@@ -789,12 +754,6 @@ export function ComplaintTracking() {
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-label text-mute">
                             <span className="font-medium text-ink [overflow-wrap:anywhere]">{head.id}</span>
                             <span>Event {thread.history.length} in thread</span>
-                            {/* Transitions are held in this page's state only; say so rather than let the row read as filed. */}
-                            {head.id.startsWith('local-') && (
-                              <span className="rounded-full border border-dotted border-mute px-2 py-0.5 font-sans">
-                                This session only
-                              </span>
-                            )}
                           </div>
                           <h2 className="mt-1.5 font-sans text-section text-ink [overflow-wrap:anywhere]">
                             {thread.manufacturer_name}
@@ -897,20 +856,8 @@ export function ComplaintTracking() {
                             </>
                           )}
 
-                          {/* UI Rule 3: Reopen Complaint */}
-                          {(head.status === 'resolved' || head.status === 'rejected') && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReopenTarget(head)
-                                setReopenJustification('')
-                                setReopenError(null)
-                              }}
-                              className="btn btn-quiet"
-                            >
-                              Reopen complaint
-                            </button>
-                          )}
+                          {/* Resolved and rejected are terminal on the server (VALID_TRANSITIONS);
+                              a fresh complaint on the same scan is raised through the raise form. */}
                         </div>
                       </div>
                     </motion.article>
@@ -972,10 +919,13 @@ export function ComplaintTracking() {
                   </div>
 
                   <p className="mt-2 text-body text-ink [overflow-wrap:anywhere]">{rec.issue_summary}</p>
+                  {rec.note && (
+                    <p className="mt-1.5 rounded-ctl bg-surface px-3 py-2 text-secondary text-ink [overflow-wrap:anywhere]">
+                      {rec.note}
+                    </p>
+                  )}
                   <p className="mt-1 font-mono text-label text-mute [overflow-wrap:anywhere]">
-                    {rec.raised_by_officer_id
-                      ? `Officer: ${rec.raised_by_officer_id}`
-                      : 'Officer: pending server sync'}
+                    {`Officer: ${rec.raised_by_officer_id}`}
                     {rec.supersedes_id
                       ? ` · Supersedes #${rec.supersedes_id}`
                       : ' · Initial root event'}
@@ -1159,12 +1109,18 @@ export function ComplaintTracking() {
 
             <form onSubmit={handleTransitionSubmit} className="mt-3 space-y-4">
               <p className="text-secondary text-mute">
-                Recording this transition writes a new immutable event row superseding{' '}
+                The server writes a new immutable event row superseding{' '}
                 <span className="font-mono font-medium text-ink [overflow-wrap:anywhere]">
                   #{transitionTarget.record.id}
                 </span>
-                .
+                , attributed to your officer id. Nothing is edited in place.
               </p>
+
+              {transitionError && (
+                <Notice role="alert" title="The transition was refused">
+                  <span className="font-mono">{transitionError}</span>
+                </Notice>
+              )}
 
               <div>
                 <label htmlFor="action-note" className="block text-label text-mute">
@@ -1199,77 +1155,20 @@ export function ComplaintTracking() {
                 >
                   Cancel
                 </button>
-                <button type="submit" disabled={!actionNote.trim()} className="btn btn-primary">
-                  Append {statusLabel(transitionTarget.toStatus).toLowerCase()} record
-                </button>
-              </div>
-            </form>
-          </Sheet>
-        )}
-
-        {/* Reopen complaint (UI Rule 3: append-only superseding event) */}
-        {reopenTarget && (
-          <Sheet
-            key="reopen"
-            labelledBy="reopen-title"
-            onClose={() => setReopenTarget(null)}
-            width="sm:max-w-lg"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h2 id="reopen-title" className="font-sans text-section [overflow-wrap:anywhere]">
-                Reopen complaint #{reopenTarget.id}
-              </h2>
-              <CloseButton onClick={() => setReopenTarget(null)} />
-            </div>
-
-            <div className="mt-3 rounded-ctl bg-sunken/60 p-4 text-secondary text-mute">
-              <p className="text-body font-medium text-ink">{reopenTarget.manufacturer_name}</p>
-              <p className="font-mono text-label [overflow-wrap:anywhere]">
-                Previous status: {statusLabel(reopenTarget.status)} · Supersedes #{reopenTarget.id}
-              </p>
-              <p className="mt-1.5">
-                Reopening does not modify the existing record in place. It appends a new
-                superseding event in raised status to the audit trail.
-              </p>
-            </div>
-
-            {reopenError && (
-              <div className="mt-3">
-                <Notice role="alert" title={reopenError} />
-              </div>
-            )}
-
-            <form onSubmit={handleReopenSubmit} className="mt-4 space-y-4">
-              <div>
-                <label htmlFor="reopen-justification" className="block text-label text-mute">
-                  Reopening justification / new investigation evidence *
-                </label>
-                <textarea
-                  id="reopen-justification"
-                  rows={3}
-                  value={reopenJustification}
-                  onChange={(e) => setReopenJustification(e.target.value)}
-                  required
-                  placeholder="Detail subsequent inspection findings or persistence of package shortfall..."
-                  className="input mt-1.5"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
-                <button type="button" onClick={() => setReopenTarget(null)} className="btn btn-ghost">
-                  Cancel
-                </button>
                 <button
                   type="submit"
-                  disabled={!reopenJustification.trim()}
+                  disabled={!actionNote.trim() || transitionSubmitting}
                   className="btn btn-primary"
                 >
-                  Append reopened complaint (raised)
+                  {transitionSubmitting
+                    ? 'Recording…'
+                    : `Append ${statusLabel(transitionTarget.toStatus).toLowerCase()} record`}
                 </button>
               </div>
             </form>
           </Sheet>
         )}
+
       </AnimatePresence>
     </div>
   )

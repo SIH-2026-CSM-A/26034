@@ -5,6 +5,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        // The two libraries every surface shares, cached once across deploys; the
+        // surfaces themselves split at the route trees in App.tsx.
+        manualChunks(id: string) {
+          if (id.includes('node_modules/framer-motion')) return 'motion'
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react'
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     host: true,
     // The backend sends no CORS headers, and the dev server is HTTPS on a

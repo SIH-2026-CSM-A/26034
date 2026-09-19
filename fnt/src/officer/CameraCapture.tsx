@@ -2,6 +2,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
+import { serverMessage, thrownMessage } from '../services/errors'
 import { awaitScanOutcome } from '../services/scans'
 import { decodeFromImageSource, type BarcodeResult } from '../services/barcode'
 import type { components } from '../services/generated/schema'
@@ -224,12 +225,12 @@ export function CameraCapture() {
         String(institutionalConfirmed),
       )
 
-      const { data, error: apiError } = await apiClient.POST('/scans/image', {
+      const { data, error: apiError, response } = await apiClient.POST('/scans/image', {
         body: formData as unknown as BodySubmitImage,
       })
 
       if (apiError || !data) {
-        setSubmissionError('Failed to fetch')
+        setSubmissionError(serverMessage(apiError, response))
         return
       }
       // The submission is accepted before evaluation runs. Read it back until the
@@ -238,7 +239,7 @@ export function CameraCapture() {
       setScanResult(await awaitScanOutcome(data.id, setWaitedSeconds))
       setStep('result')
     } catch (err) {
-      setSubmissionError(err instanceof Error ? err.message : 'Failed to fetch')
+      setSubmissionError(thrownMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -253,6 +254,8 @@ export function CameraCapture() {
     setScanResult(null)
     setSubmissionError(null)
     setCameraError(null)
+    // A determination about one package, never carried to the next.
+    setInstitutionalConfirmed(false)
     setStep('capture')
   }, [capturedUrl])
 

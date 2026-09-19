@@ -59,6 +59,11 @@ export interface paths {
          * Submit Image Scan
          * @description Accept a photographed package and evaluate it after this response has gone.
          *
+         *     The last three fields are :class:`PackageConfirmations` — what the officer has
+         *     established about the package that no photograph can: which limb of Rule 7(4) sizes
+         *     the panel, whether Rule 7(5) disapplies Rule 7's sizing, whether a Rule 33 relaxation
+         *     has been recorded. Each defaults to confirming nothing.
+         *
          *     The response is the scan at PROCESSING with no verdict: the row a client polls
          *     ``GET /scans/{id}`` against until the status moves. Evaluation is not awaited here
          *     because it is an OCR run of the better part of a minute on CPU, and a request that
@@ -73,6 +78,36 @@ export interface paths {
          *     what happened — accepted, and no evaluation made of the package.
          */
         post: operations["submit_image_scan_scans_image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scans/artwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Artwork Scan
+         * @description Accept pre-print artwork of the principal display panel — a PDF or an SVG.
+         *
+         *     The one path on which a millimetre is exact: the file states its own physical size, so
+         *     every measurement is :class:`~app.contracts.MeasurementExact` and no calibration is
+         *     asked for. Same shape as the image route otherwise — the scan is returned at
+         *     PROCESSING and polled, because the render is still read by OCR.
+         *
+         *     Stored with :attr:`~app.core.CalibrationMethod.ARTWORK`, which is the typed field that
+         *     already means "physical sizes are known exactly", and the file type beside it in
+         *     ``capture_metadata``. The file is held so a category confirmation can evaluate it
+         *     again, exactly as a photograph is.
+         */
+        post: operations["submit_artwork_scan_scans_artwork_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -123,6 +158,76 @@ export interface paths {
          *     do it.
          */
         post: operations["review_scan_scans__scan_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scans/{scan_id}/category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Category
+         * @description Confirm a scan's product category, and evaluate its capture again under it.
+         *
+         *     Returns a **new** scan carrying the confirmed category — for a photograph, at
+         *     PROCESSING, to be polled like any submission. The original is left exactly as it was.
+         *     An officer act: it sits behind the officer principal, and nothing the pipeline read —
+         *     no proposal, no display classification — is consulted here or can stand in for the
+         *     body's ``product_category``.
+         */
+        post: operations["confirm_category_scans__scan_id__category_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scans/{scan_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Evidence
+         * @description The scan's evidence chain, verified now, on this read.
+         */
+        get: operations["read_evidence_scans__scan_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scans/{scan_id}/evidence/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Report
+         * @description Issue the BSA s.63(4) Part A certificate (``json``) or the filed report (``pdf``, ``docx``).
+         *
+         *     A POST, because issuing a report is an event the chain records: the export's digest and
+         *     the officer who took it are appended as the next entry. Refused with 409 until an
+         *     officer has finalised the review, and refused outright if the chain does not verify.
+         */
+        post: operations["export_report_scans__scan_id__evidence_report_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -350,6 +455,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/complaints/{complaint_id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Complaint
+         * @description Acknowledge, resolve or reject an escalation, as a new row superseding this one.
+         *
+         *     A complaint this officer cannot see is a 404. A move the domain's transition table does
+         *     not allow — out of a closed thread, or back to RAISED — is a 409, and so is a row that a
+         *     later row already supersedes: transitioning anything but the head would fork the thread.
+         *     That last refusal is ``uq_complaints_supersedes_id`` and nothing else — there is no
+         *     look-before-write in front of it, because a check two officers can both pass at the same
+         *     moment guards nothing the constraint does not, and the constraint also holds then.
+         */
+        post: operations["transition_complaint_complaints__complaint_id__transitions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vendors": {
         parameters: {
             query?: never;
@@ -366,7 +498,31 @@ export interface paths {
          */
         get: operations["list_vendors_vendors_get"];
         put?: never;
-        post?: never;
+        /**
+         * Register Vendor
+         * @description Put a premises on the register with a login, inside the officer's own territory.
+         */
+        post: operations["register_vendor_vendors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendors/auth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Vendor Token
+         * @description Exchange a vendor's username and password for a vendor token.
+         */
+        post: operations["issue_vendor_token_vendors_auth_token_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -385,6 +541,69 @@ export interface paths {
          * @description One vendor in full, or a 404 for absent and out-of-jurisdiction alike.
          */
         get: operations["get_vendor_vendors__vendor_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendor/scans/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Vendor Image Scan
+         * @description A vendor photographs a package on their own shelf; poll ``GET /vendor/scans/{id}``.
+         *
+         *     No category and no calibration: a vendor confirms nothing. The officer covering the
+         *     premises confirms the category on the scan the vendor filed, as on any other.
+         */
+        post: operations["submit_vendor_image_scan_vendor_scans_image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendor/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Vendor Scans
+         * @description This vendor's own submissions, newest first, and nobody else's.
+         */
+        get: operations["list_vendor_scans_vendor_scans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vendor/scans/{scan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vendor Scan
+         * @description One of this vendor's scans. Another vendor's, or an officer's, is a 404.
+         */
+        get: operations["get_vendor_scan_vendor_scans__scan_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -421,6 +640,55 @@ export interface components {
              */
             client_secret?: string | null;
         };
+        /** Body_issue_vendor_token_vendors_auth_token_post */
+        Body_issue_vendor_token_vendors_auth_token_post: {
+            /** Grant Type */
+            grant_type?: string | null;
+            /** Username */
+            username: string;
+            /**
+             * Password
+             * Format: password
+             */
+            password: string;
+            /**
+             * Scope
+             * @default
+             */
+            scope: string;
+            /** Client Id */
+            client_id?: string | null;
+            /**
+             * Client Secret
+             * Format: password
+             */
+            client_secret?: string | null;
+        };
+        /** Body_submit_artwork_scan_scans_artwork_post */
+        Body_submit_artwork_scan_scans_artwork_post: {
+            /** Artwork */
+            artwork: string;
+            product_category?: components["schemas"]["ProductCategory"] | null;
+            /**
+             * Institutional Or Industrial Confirmed
+             * @default false
+             */
+            institutional_or_industrial_confirmed: boolean;
+            /** Ward */
+            ward?: string | null;
+            /** @default rectangular */
+            package_shape: components["schemas"]["PackageShape"];
+            /**
+             * Declarations Required Under Other Law
+             * @default false
+             */
+            declarations_required_under_other_law: boolean;
+            /**
+             * Rule 33 Relaxation Granted
+             * @default false
+             */
+            rule_33_relaxation_granted: boolean;
+        };
         /** Body_submit_consumer_image_scan_consumer_scans_image_post */
         Body_submit_consumer_image_scan_consumer_scans_image_post: {
             /** Image */
@@ -444,6 +712,23 @@ export interface components {
             institutional_or_industrial_confirmed: boolean;
             /** Ward */
             ward?: string | null;
+            /** @default rectangular */
+            package_shape: components["schemas"]["PackageShape"];
+            /**
+             * Declarations Required Under Other Law
+             * @default false
+             */
+            declarations_required_under_other_law: boolean;
+            /**
+             * Rule 33 Relaxation Granted
+             * @default false
+             */
+            rule_33_relaxation_granted: boolean;
+        };
+        /** Body_submit_vendor_image_scan_vendor_scans_image_post */
+        Body_submit_vendor_image_scan_vendor_scans_image_post: {
+            /** Image */
+            image: string;
         };
         /**
          * CalibrationMethod
@@ -516,6 +801,17 @@ export interface components {
             count: number;
         };
         /**
+         * CategoryConfirmation
+         * @description An officer's answer to "which product category is this package".
+         *
+         *     One required field and nothing else is accepted. There is no ``accept_proposal`` flag
+         *     and no default: the category has to be stated in the request by the officer making it,
+         *     so there is no spelling of this body that means "whatever the pipeline read".
+         */
+        CategoryConfirmation: {
+            product_category: components["schemas"]["ProductCategory"];
+        };
+        /**
          * CategoryProposal
          * @description A product category a reader inferred, with the evidence it inferred it from.
          *
@@ -538,6 +834,20 @@ export interface components {
             span_refs: string[];
             /** Reason */
             reason: string;
+        };
+        /** ChainVerification */
+        ChainVerification: {
+            /** Is Valid */
+            is_valid: boolean;
+            /** Broken Link Index */
+            broken_link_index?: number | null;
+            /**
+             * Purged Indices
+             * @default []
+             */
+            purged_indices: number[];
+            /** Reason */
+            reason?: ("payload_hash_mismatch" | "previous_hash_mismatch" | "ordering_violation" | "entry_hash_mismatch" | "missing_genesis" | "corrupted_timestamp") | null;
         };
         /**
          * ComplaintRaiseRequest
@@ -600,6 +910,8 @@ export interface components {
             raised_at: string;
             /** Supersedes Id */
             supersedes_id?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * ComplaintStatus
@@ -615,6 +927,20 @@ export interface components {
             complaint: components["schemas"]["ComplaintResponse"];
             /** History */
             history: components["schemas"]["ComplaintResponse"][];
+        };
+        /**
+         * ComplaintTransitionRequest
+         * @description What an officer supplies to move an escalation on: the new state, and their words.
+         *
+         *     Carries no officer identity — that is the principal's — and no ``supersedes_id``: the
+         *     row being transitioned is named by the URL, and the new row supersedes exactly that one.
+         *     RAISED is not refused here; the domain's transition table refuses it, with every other
+         *     illegal move, so there is one definition of which moves exist.
+         */
+        ComplaintTransitionRequest: {
+            status: components["schemas"]["ComplaintStatus"];
+            /** Note */
+            note?: string | null;
         };
         /**
          * ConsumerSafetyClaim
@@ -679,6 +1005,50 @@ export interface components {
             span_refs: string[];
             /** Reason */
             reason: string;
+        };
+        /** EntrySummary */
+        EntrySummary: {
+            /** Sequence */
+            sequence: number;
+            /** Timestamp */
+            timestamp: string;
+            /** Entry Hash */
+            entry_hash: string;
+            asset_type: components["schemas"]["EvidenceAssetType"];
+            /** Is Purged */
+            is_purged: boolean;
+        };
+        /**
+         * EvidenceAssetType
+         * @description What a stored piece of evidence *is*, for the purpose of deciding when it is destroyed.
+         *
+         *     The counterpart to :class:`EvidenceProvider`, which records what produced a piece of
+         *     evidence. This records what the thing is, and it is the field a retention window is
+         *     read from — so it is inside :func:`app.modules.evidence.chain.compute_entry_hash`.
+         *     Outside the hash an entry could be relabelled, fall under a different retention rule,
+         *     and chain verification would still report the chain intact.
+         *
+         *     Deliberately short. A member ships only alongside something that consumes it — a
+         *     retention window, a purge branch, or a hash input — so this is the set the retention
+         *     rules actually distinguish today and not a complete taxonomy of evidence. Adding a
+         *     member later needs a hand-written ``ALTER TYPE ... ADD VALUE``, which cannot run inside
+         *     a transaction and which ``alembic check`` does not report as drift.
+         * @enum {string}
+         */
+        EvidenceAssetType: "PRODUCT_IMAGE" | "PERSONAL_DATA" | "AUDIT_LOG";
+        /**
+         * EvidenceView
+         * @description A scan's chain, verified on the way out.
+         *
+         *     ``verification`` is computed on every read and never stored: a stored "valid" flag is
+         *     the one thing an attacker who could edit an entry could also edit.
+         */
+        EvidenceView: {
+            /** Scan Id */
+            scan_id: string;
+            verification: components["schemas"]["ChainVerification"];
+            /** Entries */
+            entries: components["schemas"]["EntrySummary"][];
         };
         /**
          * FieldFinding
@@ -748,6 +1118,11 @@ export interface components {
             density_band: string;
         };
         /**
+         * PackageShape
+         * @enum {string}
+         */
+        PackageShape: "rectangular" | "cylindrical" | "other";
+        /**
          * PanelSpan
          * @description One run of text as vision read it off the panel, by the id the findings cite.
          *
@@ -772,7 +1147,7 @@ export interface components {
          *     A member exists here because a gazette names that sector and routes an obligation
          *     away from these Rules for it — not because the sector is commercially interesting.
          *     Adding one is adding a routing target, so it comes with the provision that does the
-         *     routing.
+         *     routing. :attr:`NON_CONSUMABLE` is the single exception and says why on itself.
          *
          *     The values are lowercase where every other vocabulary in this package is upper. That
          *     is deliberate and not to be tidied: they are the ``sector`` keys in the rule store's
@@ -785,7 +1160,7 @@ export interface components {
          *     be passed where this one is expected.
          * @enum {string}
          */
-        ProductCategory: "food" | "cosmetics" | "medical_device";
+        ProductCategory: "food" | "cosmetics" | "medical_device" | "non_consumable";
         /**
          * PublishedConsensus
          * @description A published count for one exact consumer sentiment value.
@@ -914,6 +1289,41 @@ export interface components {
             publication_status: "HELD" | "PUBLISHED";
         };
         /**
+         * RoleTier
+         * @description The three structural levels of the enforcement hierarchy, broadest first.
+         *
+         *     Members are ordered, and the order carries meaning: :attr:`rank` and
+         *     :attr:`scope_fields` are both derived from position, so the "each tier is one level
+         *     narrower than the one above" property cannot drift out of step with the enum.
+         *
+         *     Each member's value is the :class:`Jurisdiction` field that tier is pinned to. That
+         *     is deliberate — it makes the tier and the column it filters on the same fact, rather
+         *     than two facts a future edit could separate.
+         * @enum {string}
+         */
+        RoleTier: "state" | "region" | "district";
+        /**
+         * RoutingDecision
+         * @description Routing outcome for an evaluated vendor submission.
+         *
+         *     Specifies the target officer tier, whether an on-site physical inspection visit is
+         *     required, and whether action is required (or routes as informational).
+         */
+        RoutingDecision: {
+            /** @description The structural enforcement tier whose queue receives this outcome. */
+            target_tier: components["schemas"]["RoleTier"];
+            /**
+             * Requires Visit
+             * @description Whether an on-site physical inspection visit is mandated.
+             */
+            requires_visit: boolean;
+            /**
+             * Action Required
+             * @description True if the result flags for officer action; False if purely informational.
+             */
+            action_required: boolean;
+        };
+        /**
          * RuleAggregateCell
          * @description A privacy-eligible count of scans with a failing finding for one rule.
          */
@@ -1018,6 +1428,8 @@ export interface components {
              */
             panel_spans: components["schemas"]["PanelSpan"][];
             quality?: components["schemas"]["QualityRejection"] | null;
+            /** Refusal */
+            refusal?: string | null;
             category_proposal?: components["schemas"]["CategoryProposal"] | null;
             display_category?: components["schemas"]["DisplayCategoryTaxonomy"] | null;
         };
@@ -1102,6 +1514,25 @@ export interface components {
             ctx?: Record<string, never>;
         };
         /**
+         * VendorRegistration
+         * @description What an officer supplies to put a premises on the register with a login.
+         *
+         *     The jurisdiction is the premises', stated in full to the district, because that is what
+         *     routes the vendor's scans to an officer: a scan attributed to this vendor is filed in
+         *     this territory. The route refuses a territory outside the registering officer's own.
+         *     The password is hashed before anything is stored and is never read back.
+         */
+        VendorRegistration: {
+            /** Name */
+            name: string;
+            vendor_type: components["schemas"]["VendorType"];
+            jurisdiction: components["schemas"]["Jurisdiction"];
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
+        };
+        /**
          * VendorResponse
          * @description One premises on the register.
          *
@@ -1125,6 +1556,18 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * VendorScanView
+         * @description A vendor's own scan, with where it was routed.
+         *
+         *     ``routing`` says which tier's queue the outcome reached and whether it calls for a
+         *     visit; it is ``None`` until the scan has a verdict. The verdict itself is unchanged —
+         *     a vendor reads the same recommendation the officer does.
+         */
+        VendorScanView: {
+            scan: components["schemas"]["ScanDetail"];
+            routing: components["schemas"]["RoutingDecision"] | null;
         };
         /**
          * VendorType
@@ -1291,6 +1734,39 @@ export interface operations {
             };
         };
     };
+    submit_artwork_scan_scans_artwork_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_submit_artwork_scan_scans_artwork_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_scan_scans__scan_id__get: {
         parameters: {
             query?: never;
@@ -1344,6 +1820,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_category_scans__scan_id__category_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryConfirmation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_evidence_scans__scan_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_scans__scan_id__evidence_report_post: {
+        parameters: {
+            query?: {
+                format?: string;
+            };
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1649,6 +2224,41 @@ export interface operations {
             };
         };
     };
+    transition_complaint_complaints__complaint_id__transitions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_vendors_vendors_get: {
         parameters: {
             query?: never;
@@ -1665,6 +2275,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VendorResponse"][];
+                };
+            };
+        };
+    };
+    register_vendor_vendors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorRegistration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_vendor_token_vendors_auth_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_issue_vendor_token_vendors_auth_token_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Token"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1687,6 +2363,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VendorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_vendor_image_scan_vendor_scans_image_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_submit_vendor_image_scan_vendor_scans_image_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorScanView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_vendor_scans_vendor_scans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanSummary"][];
+                };
+            };
+        };
+    };
+    get_vendor_scan_vendor_scans__scan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorScanView"];
                 };
             };
             /** @description Validation Error */
