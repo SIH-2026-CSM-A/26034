@@ -4709,3 +4709,156 @@ system's verdict against this field, so the `PASS` would have scored the system'
 - The distance-from-coin term in every calibrated interval (Session 39) is still absent; the
   height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone.
 - Session 36's remaining items, Session 38's keyboard path, Session 39's step floor: unchanged.
+
+## Session 42 — 2026-09-20, the demo re-recorded against #174, and a brag film (Claude Code, Fable 5.1)
+
+No `bck/` change. Two artifacts: the two Playwright demo passes re-recorded against the live
+tunnel on the `b1bf4bd` backend, and a 25 s Hyperframes launch film in `brag-output/`.
+
+### What changed
+
+- **`demo/record.cjs`.** The consumer act is two products: a fresh close capture of a Parle-G 56 g
+  back panel first (`/mnt/c/Users/drona/Downloads/parle-g-back.jpg`), dwelt on in full and looked
+  up as `8901719100015`; then the MDH carton, straight to its verdict and `8901725113320`. The
+  reviews look-up logs whether the consensus was already on screen from a barcode decoded in the
+  browser instead of assuming it was typed. The Table-I log lines and the ledger-row line are no
+  longer sliced; the ledger row is held 25 s, the longest hold in the recording, and the script
+  logs `UNEXPECTED` if that row is not REVIEW_REQUIRED. The mark comment now says why the mark
+  produces a refusal and that it must not be tightened to force a PASS.
+- **The officer confirms a machine POTENTIAL VIOLATION on camera before the complaint is raised.**
+  `ComplaintTracking.tsx` reads `GET /scans` at its default page size, the newest 50, and lists
+  only finalised scans; every pass adds four scans before that step, so the seeded confirmations
+  that Session 39 raised its complaint against have left that window. The desktop pass failed the
+  complaint step twice before this was understood (below). The script now opens the newest
+  unconfirmed POTENTIAL VIOLATION with a FAIL finding, records the `Confirm` determination through
+  the determination sheet with a note, waits for the `/review` POST, and raises the complaint
+  against that scan; if none is left to confirm it falls back to one already confirmed within the
+  newest 50. That is the story's own order, an officer confirming before any enforcement act, and
+  it is a deviation from the brief's sequence, stated in `demo/README.md`. The phone pass was
+  recorded before this change and does not carry the step; its complaint went against a seeded
+  confirmation that was still inside the window when it ran.
+- **`demo/*.webm` and `demo/.raw/` are gitignored.**
+- **`brag-output/`**: `brag-plan.md`, `composition-brief.md`, `composition/` (Hyperframes
+  0.8.50, standalone root, one paused GSAP timeline, shipped fonts, 145 real GHMC ward paths
+  copied from `ghmcWards.ts`, pre-extracted audio bands), `brag.mp4` (1920×1080, 25.0 s,
+  poster baked as frame 0), `brag.jpg`, `share-copy.txt`. `npx hyperframes check`: 0 errors,
+  0 layout issues, 64/64 WCAG AA. Every sentence on screen is the product's own or the brief's;
+  the only figures are the recorded scan's (2.61 ± 0.13 mm, 102.3 ± 10.2 cm², 1.5 mm to 2.5 mm,
+  56 g, 2024-06-10); the map lights only the two wards the recording hovers.
+
+### Found by measuring
+
+- **The Parle-G additive section is empty on screen, and it is the frontend.** The brief said
+  the five INS codes are extracted; the OCR spans do carry `[503(ii), 500(ii)]`, `(472e)`,
+  `(1101(i))` and `(223)`, read from scan `4603be9b` through the API. `ingredients.ts` stops the
+  ingredient text at the first span matching `NEXT_HEADING`, and on this label the nutrition
+  table interleaves `BATCH NO.:` before the raising agents, so the page shows
+  `WHEAT FLOUR (ATTA) (66.7%), | PKD.: | Trans Fat (g) | Rs. 10.00 | 0 | SUGAR, VEGETABLE OILS
+  (PALM OIL, IÓDISED | Cholesterol (mg) | 0` and "No INS or E additive codes found". Recorded as
+  it is; raised in `TODO.md`, not fixed — `fnt/` ownership is unresolved and the recording was in
+  flight.
+- **The barcode decoded this time.** `Barcode 8901719100015 · EAN-13 · check digit does not
+  verify` on the Parle-G capture, and the reviews panel loaded the SAFE consensus from it before
+  anything was typed; the script logs that instead of typing over it. The EAN-13 check digit for
+  `890171910001` is 7, not 5. The MDH carton still reads no barcode.
+- The Parle-G's net quantity and MRP are REVIEW_REQUIRED under Rule 6(1)(c) and 6(1)(e) with
+  `56 g` and `₹ 10.00` bound; the manufacture date is PASS under 6(1)(d) with `2024-06-10`. The
+  brief's "PASS on both Rule 6(1)(d) findings" is the date's two findings, not the quantity or price.
+- The first phone pass of this session (attempt 1, 621.8 s, clean, REVIEW_REQUIRED on the ledger)
+  was superseded by the two-product consumer act that arrived mid-run, not by a defect. Its log is
+  `.phone-attempt1.log`; it created scans `bf61bace`, `78b4082a`, `9a5cd30b`, `0a84b36c`,
+  `dafd3aa6` and complaint `7b74c808`.
+
+### My own errors, by name
+
+- **The complaint step read the scan list at its default page size.** `GET /scans` returns the
+  newest 50; every pass adds four scans before that step and the finalised POTENTIAL VIOLATION
+  scans are older than that page. The phone pass found one because it ran first; the first desktop
+  pass found none, and two steps failed (`no finalised POTENTIAL_VIOLATION scan with a FAIL
+  finding`, then `no complaint was raised`). Caught by the pass, not by me. The script now asks for
+  `limit=200`, the API's maximum, and the desktop pass was re-recorded. Its first run's log is
+  `.desktop-attempt1.log`.
+- Read the brief's "all five INS codes are extracted" as a fact about the consumer page and only
+  checked the page after the phone pass had already recorded the empty section. The claim was true
+  of the OCR spans and false of the page; the difference is `ingredients.ts`.
+
+### Verification
+
+- **Phone 390×844:** 600.7 s, zero failed steps, zero page errors. Marked scan `ed5d4850`:
+  Table-I REVIEW_REQUIRED, observed `2.61 mm`, expected `1.5 mm to 2.5 mm`, the full reason on
+  the ledger row from 09:36 to 10:01. Unmarked `ef11bde4` INSUFFICIENT_EVIDENCE. Complaint
+  `81aa4184` against seeded `345d7986`, raised and acknowledged, both 201.
+- **Desktop 1280×800:** 616.3 s, zero failed steps, zero page errors. Marked scan `6b51e1c6`,
+  the same finding to the character, held 09:51 to 10:16. Unmarked `3912abf9`. Officer
+  determination on `91893092` → `POST /review 201`, finalised; complaint `cabe7bb0` against it,
+  raised and acknowledged, both 201.
+- Both `ffprobe` durations match the runtimes (600.68 s, 616.20 s). Both indexes carry the
+  reason sentence twice, unsliced. The Session 39 pair and the three superseded attempts are
+  deleted; their logs are kept under `demo/.*-attempt*.log`.
+- `brag-output/brag.mp4`: 1920×1080, 30 fps, 25.000 s, `check` 0 errors / 0 layout issues /
+  64/64 contrast; six key frames read by eye before render.
+- No `bck/` change, so no test run; `ruff` and `lint-imports` not applicable to this diff.
+
+### Raised, not fixed
+
+- The consumer page's ingredient cut-off, the check digit, the two chip labels, and the
+  dashboard's newest-30 window: all in `TODO.md` under Session 42.
+- The complaints page reads the newest 50 scans only; a confirmed scan older than that cannot
+  be complained against from the UI at all. `fnt/`.
+- Sessions 39–41's items unchanged.
+
+### Session 42, second half — the extractor fixed, the decoder probed, both passes re-recorded
+
+The three items Abhi sent back on the first report, then the re-recording.
+
+- **`fnt/src/consumer/ingredients.ts`** (`d7e5620`). `ingredientText` no longer ends at the first
+  heading span. An inline label ("BATCH NO.:", "MRP", "NET WT") is skipped when list text — a
+  comma or a bracketed code — resumes within three spans and no second heading comes first; a
+  section heading (the nutrition table, "CONTAINS", "MANUFACTURED BY", storage, the maker's
+  block) or a list that has reached its full stop still ends it. `additiveCodes` accepts four
+  digits ("1101(i)"), a bracketed bare number ("(223)"), requires the letter suffix attached so
+  "500 g" is a weight, and no longer loses a suffix before a comma: the old pattern's trailing
+  `\b` could not sit between ")" and ",", so "503(ii)," had always fallen back to a bare "503"
+  and been discarded. Checked on the capture's own spans through `sucrase-node`, not a fixture:
+  the text runs to "(1101(i)) AND DOUGH CONDITIONER (223)." and the codes are 503(ii),
+  500(ii), 472e, 1101(i) and 223, with 1101(i) "not assessed" because the reference has no
+  entry. Controls: a list ending in a full stop then "NET WT" stops; "MANUFACTURED BY:" then an
+  address with commas stops; "500 g", a 14-digit licence number, "1800 000 0000" and "(66.7%)"
+  are not codes. `tsc -b`, `oxlint`, `vite build` clean. No unit-test runner exists in `fnt/`;
+  the check script is in the session scratchpad and its command is above.
+- **The decoder is not the bug.** An instrumented copy of `barcode.ts` (every structurally valid
+  scanline collected instead of stopping at the third vote) run in headless Chromium on the
+  capture: at 2× 18 valid rows, at 1× 13, at 0.5× none; every one of the 31 reads
+  `8901719100015`; none verifies. The OCR read the human-readable line as `8"901719"100015`.
+  Bars and digits agree, and the modulo-10 check digit for `890171910001` is 7. The print does
+  not conform to GS1, the display stays "check digit does not verify", and the seed's SAFE
+  identifier was written from the pack's printed digits, not from a misread
+  (`seed_demo.py` line 19). Aashirvaad was not tested: no capture on this machine.
+- **Both passes carry the officer's determination.** Two catalogue listings were submitted to
+  the tunnel as `inspector1` in the shape of `seed_demo.py`'s `listing()`, each omitting the
+  retail sale price so the pipeline reaches POTENTIAL VIOLATION under Rule 6(1)(e):
+  `seeded-demo-s42-001` (`5fe91053`, Glucose Biscuits 82.5 g) and `seeded-demo-s42-002`
+  (`f95ecffc`, Wheat Flour 1 kg), titled "[Seeded demo]" like the rest of that corpus. Each
+  pass confirms one on camera and raises its complaint against it.
+- **Deploy.** `pccs-vm` checked out `session-42-demo-rerecord` at `d7e5620`, `frontend`
+  rebuilt `--no-cache` and `--force-recreate`d, detached on the VM with its own log, container
+  up 05:23 UTC. Proved from outside: the served `ConsumerRoutes-*.js` chunk carries the heading
+  pattern twice and `\d{3,4}`, and the old `(\d{3})\s*` not at all.
+- **Recorded.** Phone 634.0 s, desktop 623.6 s; zero failed steps and zero page errors in both;
+  `ffprobe` 633.92 s and 623.56 s. Same sequence in both: the officer confirms `f95ecffc`
+  (phone) and `5fe91053` (desktop), complaints `1b36fdff` and `a5918238`, raised and
+  acknowledged, every POST 201. Marked scans `fd1890c1` and `f855dc0c`: Table-I
+  REVIEW_REQUIRED, observed `2.61 mm`, expected `1.5 mm to 2.5 mm`, the reason sentence on the
+  ledger row unsliced, held 25 s. The additive section on screen in both: INS 503(ii), 500(ii),
+  472e, 1101(i) ("Not assessed — this code is not in the sourced reference"), 223, each with
+  its FSS citation. The first Session 42 pair is deleted; its logs are `.phone-s42a.log` and
+  `.desktop-s42a.log`.
+
+### My own errors, by name (second half)
+
+- Reported the additive cut-off as "raise, not fix" under the unresolved `fnt/` ownership;
+  Abhi sent it back as a fix. The fix took one function and one pattern.
+- The first draft of the code pattern kept the old trailing `\b`, so "503(ii)," still lost
+  its suffix and "500 g" read as a code; the control run caught both before anything was
+  committed.
+- `sucrase` takes a directory, not a file; one wasted call.

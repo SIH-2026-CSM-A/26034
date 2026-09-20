@@ -7,6 +7,35 @@ them, read the file.
 
 ---
 
+## After Session 42 (2026-09-20, demo re-recorded against #174 and the brag film; VM backend still on b1bf4bd) — read this first
+
+1. ~~**The consumer page's additive section is empty on the Parle-G 56 g capture, and it is the
+   frontend, not the OCR.**~~ Fixed in Session 42 (`d7e5620`): an inline label no longer ends the
+   declaration when list text resumes after it; all five codes render on the tunnel. The OCR spans carry `SALT, RAISING AGENTS [503(ii), 500(ii)]`,
+   `EMULSIFIER (472e)`, `(1101(i))` and `(223)`, but `fnt/src/consumer/ingredients.ts` stops the
+   ingredient text at the first span matching `NEXT_HEADING`, and on this label the nutrition
+   table interleaves `BATCH NO.:` before the raising agents. So the screen shows the fragment
+   `WHEAT FLOUR (ATTA) (66.7%), | PKD.: | … | Cholesterol (mg) | 0` and "No INS or E additive
+   codes found". Fix is in `ingredients.ts` (skip a heading span rather than stop at it when
+   ingredient text resumes after it, or bound by the nutrition block), owned under the unresolved
+   `fnt/` ownership; not touched this session. `fnt/`.
+2. ~~**The in-browser EAN-13 decoder returns `8901719100015 · check digit does not verify`.**~~
+   Resolved in Session 42 as not a decoder defect: all 31 structurally valid scanlines at two
+   scales read the same thirteen digits, the OCR reads the same from the human-readable line,
+   and none verifies. The print does not conform; the display is honest; the seed's identifier
+   is the pack's printed code. Aashirvaad untested (no capture on this machine).
+3. **The consumer chip reads `REVIEW` for a field state and the officer chip reads
+   `REVIEW REQUIRED`.** Same state, two labels, on the two surfaces the brag film shows side by
+   side. `fnt/`.
+4. **The complaints page reads `GET /scans` at the default page size (newest 50) and lists only
+   finalised scans.** A confirmed scan older than that cannot be complained against from the UI;
+   the demo script now confirms one on camera to have something on the page. `fnt/`,
+   `ComplaintTracking.tsx`.
+5. **The dashboard aggregates the newest 30 scans**, so a ward's readout changes as passes add
+   scans (Ward 121: "0 potential violations in 2 scans", then "no scans recorded" sixteen minutes
+   later). Real; not a number to narrate. `fnt/`.
+6. Session 41 items 2–3 unchanged.
+
 ## After Session 41 (2026-09-20, `ground_truth_verdict` means one thing, #176, VM backend on b1bf4bd) — read this first
 
 1. ~~`ground_truth_verdict` on the MDH annotation is PASS.~~ Done in Session 41 (#176): the README's
