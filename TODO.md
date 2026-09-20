@@ -7,7 +7,18 @@ them, read the file.
 
 ---
 
-## After Session 40 (2026-09-19, the height's interval is consulted too, #174, VM backend on b1bf4bd) — read this first
+## After Session 41 (2026-09-20, `ground_truth_verdict` means one thing, #176, VM backend on b1bf4bd) — read this first
+
+1. ~~`ground_truth_verdict` on the MDH annotation is PASS.~~ Done in Session 41 (#176): the README's
+   definition stood — the verdict the system should reach on that photograph — and the other four
+   annotations already followed it. The MDH annotation is REVIEW, its note argues nothing else,
+   and `datasets/tests/test_schema_guards.py` refuses PASS over a FAIL, REVIEW_REQUIRED or
+   INSUFFICIENT_EVIDENCE field. No `bck/` change; the VM backend is still on `b1bf4bd`.
+2. **The unresolved tilt is not in the confidence interval** (Session 39 item 2, unchanged). The
+   height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone. `bck/`, `measurement/services.py`.
+3. Items 3–4 of Session 38 below are unchanged.
+
+## After Session 40 (2026-09-19, the height's interval is consulted too, #174, VM backend on b1bf4bd)
 
 1. ~~The character height's own interval is not consulted by Table-I.~~ Done in Session 40 (#174):
    every end of both intervals is evaluated; a differing verdict is REVIEW_REQUIRED naming what
@@ -16,9 +27,7 @@ them, read the file.
 2. ~~`datasets/raw/food/food_mdh_kitchen_king_100g` annotates `numeral_height_mm` 2.51.~~ Done in
    Session 40 (#174): 2.61, and the `pdp` block for the same mark is flat too (109.8 cm², the
    100–500 band); the notes record the rectified figures and that the rectification is gone.
-3. **`ground_truth_verdict` on the MDH annotation is PASS** with a note calling it "the package's
-   own verdict"; `datasets/README.md` defines the field as what the system should reach, and the
-   system reaches REVIEW on this capture. Predates #174; decide which reading the corpus uses.
+3. ~~`ground_truth_verdict` on the MDH annotation is PASS.~~ Done in Session 41 (#176).
 4. **The unresolved tilt is not in the confidence interval** (Session 39 item 2, unchanged). The
    height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone. `bck/`, `measurement/services.py`.
 5. Items 3–4 of Session 38 below are unchanged.

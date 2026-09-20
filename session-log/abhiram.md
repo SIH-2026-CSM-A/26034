@@ -4655,3 +4655,57 @@ spurious homography had produced.
 - The distance-from-coin term in every calibrated interval (Session 39) is still absent; the
   height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone.
 - Session 36's remaining items, Session 38's keyboard path, Session 39's step floor: unchanged.
+
+## Session 41 — 2026-09-20, `ground_truth_verdict` means one thing (#176) (Claude Code, Fable 5.1)
+
+One `datasets/` PR, merged on the standing "merge when green" instruction as #176. Session 40's
+"raised, not fixed" item: the MDH annotation carried `PASS` on a note reading "the package's own
+verdict is PASS", while `datasets/README.md` defines the field as the verdict the system should
+reach on that photograph.
+
+### What was found before anything changed
+
+The README's definition is unambiguous and has been since DAT-008. The four uncalibrated
+annotations follow it: every height field `INSUFFICIENT_EVIDENCE`, every verdict `REVIEW`, and
+none of their notes reasons from the pack. The MDH annotation alone carried `PASS` over a
+`REVIEW_REQUIRED` `net_quantity` state, arguing a second definition in its note. So the README
+was right and the annotation was the outlier; nothing needed two fields. The harness compares the
+system's verdict against this field, so the `PASS` would have scored the system's correct
+`REVIEW` on the demo capture as a miss.
+
+### What changed
+
+- **`food_mdh_kitchen_king_100g_001.json` is `REVIEW`.** The note now says the field is the
+  system's verdict on this photograph, that a `REVIEW_REQUIRED` state reaches `REVIEW` and never
+  `PASS`, and that "every obligation present and legible" is a statement about the package which
+  this field does not record. The pipeline evidence items the old note listed (contrast ratio,
+  second-reader disagreement) are gone from it; they are not annotated anywhere and the field
+  state carries the reason on its own.
+- **`datasets/README.md`** covers the calibrated capture explicitly under the definition and names
+  the derivation in `bck/app/pipeline/verdict.py`. The status prose no longer says "all four are
+  uncalibrated" above a five-row table with a calibrated row; the tamper false-positive n is 5.
+- **A guard**, `TestVerdictFollowsFieldStates` in `datasets/tests/test_schema_guards.py`: no
+  annotation may carry `PASS` over a `FAIL`, `REVIEW_REQUIRED` or `INSUFFICIENT_EVIDENCE` field,
+  each state tested on its own line, as `verdict.py` tests them.
+
+### Verification
+
+- Bytecode purged by absolute path, count asserted zero, no `-x`. The guard went red on the line
+  aimed at, once per branch: MDH flipped to `PASS` → "a REVIEW_REQUIRED field under PASS";
+  Parle-G 65 g flipped to `PASS` in isolation → "an INSUFFICIENT_EVIDENCE field under PASS".
+  Reverted, `uv run pytest ../datasets` 29 passed (Session 40: 28). DAT-007's manifest and hash
+  guards are in that count and untouched.
+- `ruff check` clean on the test file. `ruff format --check` reports only the pre-existing diff in
+  that file that `CLAUDE.md` already records.
+- Harness self-test over the five annotations still reports 1.0 on every tag.
+- No `bck/` change, so no VM rebuild.
+
+### My own errors, by name
+
+- None caught by a reviewer this session.
+
+### Raised, not fixed
+
+- The distance-from-coin term in every calibrated interval (Session 39) is still absent; the
+  height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone.
+- Session 36's remaining items, Session 38's keyboard path, Session 39's step floor: unchanged.
