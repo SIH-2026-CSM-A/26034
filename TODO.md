@@ -7,7 +7,23 @@ them, read the file.
 
 ---
 
-## After Session 39 (2026-09-19, panel area is width × height × scale², #172, VM backend on f8144f0) — read this first
+## After Session 40 (2026-09-19, the height's interval is consulted too, #174, VM backend on b1bf4bd) — read this first
+
+1. ~~The character height's own interval is not consulted by Table-I.~~ Done in Session 40 (#174):
+   every end of both intervals is evaluated; a differing verdict is REVIEW_REQUIRED naming what
+   is uncertain, never FAIL on an interval alone. The MDH demo capture is now REVIEW_REQUIRED on
+   Table-I (2.61 ± 0.13 mm across 2.5 mm), deliberately.
+2. ~~`datasets/raw/food/food_mdh_kitchen_king_100g` annotates `numeral_height_mm` 2.51.~~ Done in
+   Session 40 (#174): 2.61, and the `pdp` block for the same mark is flat too (109.8 cm², the
+   100–500 band); the notes record the rectified figures and that the rectification is gone.
+3. **`ground_truth_verdict` on the MDH annotation is PASS** with a note calling it "the package's
+   own verdict"; `datasets/README.md` defines the field as what the system should reach, and the
+   system reaches REVIEW on this capture. Predates #174; decide which reading the corpus uses.
+4. **The unresolved tilt is not in the confidence interval** (Session 39 item 2, unchanged). The
+   height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone. `bck/`, `measurement/services.py`.
+5. Items 3–4 of Session 38 below are unchanged.
+
+## After Session 39 (2026-09-19, panel area is width × height × scale², #172, VM backend on f8144f0)
 
 1. ~~Panel area depended on where the mark sat.~~ Done in Session 39 (#172): a coin at b/a ≥ 0.97
    is flat and builds no homography; the 12° on the MDH capture was a rim shadow, proved against
