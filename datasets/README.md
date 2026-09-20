@@ -3,7 +3,7 @@
 **Owner:** Abhiram (`@Abhiram-0910`) — transferred from Aashritha, who is off the project.
 **Ticket:** DAT-002.
 
-## Status, 2026-09-08 — four samples, all uncalibrated, none usable for Rule 7
+## Status, 2026-09-08 — four uncalibrated samples; a fifth, calibrated, landed 2026-09-19
 
 DAT-008 rebuilt the corpus from the four images actually on disk. Before it, `manifest.json`
 held twelve records from DAT-005 (#77), every one naming an image that does not exist, while
@@ -30,12 +30,14 @@ a mis-filed pack is evaluated against the wrong sector override. The directory n
 carried the wrong net quantity (`100ml` on a 150 ml tube), so they were renamed to what the
 packs actually read.
 
-**All four are uncalibrated.** No reference object is in any frame, so
-`reference_object.present` is false, `pdp.is_measurable` is false, every `numeral_height_mm`
-and `letter_height_mm` is null, and every `ground_truth_verdict` is `REVIEW`. No sample here
-supports a Rule 7 letter-height finding, and **no accuracy or false-positive figure may be
-quoted from this set.** Any tamper false-positive rate over it is n=4 and must be quoted with
-its n.
+**The four DAT-008 samples are uncalibrated.** No reference object is in any of their frames,
+so `reference_object.present` is false, `pdp.is_measurable` is false, every `numeral_height_mm`
+and `letter_height_mm` is null, and every `ground_truth_verdict` is `REVIEW`. None of the four
+supports a Rule 7 letter-height finding. The fifth, the MDH carton (#170), is calibrated by a
+₹10 coin, and its verdict is `REVIEW` too: the measured numeral height's interval spans the
+Table-I minimum, so its `net_quantity` state is `REVIEW_REQUIRED`. **No accuracy or
+false-positive figure may be quoted from this set.** Any tamper false-positive rate over it is
+n=5 and must be quoted with its n.
 
 No field is annotated `FAIL`. Each is `PASS` only where the declaration is legible in that
 frame and the clause applies; `NOT_APPLICABLE` where a sourced sector override displaces the
@@ -113,6 +115,15 @@ photograph** — not the compliance status of the physical product. A sample wit
 reference object cannot support a Rule 7 letter-height finding, so its height fields are
 `INSUFFICIENT_EVIDENCE` and the sample's verdict is `REVIEW`, never `PASS`. Ground truth
 that demands the system overclaim will score correct refusals as failures.
+
+The same field on a calibrated capture follows the same rule. A height whose interval spans
+the Table-I minimum is `REVIEW_REQUIRED`, and that makes the sample `REVIEW` even when every
+obligation on the pack is present and legible. "The package's own verdict" is not what this
+field records; the per-field states carry that (no field here is `FAIL`), and the verdict is
+derived from them the way `bck/app/pipeline/verdict.py` derives it: any `FAIL` is
+`POTENTIAL_VIOLATION`; otherwise any `REVIEW_REQUIRED` or any `INSUFFICIENT_EVIDENCE` is
+`REVIEW`; `PASS` needs no field in any of those states.
+`datasets/tests/test_schema_guards.py` refuses an annotation whose verdict says otherwise.
 
 Packages outside Chapter II are `NOT_APPLICABLE`, never `FAIL` — the obligation does not
 arise. Two limbs, and they are no longer the same one:

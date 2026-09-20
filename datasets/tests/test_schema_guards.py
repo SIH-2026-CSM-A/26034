@@ -18,6 +18,8 @@ DATASETS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DATASETS_DIR))
 
 from schema import (  # noqa: E402
+    ComplianceVerdict,
+    FieldComplianceState,
     LabelledSample,
     ReferenceObject,
     ReferenceObjectType,
@@ -142,4 +144,48 @@ class TestCommittedAnnotationsLoad:
                 assert field["letter_height_mm"] is None, (
                     f"{path.name}: {name} carries a letter height on an "
                     "uncalibrated capture"
+                )
+
+
+class TestVerdictFollowsFieldStates:
+    """``ground_truth_verdict`` is what the system should reach on that photograph.
+
+    README's definition, and the one the other annotations followed while the MDH
+    annotation carried ``PASS`` over a ``REVIEW_REQUIRED`` height on the reading that
+    "the package's own verdict is PASS". The system derives the verdict from the field
+    states (``bck/app/pipeline/verdict.py``), so an annotation's verdict has to agree
+    with its own states or the harness scores a correct REVIEW as a miss.
+
+    The three states are tested one at a time, as the pipeline tests them: a set
+    holding REVIEW_REQUIRED and INSUFFICIENT_EVIDENCE is one edit away from one that
+    also holds FAIL.
+    """
+
+    def test_no_annotation_reports_pass_over_a_non_pass_field_state(self) -> None:
+        files = sorted((DATASETS_DIR / "annotations").glob("*/*.json"))
+        if not files:
+            pytest.skip("corpus is empty pending real captures (DAT-002)")
+        for path in files:
+            sample = LabelledSample.model_validate(json.loads(path.read_text()))
+            states = {
+                name: field["expected_field_state"]
+                for name, field in sample.declarations.model_dump().items()
+            }
+            if any(state is FieldComplianceState.FAIL for state in states.values()):
+                assert sample.ground_truth_verdict is ComplianceVerdict.POTENTIAL_VIOLATION, (
+                    f"{path.name}: a FAIL field under {sample.ground_truth_verdict.value}"
+                )
+                continue
+            if any(state is FieldComplianceState.REVIEW_REQUIRED for state in states.values()):
+                assert sample.ground_truth_verdict is ComplianceVerdict.REVIEW, (
+                    f"{path.name}: a REVIEW_REQUIRED field under "
+                    f"{sample.ground_truth_verdict.value}"
+                )
+                continue
+            if any(
+                state is FieldComplianceState.INSUFFICIENT_EVIDENCE for state in states.values()
+            ):
+                assert sample.ground_truth_verdict is ComplianceVerdict.REVIEW, (
+                    f"{path.name}: an INSUFFICIENT_EVIDENCE field under "
+                    f"{sample.ground_truth_verdict.value}"
                 )
