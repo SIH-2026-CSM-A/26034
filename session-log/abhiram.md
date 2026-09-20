@@ -4583,3 +4583,75 @@ areas 14 % apart, cm² 18 % apart, on opposite sides of a legal threshold.
 - `datasets/raw` annotation `numeral_height_mm` 2.51 is the rectified figure; flat it is 2.61.
 - Session 36's remaining items: same-line date pairing, `COMMON_OR_GENERIC_NAME`,
   `id_card` / `ean_13`, `capture_metadata` absent from `ScanDetail`; Session 38's keyboard path.
+
+## Session 40 — 2026-09-19, the height's interval is consulted too (#174) (Claude Code, Fable 5.1)
+
+One `bck/` + `datasets/` PR, merged with `--admin` on the standing "merge when green" instruction
+as `b1bf4bd` (#174); the VM backend rebuilt from it `--no-cache` and `--force-recreate`d. Both
+items were consequences of #172: Table-I banded across the panel area's interval but compared
+the character height at its point value, and the corpus annotation carried the figures the
+spurious homography had produced.
+
+### What changed
+
+- **Table-I evaluates every end of both intervals** in `pipeline/measurement_findings.py`. The
+  two area ends × the two height ends (an exact figure contributes its point); where the
+  verdicts differ the finding is REVIEW_REQUIRED and the reason names what is uncertain — the
+  band edge, the requirement the height's interval spans, or both. Both ends clear → PASS, both
+  short → FAIL, never FAIL on an interval alone: 2.45 ± 0.13 mm against 2.5 mm is short at its
+  point and is REVIEW_REQUIRED. `expected_value` is the band or bands the interval reaches.
+- **The MDH demo capture is REVIEW_REQUIRED on Table-I**, deliberately: 2.61 ± 0.13 mm spans
+  2.5 mm, and a measurement that cannot distinguish compliance from non-compliance at its own
+  precision says so.
+- **`datasets/annotations/food/food_mdh_kitchen_king_100g_001.json` is flat.** Re-measured on the
+  corpus PNG through `detect_reference_object` and `measure_panel_dimensions` at the marks the
+  annotation names: `numeral_height_mm` 2.51 → **2.61** (± 0.13); the `pdp` block for the mark
+  at (68, 22, 808 × 1244), 128.6 × 77.4 mm / 99.6 cm² / 50–100 band / 1.5 mm →
+  **130.0 × 84.4 mm / 109.8 ± 11.0 cm² / 100–500 band / 2.5 mm**. The notes record both earlier
+  figures and that they came from the rectification since removed. `net_quantity.
+  expected_field_state` is REVIEW_REQUIRED with a Rule 7(2) rationale, because `datasets/README.md`
+  defines the expected state as what the system should reach on that photograph.
+
+### Found by measuring
+
+- The annotation's own mark, hugging the red carton edge, moves a band when flat: 99.6 → 109.8 cm².
+  The rectification shrank the far-from-coin side most (width 77.4 → 84.4 mm; the coin sits to
+  the right of the carton). The demo mark reproduces the tunnel's 102.3 ± 10.2 cm² to the decimal.
+- The 0.13 mm on the height is `PRIOR_CONFIDENCE_COIN` alone (5 % of 2.61); Session 39's
+  distance-from-coin term is still absent from every interval.
+
+### Verification
+
+- Tests written first, `__pycache__` purged by absolute path, count asserted zero, no `-x`. Red
+  before on the two REVIEW_REQUIRED cases at the state assertion: 2.61 ± 0.13 was PASS,
+  2.45 ± 0.13 was FAIL. Green after; 2.70 ± 0.13 → PASS and 2.40 ± 0.05 → FAIL controls green both
+  sides; Session 39's band-edge cases and within-one-band control unchanged.
+- Local 1160 passed / 139 skipped / 2 errors, 4 tests new (Session 39: 1156). The errors are
+  `test_minio_storage.py` on `:9000`, as in Sessions 36–39. `datasets` 28 passed (DAT-007's guards
+  unchanged). CI: 1298 passed / 3 skipped (Session 39: 1294 / 3; +4). `ruff`,
+  `ruff format --check`, `lint-imports` 3 kept.
+- **Before, through the tunnel** on the #172 backend as `inspector1`, `coin_10` + food, mark
+  776 × 1207 at (86, 38): scan `d91bf33a`, Table-I NET_QUANTITY **PASS**, observed `2.61 mm`,
+  expected `2.5 mm`, "…for the measured principal display panel area of 102.3 cm²."
+- **After, through the tunnel** on the `b1bf4bd` backend, same officer, calibration, category,
+  file and mark; the deployed module read from inside the container before submitting: scan
+  `9ee8da43`, verdict REVIEW, Table-I NET_QUANTITY **REVIEW_REQUIRED**, observed `2.61 mm`,
+  expected `1.5 mm to 2.5 mm`, reason "the measured principal display panel area of
+  102.3 ± 10.2 cm² lies across a Table-I band edge: 1.5 mm is required below it and 2.5 mm
+  above; the measured character height of 2.61 ± 0.13 mm lies across the 2.5 mm requirement:
+  which side of the requirement this package falls on is not established at the measurement's
+  own precision."
+
+### My own errors, by name
+
+- None caught by a reviewer this session. The first tunnel script read `verdict` as an object;
+  it is a string on `ScanDetail`. Fixed before the after-run.
+
+### Raised, not fixed
+
+- `ground_truth_verdict` on the MDH annotation is PASS with a note calling it the package's own
+  verdict; `datasets/README.md` defines the field as what the system should reach, which is
+  REVIEW on this capture. Predates this session; the corpus should pick one reading.
+- The distance-from-coin term in every calibrated interval (Session 39) is still absent; the
+  height's ± 0.13 mm is `PRIOR_CONFIDENCE_COIN` alone.
+- Session 36's remaining items, Session 38's keyboard path, Session 39's step floor: unchanged.
