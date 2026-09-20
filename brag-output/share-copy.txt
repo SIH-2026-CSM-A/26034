@@ -1,0 +1,2 @@
+Introducing PCCS: photograph a label and get every finding with the rule behind it, and a refusal where the photograph cannot establish the answer. An officer confirms before anything is enforced.
+Built with FastAPI, PostgreSQL, PaddleOCR and React for the Legal Metrology (Packaged Commodities) Rules, 2011.

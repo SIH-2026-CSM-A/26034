@@ -47,3 +47,9 @@ datasets/images/
 .idea/
 .vscode/
 *.zip
+
+# Demo recordings: 57 MB of video per pair; the indexes and script are tracked, the videos are not.
+demo/*.webm
+demo/.raw/
+brag-output/composition/snapshots/
+brag-output/composition/.hyperframes/
