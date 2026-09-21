@@ -4943,3 +4943,97 @@ Scans created: `8458dbe3`, `0da597d0`, `af909e32`, `98e970d2`, `e15c225b`.
 - The PDF report's missing per-rule state, missing evidence hash and duplicated declaration
   rows. Written to `TODO.md` under Session 43.
 - No officer-facing evidence chain view for an endpoint that already exists and verifies.
+
+### Session 43, second half — the exported report carries the states the screen carries (#181)
+
+Abhi sent back the first item of this session's "raised, not fixed" as a fix. The fix started
+by contradicting the report that raised it.
+
+- **My diagnosis was wrong.** I wrote that the Rule Evaluation Checklist "has no state
+  column". It always had one, and so did the Extracted Declarations table. They were drawn
+  outside the page. Table cells were raw strings, and reportlab measures a string cell at its
+  full unwrapped width and sizes the column to it, so one OCR dump under
+  `COMMON_OR_GENERIC_NAME` and one 380-character reason under `Notes` pushed the checklist to
+  **7015.8 pt against a 595.3 pt page**. Measured on the report generated from `91893092`:
+  169, 127, 1636 and 674 words past the right edge on pages 1–4 — 2,606 in all, the first
+  three over the edge on page 3 being `Measured`, `Status`, `Notes`. reportlab does not clip a
+  table to its frame; it draws it. `pdftotext` and `pdfplumber.extract_text()` read those
+  words, which is exactly how I read a column that was on no page, and why
+  `test_pass_report_completeness` — which asserts `f.state.value in pdf_text` — had passed
+  over the defect since it was written. Its fixture is two findings with short cells and never
+  reaches the width where the defect lives.
+- **The fix.** Every cell is a `Paragraph`; the page is landscape A4; `colWidths` set the
+  proportions and `_grid` refuses a table wider than its frame. Extracted Declarations is one
+  row per declaration field — `NET_QUANTITY` had nine rows on the real scan, blank on eight —
+  and a field keeps every state its rules reached, counted. The declared value comes from the
+  rule whose snapshot says `conditions.kind == "declaration_required"`, never from one that
+  measured something about the declaration: 2.61 mm is not what the package declares. Officer
+  notes and OCR text are XML-escaped before reaching a Paragraph; an `&` in a note would have
+  broken the parser. `ExportDeclaration.confidence` is gone — hardcoded `None` at the only
+  call site, `N/A` in every row, and with one row per field there is no single confidence.
+- **The evidence hash.** Read from the chain. An audit-log entry hashes the record *about* a
+  capture, not the capture, so it is never reported as an asset digest. No `PRODUCT_IMAGE`
+  entry is ever appended anywhere in `app/` — `create_genesis_entry` and `export_entry` both
+  pass `AUDIT_LOG` — so the absence branch is the live one, and the document now says
+  *"No captured asset is recorded in this chain: all 2 of its entries are audit-log entries,
+  which hash the evaluation record rather than the photograph."* rather than
+  `Evidence Hash: Not available`.
+
+### Found by measuring (second half)
+
+- **`colWidths` is not what keeps the report on the paper.** Falsifying it — removing
+  `colWidths` while keeping Paragraph cells — came back **green**: reportlab sizes a Paragraph
+  column from its longest unbreakable word, so the table stays on the page with no widths
+  declared at all. The module docstring said the opposite in its first draft and now says what
+  was measured. `colWidths` is there so `Notes` does not starve `Clause`.
+- **A state on the page is not a state in its own row.** The first drafts of the two checklist
+  tests searched the page text, and both stayed green when the `Status` cell was deleted,
+  because the declarations table's Outcomes column names the same five states a few inches
+  higher. They read the ruled table column by column with `extract_tables()` now and compare
+  `{Rule ID, Clause, Status}` against the record row for row.
+- **A fixture can defeat its own falsification.** `test_declared_value_is_the_declaration_never_a_measurement`
+  was green under the "fall back to any observed value" defect, because the declaration
+  finding happened to be first in the fixture. Reordered so Table-I precedes Rule 6(1)(c).
+
+### Verification (second half)
+
+- **Falsified, one defect at a time, no `-x`, `/usr/bin/find . -name __pycache__ -type d` asserted
+  to return zero before every run.** Seven defects, seven aimed-at tests red: raw string cells →
+  `test_no_word_is_drawn_outside_the_page`; `Status` dropped from the row →
+  `test_every_field_state_appears_in_the_checklist_status_column`; declarations per finding →
+  `test_one_declaration_row_per_field`; counts collapsed →
+  `test_a_field_s_states_are_counted_not_collapsed`; declared value falling back →
+  `test_declared_value_is_the_declaration_never_a_measurement`; audit-log hash returned as a
+  digest → `test_asset_digest_never_reports_an_audit_log_hash_as_an_asset`; absence reason
+  dropped → `test_the_report_prints_the_reason_there_is_no_digest`. The eighth came back green
+  and changed the code comment, above.
+- `uv run pytest` **1172 passed, 139 skipped, 2 errors**; both errors are
+  `tests/modules/evidence/test_minio_storage.py` failing `CreateBucket` with
+  `InvalidAccessKeyId` because no MinIO runs on this machine, and
+  `git diff --name-only origin/main` touches no storage file. `ruff check` clean,
+  `ruff format --check` 241 files already formatted, `lint-imports` exit `0`, 3 contracts kept.
+  `test_report_export.py` goes from 8 test functions to 20.
+- CI on #181: `backend`, `frontend`, `datasets` all SUCCESS. Merged squash as `1630787`.
+- **Deployed and proved from outside.** `pccs-vm` pulled `1630787`, `backend` rebuilt on the
+  layer cache (`pyproject.toml` and `uv.lock` unchanged, so the paddle and weights layers are
+  identical) and `--force-recreate`d; `DEPLOY_EXIT=0`. Read back from inside the container, not
+  from the repo: `PAGE_SIZE (841.89, 595.28)`, `FRAME_WIDTH 781.89`,
+  `RULE_COLUMNS (95, 110, 105, 85, 85, 96, 205)`.
+- **Regenerated through the tunnel** on the finalised scan `91893092`:
+  `POST /api/scans/91893092/evidence/report?format=pdf -> 201`, 7 landscape pages,
+  **0 words off the page**, 66 checklist rows each with its own `Status`
+  (45 INSUFFICIENT_EVIDENCE, 10 NOT_APPLICABLE, 6 REVIEW_REQUIRED, 3 PASS, 2 FAIL — FAIL and
+  INSUFFICIENT_EVIDENCE both present and apart), 10 declaration rows, one per field.
+  `report-v2.pdf`, `report-v2-1.png` and `report-v2-checklist.png` at 300 dpi in the deck
+  folder; the superseded four-page set moved to `before-evidence-report-fix/`.
+
+### Raised, not fixed (second half)
+
+- **No `PRODUCT_IMAGE` entry is ever written to an evidence chain.** `create_genesis_entry` in
+  `pipeline/repository.py` and `export_entry` in `evidence/service.py` are the only two writers
+  and both pass `AUDIT_LOG`. The captured photograph is content-addressed into
+  `Scan.image_refs` and its digest never enters the chain, so nothing an officer files can be
+  matched back to the bytes that were read. The report now states this rather than hiding it
+  behind a blank. `pipeline/` and `evidence/`, and it needs both.
+- `bck/app/modules/evidence/` is @Shiva-Kumar-Akula's module. This session edited it on Abhi's
+  direct instruction; flagging it here as well as in the PR.
