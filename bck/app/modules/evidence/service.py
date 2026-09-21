@@ -34,6 +34,39 @@ REPORT_FORMATS = ("json", "pdf", "docx")
 compliance report rendered for filing."""
 
 
+def asset_digest(entries: list[EvidenceEntry]) -> tuple[str | None, str | None]:
+    """The SHA-256 the chain holds for a captured asset, or the reason it holds none.
+
+    Exactly one of the pair is set. The digest is an entry's ``payload_hash``, taken from
+    the first entry whose asset type is not ``AUDIT_LOG`` — an audit-log entry hashes the
+    *record about* a capture (the verdict, a purge, an export) and not the capture, so its
+    hash certifies nothing an officer could check a photograph against. Printing one in
+    place of the other would put a digest on the certificate that no file can be matched
+    to, which is worse than printing none.
+
+    Today the pipeline appends only audit-log entries, so the second element is what a
+    live scan produces. That is the true statement and the document makes it in words
+    rather than leaving a blank labelled "Not available".
+    """
+    for entry in entries:
+        if entry.asset_type != EvidenceAssetType.AUDIT_LOG:
+            return entry.payload_hash, None
+    count = len(entries)
+    if count == 0:
+        return None, (
+            "No evidence chain is recorded for this scan, so there is no asset digest to certify."
+        )
+    held = (
+        "its single entry is an audit-log entry, which hashes"
+        if count == 1
+        else f"all {count} of its entries are audit-log entries, which hash"
+    )
+    return None, (
+        f"No captured asset is recorded in this chain: {held} the evaluation record "
+        "rather than the photograph. There is no asset digest to certify."
+    )
+
+
 class NoEvidenceError(LookupError):
     """The scan has no evidence chain: it was refused at the gate or never evaluated."""
 
@@ -137,7 +170,15 @@ def report_bytes(
         )
     record = record_from(entries)
     image = scan.image_refs[0]["storage_key"] if scan.image_refs else None
-    rendered = export_compliance_report(record, review_row=review, format=fmt, image_path=image)
+    digest, digest_note = asset_digest(entries)
+    rendered = export_compliance_report(
+        record,
+        review_row=review,
+        format=fmt,
+        image_path=image,
+        evidence_hash=digest,
+        evidence_hash_note=digest_note,
+    )
     media = {
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -171,6 +212,7 @@ def export_entry(
 __all__ = [
     "NoEvidenceError",
     "REPORT_FORMATS",
+    "asset_digest",
     "bsa_report",
     "export_entry",
     "record_from",
