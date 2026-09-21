@@ -5037,3 +5037,22 @@ by contradicting the report that raised it.
   behind a blank. `pipeline/` and `evidence/`, and it needs both.
 - `bck/app/modules/evidence/` is @Shiva-Kumar-Akula's module. This session edited it on Abhi's
   direct instruction; flagging it here as well as in the PR.
+
+### Session 43, addendum — the deploy waiter could not have worked
+
+Recorded after the fact, because the deploy was verified by reading the log directly and the
+waiter's uselessness only surfaced when it exited.
+
+- **`pgrep -cf deploy-43.sh` inside `gcloud compute ssh --command` matches the probe itself.**
+  The poller reported `RUNNING=1` on every one of its thirty polls, for twenty minutes after
+  `deploy-43.sh` had exited, and ended on its iteration cap rather than on its own signal.
+  Verified rather than assumed: `pgrep -af deploy-43.sh` on the VM prints exactly one PID and
+  it is the `bash -c` carrying that very command, because the pattern sits in its argv. The
+  same probe with a tighter pattern (`"bash /home/.*/deploy-43.sh"`) self-matches for the same
+  reason — the quoted string is in the same command line. This is the read-only twin of the
+  `pkill -f` trap already in my notes, and it is quieter: it never kills anything, it just
+  says "still running" forever.
+- The deploy itself was fine and was confirmed the right way, by grepping the log for the
+  markers the script writes (`HEAD=`, `DEPLOY_EXIT=0`, `VERIFY_EXIT=0`) and then reading
+  `PAGE_SIZE`, `FRAME_WIDTH` and `RULE_COLUMNS` out of the running container. **Wait on a
+  marker the detached script writes, never on a process pattern.**
