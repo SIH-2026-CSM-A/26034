@@ -4862,3 +4862,84 @@ The three items Abhi sent back on the first report, then the re-recording.
   its suffix and "500 g" read as a code; the control run caught both before anything was
   committed.
 - `sucrase` takes a directory, not a file; one wasted call.
+
+## Session 43 — 2026-09-21, the README stops lying, deck screenshots, and a measured latency (Claude Code, Opus 5)
+
+Three jobs, none of them a code change to `bck/` or `fnt/`.
+
+### 1. README (#179, merged as `50fec53`)
+
+The public README still said `No application entrypoint yet; app/ holds the package skeleton
+only` and `fnt/ — frontend. Separate ticket.` Rewritten for an evaluator: what the system
+does, the live tunnel and which surfaces are public, what runs today, what is not built, the
+`docker-compose.prod.yml` path with the three `.env` values that have no default, the
+architecture in one paragraph, and a repository map. The contributor process stays in
+`SETUP.md` and `AGENTS.md`; the README links to them rather than restating them.
+
+Every figure in it was measured in this session, not carried: 29 rules and
+`rule_set_version 2026.09.2` from `bck/app/modules/rules/data/rules.yaml`; the five
+`FieldState` and three `Verdict` members from the live deployment's `/api/openapi.json`;
+`REPORT_FORMATS = ("json", "pdf", "docx")` from `evidence/service.py:32`.
+
+### 2. Deck screenshots — `/mnt/c/Users/drona/Downloads/deck-shots/`
+
+Captured from the live tunnel with Playwright at phone 390×844 dSF 3 and desktop 1440×900
+dSF 2, real sign-in as `inspector1`, no stubbed response. Subjects: the marked MDH scan
+`af909e32` (Table-I `REVIEW_REQUIRED`), the unfinalised POTENTIAL VIOLATION listing
+`f2969b7f`, the dashboard, and the Session 42 Parle-G consumer result `82507ec8`.
+
+### 3. Latency — 5 scans through the tunnel
+
+Same submission five times: the MDH carton with the ₹10 coin, `reference_object` /
+`coin_10` / `food`, panel marked at 776×1207 @ (86, 38). `POST /api/scans/image` to the
+first `GET /api/scans/{id}` that returns a status other than `processing`, polled at 0.5 s.
+
+53.39 · 51.54 · 49.49 · 49.65 · 50.07 s. **Median 50.07 s**, spread 3.9 s. Upload was
+0.45–0.68 s of each. Every one `complete`, verdict `REVIEW`, 66 findings, identical state
+split: 47 INSUFFICIENT_EVIDENCE, 10 NOT_APPLICABLE, 6 PASS, 3 REVIEW_REQUIRED, 0 FAIL.
+
+Scans created: `8458dbe3`, `0da597d0`, `af909e32`, `98e970d2`, `e15c225b`.
+
+### Found by measuring
+
+- **The `pdf` report has no per-rule outcome and no image.** `POST /scans/{id}/evidence/report?format=pdf`
+  on the finalised `91893092` returns four A4 pages: title with `Rule Set: 2026.09.2`, the
+  officer confirmation block (who, when, action, note), the overall status, an Extracted
+  Declarations table, and a Rule Evaluation Checklist of Rule ID / Clause / Parameter /
+  Required. The checklist has no state column, so the document that leaves the system cannot
+  say which clause passed and which is under review — the screen can and the PDF cannot.
+  `Evidence Hash: Not available` on page 1, and the Extracted Declarations table carries one
+  row per finding, so a field repeats with `N/A` up to nine times and
+  `COMMON_OR_GENERIC_NAME` holds the whole OCR dump.
+- **There is no evidence / case-packet screen.** `GET /scans/{id}/evidence` returns the
+  verified chain, and nothing in `fnt/src/officer/` calls it. The chain on `91893092`
+  verifies (`is_valid: true`, no purged entries) but holds two `AUDIT_LOG` entries and no
+  asset entry, which is why the PDF has no hash and no crop.
+- **The dashboard choropleth is unshaded on the live data.** 50 scans loaded, 2 POTENTIAL
+  VIOLATION, and `No ward has a potential violation in this dataset`, because both are
+  catalogue records with no ward. Hovering Ward 121 Kukatpally reads
+  `West zone no scans recorded`. The newest-50 window already in `TODO.md` under Session 42
+  is what puts it there; five scans from job 3 pushed it further.
+
+### My own errors, by name
+
+- Scrolled the verdict-detail shot by anchoring on the `Findings` heading, which landed on
+  the Rule 6(10A) `NOT_APPLICABLE` block — the least informative findings on the page. Caught
+  by looking at the PNG, not by the script. Re-anchored on the first `REVIEW REQUIRED` card.
+- Took an element screenshot of the whole findings list, producing a 1074 × 71127 px image.
+  Deleted; the viewport shot is the deck asset.
+
+### Verification
+
+- PR #179: `backend`, `frontend` and `datasets` all SUCCESS — three checks, so the base is
+  not stale. Merged squash, branch deleted, `README.md` on `origin/main` at `50fec53`.
+- Timings are wall clock in one process on WSL2 over the Cloudflare quick tunnel; the log is
+  in the session scratchpad. No local timing was substituted for a tunnel timing.
+- No `bck/` or `fnt/` change in this session, so no test, `ruff` or `lint-imports` run
+  applies to either diff.
+
+### Raised, not fixed
+
+- The PDF report's missing per-rule state, missing evidence hash and duplicated declaration
+  rows. Written to `TODO.md` under Session 43.
+- No officer-facing evidence chain view for an endpoint that already exists and verifies.

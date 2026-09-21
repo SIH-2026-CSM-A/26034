@@ -7,6 +7,45 @@ them, read the file.
 
 ---
 
+## After Session 43 (2026-09-21, README, deck screenshots, measured latency) — read this first
+
+Nothing in `bck/` or `fnt/` changed. Three items came out of measuring the live tunnel.
+
+1. **The `pdf` evidence report cannot say which clause passed.**
+   `bck/app/modules/evidence/pdf_renderer.py`. `POST /scans/{id}/evidence/report?format=pdf`
+   renders a Rule Evaluation Checklist of Rule ID / Clause / Parameter / Required and **no
+   state column**, so the document that leaves the system — the one a BSA s.63(4) certificate
+   is built on — does not carry the `PASS` / `FAIL` / `REVIEW_REQUIRED` /
+   `INSUFFICIENT_EVIDENCE` outcome the screen shows for every finding. Two further defects in
+   the same document, seen on the finalised scan `91893092`: page 1 prints
+   `Evidence Hash: Not available`, and the Extracted Declarations table emits one row per
+   finding rather than per field, so `NET_QUANTITY` appears nine times, seven of them `N/A`,
+   and `COMMON_OR_GENERIC_NAME` carries the full OCR dump including the nutrition table.
+   **Why it matters:** INSUFFICIENT_EVIDENCE is not FAIL is the constraint this project is
+   built around, and the exported report is the one surface where that distinction is lost.
+
+2. **No officer-facing view of the evidence chain.** `GET /scans/{id}/evidence` exists, is
+   jurisdiction-scoped, and verifies the chain on every read (`is_valid`, `broken_link_index`,
+   `purged_indices`). Nothing under `fnt/src/officer/` calls it. The tamper-evidence story has
+   no screen. Separately, the chain on `91893092` holds two `AUDIT_LOG` entries and no asset
+   entry, which is why its PDF has no evidence hash and no image crop — worth establishing
+   whether asset entries are written on the image path at all before building a screen over it.
+
+3. **The dashboard choropleth is unshaded on live data.** 50 scans loaded, 2 POTENTIAL
+   VIOLATION, `No ward has a potential violation in this dataset`, because both are catalogue
+   records carrying no ward; Ward 121 Kukatpally reads `West zone no scans recorded`. This is
+   the newest-50 window already recorded under Session 42, now visible as an empty map rather
+   than a thin one. A demo screenshot of the map needs seeded ward-bearing violations or a
+   wider window.
+
+**Measured, for anyone quoting a latency.** Five submissions of the MDH carton with the ₹10
+coin (`reference_object` / `coin_10` / `food`, panel marked 776×1207 at (86, 38)) through the
+Cloudflare tunnel from WSL2, `POST /api/scans/image` to the first non-`processing` read:
+53.39 · 51.54 · 49.49 · 49.65 · 50.07 s, **median 50.07 s**, upload 0.45–0.68 s of each. All
+five `complete`, verdict `REVIEW`, 66 findings, 47 INSUFFICIENT_EVIDENCE / 10 NOT_APPLICABLE /
+6 PASS / 3 REVIEW_REQUIRED / 0 FAIL. Do not carry this number to another photograph or another
+calibration — measure yours.
+
 ## After Session 42 (2026-09-20, demo re-recorded against #174 and the brag film; VM backend still on b1bf4bd) — read this first
 
 1. ~~**The consumer page's additive section is empty on the Parle-G 56 g capture, and it is the
