@@ -14,7 +14,7 @@ def _build_title_section(doc: Document, report: OfficerReportModel):
     p.add_run(f"Report ID: {report.report_id}\n").bold = True
     p.add_run(f"Generated: {report.generated_at}\n")
     p.add_run(f"Rule Set: {report.rule_set_version}\n")
-    p.add_run(f"Evidence Hash: {report.evidence_hash or 'Not available'}")
+    p.add_run(f"Evidence Hash: {report.evidence_hash_line}")
 
 
 def _build_confirmation_section(doc: Document, report: OfficerReportModel):
@@ -40,17 +40,17 @@ def _build_declarations_section(doc: Document, report: OfficerReportModel):
     table.style = "Table Grid"
     hdr_cells = table.rows[0].cells
     hdr_cells[0].text = "Field"
-    hdr_cells[1].text = "Value"
-    hdr_cells[2].text = "State"
-    hdr_cells[3].text = "Provider"
-    hdr_cells[4].text = "Conf"
+    hdr_cells[1].text = "Declared value"
+    hdr_cells[2].text = "Outcomes"
+    hdr_cells[3].text = "Rules"
+    hdr_cells[4].text = "Provider"
     for d in report.extracted_declarations:
         row_cells = table.add_row().cells
         row_cells[0].text = d.field_name
-        row_cells[1].text = d.declared_value or "N/A"
-        row_cells[2].text = d.state
-        row_cells[3].text = d.ocr_provider
-        row_cells[4].text = f"{d.confidence:.2f}" if d.confidence is not None else "N/A"
+        row_cells[1].text = d.declared_value or "Not read"
+        row_cells[2].text = d.outcomes_line
+        row_cells[3].text = str(d.rules_applied)
+        row_cells[4].text = d.ocr_provider
 
 
 def _build_rules_section(doc: Document, report: OfficerReportModel):
