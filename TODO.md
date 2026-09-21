@@ -11,18 +11,25 @@ them, read the file.
 
 Nothing in `bck/` or `fnt/` changed. Three items came out of measuring the live tunnel.
 
-1. **The `pdf` evidence report cannot say which clause passed.**
-   `bck/app/modules/evidence/pdf_renderer.py`. `POST /scans/{id}/evidence/report?format=pdf`
-   renders a Rule Evaluation Checklist of Rule ID / Clause / Parameter / Required and **no
-   state column**, so the document that leaves the system — the one a BSA s.63(4) certificate
-   is built on — does not carry the `PASS` / `FAIL` / `REVIEW_REQUIRED` /
-   `INSUFFICIENT_EVIDENCE` outcome the screen shows for every finding. Two further defects in
-   the same document, seen on the finalised scan `91893092`: page 1 prints
-   `Evidence Hash: Not available`, and the Extracted Declarations table emits one row per
-   finding rather than per field, so `NET_QUANTITY` appears nine times, seven of them `N/A`,
-   and `COMMON_OR_GENERIC_NAME` carries the full OCR dump including the nutrition table.
-   **Why it matters:** INSUFFICIENT_EVIDENCE is not FAIL is the constraint this project is
-   built around, and the exported report is the one surface where that distinction is lost.
+1. ~~**The `pdf` evidence report cannot say which clause passed.**~~ Fixed in #181
+   (`1630787`), deployed. **The diagnosis in the first version of this item was wrong and is
+   corrected here:** the checklist always had a `Status` column and the declarations table
+   always had a `State` column. Both were drawn *outside the page*. Table cells were raw
+   strings, which reportlab measures at their full unwrapped width, so on the finalised scan
+   `91893092` the checklist grew to 7015.8 pt against a 595.3 pt page and 2,606 words across
+   four pages sat past the right edge — among them every `Status` and every `Notes` cell.
+   `pdftotext` and `extract_text` read those words, which is why the existing tests, and my
+   own first reading, passed over it. Cells are `Paragraph`s now, the page is landscape, the
+   declarations table is one row per field with every state counted rather than collapsed,
+   and the evidence hash is read from the chain with the absence explained in a sentence.
+   Regenerated on `91893092` after deploy: **0 words off the page**, 66 checklist rows each
+   carrying its own status (45 INSUFFICIENT_EVIDENCE, 10 NOT_APPLICABLE, 6 REVIEW_REQUIRED,
+   3 PASS, 2 FAIL), 10 declaration rows.
+
+   **Still open from it:** `Evidence Hash` explains its absence rather than printing a
+   digest, because the pipeline appends only `AUDIT_LOG` entries and no `PRODUCT_IMAGE`
+   entry is ever written to a chain. That is item 2's second paragraph, and it is a pipeline
+   gap, not a renderer one.
 
 2. **No officer-facing view of the evidence chain.** `GET /scans/{id}/evidence` exists, is
    jurisdiction-scoped, and verifies the chain on every read (`is_valid`, `broken_link_index`,
