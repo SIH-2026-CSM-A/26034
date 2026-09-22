@@ -2,6 +2,22 @@
 
 export type Verdict = components['schemas']['Verdict'];
 
+/**
+ * How many scans this page loads, and the number the map's footnote states.
+ *
+ * 200 is the API's own maximum for `GET /scans`. It was the default page size of 50, and
+ * that was a defect a visitor hit rather than a tuning choice: the database held 33
+ * ward-bearing scans and 10 potential violations among them, and **not one of them was in
+ * the newest fifty** — thirty of those fifty were a timing run submitted with no ward. So
+ * all 145 wards rendered unshaded while the data sat one page behind the window.
+ *
+ * Declared here and read by both the fetch and the footnote, so the page cannot request one
+ * window and tell an officer it is showing another. If the API's maximum ever rises past
+ * this, the honest fix is paging, not a larger literal: a window that silently drops the
+ * oldest scan is the defect this constant exists to stop being invisible.
+ */
+export const SCAN_WINDOW = 200;
+
 export interface RecordDetail {
   id: string;
   timestamp: string;
