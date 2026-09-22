@@ -424,19 +424,30 @@ async def persist_refusal(session: AsyncSession, scan: Scan, reason: str) -> Non
 
 
 async def panel_spans_for(session: AsyncSession, scan_id: UUID) -> tuple[PanelSpan, ...]:
-    """The spans in the scan's latest evidence entry, text only, in the order written."""
+    """The spans the scan was evaluated from, text only, in the order written.
+
+    Found by payload, not by position. This read the highest-sequence entry, which is the
+    evaluation only until something else is appended after it — and issuing a report appends
+    the export's digest. So an officer who filed a PDF emptied the spans on every later read
+    of that scan, and the consumer result page, which builds its ingredient list and its
+    barcode line out of them, went blank for everyone. Observed on `930c556a` after three
+    exports: 0 spans against 75 on a scan nobody had exported.
+
+    The newest entry that carries spans, so a re-evaluation still wins over the first
+    evaluation and no entry that carries none can hide either.
+    """
     statement = (
         select(EvidenceEntryRow)
         .where(EvidenceEntryRow.scan_id == scan_id)
         .order_by(EvidenceEntryRow.sequence.desc())
-        .limit(1)
     )
-    entry = (await session.execute(statement)).scalar_one_or_none()
-    if entry is None:
-        return ()
-    payload = json.loads(entry.payload_json)
-    # Validated straight off the stored record: the id is read through, never written.
-    return tuple(PanelSpan.model_validate(span) for span in payload.get("spans", ()))
+    for entry in (await session.execute(statement)).scalars():
+        payload = json.loads(entry.payload_json)
+        spans = payload.get("spans")
+        if spans:
+            # Validated straight off the stored record: the id is read through, never written.
+            return tuple(PanelSpan.model_validate(span) for span in spans)
+    return ()
 
 
 def capture_outcome(scan: Scan) -> CaptureOutcome:
