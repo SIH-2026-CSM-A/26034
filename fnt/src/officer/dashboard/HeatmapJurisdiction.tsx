@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { useId, useMemo, useState } from 'react';
 import { spring } from '../../ui/motion';
 import type { WardAggregate } from './types';
+import { SCAN_WINDOW } from './types';
 import { GHMC_WARDS, GHMC_VIEWBOX } from './ghmcWards';
 
 interface Props {
@@ -264,8 +265,9 @@ export const HeatmapJurisdiction: React.FC<Props> = ({
       <div className="space-y-1 border-t border-hairline/70 bg-sunken/40 px-5 py-4 text-label text-mute sm:px-6">
         <p>
           Boundaries are the real GHMC wards (145 of 150), from OpenStreetMap via DataMeet,
-          ODbL. Shading shows where scans in <em>this dataset</em> were submitted and how many
-          reached POTENTIAL VIOLATION — it is not a survey of Hyderabad, and a shaded ward is
+          ODbL. Shading shows where the <strong>newest {SCAN_WINDOW} scans</strong> were
+          submitted and how many of them reached POTENTIAL VIOLATION. A scan older than that
+          window is not on this map — it is not a survey of Hyderabad, and a shaded ward is
           not a verified enforcement finding.
         </p>
         {(unassignedScans > 0 || unknownWardScans > 0) && (

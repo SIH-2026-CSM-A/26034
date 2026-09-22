@@ -21,6 +21,7 @@ import type {
   Verdict,
   WardAggregate,
 } from './types';
+import { SCAN_WINDOW } from './types';
 import { GHMC_WARDS } from './ghmcWards';
 
 type ScanSummary = components['schemas']['ScanSummary'];
@@ -107,7 +108,9 @@ export const OfficerDashboard: React.FC = () => {
     setError(null);
 
     try {
-      const { data: scans, error: apiError, response } = await apiClient.GET('/scans');
+      const { data: scans, error: apiError, response } = await apiClient.GET('/scans', {
+        params: { query: { limit: SCAN_WINDOW } },
+      });
       if (apiError) {
         setError(serverMessage(apiError, response));
         setLoading(false);
