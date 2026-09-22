@@ -19,9 +19,11 @@ from app.modules.rules import load_rules, rule_33_relaxation_applies, sector_ove
 from app.pipeline.dispositions import (
     COMMODITY_CONDITIONED_RULES,
     FACT_CONDITIONED_RULES,
+    IMPORT_CONDITIONED_RULES,
     SECTOR_GOVERNED_RULES,
     Disposition,
     disposition_of,
+    import_marker_in,
 )
 from app.pipeline.rule_findings import UNCONFIRMED_CATEGORY_REASON
 from app.pipeline.verdict import assemble_verdict
@@ -59,13 +61,14 @@ PHONE = {
 """What a phone carton bears: no best-before, no dimensions, no country of origin."""
 
 
-def phone(category: ProductCategory | None, declarations=PHONE):
+def phone(category: ProductCategory | None, declarations=PHONE, *, import_marker: bool = False):
     return findings_for(
         product_category=category,
         declared=declarations,
         source_is_listing=True,
         unreadable_reason=None,
         measurements={},
+        import_marker_observed=import_marker,
     )
 
 
@@ -85,7 +88,8 @@ def normalised(text: str) -> str:
 @pytest.mark.parametrize(
     ("rule_id", "phrase"),
     [(rule_id, phrase) for rule_id, (phrase, _) in COMMODITY_CONDITIONED_RULES.items()]
-    + list(FACT_CONDITIONED_RULES.items()),
+    + list(FACT_CONDITIONED_RULES.items())
+    + list(IMPORT_CONDITIONED_RULES.items()),
 )
 def test_every_conditioning_phrase_is_in_the_rules_own_text(rule_id: str, phrase: str) -> None:
     rules = {rule.rule_id: rule for rule in load_rules()}
@@ -95,8 +99,15 @@ def test_every_conditioning_phrase_is_in_the_rules_own_text(rule_id: str, phrase
 
 
 def test_the_conditioned_tables_are_not_empty_and_do_not_overlap_the_sector_gate() -> None:
-    conditioned = set(COMMODITY_CONDITIONED_RULES) | set(FACT_CONDITIONED_RULES)
+    conditioned = (
+        set(COMMODITY_CONDITIONED_RULES)
+        | set(FACT_CONDITIONED_RULES)
+        | set(IMPORT_CONDITIONED_RULES)
+    )
     assert conditioned == {"R6-1-DA", "R6-1-AA", "R6-1-F"}
+    # The three tables answer three different questions and no rule may be in two of them.
+    assert not set(FACT_CONDITIONED_RULES) & set(IMPORT_CONDITIONED_RULES)
+    assert not set(COMMODITY_CONDITIONED_RULES) & set(IMPORT_CONDITIONED_RULES)
     assert not conditioned & set(SECTOR_GOVERNED_RULES)
 
 
@@ -134,12 +145,13 @@ def test_confirming_non_consumable_evaluates_every_sector_gated_obligation() -> 
     confirmed = phone(ProductCategory.NON_CONSUMABLE)
     assert any(f.reason == UNCONFIRMED_CATEGORY_REASON for f in unconfirmed)
     assert not any(f.reason == UNCONFIRMED_CATEGORY_REASON for f in confirmed)
-    # Nothing was carved out to another Act: the only NOT_APPLICABLE findings are the
-    # best-before one above and Rule 6(10A), which no package owes.
+    # Nothing was carved out to another Act. Two obligations do not arise for this
+    # package: the best-before one above, and Rule 6(1)(aa), because the phone carton
+    # bears no importer declaration and so is not marked as imported.
     not_applicable = {
         f.rule_snapshot.rule_id for f in confirmed if f.state is FieldState.NOT_APPLICABLE
     }
-    assert not_applicable == {"R6-1-DA"}
+    assert not_applicable == {"R6-1-DA", "R6-1-AA"}
     for rule_id in ("R6-1-A", "R6-1-B", "R6-1-C", "R6-1-D", "R6-1-E"):
         assert {f.state for f in by_rule(confirmed, rule_id)} == {FieldState.PASS}, rule_id
 
@@ -193,6 +205,54 @@ def test_a_fact_conditioned_declaration_that_is_borne_passes_as_any_other() -> N
     }
     (finding,) = by_rule(phone(ProductCategory.NON_CONSUMABLE, bearing), "R6-1-AA")
     assert finding.state is FieldState.PASS
+
+
+# --- Rule 6(1)(aa): owed only by an imported package -----------------------------------------
+
+
+@pytest.mark.parametrize("category", [None, *ProductCategory])
+def test_country_of_origin_does_not_arise_on_a_package_nothing_marks_imported(
+    category: ProductCategory | None,
+) -> None:
+    """NOT_APPLICABLE, and never INSUFFICIENT_EVIDENCE: the obligation did not exist."""
+    (finding,) = by_rule(phone(category), "R6-1-AA")
+    assert finding.state is FieldState.NOT_APPLICABLE
+    assert "in case of imported products" in finding.reason
+    assert "nothing read off this package marks it as imported" in finding.reason
+
+
+def test_an_unreadable_panel_does_not_turn_a_duty_that_never_arose_into_a_reading_failure() -> None:
+    """Whether the duty arises does not depend on how well the panel photographed."""
+    findings = findings_for(product_category=ProductCategory.NON_CONSUMABLE)
+    assert {f.state for f in by_rule(findings, "R6-1-AA")} == {FieldState.NOT_APPLICABLE}
+
+
+def test_an_importer_declaration_makes_the_duty_live_and_an_absent_declaration_bite() -> None:
+    """The case the rule exists for: marked imported, no country of origin, a shortfall."""
+    findings = phone(ProductCategory.NON_CONSUMABLE, import_marker=True)
+    (finding,) = by_rule(findings, "R6-1-AA")
+    assert finding.state is FieldState.FAIL
+    assert finding.state is not FieldState.NOT_APPLICABLE
+
+
+def test_a_declared_country_of_origin_is_evaluated_even_with_no_marker() -> None:
+    """A package that answers the obligation gets a PASS, not a shrug.
+
+    Settling the field on the marker alone would report NOT_APPLICABLE over a declaration
+    the package actually bears, and hide the PASS.
+    """
+    bearing = PHONE | {
+        DeclarationField.COUNTRY_OF_ORIGIN: declared(DeclarationField.COUNTRY_OF_ORIGIN, "IN")
+    }
+    (finding,) = by_rule(phone(ProductCategory.NON_CONSUMABLE, bearing), "R6-1-AA")
+    assert finding.state is FieldState.PASS
+
+
+def test_made_in_india_is_not_read_as_an_import_marker() -> None:
+    """The commonest line on the corpus must not invert the test."""
+    assert not import_marker_in(["Made in India", "Product of India", "MADE IN INDIA"])
+    assert import_marker_in(["Imported by: Acme Traders, Mumbai"])
+    assert import_marker_in(["IMPORTER  :  ACME   TRADERS"])
 
 
 def test_an_unreadable_photograph_is_still_insufficient_evidence_not_review() -> None:

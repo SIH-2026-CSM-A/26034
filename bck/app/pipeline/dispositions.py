@@ -9,7 +9,7 @@ checks line by line against the rule store. A wrong entry in one of them is a wh
 of rule silently unevaluated, and that is easier to see in a file that is only tables.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from enum import StrEnum
 
 from app.contracts import DeclarationField, FieldState
@@ -135,23 +135,76 @@ citing a condition the rule no longer states.
 """
 
 FACT_CONDITIONED_RULES: dict[str, str] = {
-    "R6-1-AA": "in case of imported products",
     "R6-1-F": "Where the sizes of the commodity contained in the package are relevant",
 }
 """Rules whose own text makes the duty conditional on a fact nothing here establishes.
 
-Rule id to the conditioning phrase as the store's ``source_text`` states it. Rule 6(1)(aa)
-requires a country of origin "in case of imported products"; Rule 6(1)(f) requires
-dimensions "where the sizes of the commodity contained in the package are relevant".
-Whether a package was imported, or whether its sizes matter, is not on the label, is not a
-product category, and is not something this system infers.
+Rule id to the conditioning phrase as the store's ``source_text`` states it. Rule 6(1)(f)
+requires dimensions "where the sizes of the commodity contained in the package are
+relevant". Whether a package's sizes matter is not on the label, is not a product category,
+and is not something this system infers.
 
 So where such a declaration was looked for and is absent, the absence is not a FAIL: the
 package fell short only if the condition holds, and that is an officer's judgement —
 REVIEW_REQUIRED. Where the declaration *is* borne it is evaluated as any other, and where
 it could not be read the ordinary INSUFFICIENT_EVIDENCE stands. NOT_APPLICABLE is not
 available here either: nothing has established that the condition is unmet.
+
+Rule 6(1)(aa) was here until its condition turned out to be readable off the label — see
+:data:`IMPORT_CONDITIONED_RULES`.
 """
+
+IMPORT_CONDITIONED_RULES: dict[str, str] = {
+    "R6-1-AA": "in case of imported products",
+}
+"""Rules owed only by an imported package, and the conditioning phrase from the store.
+
+Separate from :data:`FACT_CONDITIONED_RULES` because this condition *is* established from
+the label. Rule 6(1)(a) requires that "for any imported package the name and address of the
+importer shall be mentioned on every package", so an importer declaration is the marker the
+rules themselves put on an imported package, and its absence is what a domestic package
+looks like.
+
+A package nothing marks as imported does not owe Rule 6(1)(aa) at all, so the absence of a
+country of origin on it is NOT_APPLICABLE — the obligation never arose. Reporting it as
+INSUFFICIENT_EVIDENCE said the reader had failed, and reporting it as REVIEW_REQUIRED put a
+question to an officer about a duty that does not exist. Both were wrong about the same
+package, and on a corpus of domestic packages both were wrong every time.
+
+**The limit of this, stated because it is the case the rule exists for.** An imported
+package bearing neither an importer declaration nor a country of origin is marked by
+nothing, and lands on NOT_APPLICABLE — the finding cannot see the contravention it would
+otherwise report. The reason text says so on the face of the finding rather than leaving an
+officer to work it out, and where anything does mark the package imported the duty arises
+and an absent declaration is a shortfall like any other.
+"""
+
+IMPORT_MARKERS: tuple[str, ...] = (
+    "imported by",
+    "imported and marketed by",
+    "imported & marketed by",
+    "importer",
+)
+"""Phrases that mark a package as imported, normalised for comparison.
+
+Deliberately narrow, and all of them forms of the importer declaration Rule 6(1)(a)
+requires. "Made in" and "Product of" are **not** here: "Made in India" marks a package
+domestic, and a matcher that read it as an import marker would invert the test on the
+commonest label in the corpus.
+"""
+
+
+def import_marker_in(texts: Iterable[str]) -> bool:
+    """Whether anything read off this package marks it as imported.
+
+    Case-insensitive and whitespace-collapsed, because a package prints what the artwork
+    used and OCR reports the spacing it saw. A ``True`` only ever *adds* an obligation, so
+    a false positive costs a finding an officer can dismiss, while a false negative leaves
+    a domestic package evaluated as a domestic package.
+    """
+    normalised = [" ".join(text.lower().split()) for text in texts]
+    return any(marker in text for marker in IMPORT_MARKERS for text in normalised)
+
 
 RULE_DECLARATION_SCOPE: dict[str, tuple[DeclarationField, ...]] = {
     "R8-1-FREE-SPACE": (DeclarationField.NET_QUANTITY,),

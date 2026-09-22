@@ -100,7 +100,11 @@ from app.modules.vision.ocr import arbitrate_field_declaration, extract_panel_te
 from app.modules.vision.pdp import ArtworkPanel, OfficerMarkedPanel, PDPDetection, detect_pdp
 from app.modules.vision.preprocess import prepare_panel, quality_gate
 from app.pipeline.capture import CAPTURE_INSTRUCTIONS, QualityRejection
-from app.pipeline.dispositions import FIELD_STATE_FROM_VERDICT, required_declarations
+from app.pipeline.dispositions import (
+    FIELD_STATE_FROM_VERDICT,
+    import_marker_in,
+    required_declarations,
+)
 from app.pipeline.findings import build_findings
 from app.pipeline.normalisation import normalise_declaration
 from app.pipeline.rule_findings import EvidenceContext, finding, scope_findings, sector_findings
@@ -1412,6 +1416,10 @@ def _evaluate_frame(
         # designed around Rule 3 and owes this nothing, so reading the spans keeps the scope
         # decision independent of a classification that may change for its own reasons.
         not_for_retail_sale_observed=not_for_retail_sale_declared(span.text for span in spans),
+        # Read across every span for the same reason the Rule 3 marker is: an importer
+        # declaration is what marks a package imported, and whether the binder places it
+        # under NAME_AND_ADDRESS is incidental to whether it was printed.
+        import_marker_observed=import_marker_in(span.text for span in spans),
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=UNBOUND_DECLARATION_REASON,
     )
@@ -1501,6 +1509,12 @@ def run_catalogue_scan(
         # read a marker off. Not observed, which is not the same as absent from the pack —
         # and since nothing is inferred from False, the distinction costs nothing here.
         not_for_retail_sale_observed=False,
+        # A listing carries no free text, but it does carry the declarations it supplied.
+        # An importer named in the name-and-address declaration marks the listing imported
+        # exactly as printing it marks a package.
+        import_marker_observed=import_marker_in(
+            field.normalised_value for values in declared.values() for field in values
+        ),
         institutional_or_industrial_confirmed=institutional_or_industrial_confirmed,
         unreadable_reason=None,
     )
