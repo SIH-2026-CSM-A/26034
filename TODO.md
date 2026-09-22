@@ -7,6 +7,29 @@ them, read the file.
 
 ---
 
+## After Session 46 (2026-09-22, the dashboard scan window) — read this first
+
+#193 is merged and deployed. The ward map now loads `limit=200` and states that window in
+its own footnote. Seven wards carry scans and three carry potential violations — Ameerpet 5,
+Khairatabad 4, Jubilee Hills 1 — all of it data that was already in the database and behind
+the old fifty-scan window. Nothing was seeded to produce it; 30 of the 33 ward-bearing scans
+are the `demo-seeder` corpus from 2026-09-08, which the dashboard discloses on screen.
+
+1. **The dashboard's two halves now read different windows.** The map aggregates over the
+   newest 200 scans. The clause breakdown beneath it still fetches details for the newest
+   **30** only (`index.tsx`, `scanList.slice(0, 30)`), and its cards read "0 of 30" beside a
+   map built from 133. That mismatch was invisible while both were effectively 50. **Why it
+   matters:** an officer reading one number off the map and another off the clause cards has
+   no way to know they are answering over different sets. Either the breakdown states its own
+   window on its own card, or it moves with the map — 200 detail requests is the cost of the
+   second, so state the window unless that cost is acceptable.
+
+2. **`SCAN_WINDOW` is a ceiling, not paging.** At 133 scans the window holds everything; the
+   moment the database passes 200 the dashboard silently stops seeing the oldest scans, and
+   the footnote will still be true but the map will quietly narrow. The constant's docstring
+   says paging is the fix rather than a larger literal. There is no test binding the fetch to
+   the footnote; they share the constant, which is what stops them drifting today.
+
 ## After Session 45 (2026-09-22, ClauseCam, two decimals, re-capture) — read this first
 
 #191 is merged and deployed. Two things to carry forward.
