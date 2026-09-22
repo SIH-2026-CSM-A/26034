@@ -205,6 +205,7 @@ async def submit_image_scan(
         principal,
         background,
         await image.read(),
+        media_type=image.content_type,
         calibration_method=calibration_method,
         reference_type=reference_type,
         artwork_dpi=artwork_dpi,
@@ -353,6 +354,7 @@ async def _accept_image_scan(
     hold_capture: bool = False,
     re_evaluation_of: UUID | None = None,
     confirmations: PackageConfirmations = NOTHING_CONFIRMED,
+    media_type: str | None = None,
 ) -> ScanDetail:
     """Store the scan at PROCESSING, queue evaluation, and return the row to poll.
 
@@ -391,7 +393,18 @@ async def _accept_image_scan(
     if re_evaluation_of is not None:
         scan.capture_metadata[RE_EVALUATION_KEY] = str(re_evaluation_of)
     async with session.begin():
-        repository.add_scan(session, scan)
+        # The photograph's digest is chained in the same transaction that accepts the scan,
+        # so the chain records the bytes as received rather than as they stood after the
+        # pipeline had run over them. `add_capture_entry` stages the scan itself, because
+        # the entry's foreign key needs the scan flushed ahead of it.
+        await repository.add_capture_entry(
+            session,
+            scan,
+            image_bytes,
+            storage_key=scan.image_refs[0][STORAGE_KEY] if scan.image_refs else None,
+            media_type=media_type,
+            received_at=datetime.now(UTC),
+        )
     await repository.mark_processing(session, scan)
 
     background.add_task(
@@ -861,6 +874,7 @@ async def submit_consumer_image_scan(
             CONSUMER,
             background,
             await image.read(),
+            media_type=image.content_type,
             calibration_method=CalibrationMethod.NONE,
             reference_type=None,
             artwork_dpi=None,
@@ -948,6 +962,7 @@ async def submit_vendor_image_scan(
         _as_filed(f"{VENDOR_SUBJECT_PREFIX}{vendor.subject}", premises),
         background,
         await image.read(),
+        media_type=image.content_type,
         calibration_method=CalibrationMethod.NONE,
         reference_type=None,
         artwork_dpi=None,

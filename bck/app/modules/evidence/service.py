@@ -37,20 +37,28 @@ compliance report rendered for filing."""
 def asset_digest(entries: list[EvidenceEntry]) -> tuple[str | None, str | None]:
     """The SHA-256 the chain holds for a captured asset, or the reason it holds none.
 
-    Exactly one of the pair is set. The digest is an entry's ``payload_hash``, taken from
-    the first entry whose asset type is not ``AUDIT_LOG`` — an audit-log entry hashes the
-    *record about* a capture (the verdict, a purge, an export) and not the capture, so its
-    hash certifies nothing an officer could check a photograph against. Printing one in
-    place of the other would put a digest on the certificate that no file can be matched
-    to, which is worse than printing none.
+    Exactly one of the pair is set. The digest is the ``sha256`` recorded in the payload of
+    the first entry whose asset type is not ``AUDIT_LOG`` — the SHA-256 of the exact bytes
+    received, which an officer can reproduce from a filed photograph with ``sha256sum``.
 
-    Today the pipeline appends only audit-log entries, so the second element is what a
-    live scan produces. That is the true statement and the document makes it in words
-    rather than leaving a blank labelled "Not available".
+    Deliberately **not** that entry's ``payload_hash``. The payload hash covers the whole
+    capture record — digest, byte length, storage key, media type — and is what links the
+    entry into the chain; it matches no file. An audit-log entry's hash is further still
+    from the capture: it covers the *record about* it (the verdict, a purge, an export).
+    Printing either in place of the asset digest would put a number on a certificate that
+    no photograph can be matched to, which is worse than printing none.
     """
     for entry in entries:
-        if entry.asset_type != EvidenceAssetType.AUDIT_LOG:
-            return entry.payload_hash, None
+        if entry.asset_type == EvidenceAssetType.AUDIT_LOG:
+            continue
+        recorded = _document(entry).get("sha256")
+        if isinstance(recorded, str) and recorded:
+            return recorded, None
+        return None, (
+            f"The evidence chain holds a {entry.asset_type.value} entry at sequence "
+            f"{entry.sequence}, but it records no digest of the asset's bytes, so there is "
+            "nothing to certify. This is a defect in whatever wrote that entry."
+        )
     count = len(entries)
     if count == 0:
         return None, (
@@ -76,13 +84,36 @@ def verified(entries: list[EvidenceEntry]) -> ChainVerification:
     return verify_chain(entries)
 
 
+def _document(entry: EvidenceEntry) -> dict:
+    """An entry's payload as a mapping, whether it was stored as text or as a dict."""
+    payload = entry.payload
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def record_from(entries: list[EvidenceEntry]) -> VerdictRecord:
-    """The verdict as it was hashed into the genesis entry."""
+    """The verdict as it was hashed into the chain.
+
+    Found by its payload, not by position. Since the capture entry was added the genesis
+    of an image scan is the photograph's digest and the verdict is the entry after it,
+    while a catalogue scan still has the verdict at genesis and chains written before that
+    change keep the old shape. Reading ``entries[0]`` would have decided which of those
+    this is by luck.
+    """
     if not entries:
         raise NoEvidenceError("this scan has no evidence chain")
-    payload = entries[0].payload
-    document = json.loads(payload) if isinstance(payload, str) else payload
-    return VerdictRecord.model_validate(document["verdict"])
+    for entry in entries:
+        document = _document(entry)
+        if "verdict" in document:
+            return VerdictRecord.model_validate(document["verdict"])
+    raise NoEvidenceError(
+        f"this scan's evidence chain holds no verdict: {len(entries)} entries and none of "
+        "them carries one"
+    )
 
 
 def _model_versions() -> dict[str, str]:

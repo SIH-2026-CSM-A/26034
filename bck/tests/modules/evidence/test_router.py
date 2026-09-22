@@ -74,7 +74,9 @@ async def test_the_chain_is_verified_on_every_read(client: AsyncClient) -> None:
         "purged_indices": [],
         "reason": None,
     }
-    assert [entry["sequence"] for entry in view["entries"]] == [0]
+    assert [entry["sequence"] for entry in view["entries"]] == [0, 1]
+    # The photograph first, then what this system made of it. The order is the claim.
+    assert [entry["asset_type"] for entry in view["entries"]] == ["PRODUCT_IMAGE", "AUDIT_LOG"]
 
 
 async def test_an_edited_entry_is_reported_broken_and_certifies_nothing(
@@ -88,9 +90,13 @@ async def test_an_edited_entry_is_reported_broken_and_certifies_nothing(
     async with get_engine().begin() as connection:
         row = (
             await connection.execute(
-                select(EvidenceEntryRow.id, EvidenceEntryRow.payload_json).where(
-                    EvidenceEntryRow.scan_id == scan_id
+                select(
+                    EvidenceEntryRow.id,
+                    EvidenceEntryRow.sequence,
+                    EvidenceEntryRow.payload_json,
                 )
+                .where(EvidenceEntryRow.scan_id == scan_id)
+                .where(EvidenceEntryRow.payload_json.contains('"verdict"'))
             )
         ).one()
         edited = row.payload_json.replace('"verdict":"REVIEW"', '"verdict":"PASS"', 1)
@@ -104,7 +110,9 @@ async def test_an_edited_entry_is_reported_broken_and_certifies_nothing(
     view = (await client.get(f"/scans/{scan_id}/evidence", headers=auth(INSPECTOR))).json()
     assert view["verification"]["is_valid"] is False
     assert view["verification"]["reason"] == "payload_hash_mismatch"
-    assert view["verification"]["broken_link_index"] == 0
+    # Sequence 1 since the capture entry took genesis: the index reported is the entry
+    # that was edited, not a constant.
+    assert view["verification"]["broken_link_index"] == row.sequence == 1
 
     refused = await client.post(f"/scans/{scan_id}/evidence/report", headers=auth(INSPECTOR))
     assert refused.status_code == 409
@@ -120,7 +128,7 @@ async def test_no_report_before_an_officer_finalises_the_review(client: AsyncCli
         assert refused.status_code == 409, fmt
         assert "not been" in refused.json()["detail"] or "finalized" in refused.json()["detail"]
     view = (await client.get(f"/scans/{scan_id}/evidence", headers=auth(INSPECTOR))).json()
-    assert len(view["entries"]) == 1, "a refused export appends nothing"
+    assert len(view["entries"]) == 2, "a refused export appends nothing"
 
 
 async def test_a_confirmed_scan_yields_the_part_a_certificate_and_the_chain_records_it(
@@ -135,15 +143,16 @@ async def test_a_confirmed_scan_yields_the_part_a_certificate_and_the_chain_reco
     assert certificate["statute_citation"] == "BSA §63(4) Part A"
     assert certificate["confirmation"]["officer_action"] == "CONFIRM"
     assert certificate["confirmation"]["confirmed_by"] == INSPECTOR.subject
-    assert certificate["audit_trail"]["total_sequence_count"] == 1
+    assert certificate["audit_trail"]["total_sequence_count"] == 2
     assert certificate["declarations"], "the certificate lists what was found"
     assert "paddleocr" in certificate["model_versions"]["ocr_engine"]
     assert "heuristic" in certificate["model_versions"]["pdp_detector"]
 
     view = (await client.get(f"/scans/{scan_id}/evidence", headers=auth(INSPECTOR))).json()
     assert view["verification"]["is_valid"] is True
-    assert [entry["sequence"] for entry in view["entries"]] == [0, 1]
-    assert view["entries"][1]["asset_type"] == "AUDIT_LOG"
+    assert [entry["sequence"] for entry in view["entries"]] == [0, 1, 2]
+    assert view["entries"][0]["asset_type"] == "PRODUCT_IMAGE"
+    assert view["entries"][2]["asset_type"] == "AUDIT_LOG"
 
 
 async def test_the_filed_report_renders_and_its_digest_enters_the_chain(
@@ -179,7 +188,8 @@ async def test_the_filed_report_renders_and_its_digest_enters_the_chain(
             .scalars()
             .all()
         )
-    exports = [json.loads(p) for p in payloads[1:]]
+    # payloads[0] is the capture, payloads[1] the verdict; the exports follow.
+    exports = [json.loads(p) for p in payloads[2:]]
     assert [e["format"] for e in exports] == ["pdf", "docx"]
     assert exports[0]["report_sha256"] == hashlib.sha256(pdf.content).hexdigest()
     assert exports[0]["exported_by"] == INSPECTOR.subject

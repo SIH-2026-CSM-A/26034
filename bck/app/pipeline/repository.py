@@ -20,6 +20,7 @@ property of the code rather than a promise about it.
 
 import json
 from collections.abc import Sequence
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Select, func, select
@@ -39,7 +40,12 @@ from app.core import (
     VerdictRow,
     scope_to_jurisdiction,
 )
-from app.modules.evidence import create_genesis_entry
+from app.modules.evidence import (
+    EvidenceEntry,
+    append_entry,
+    capture_payload,
+    create_genesis_entry,
+)
 from app.modules.rules import ProductCategory, default_rule_set_version
 from app.pipeline.capture import QualityRejection
 from app.pipeline.schemas import CaptureOutcome, PanelSpan, ReviewRequest, ScanFilters
@@ -231,7 +237,80 @@ def record_review(
     return row
 
 
-def add_evidence_entry(
+def _row_from(scan_id: UUID, entry: EvidenceEntry, payload_json: str) -> EvidenceEntryRow:
+    """The storable form of a chain entry. The payload is stored as the bytes hashed."""
+    return EvidenceEntryRow(
+        scan_id=scan_id,
+        sequence=entry.sequence,
+        timestamp=entry.timestamp,
+        payload_hash=entry.payload_hash,
+        prev_hash=entry.prev_hash,
+        entry_hash=entry.entry_hash,
+        payload_json=payload_json,
+        asset_type=entry.asset_type,
+    )
+
+
+async def _last_entry(session: AsyncSession, scan_id: UUID) -> EvidenceEntry | None:
+    """The scan's highest-sequence chain entry, rebuilt, or ``None`` for an empty chain."""
+    statement = (
+        select(EvidenceEntryRow)
+        .where(EvidenceEntryRow.scan_id == scan_id)
+        .order_by(EvidenceEntryRow.sequence.desc())
+        .limit(1)
+    )
+    row = (await session.execute(statement)).scalar_one_or_none()
+    if row is None:
+        return None
+    return EvidenceEntry(
+        sequence=row.sequence,
+        timestamp=row.timestamp,
+        payload_hash=row.payload_hash,
+        prev_hash=row.prev_hash,
+        entry_hash=row.entry_hash,
+        payload=row.payload_json,
+        asset_type=row.asset_type,
+    )
+
+
+async def add_capture_entry(
+    session: AsyncSession,
+    scan: Scan,
+    image_bytes: bytes,
+    *,
+    storage_key: str | None,
+    media_type: str | None,
+    received_at: datetime,
+) -> EvidenceEntryRow:
+    """Chain the digest of the photograph as received, before anything reads it.
+
+    The genesis entry of an image scan, written in the transaction that inserts the scan
+    and therefore before OCR, before detection and before any verdict exists. That order
+    is the point: the chain then says *these bytes arrived*, and everything after it is
+    something this system did to them. An entry written afterwards could only attest to
+    bytes that had already been through the pipeline.
+
+    **The flush is load-bearing**, for the reason spelled out in :func:`add_verdict`: this
+    schema declares no ``relationship()``, so the unit of work is free to insert this entry
+    before the scan it points at and Postgres rejects it with a foreign key violation.
+
+    Only the image path calls this. The artwork path receives a PDF or an SVG, which is not
+    a photograph of a package and takes no ``PRODUCT_IMAGE`` asset type; it still has no
+    capture entry.
+    """
+    session.add(scan)
+    await session.flush()
+    payload = capture_payload(image_bytes, storage_key=storage_key, media_type=media_type)
+    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    entry = create_genesis_entry(
+        payload_json, received_at.isoformat(), EvidenceAssetType.PRODUCT_IMAGE
+    )
+    row = _row_from(scan.id, entry, payload_json)
+    session.add(row)
+    return row
+
+
+async def add_evidence_entry(
     session: AsyncSession,
     scan: Scan,
     record: VerdictRecord,
@@ -240,9 +319,10 @@ def add_evidence_entry(
 ) -> EvidenceEntryRow:
     """Hash-chain the verdict and every span it was read from, and stage the entry.
 
-    The genesis entry for a scan. Re-evaluation appends rather than replacing, which is
-    what :func:`~app.modules.evidence.append_entry` is for; there is one verdict per scan
-    today so there is one entry.
+    Appended after the capture entry on the image path, and the genesis entry where there
+    is no capture — a catalogue listing has no photograph to hash. Which of the two it is
+    is read from the chain rather than assumed, so neither path has to know about the
+    other.
 
     **Every span goes into the payload, and which ones went unplaced is recorded with
     them.** Text that was read and bound to nothing is evidence in its own right: it is
@@ -268,18 +348,13 @@ def add_evidence_entry(
     }
     payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     timestamp = record.evaluated_at.isoformat()
-    entry = create_genesis_entry(payload_json, timestamp, EvidenceAssetType.AUDIT_LOG)
-
-    row = EvidenceEntryRow(
-        scan_id=scan.id,
-        sequence=entry.sequence,
-        timestamp=entry.timestamp,
-        payload_hash=entry.payload_hash,
-        prev_hash=entry.prev_hash,
-        entry_hash=entry.entry_hash,
-        payload_json=payload_json,
-        asset_type=entry.asset_type,
+    previous = await _last_entry(session, scan.id)
+    entry = (
+        create_genesis_entry(payload_json, timestamp, EvidenceAssetType.AUDIT_LOG)
+        if previous is None
+        else append_entry(previous, payload_json, timestamp, EvidenceAssetType.AUDIT_LOG)
     )
+    row = _row_from(scan.id, entry, payload_json)
     session.add(row)
     return row
 
@@ -305,7 +380,7 @@ async def persist_verdict(
     """
     async with session.begin():
         await add_verdict(session, scan, record)
-        add_evidence_entry(session, scan, record, spans, unclassified_span_ids)
+        await add_evidence_entry(session, scan, record, spans, unclassified_span_ids)
         if outcome is not None:
             scan.capture_outcome_json = outcome.model_dump_json()
         scan.status = ScanStatus.COMPLETE

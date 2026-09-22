@@ -1,5 +1,7 @@
 from .chain import (
+    CAPTURE_PAYLOAD_TYPE,
     append_entry,
+    capture_payload,
     create_genesis_entry,
     verify_chain,
 )
@@ -28,6 +30,8 @@ __all__ = [
     "S3ContentAddressedStorageClient",
     "ContentAddressedStorageClient",
     "LocalRFC3161Hook",
+    "CAPTURE_PAYLOAD_TYPE",
+    "capture_payload",
     "create_genesis_entry",
     "append_entry",
     "verify_chain",
