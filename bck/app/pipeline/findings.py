@@ -26,6 +26,7 @@ from app.pipeline.rule_findings import (
     commodity_condition_findings,
     declaration_findings,
     fact_condition_findings,
+    import_condition_findings,
     listing_findings,
     observation_findings,
     scope_findings,
@@ -117,6 +118,8 @@ def _findings_for_rule(
         return settled
 
     conditioned = commodity_condition_findings(rule, fields, context)
+    if conditioned is None:
+        conditioned = import_condition_findings(rule, fields, context)
     if conditioned is None:
         conditioned = fact_condition_findings(rule, fields, context)
     if conditioned is not None:

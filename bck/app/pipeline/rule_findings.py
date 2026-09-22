@@ -51,6 +51,7 @@ from app.pipeline.dispositions import (
     COMMODITY_CONDITIONED_RULES,
     FACT_CONDITIONED_RULES,
     FIELD_STATE_FROM_VERDICT,
+    IMPORT_CONDITIONED_RULES,
     SECTOR_GOVERNED_RULES,
 )
 from app.pipeline.rule_snapshot import snapshot_from_rule
@@ -133,6 +134,17 @@ class EvidenceContext:
     Computed by the orchestrator, which holds the spans; this context deliberately carries
     only normalised evidence. Always ``False`` on the catalogue path, where a listing
     supplies declarations by obligation and carries no marker to read.
+    """
+
+    import_marker_observed: bool = False
+    """Whether anything read off this package marks it as imported.
+
+    The same shape as :attr:`not_for_retail_sale_observed`: computed from the text by the
+    caller that holds it, and ``False`` means *not observed*. Unlike that flag, a ``False``
+    here does decide something — Rule 6(1)(aa) is owed only by an imported package, so a
+    package nothing marks as imported does not owe it. See
+    :data:`app.pipeline.dispositions.IMPORT_CONDITIONED_RULES` for what that costs in the
+    one case where the marker and the declaration are both missing.
     """
 
     institutional_or_industrial_confirmed: bool = False
@@ -297,6 +309,48 @@ def commodity_condition_findings(
             f"{rule.clause_ref} applies only to a commodity which {phrase}. An officer has "
             f"confirmed this package as {context.product_category.value}, which is not for "
             f"human consumption, so this obligation does not arise for it.",
+            context,
+        )
+        for field in fields
+    ]
+
+
+def import_condition_findings(
+    rule: RuleDefinition, fields: tuple[DeclarationField, ...], context: EvidenceContext
+) -> list[FieldFinding] | None:
+    """Findings for a rule owed only by an imported package, or ``None`` to carry on.
+
+    Settles the field where nothing read off the package marks it imported: the obligation
+    did not arise, which is NOT_APPLICABLE and not a failure of the reading. Where something
+    does mark it imported the duty is live and this returns ``None``, so a borne declaration
+    is evaluated as any other and an absent one is a shortfall like any other.
+
+    Asked before the unreadable check on purpose, and this is the part worth reading twice.
+    Whether the duty arises does not depend on how well the panel photographed: a domestic
+    package owes no country of origin whether or not the camera could read its address, so
+    an unreadable panel is still NOT_APPLICABLE here rather than INSUFFICIENT_EVIDENCE. The
+    cost is stated in :data:`~app.pipeline.dispositions.IMPORT_CONDITIONED_RULES` and in the
+    reason text below.
+    """
+    phrase = IMPORT_CONDITIONED_RULES.get(rule.rule_id)
+    if phrase is None or context.import_marker_observed:
+        return None
+    # A borne declaration answers the obligation, and a contested one has been read twice.
+    # Either way the duty is plainly live and this must not settle the field: reporting
+    # NOT_APPLICABLE over a declared country of origin would hide a PASS.
+    if any(context.declared.get(field) or context.contested.get(field) for field in fields):
+        return None
+    return [
+        finding(
+            rule,
+            field,
+            FieldState.NOT_APPLICABLE,
+            f'{rule.clause_ref} requires this declaration only "{phrase}", and nothing '
+            f"read off this package marks it as imported — no importer declaration of the "
+            f"kind Rule 6(1)(a) requires of an imported package. The obligation does not "
+            f"arise, so no declaration is owed and none is missing. If this package was "
+            f"imported, the declaration is required and its absence is a shortfall: that is "
+            f"an officer's call on evidence this reading does not hold.",
             context,
         )
         for field in fields
