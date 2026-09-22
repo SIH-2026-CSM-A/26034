@@ -8,7 +8,7 @@ export function ConsumerHeader({ title }: { title?: string }) {
       <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-4 py-1.5">
         <Link to="/consumer" className="flex min-h-target min-w-0 items-center gap-2.5">
           <Logo />
-          <span className="font-display text-body font-semibold tracking-tight">Maapdand</span>
+          <span className="font-display text-body font-semibold tracking-tight">ClauseCam</span>
           {title && <span className="truncate text-label text-mute">{title}</span>}
         </Link>
         <div className="flex shrink-0 items-center gap-1">

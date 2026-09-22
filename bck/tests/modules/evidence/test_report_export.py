@@ -25,6 +25,7 @@ from app.modules.evidence.export import (
     build_report_model,
     export_compliance_report,
 )
+from app.modules.evidence.models import to_two_decimals
 from app.modules.evidence.service import asset_digest
 
 
@@ -707,3 +708,60 @@ def _row_of(values, style):
     from reportlab.platypus import Paragraph
 
     return [Paragraph(v, style) for v in values]
+
+
+# ── A measurement may not claim a precision it does not have ───────────────────────────
+
+
+def test_an_over_precise_measurement_is_rounded_on_the_page(review_row):
+    """Seventeen decimal places is not a precision any measurement here has.
+
+    The value is a real one, stored by a finding written before the pipeline formatted its
+    own output, and it is still what a filed report prints for that scan.
+    """
+    record = VerdictRecord(
+        subject_ref="REP-PRECISION",
+        verdict=Verdict.POTENTIAL_VIOLATION,
+        rule_set_version="2026.09.2",
+        evaluated_at=datetime.now(UTC),
+        findings=(
+            make_snapshot_finding(
+                DeclarationField.NET_QUANTITY,
+                FieldState.FAIL,
+                "R7-2-TABLE-I",
+                "Rule 7(2), Table-I",
+                MEASUREMENT_CONDITIONS,
+                "0.4784049017122597 mm",
+                "1.0 mm",
+                "the measured character height was compared against the Table-I band.",
+            ),
+        ),
+        field_providers={DeclarationField.NET_QUANTITY: EvidenceProvider.PADDLEOCR},
+    )
+    visible = on_page_text(export_compliance_report(record, review_row=review_row, format="pdf"))
+    assert "0.48 mm" in visible
+    assert "0.4784049017122597" not in visible
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2.61 mm",
+        "100 g",
+        "1=0.44, 0=0.72, 0=0.72, g=0.61",
+        "declaration at (381, 858, 101, 53); panel at (86, 38, 776, 1207) (officer)",
+        "2024-07-15 | 2026-07-14",
+        "102.3 cm2",
+        "81906216000418",
+        "width at least 0.33 of height, except 1, i, I, l",
+    ],
+)
+def test_rounding_leaves_everything_else_exactly_as_it_was(value: str) -> None:
+    """Three decimal places or more, so a pixel box, a date and a barcode are untouched."""
+    assert to_two_decimals(value) == value
+
+
+def test_rounding_is_half_up_and_not_truncation() -> None:
+    assert to_two_decimals("0.005 mm") == "0.01 mm"
+    assert to_two_decimals("1.2349 mm") == "1.23 mm"
+    assert to_two_decimals("1.2350 mm") == "1.24 mm"

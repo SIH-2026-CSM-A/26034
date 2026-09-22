@@ -1,4 +1,4 @@
-/** The Maapdand mark: a scan frame closing on a tick. Same drawing as public/favicon.svg. */
+/** The ClauseCam mark: a scan frame closing on a tick. Same drawing as public/favicon.svg. */
 export function Logo({ className = 'h-7 w-7' }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={className} fill="none">

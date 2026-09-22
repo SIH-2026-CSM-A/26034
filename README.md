@@ -1,10 +1,10 @@
-# Maapdand
+# ClauseCam
 
-**PCCS — Packaged Commodity Compliance System — is this repository's technical name; Maapdand (मापदंड, "yardstick") is what the system is called.**
+**PCCS — Packaged Commodity Compliance System — is this repository's technical name; ClauseCam is what the system is called.**
 
 **SIH 2026 · problem statement 26034 · Legal Metrology (Packaged Commodities) Rules, 2011**
 
-Maapdand reads a photograph of a packaged commodity — or an e-commerce catalogue listing — and
+ClauseCam reads a photograph of a packaged commodity — or an e-commerce catalogue listing — and
 reports, declaration by declaration, whether the label carries what the Legal Metrology
 (Packaged Commodities) Rules, 2011 require of it. Every finding names the clause it comes
 from, the value read off the label and the evidence it was read from, and no finding is a
