@@ -291,10 +291,29 @@ export function VerdictDetail() {
 
   const findings = scan?.findings ?? []
 
-  // UI Rule 3: Insufficient evidence visibility
-  const insufficientFindings = findings.filter(
-    (f) => f.state === 'INSUFFICIENT_EVIDENCE',
-  )
+  // UI Rule 3: Insufficient evidence visibility.
+  //
+  // Counted by DECLARATION, not by finding. Each declaration is governed by several rules
+  // — the Rule 6 declaration itself, then height, width, placement, free space, contrast —
+  // so one pack produced 66 findings over 11 declarations and this banner called 58 of them
+  // "58 DECLARATIONS" on a package that has eleven. A number an officer reads off a sheet
+  // about one package has to be a number of things on that package.
+  const insufficientFindings = findings.filter((f) => f.state === 'INSUFFICIENT_EVIDENCE')
+  const insufficientFields = [...new Set(insufficientFindings.map((f) => f.field))]
+  const declarationCount = new Set(findings.map((f) => f.field)).size
+  const unreadSummary =
+    insufficientFields.length === 1
+      ? '1 declaration'
+      : `${insufficientFields.length} of ${declarationCount} declarations`
+
+  // What actually produced the recommendation. Only a FAIL reaches POTENTIAL VIOLATION: a
+  // FAIL is a statement about the package, and insufficient evidence is a statement about
+  // our reading of it. Naming the FAIL findings is what stops the two being read as cause
+  // and effect when they sit one above the other on this sheet.
+  const failFindings = findings.filter((f) => f.state === 'FAIL')
+  const failClauses = [
+    ...new Set(failFindings.map((f) => f.rule_snapshot?.clause_ref).filter(Boolean)),
+  ]
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -568,11 +587,16 @@ export function VerdictDetail() {
                      INSUFFICIENT EVIDENCE DETECTED
                    </span>
                    <span className="text-label text-mute">
-                     ({insufficientFindings.length} declaration{insufficientFindings.length === 1 ? '' : 's'} could not be read)
+                     ({unreadSummary} not fully read, across {insufficientFindings.length} rule{insufficientFindings.length === 1 ? '' : 's'})
                    </span>
                  </div>
                  <p className="mt-2 text-secondary text-mute">
-                   The automated reader could not obtain readable evidence for all required declarations. Confirming this scan acknowledges unreadable evidence, not compliance. Consider whether recapture is required.
+                   The automated reader could not obtain readable evidence for every rule applied to these declarations. Confirming this scan acknowledges unreadable evidence, not compliance. Consider whether recapture is required.
+                 </p>
+                 <p className="mt-2 text-secondary text-mute">
+                   {failFindings.length > 0
+                     ? `Unreadable evidence did not produce the recommendation. Only a shortfall found against a legible declaration can, and this scan has ${failFindings.length}: ${failClauses.join(', ')}.`
+                     : 'Nothing here is a shortfall. Unreadable evidence cannot produce a potential violation on its own — only a finding against a legible declaration can.'}
                  </p>
                </section>
             )}
@@ -627,7 +651,7 @@ export function VerdictDetail() {
               <span className="block font-display text-body font-semibold">Officer determination</span>
               <span className="block truncate font-mono text-label text-paper/70">
                 Recommendation: {scan.verdict ? verdictLabel(scan.verdict) : 'NONE'}
-                {insufficientFindings.length > 0 && ` · ${insufficientFindings.length} not read`}
+                {insufficientFindings.length > 0 && ` · ${unreadSummary} not fully read`}
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-2 rounded-full bg-paper px-4 py-2 text-label font-semibold text-ink">
@@ -686,6 +710,9 @@ export function VerdictDetail() {
                 </p>
                 <p className="text-label text-paper/70">
                   Recommendation: {scan.verdict ? verdictLabel(scan.verdict) : 'NONE'}
+                  {failFindings.length > 0
+                    ? ` — from ${failFindings.length} finding${failFindings.length === 1 ? '' : 's'} against a legible declaration`
+                    : ' — no shortfall was found against a legible declaration'}
                 </p>
               </div>
 
@@ -695,11 +722,14 @@ export function VerdictDetail() {
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-paper" />
                     <span className="font-mono text-label font-semibold text-paper">
-                      INSUFFICIENT EVIDENCE DETECTED ({insufficientFindings.length} DECLARATION{insufficientFindings.length === 1 ? '' : 'S'})
+                      INSUFFICIENT EVIDENCE · {unreadSummary.toUpperCase()} NOT FULLY READ
                     </span>
                   </div>
                   <p className="mt-1 text-label text-paper/70">
-                    Confirming records an acknowledgement of unreadable evidence, NOT compliance. Lack of evidence must not be folded into a pass state.
+                    {insufficientFields.map((field) => field.replace(/_/g, ' ').toLowerCase()).join(', ')}.
+                  </p>
+                  <p className="mt-1 text-label text-paper/70">
+                    Confirming records an acknowledgement of unreadable evidence, NOT compliance. Lack of evidence must not be folded into a pass state, and it did not produce the recommendation above.
                   </p>
                 </div>
               )}
@@ -760,7 +790,7 @@ export function VerdictDetail() {
                         NOTICE: CONFIRMING WITH UNREADABLE EVIDENCE
                       </p>
                       <p className="mt-0.5 text-label text-ink">
-                        Confirming records an explicit acknowledgement that {insufficientFindings.length} declaration{insufficientFindings.length === 1 ? '' : 's'} could not be read. This will NOT be recorded as statutory compliance.
+                        Confirming records an explicit acknowledgement that {unreadSummary} could not be fully read. This will NOT be recorded as statutory compliance.
                       </p>
                     </div>
                   )}
