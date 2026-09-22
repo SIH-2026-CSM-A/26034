@@ -15,7 +15,7 @@ export function VendorHeader({ title, signedIn = true }: { title?: string; signe
       <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-4 py-1.5">
         <Link to={VENDOR_HOME_PATH} className="flex min-h-target min-w-0 items-center gap-2.5">
           <Logo />
-          <span className="font-display text-body font-semibold tracking-tight">PCCS</span>
+          <span className="font-display text-body font-semibold tracking-tight">Maapdand</span>
           <span className="truncate text-label text-mute">Vendor self-check{title ? ` · ${title}` : ''}</span>
         </Link>
         <div className="flex shrink-0 items-center gap-1">

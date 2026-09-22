@@ -47,7 +47,7 @@ export function OfficerHeader(_props: OfficerHeaderProps) {
           <div className="flex min-w-0 items-center gap-5">
             <Link to="/officer/queue" className="flex min-h-target shrink-0 items-center gap-2.5">
               <Logo />
-              <span className="font-display text-body font-semibold tracking-tight">PCCS</span>
+              <span className="font-display text-body font-semibold tracking-tight">Maapdand</span>
             </Link>
             <nav aria-label="Officer primary navigation" className="hidden items-center gap-1 md:flex">
               {NAV.map((item) => {

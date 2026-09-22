@@ -372,7 +372,7 @@ export function VerdictDetail() {
           />
         ) : (
           <header className="glass sticky top-0 z-30 border-b border-hairline/60 px-4 py-3">
-            <span className="text-label text-mute">PCCS Inspection</span>
+            <span className="text-label text-mute">Maapdand Inspection</span>
           </header>
         )}
         <main className="mx-auto max-w-[1280px] px-4 pb-48">

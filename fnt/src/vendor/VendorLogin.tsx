@@ -47,7 +47,7 @@ export function VendorLogin() {
           <motion.div variants={rise} className="flex items-center gap-3">
             <Logo className="h-10 w-10" />
             <div>
-              <p className="font-display text-body font-semibold leading-tight tracking-tight">PCCS</p>
+              <p className="font-display text-body font-semibold leading-tight tracking-tight">Maapdand</p>
               <p className="text-label text-mute">Vendor self-check</p>
             </div>
           </motion.div>
