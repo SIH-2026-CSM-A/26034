@@ -7,6 +7,7 @@ the boundaries around it.
 """
 
 from datetime import UTC, datetime
+from itertools import combinations
 
 import pytest
 from pydantic import ValidationError
@@ -209,3 +210,40 @@ def test_a_record_with_no_providers_still_assembles() -> None:
     )
     assert record.field_providers == {}
     assert record.verdict is Verdict.REVIEW
+
+
+# --- the class of error, not one instance of it ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        combination
+        for size in range(1, len(FieldState) + 1)
+        for combination in combinations([s for s in FieldState if s is not FieldState.FAIL], size)
+    ],
+)
+def test_no_finding_set_without_a_fail_can_reach_potential_violation(
+    states: tuple[FieldState, ...],
+) -> None:
+    """Exhaustive over every combination of states that holds no FAIL.
+
+    The individual branches are tested above. This is about the class: POTENTIAL_VIOLATION
+    is what an enforcement act is built on, and the only input that may produce it is a FAIL
+    — a statement about the package. INSUFFICIENT_EVIDENCE is a statement about our reading
+    of it, and no quantity of unread declarations, in any company, may add up to one.
+    """
+    findings = tuple(
+        finding(state, field) for state, field in zip(states, DeclarationField, strict=False)
+    )
+    assert derive_verdict(findings) is not Verdict.POTENTIAL_VIOLATION
+
+
+def test_a_single_fail_anywhere_in_such_a_set_does_reach_it() -> None:
+    """Or the test above would pass on a function that never returns POTENTIAL_VIOLATION."""
+    for state in FieldState:
+        findings = (
+            finding(state),
+            finding(FieldState.FAIL, DeclarationField.RETAIL_SALE_PRICE),
+        )
+        assert derive_verdict(findings) is Verdict.POTENTIAL_VIOLATION, state
