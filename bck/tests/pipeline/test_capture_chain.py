@@ -164,3 +164,35 @@ async def test_two_submissions_of_the_same_photograph_record_the_same_digest(
     first, _ = asset_digest(await _chain(client, await _submit(client, payload)))
     second, _ = asset_digest(await _chain(client, await _submit(client, payload)))
     assert first == second == hashlib.sha256(payload).hexdigest()
+
+
+async def test_issuing_a_report_does_not_empty_the_scan_s_panel_spans(
+    client: AsyncClient,
+) -> None:
+    """The spans are read from the entry that carries them, not from whatever is last.
+
+    Issuing a report appends the export's digest to the chain. Reading the highest-sequence
+    entry then found an export payload, which has no spans, and the consumer result page —
+    whose ingredient list and barcode line are built from them — went blank for everyone.
+    """
+    payload = _jpeg(scan_panel_frame())
+    scan_id = await _submit(client, payload)
+
+    before = (await client.get(f"/scans/{scan_id}", headers=auth(INSPECTOR))).json()
+    assert before["panel_spans"], "no spans to lose, so this test would prove nothing"
+
+    review = await client.post(
+        f"/scans/{scan_id}/review",
+        json={"action": "confirm"},
+        headers=auth(INSPECTOR),
+    )
+    assert review.status_code == 201, review.text
+    issued = await client.post(
+        f"/scans/{scan_id}/evidence/report", params={"format": "pdf"}, headers=auth(INSPECTOR)
+    )
+    assert issued.status_code == 201, issued.text
+    entries = await _chain(client, scan_id)
+    assert len(entries) == 3, "the export did not reach the chain, so nothing was at risk"
+
+    after = (await client.get(f"/scans/{scan_id}", headers=auth(INSPECTOR))).json()
+    assert after["panel_spans"] == before["panel_spans"]
