@@ -1,10 +1,11 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { serverMessage, thrownMessage } from '../services/errors'
 import type { components } from '../services/generated/schema'
 import { vendorClient } from '../services/vendorClient'
 import { rise, spring, stagger } from '../ui/motion'
+import { CameraFrame } from '../ui/CameraFrame'
 import { Notice } from '../ui/Notice'
 import { VerdictTag } from '../officer/components/VerdictBanner'
 import { VendorHeader } from './VendorHeader'
@@ -29,8 +30,13 @@ function when(iso: string): string {
 
 /**
  * `POST /vendor/scans/image` and `GET /vendor/scans`: a premises checks its own stock and
- * reads back what it has submitted. Same capture pattern as the consumer screen — the
- * phone's own camera through a file input — and the same polling result page.
+ * reads back what it has submitted.
+ *
+ * **Camera only, and no file input.** A vendor self-check asserts something about a package
+ * on that vendor's own shelf now; a file picker accepts a photograph of anything taken
+ * anywhere, including a manufacturer's artwork instead of the printed pack. See
+ * {@link CameraFrame}. The officer surface keeps its upload, which the problem statement
+ * requires and which an officer attests to.
  */
 export function VendorScan() {
   const navigate = useNavigate()
@@ -57,15 +63,23 @@ export function VendorScan() {
     }
   }, [])
 
-  const choose = useCallback(
-    (chosen: File | null) => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-      setFile(chosen)
-      setPreviewUrl(chosen ? URL.createObjectURL(chosen) : null)
-      setError(null)
-    },
-    [previewUrl],
-  )
+  const captured = useCallback((blob: Blob) => {
+    setFile(new File([blob], 'capture.jpg', { type: blob.type || 'image/jpeg' }))
+    setPreviewUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return URL.createObjectURL(blob)
+    })
+    setError(null)
+  }, [])
+
+  const retake = useCallback(() => {
+    setPreviewUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return null
+    })
+    setFile(null)
+    setError(null)
+  }, [])
 
   const submit = useCallback(async () => {
     if (!file) return
@@ -154,52 +168,26 @@ export function VendorScan() {
           transition={{ ...spring.glide, delay: 0.08 }}
           className="card p-3 shadow-e2 sm:p-4"
         >
-          <label
-            htmlFor="vendor-photo"
-            className="group relative flex min-h-[260px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[14px] border-2 border-dashed border-hairline bg-sunken/60 text-center transition-colors duration-base ease-out hover:border-accent/60 has-[:focus-visible]:border-accent"
-          >
-            <AnimatePresence mode="wait" initial={false}>
-              {previewUrl ? (
+          {previewUrl ? (
+            <div>
+              <div className="flex min-h-[260px] items-center justify-center overflow-hidden rounded-[14px] border-2 border-dashed border-hairline bg-sunken/60">
                 <motion.img
                   key={previewUrl}
                   src={previewUrl}
-                  alt="The package you chose"
+                  alt="The photograph you just took"
                   initial={{ opacity: 0, scale: 1.03 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
                   transition={spring.glide}
                   className="max-h-[420px] w-full object-contain"
                 />
-              ) : (
-                <motion.span
-                  key="prompt"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col items-center px-6 py-8"
-                >
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-surface text-ink shadow-e2 transition-transform duration-base ease-out group-hover:scale-105 group-active:scale-95">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 8.5h3.2L9 6h6l1.8 2.5H20v10H4v-10Z" />
-                      <circle cx="12" cy="13.2" r="3.2" />
-                    </svg>
-                  </span>
-                  <span className="mt-4 text-body font-medium text-ink">Package photograph</span>
-                  <span className="mt-1 text-secondary text-mute">
-                    Fill the frame with the printed panel, in good light, without glare.
-                  </span>
-                </motion.span>
-              )}
-            </AnimatePresence>
-            <input
-              id="vendor-photo"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => choose(e.target.files?.[0] ?? null)}
-              className="absolute inset-0 cursor-pointer opacity-0"
-            />
-          </label>
+              </div>
+              <button type="button" onClick={retake} className="btn btn-quiet mt-3 w-full">
+                Take it again
+              </button>
+            </div>
+          ) : (
+            <CameraFrame onCapture={captured} label="Photograph this package" />
+          )}
 
           {error && (
             <div className="mt-3">
@@ -209,17 +197,19 @@ export function VendorScan() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!file || submitting}
-            className="btn btn-primary mt-3 w-full py-4 text-body"
-          >
-            {submitting && (
-              <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" />
-            )}
-            {submitting ? 'Sending…' : file ? 'Check this package' : 'Choose a photograph first'}
-          </button>
+          {file && (
+            <button
+              type="button"
+              onClick={submit}
+              disabled={submitting}
+              className="btn btn-primary mt-3 w-full py-4 text-body"
+            >
+              {submitting && (
+                <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" />
+              )}
+              {submitting ? 'Sending…' : 'Check this package'}
+            </button>
+          )}
           <p className="mt-4 px-1 text-label text-mute">
             Reading a label takes the server up to a minute. The result page keeps checking for
             you. No size in millimetres is reported from an uncalibrated photograph.
