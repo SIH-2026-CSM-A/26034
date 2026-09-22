@@ -5262,3 +5262,78 @@ One code PR and a full re-capture. Same conversation as Session 44, later the sa
 - Session 44's items are unchanged: the governing rules still fire on a declaration that is
   not required, there is still no officer "imported" confirmation, and the officer
   `CameraCapture.tsx` still carries its own `getUserMedia` block.
+
+## Session 46 — 2026-09-22, the dashboard could not see its own data (Claude Code, Opus 5)
+
+One PR, #193 `c8dd233`, and two captures. Same conversation as Sessions 44 and 45.
+
+### The defect
+
+`officer/dashboard/index.tsx` called `GET /scans` with no `limit`, so it took the API's
+default page size of **50**. Nothing chose 50; it was the absence of a choice. Measured
+against the live deployment before the fix: the database held **133 scans, 33 of them
+carrying a ward and 10 of those POTENTIAL VIOLATION — and not one ward-bearing scan was in
+the newest fifty**, because thirty of that fifty were Session 44's timing run, submitted
+with no ward. All 145 GHMC wards rendered unshaded and the map read "No ward has a potential
+violation in this dataset", which was true of the window and false of the system.
+
+Raised at the end of Session 45 and deliberately not fixed during a capture; fixed here as
+its own change.
+
+### The fix
+
+`limit=200`, the API's documented maximum (`{"maximum": 200, "default": 50}`), which
+`demo/record.cjs` has always used for the same reason. The window is now stated where an
+officer reads the map — *"Shading shows where the **newest 200 scans** were submitted and how
+many of them reached POTENTIAL VIOLATION. A scan older than that window is not on this map."*
+— and the number is one `SCAN_WINDOW` constant read by both the fetch and the footnote, so
+the page cannot request one window and claim another. Its docstring records that if the
+API's maximum ever rises past this, the honest fix is paging rather than a larger literal.
+
+The 30-scan detail fetch below it is untouched: that feeds the clause breakdown, and the map
+aggregates from the summaries, which already carry `ward`, `verdict` and `product_category`.
+
+### What shaded, and where it came from
+
+Predicted from the API before deploying, then read back off the rendered map. The two agree
+exactly.
+
+| ward | scans | potential violations |
+|---|---|---|
+| Ward 98 Ameerpet | 5 | **5** |
+| Ward 91 Khairatabad | 6 | **4** |
+| Ward 95 Jubilee Hills | 1 | **1** |
+| Ward 121 Kukatpally | 6 | 0 |
+| Ward 1 Kapra | 5 | 0 |
+| Ward 105 Gachibowli | 5 | 0 |
+| Ward 150 Monda Market | 5 | 0 |
+
+**Nothing was seeded in this session**, and the provenance matters enough to write down: of
+the 33 ward-bearing scans, **30 were written by `demo-seeder`** between 2026-09-08 and
+2026-09-20, and 3 by `inspector1`; of the 10 ward-bearing potential violations, **9 are
+seeded and 1 is a real officer scan**. The dashboard discloses this itself, on screen, above
+the map: *"Includes 30 seeded demo scans (officer demo-seeder), entered to populate this
+dashboard, not collected in the field."* The map is showing data that was already in the
+database and outside the old window — not data this session created.
+
+The totals card moved with it: **Scans loaded 50 → 133**, POTENTIAL VIOLATION **2 → 12**.
+
+### Verification
+
+- `tsc -b` exit 0, `npm run build` exit 0, `oxlint` clean. The built chunk carries `limit:200`
+  and the footnote; checked in `dist/`, not only in source.
+- **Deployed and proved from outside the container.** Frontend rebuilt `--no-cache` at
+  `c8dd233`; the *served* `OfficerRoutes` chunk fetched over HTTP contains `limit:200` and
+  `newest 200 scans`.
+- **Read back off the rendered map**, not from the API: 145 ward polygons drawn, 7 whose own
+  `aria-label` reports a scan, and the three above carrying violations. The tooltip on the
+  darkest polygon reads `Ward 98 Ameerpet · Central zone — 5 potential violations in 5 scans`
+  on both the phone and the desktop shot.
+
+### Raised, not fixed
+
+- **The dashboard's two halves now read different windows.** The map aggregates over 200
+  scans; the clause breakdown still details only the newest 30, and its cards read "0 of 30".
+  That was invisible while both were effectively 50. Either the breakdown says its own window
+  on its own card, or it moves with the map.
+- Sessions 44 and 45's items are unchanged.
