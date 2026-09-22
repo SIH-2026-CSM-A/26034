@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from io import BytesIO
@@ -612,22 +613,53 @@ def test_a_field_read_from_no_declaration_rule_says_so(wide_record, review_row):
 # ── The evidence hash, and why it is sometimes absent ───────────────────────────────
 
 
-def make_entry(asset_type: EvidenceAssetType, payload: str, sequence: int = 0):
+PHOTOGRAPH = b"\xff\xd8\xff\xe0 not really a jpeg, but these are the bytes received"
+
+
+def make_entry(asset_type: EvidenceAssetType, payload, sequence: int = 0):
     from app.modules.evidence.chain import append_entry, create_genesis_entry
 
     timestamp = datetime.now(UTC).isoformat()
-    genesis = create_genesis_entry(payload, timestamp, EvidenceAssetType.AUDIT_LOG)
     if sequence == 0:
         return create_genesis_entry(payload, timestamp, asset_type)
+    genesis = create_genesis_entry(payload, timestamp, EvidenceAssetType.AUDIT_LOG)
     return append_entry(genesis, payload, timestamp, asset_type)
 
 
-def test_asset_digest_is_the_hash_of_the_asset_entry():
-    """Where the chain holds a captured asset, the certificate prints its digest."""
-    entry = make_entry(EvidenceAssetType.PRODUCT_IMAGE, "the captured photograph")
+def make_capture_entry(image_bytes: bytes = PHOTOGRAPH):
+    import json
+
+    from app.modules.evidence.chain import capture_payload
+
+    payload = capture_payload(image_bytes, storage_key="evidence/abc", media_type="image/jpeg")
+    return make_entry(
+        EvidenceAssetType.PRODUCT_IMAGE,
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+    )
+
+
+def test_asset_digest_is_the_digest_of_the_bytes_received():
+    """The certificate prints a number a filed photograph can be reproduced against."""
+    entry = make_capture_entry()
     digest, note = asset_digest([entry])
-    assert digest == entry.payload_hash
+    assert digest == hashlib.sha256(PHOTOGRAPH).hexdigest()
     assert note is None
+
+
+def test_asset_digest_is_never_the_entry_s_own_payload_hash():
+    """The payload hash covers the capture record, not the capture, and matches no file."""
+    entry = make_capture_entry()
+    digest, _ = asset_digest([entry])
+    assert digest != entry.payload_hash
+
+
+def test_an_asset_entry_carrying_no_digest_is_reported_as_a_defect():
+    """Silence is not an option: an asset entry with nothing to certify says so."""
+    entry = make_entry(EvidenceAssetType.PRODUCT_IMAGE, '{"type": "capture"}')
+    digest, note = asset_digest([entry])
+    assert digest is None
+    assert note is not None
+    assert "records no digest" in note
 
 
 def test_asset_digest_never_reports_an_audit_log_hash_as_an_asset():
@@ -654,7 +686,7 @@ def test_the_report_prints_the_reason_there_is_no_digest(wide_record, review_row
 
 
 def test_the_report_prints_the_digest_when_there_is_one(wide_record, review_row):
-    digest, _ = asset_digest([make_entry(EvidenceAssetType.PRODUCT_IMAGE, "photograph bytes")])
+    digest, _ = asset_digest([make_capture_entry()])
     pdf_bytes = export_compliance_report(
         wide_record, review_row=review_row, format="pdf", evidence_hash=digest
     )

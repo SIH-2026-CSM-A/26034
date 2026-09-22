@@ -16,6 +16,35 @@ def compute_sha256(data: bytes | str) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+CAPTURE_PAYLOAD_TYPE = "capture"
+"""``payload["type"]`` of the entry recording a photograph as it was received."""
+
+
+def capture_payload(
+    image_bytes: bytes, *, storage_key: str | None, media_type: str | None
+) -> dict[str, str | int | None]:
+    """The record of a photograph at ingestion, before anything read it.
+
+    ``sha256`` is the digest of the **exact bytes received**, taken before any decode,
+    re-encode or resize. It is not the entry's ``payload_hash``: that covers this whole
+    mapping and is what links the entry into the chain, whereas this is the number an
+    officer can reproduce from a file with ``sha256sum``. Both matter and they are not
+    interchangeable — printing the payload hash on a certificate would give a digest no
+    photograph can be matched to.
+
+    ``storage_key`` is ``None`` where the capture is not retained. The digest is recorded
+    anyway: what was submitted is a fact about the submission, and it stays provable after
+    the bytes are purged under the retention policy.
+    """
+    return {
+        "type": CAPTURE_PAYLOAD_TYPE,
+        "sha256": compute_sha256(image_bytes),
+        "byte_length": len(image_bytes),
+        "storage_key": storage_key,
+        "media_type": media_type,
+    }
+
+
 def compute_payload_hash(payload: dict | str) -> str:
     """Computes the SHA-256 hash of the payload using canonical JSON."""
     if isinstance(payload, dict):
