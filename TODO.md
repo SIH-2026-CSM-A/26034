@@ -7,6 +7,29 @@ them, read the file.
 
 ---
 
+## After Session 45 (2026-09-22, ClauseCam, two decimals, re-capture) — read this first
+
+#191 is merged and deployed. Two things to carry forward.
+
+1. **The ward map cannot see the ward data the system holds.** `officer/dashboard/index.tsx`
+   calls `GET /scans` at its **default page size of 50** and details the newest 30. The
+   database holds **33 ward-bearing scans, 10 of them POTENTIAL VIOLATION** — and **zero of
+   the newest fifty carry a ward**, because thirty of them are Session 44's timing runs. So
+   all 145 GHMC wards render unshaded and the map's own footnote reads "50 scans recorded no
+   ward". **Why it matters:** the demo's most visual screen shows nothing, and it is not
+   because the data is missing. `GET /scans?limit=200` — the API's maximum, already used by
+   `demo/record.cjs` for the same reason — would show it. Deliberately not done while
+   re-capturing: widening the window to make a ward shade during a capture is the same act as
+   seeding one.
+
+2. **Rounding is applied at render, and the stored values stay as they are.**
+   `to_two_decimals` in `evidence/models.py` rounds any decimal of three or more places to
+   two, on the declared, measured and required columns of the PDF and the DOCX, and
+   `MeasuredPair` does the same on the officer screen. The records are untouched:
+   `0.4784049017122597 mm` is still what `91893092`'s finding holds, because the finding is
+   the evidence. Anything new that displays a measured value has to apply the same rule —
+   there are now two copies of it, one per language, and no test binds them to each other.
+
 ## After Session 44 (2026-09-22, ClauseCam: digest, country of origin, count, camera) — read this first
 
 #184, #185, #186, #187, #188 and #189 are merged and deployed. Three things came out of them.

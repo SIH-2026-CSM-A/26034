@@ -5180,3 +5180,85 @@ reading first.
   mechanics exist twice. Consolidating it onto `ui/CameraFrame` is a follow-up.
 - A throwaway vendor `camera-check` (`a5cd78ed`) exists on the demo database from the camera
   verification. There is no delete endpoint for a vendor.
+
+## Session 45 — 2026-09-22, ClauseCam, two decimals, and a re-capture (Claude Code, Opus 5)
+
+One code PR and a full re-capture. Same conversation as Session 44, later the same day.
+
+### #191 `72c5021`
+
+- **The visible name is ClauseCam.** Fourteen places: README heading, `<title>`, PWA `name`
+  and `short_name`, the wordmark on all five surfaces, the verdict sheet's inspection line and
+  the `Logo.tsx` comment. PCCS keeps every technical use. `TODO.md` moved with it — it is a
+  board, not a log.
+- **A measurement may not claim seventeen decimals.** `to_two_decimals` in `evidence/models.py`
+  rounds every decimal carrying three or more places to two, on the declared, measured and
+  required columns of both renderers. `ROUND_HALF_UP`, at render, never in the record.
+  `MeasuredPair` on the officer screen applies the same rule.
+
+### Found by measuring
+
+- **The rounding fixes a rendering of old data, not a live defect, and the brief's premise
+  about the screen was wrong.** Every `observed_value` in `measurement_findings.py` has been
+  `f"{value:.2f}"` since `b1bf4bd` (#174) landed on 2026-09-19 — the same day `91893092` was
+  scanned at 10:46, under the older code. So the stored `0.4784049017122597 mm` is evidence
+  and stays; what had to change is what a certificate prints. And "as the screen already
+  does" was not true: `MeasuredPair` rendered `observed` verbatim. Checked before writing the
+  fix, and fixed on both sides so the document and the screen cannot disagree about a number.
+- **Not one of the 145 GHMC wards is shaded on the live dashboard, and the page says why.**
+  The dashboard calls `GET /scans` at its default page size of 50 and details the newest 30.
+  Thirty-three scans in the database carry a ward and ten of those are POTENTIAL VIOLATION,
+  but **zero of the newest fifty carry one** — thirty of them are Session 44's timing runs,
+  submitted with no ward. The map's own footnote reads "50 scans recorded no ward". Captured
+  as it is; no data was seeded to force a shaded ward.
+- **`grep -rn "Maapdand"` leaves three lines**, all in `session-log/abhiram.md` inside the
+  Session 44 block, all past-tense records of what was true then. `CLAUDE.md` forbids
+  rewriting that file and this entry is the correction instead.
+
+### My own errors, by name
+
+- Reached for `rm -rf` on the deck folder to clear it. The permission layer refused, correctly
+  — it is a user directory and I had no need to remove the directory itself. Deleted the
+  twelve files by name instead.
+- Reused the Session 44 frontend deploy script with a `sed` that put `--no-cache` on the
+  backend as well as the frontend, so the backend rebuilt from scratch and re-downloaded the
+  Paddle weights: about eight minutes spent for a change that touched three Python files.
+- Framed the first ward-map crop from the section's own bounding box, which starts under the
+  sticky header, so the ClauseCam wordmark and the New scan button were sliced in half across
+  the top. Re-clipped below the header's bottom edge.
+
+### Verification
+
+- **Falsified, three defects, no `-x`, `__pycache__` purged by absolute path and asserted zero
+  before each run.** Report renders the stored value unrounded → red. Pattern widened to one
+  decimal place → red, and it also reddens `test_divergence_pdf_docx`, which is the point:
+  such a pattern rewrites `2.1mm` as `2.10mm` across the whole document. Truncation instead of
+  half-up → red.
+- `uv run pytest` against a throwaway Postgres 16.13 on 5439: **1348 passed, 2 errors**, both
+  `test_minio_storage.py` `CreateBucket` / `InvalidAccessKeyId` with no MinIO on this machine.
+  `ruff` clean, `ruff format --check` 242 files, `lint-imports` exit `0`. `npm run build` exit
+  0, `oxlint` clean.
+- **Deployed, both images, `--no-cache`.** The served page read back over HTTP:
+  `<title>ClauseCam — packaged commodity compliance for Legal Metrology</title>`, and the
+  served `index` and `OfficerRoutes` chunks carry `ClauseCam` and zero `Maapdand`.
+- **Proved on a fresh scan.** `bfefdef0`: chain `[(0, PRODUCT_IMAGE), (1, AUDIT_LOG)]`,
+  `is_valid: true`, page 1 prints
+  `afdcc9a463227cbaa94361548add800d64ca27d210295a172e80b81f24cdac35` — the same as
+  `sha256sum` of the photograph on disk — and zero words fall off the page.
+- **The rounding, on the real record.** `91893092`'s filed report now prints
+  `R7-2-TABLE-I | Rule 7(2), Table-I | required 1.0 mm | measured 0.48 mm | FAIL`. It printed
+  `0.4784049017122597 mm` before.
+- **The camera, in a browser.** Chromium fake media device against the deployment, signed in
+  as the throwaway vendor: video 1920×1080, `paused: false`, `srcObject` set, **0 file
+  inputs**, wordmark `ClauseCam`, no page errors.
+
+### Raised, not fixed
+
+- **The ward map cannot show real ward data through a fifty-scan window.** The data exists —
+  33 ward-bearing scans, 10 of them POTENTIAL VIOLATION — and the dashboard cannot see it. A
+  `GET /scans` with `limit=200` (the API's maximum) would show it without inventing anything.
+  Not done here: the instruction was to capture the map as it is, and widening the window to
+  make a ward shade is the same act as seeding one, by other means.
+- Session 44's items are unchanged: the governing rules still fire on a declaration that is
+  not required, there is still no officer "imported" confirmation, and the officer
+  `CameraCapture.tsx` still carries its own `getUserMedia` block.
