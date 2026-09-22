@@ -47,7 +47,7 @@ def _build_declarations_section(doc: Document, report: OfficerReportModel):
     for d in report.extracted_declarations:
         row_cells = table.add_row().cells
         row_cells[0].text = d.field_name
-        row_cells[1].text = d.declared_value or "Not read"
+        row_cells[1].text = d.declared_display or "Not read"
         row_cells[2].text = d.outcomes_line
         row_cells[3].text = str(d.rules_applied)
         row_cells[4].text = d.ocr_provider
@@ -66,7 +66,7 @@ def _build_rules_section(doc: Document, report: OfficerReportModel):
     hdr_cells[5].text = "Status"
     hdr_cells[6].text = "Notes"
     for r in report.rule_evaluations:
-        measured = r.measured_value
+        measured = r.measured_display
         if measured is None and r.state == "INSUFFICIENT_EVIDENCE":
             measured = "Measurement declined"
         elif measured is None:
@@ -76,7 +76,7 @@ def _build_rules_section(doc: Document, report: OfficerReportModel):
         row_cells[0].text = r.rule_id
         row_cells[1].text = r.clause_reference
         row_cells[2].text = r.parameter_name
-        row_cells[3].text = r.required_value or "N/A"
+        row_cells[3].text = r.required_display or "N/A"
         row_cells[4].text = measured
         row_cells[5].text = r.state
         row_cells[6].text = r.notes or ""

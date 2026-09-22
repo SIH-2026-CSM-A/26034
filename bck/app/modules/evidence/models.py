@@ -1,3 +1,6 @@
+import re
+from decimal import ROUND_HALF_UP, Decimal
+
 from pydantic import BaseModel, ConfigDict
 
 from app.contracts.enums import FieldState, Verdict
@@ -13,6 +16,33 @@ NO_EVIDENCE_HASH_SUPPLIED = (
 statement about this export, not about the scan, and it is deliberately not the wording
 :func:`app.modules.evidence.service.asset_digest` produces — the two absences have
 different causes and a reader must be able to tell them apart."""
+
+
+_LONG_DECIMAL = re.compile(r"\d+\.\d{3,}")
+"""A decimal carrying more places than a measurement on this document may claim.
+
+Three or more, so a value already written to two places is left exactly as it is and a
+version string, a date, a bare integer and a bracketed pixel box are never touched.
+"""
+
+
+def to_two_decimals(text: str | None) -> str | None:
+    """Round every over-precise decimal in a display value to two places.
+
+    ``0.4784049017122597 mm`` is what a stored finding from before the pipeline formatted
+    its own output prints on a filed report. Seventeen decimal places is not a precision any
+    measurement here has — the same finding states its own uncertainty as ``± 0.03`` — so the
+    figure claims an accuracy the instrument cannot support, on a document meant for filing.
+
+    Applied at render, not to the stored record. The finding is the evidence and it is not
+    this module's to rewrite; what a certificate prints is.
+    """
+    if text is None:
+        return None
+    return _LONG_DECIMAL.sub(
+        lambda m: str(Decimal(m.group()).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+        text,
+    )
 
 
 class ExportDeclaration(BaseModel):
@@ -41,6 +71,11 @@ class ExportDeclaration(BaseModel):
     rules_applied: int
 
     @property
+    def declared_display(self) -> str | None:
+        """The declared value as it goes on the page, rounded to two decimals."""
+        return to_two_decimals(self.declared_value)
+
+    @property
     def outcomes_line(self) -> str:
         """The states this declaration's rules reached, counted, never merged.
 
@@ -62,6 +97,16 @@ class ExportRuleEvaluation(BaseModel):
     measured_value: str | None
     state: FieldState
     notes: str | None = None
+
+    @property
+    def measured_display(self) -> str | None:
+        """The measured value as it goes on the page, rounded to two decimals."""
+        return to_two_decimals(self.measured_value)
+
+    @property
+    def required_display(self) -> str | None:
+        """The required value as it goes on the page, rounded to two decimals."""
+        return to_two_decimals(self.required_value)
 
 
 class OfficerReportModel(BaseModel):

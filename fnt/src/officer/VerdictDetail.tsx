@@ -108,6 +108,24 @@ function MastheadValue({ label, value }: { label: string; value: string }) {
   )
 }
 
+/**
+ * Round every over-precise decimal in a displayed value to two places.
+ *
+ * `0.4784049017122597 mm` is what a finding stored before the pipeline formatted its own
+ * output shows here. Seventeen decimal places is not a precision any measurement in this
+ * system has — the same finding states its own uncertainty as `± 0.03` — so the figure
+ * claims an accuracy the instrument cannot support.
+ *
+ * Three decimal places or more, so a value already written to two is left exactly as it
+ * is, and a pixel box, a date, a barcode and a rule-set version are never touched. The
+ * filed report applies the same rule, in `evidence/models.py`; the screen and the document
+ * must not disagree about a number.
+ */
+function twoDecimals(value: string | null): string | null {
+  if (value === null) return null
+  return value.replace(/\d+\.\d{3,}/g, (match) => Number(match).toFixed(2))
+}
+
 function MeasuredPair({ observed, expected }: { observed: string | null; expected: string | null }) {
   if (observed === null && expected === null) {
     return <span className="text-secondary text-mute">No measurement recorded.</span>
@@ -115,9 +133,9 @@ function MeasuredPair({ observed, expected }: { observed: string | null; expecte
   return (
     <span className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
       <span className="text-label text-mute">Measured</span>
-      <span className="font-mono text-secondary text-ink">{observed ?? '—'}</span>
+      <span className="font-mono text-secondary text-ink">{twoDecimals(observed) ?? '—'}</span>
       <span className="text-label text-mute">Required</span>
-      <span className="font-mono text-secondary text-ink">{expected ?? '—'}</span>
+      <span className="font-mono text-secondary text-ink">{twoDecimals(expected) ?? '—'}</span>
     </span>
   )
 }
@@ -372,7 +390,7 @@ export function VerdictDetail() {
           />
         ) : (
           <header className="glass sticky top-0 z-30 border-b border-hairline/60 px-4 py-3">
-            <span className="text-label text-mute">Maapdand Inspection</span>
+            <span className="text-label text-mute">ClauseCam Inspection</span>
           </header>
         )}
         <main className="mx-auto max-w-[1280px] px-4 pb-48">

@@ -44,8 +44,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
       manifest: {
-        name: 'Maapdand — packaged commodity compliance for Legal Metrology',
-        short_name: 'Maapdand',
+        name: 'ClauseCam — packaged commodity compliance for Legal Metrology',
+        short_name: 'ClauseCam',
         description: 'Compliance decision-support for packaged commodities under the Legal Metrology (Packaged Commodities) Rules, 2011.',
         theme_color: '#F3F4F1',
         background_color: '#F3F4F1',

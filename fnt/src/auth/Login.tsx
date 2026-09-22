@@ -47,7 +47,7 @@ export function Login() {
           <motion.div variants={rise} className="flex items-center gap-3">
             <Logo className="h-10 w-10" />
             <div>
-              <p className="font-display text-body font-semibold leading-tight tracking-tight">Maapdand</p>
+              <p className="font-display text-body font-semibold leading-tight tracking-tight">ClauseCam</p>
               <p className="text-label text-mute">Packaged Commodity Compliance System</p>
             </div>
           </motion.div>

@@ -136,7 +136,7 @@ def _build_declarations_section(elements: list, report: OfficerReportModel, styl
             _row(
                 [
                     d.field_name,
-                    d.declared_value or "Not read",
+                    d.declared_display or "Not read",
                     d.outcomes_line,
                     str(d.rules_applied),
                     d.ocr_provider,
@@ -159,7 +159,7 @@ def _build_rules_section(elements: list, report: OfficerReportModel, styles: dic
         )
     ]
     for r in report.rule_evaluations:
-        measured = r.measured_value
+        measured = r.measured_display
         if measured is None and r.state == "INSUFFICIENT_EVIDENCE":
             measured = "Measurement declined"
         elif measured is None:
@@ -171,7 +171,7 @@ def _build_rules_section(elements: list, report: OfficerReportModel, styles: dic
                     r.rule_id,
                     r.clause_reference,
                     r.parameter_name,
-                    r.required_value or "N/A",
+                    r.required_display or "N/A",
                     measured,
                     r.state,
                     r.notes or "",

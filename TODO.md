@@ -7,7 +7,7 @@ them, read the file.
 
 ---
 
-## After Session 44 (2026-09-22, Maapdand: digest, country of origin, count, camera) — read this first
+## After Session 44 (2026-09-22, ClauseCam: digest, country of origin, count, camera) — read this first
 
 #184, #185, #186, #187, #188 and #189 are merged and deployed. Three things came out of them.
 
