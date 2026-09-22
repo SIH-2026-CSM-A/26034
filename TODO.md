@@ -7,6 +7,48 @@ them, read the file.
 
 ---
 
+## After Session 44 (2026-09-22, Maapdand: digest, country of origin, count, camera) — read this first
+
+#184, #185, #186, #187, #188 and #189 are merged and deployed. Three things came out of them.
+
+1. **A rule that merely governs a declaration still fires on one that is not required.**
+   Measured on `930c556a` after #185: `COUNTRY_OF_ORIGIN` reads
+   `2 NOT_APPLICABLE, 5 INSUFFICIENT_EVIDENCE`. Rule 6(1)(aa) correctly does not arise, and
+   then Rule 7(2) Table-I, Rule 7(3), Rule 8(1), the Rule 8(1) proviso and Rule 9(1) each
+   report that they could not measure the letter height, placement and contrast of a
+   declaration the package need not bear. A height rule for a declaration that does not
+   exist is not a reading failure; it is not applicable for the same reason the declaration
+   rule is. **Why it matters:** it is most of what the declarations table and the
+   insufficient-evidence count are counting, and every one of those findings is telling an
+   officer the reader failed at something nobody was owed. Needs the declaration rule's
+   outcome to reach the rules governing that field, which is a change to the order
+   `build_findings` evaluates in.
+
+2. **The filed report prints an unrounded float.** `0.4784049017122597 mm` in the Measured
+   column of the Rule Evaluation Checklist, seen on `91893092`'s report. A measurement on a
+   document meant for filing should carry the precision the measurement has, which is the
+   two decimals the screen already uses.
+
+3. **`evaluated_at` cannot measure processing time.** `router.py:422` stamps
+   `datetime.now(UTC)` when the background task is *scheduled*, so across 28 timed scans
+   `evaluated_at - created_at` had a median of **0.02 s**. Anything wanting server-side
+   duration needs a completion timestamp, which no column holds today. Until then the only
+   honest processing number is client-observed.
+
+**Measured on the deployment, 30 scans across 5 packs, all submitted identically
+(`calibration_method=none`, no panel mark, no category), round-robin.** 28 completed, 2
+failed in the TLS/DNS layer against the Cloudflare quick tunnel without reaching the server.
+
+| | median | IQR | min | max |
+|---|---|---|---|---|
+| upload (POST to 201) | 5.84 s | 1.32–11.50 s | 0.33 s | 141.23 s |
+| processing (201 to verdict, polled at 0.5 s) | 47.88 s | 24.53–49.13 s | 17.38 s | 54.23 s |
+| total (submit to verdict) | 53.78 s | 26.57–60.44 s | 17.79 s | 190.38 s |
+
+Processing tracks image size tightly — 82 KB → 17.7 s, 119 KB → 25.2 s, 2.7–3.1 MB →
+48–51 s, per-pack spreads of 1–9 s. **Upload is what varies**: the same 2.7 MB file took
+4.59 s once and 141.23 s another time. Do not carry these to another network — measure yours.
+
 ## After Session 43 (2026-09-21, README, deck screenshots, measured latency) — read this first
 
 Nothing in `bck/` or `fnt/` changed. Three items came out of measuring the live tunnel.

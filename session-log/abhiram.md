@@ -5056,3 +5056,127 @@ waiter's uselessness only surfaced when it exited.
   markers the script writes (`HEAD=`, `DEPLOY_EXIT=0`, `VERIFY_EXIT=0`) and then reading
   `PAGE_SIZE`, `FRAME_WIDTH` and `RULE_COLUMNS` out of the running container. **Wait on a
   marker the detached script writes, never on a process pattern.**
+
+## Session 44 — 2026-09-22, Maapdand: the digest, the country of origin, the count, the camera (Claude Code, Opus 5)
+
+Seven jobs. Six PRs, all merged and deployed; #189 was not on the list and is the one worth
+reading first.
+
+### What landed
+
+- **#184 `eeec815` — the photograph's digest is chained at ingestion.** No `PRODUCT_IMAGE`
+  entry had ever been written: `create_genesis_entry` in `pipeline/repository.py` and
+  `export_entry` in `evidence/service.py` were the only writers and both passed `AUDIT_LOG`.
+  The image path now stages a `PRODUCT_IMAGE` genesis in the transaction that inserts the
+  scan — before OCR, before detection, before a verdict exists — carrying the SHA-256 of the
+  exact bytes received, their length, the storage key and the media type. The digest is the
+  recorded `sha256`, never the entry's `payload_hash`: the payload hash covers the whole
+  capture record and matches no file. Two consequences carried rather than worked around —
+  the verdict entry appends where a capture exists and is still genesis on the catalogue
+  path, and `record_from` finds the verdict by payload instead of at `entries[0]`, so chains
+  written before this still resolve.
+- **#185 `fb9d548` — Rule 6(1)(aa) is owed only by a package marked as imported.** It sat in
+  `FACT_CONDITIONED_RULES` on the reading that nothing establishes whether a package was
+  imported. Rule 6(1)(a) requires the importer's name and address on every imported package,
+  so an importer declaration *is* the marker the rules put on one. Nothing marking it →
+  `NOT_APPLICABLE`; something marking it → the duty is live and an absent declaration is a
+  `FAIL`. A borne or contested declaration is settled first, so a declared country of origin
+  still reaches `PASS`; and the marker is asked before the unreadable check, because whether
+  a duty arises does not depend on how well the panel photographed.
+- **#186 `5771803` — count declarations, not findings.** "INSUFFICIENT EVIDENCE DETECTED
+  (58 DECLARATIONS)" on a package with nine. It counted findings, and a finding is one rule
+  applied to one declaration. It now reads "9 of 9 declarations not fully read, across 58
+  rules" and names them. The count sat under "Recommendation: POTENTIAL VIOLATION", so the
+  sheet now says what produced the recommendation — "from 1 finding against a legible
+  declaration", Rule 6(1)(e) — and states that unreadable evidence did not.
+- **#187 `c20c552` — the vendor self-check has no file picker.** `capture="environment"` is a
+  hint a desktop ignores and a phone can bypass. `ui/CameraFrame` opens `getUserMedia`
+  directly, with no fallback to a file input when the camera fails. The officer surface keeps
+  its upload; `ScanSubmission.tsx` is untouched.
+- **#188 `5b09089` — the system is Maapdand.** मापदंड, the Hindi for a yardstick. README
+  heading, `<title>`, PWA manifest, and the wordmark on all five surfaces. PCCS keeps every
+  technical use and the README says which is which in one line.
+- **#189 `4f2f5a0` — panel spans are read from the entry that carries them.** See below.
+
+### Found by measuring
+
+- **Issuing a report emptied a scan's panel spans, for everyone.** `panel_spans_for` read the
+  highest-sequence evidence entry and took its `spans`. That is the evaluation entry only
+  until something is appended after it, and issuing a report appends the export's digest. So
+  the first time an officer filed a PDF, every later `GET /scans/{id}` returned
+  `panel_spans: []` — and the consumer result page builds its ingredient list and its barcode
+  line out of them. Measured live before the fix: `930c556a` with three exports had **0**
+  spans, `af909e32` with none had **75**. Pre-existing and not caused by #184 — before it the
+  verdict was genesis and an export still landed after it — but it surfaced because #184 sent
+  me looking at chains. Same mistake as reading the verdict at `entries[0]`, same fix.
+- **`evaluated_at` is stamped when evaluation is *scheduled*, not when it finishes.**
+  `router.py:422` passes `datetime.now(UTC)` into the background task at acceptance, so
+  `evaluated_at - created_at` has a median of **0.02 s** across 28 scans and measures nothing.
+  Any future "server-side processing time" has to come from a timestamp that does not exist
+  yet. The client-observed number is the honest one.
+- **The tunnel, not the OCR, is what varies.** Processing time is tight and tracks image size
+  (82 KB → 17.7 s, 119 KB → 25.2 s, 2.7–3.1 MB → 48–51 s, spreads of 1–9 s). Upload time over
+  the Cloudflare quick tunnel ranged from **0.33 s to 141.23 s for the same 2.7 MB file**.
+  Two of thirty submissions failed outright, both in the TLS/DNS layer against the tunnel,
+  neither reaching the server.
+
+### My own errors, by name
+
+- Wrote the first job-2 falsification as a line deletion that left `if conditioned is None:`
+  with an empty body — a collection error, not a targeted red. Replaced with a defect that
+  compiles.
+- Added an assertion comparing `rule_id` to a literal; `test_sector_gate_guard.py` refused it,
+  as it is designed to. Used `sector_gate.findings_for_rule` instead of exempting it.
+- Drafted a `FIELD_STATE_FROM_VERDICT` guard for #186 before noticing
+  `test_findings.py::test_insufficient_evidence_is_never_mapped_from_an_evaluator` already
+  asserts exactly that. Deleted mine rather than shipping a second copy.
+- Framed the first whole-findings crop at a 390×844 viewport, where no finding carrying a
+  380-character reason fits between the sticky header and the fixed determination sheet. The
+  script reported no crop rather than producing a cut one; re-framed at 390×2400, which keeps
+  the phone type size and only changes how much of the page is on screen.
+- Ran the first vendor-camera check without a vendor password. It reported "0 file inputs",
+  which was true of the login page and proved nothing about the camera.
+
+### Verification
+
+- **Falsified, defect by defect, no `-x`, `__pycache__` purged by absolute path and asserted
+  zero before every run.** #184: five defects, five aimed-at tests red. #185: five defects,
+  five red. #186: three defects, three red, including a control so the exhaustive test cannot
+  pass against a `POTENTIAL_VIOLATION` that is never returned. #189: one defect, red.
+- **Postgres-marked suites actually ran.** A throwaway `pgvector/pgvector:pg16` container on
+  5439 — never the local deploy stack, whose database a test run would downgrade to base.
+  Final: **1338 passed, 2 errors**, both `test_minio_storage.py` `CreateBucket` /
+  `InvalidAccessKeyId` with no MinIO on this machine and no storage file in any diff.
+  `ruff` clean, `ruff format --check` clean, `lint-imports` exit `0` read directly.
+- **Deployed and proved from outside.** Backend at `5771803` then `4f2f5a0`; frontend
+  `--no-cache` at `5b09089`, and the served page's `<title>` read back over HTTP as
+  *Maapdand — packaged commodity compliance for Legal Metrology*.
+- **The digest, on a fresh scan.** `930c556a`: chain `[(0, PRODUCT_IMAGE), (1, AUDIT_LOG)]`,
+  `is_valid: true`, and page 1 of its report prints
+  `afdcc9a463227cbaa94361548add800d64ca27d210295a172e80b81f24cdac35` — the same value as
+  `sha256sum` of the file on disk.
+- **Rule 6(1)(aa), on that same scan:** `NOT_APPLICABLE`, reason naming the clause condition.
+  States moved 47/10 → 46/11 insufficient/not-applicable: exactly one finding.
+- **The camera, in a browser.** Playwright with Chromium's fake media device against the
+  deployed tunnel, signed in as a throwaway vendor: live video 1920×1080, `paused: false`,
+  `srcObject` set, shutter enabled, **0 file inputs**; after the shutter, a preview, "Take it
+  again", "Check this package", still 0 file inputs, no page errors.
+
+### Raised, not fixed
+
+- **The rules that merely *govern* a declaration still fire on one that is not required.** On
+  `930c556a`, `COUNTRY_OF_ORIGIN` reads `2 NOT_APPLICABLE, 5 INSUFFICIENT_EVIDENCE`: Rule
+  6(1)(aa) correctly does not arise, and Rule 7(2), 7(3), 8(1), 8(1) proviso and 9(1) then
+  report that they could not measure a declaration the package need not bear. A height rule
+  for a declaration that need not exist is not a reading failure. Needs the declaration
+  rule's outcome to reach the rules governing that field.
+- **The report prints an unrounded float.** `0.4784049017122597 mm` in the Measured column of
+  the checklist, on a document meant for filing.
+- **No officer "this package is imported" confirmation.** An imported package bearing neither
+  an importer declaration nor a country of origin is marked by nothing and lands on
+  NOT_APPLICABLE; the finding says so in its own reason, but a confirmation on the pattern of
+  `institutional_or_industrial_confirmed` would close it.
+- **The officer `CameraCapture.tsx` still has its own `getUserMedia` block**, so the camera
+  mechanics exist twice. Consolidating it onto `ui/CameraFrame` is a follow-up.
+- A throwaway vendor `camera-check` (`a5cd78ed`) exists on the demo database from the camera
+  verification. There is no delete endpoint for a vendor.
