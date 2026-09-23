@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LOGIN_PATH, clearToken } from '../../services/auth'
 import { Logo } from '../../ui/Logo'
 import { spring } from '../../ui/motion'
 import { ThemeToggle } from '../../ui/ThemeToggle'
@@ -39,6 +40,7 @@ const NAV: ReadonlyArray<{ to: string; label: string; short: string; icon: strin
  */
 export function OfficerHeader(_props: OfficerHeaderProps) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
 
   return (
     <>
@@ -80,12 +82,22 @@ export function OfficerHeader(_props: OfficerHeaderProps) {
             <Link to="/officer/capture" className="btn btn-quiet hidden px-4 sm:inline-flex">
               Camera
             </Link>
-            <Link to="/officer/new" className="btn btn-primary px-4">
+            <Link to="/officer/new" aria-label="New scan" className="btn btn-primary px-3 sm:px-4">
               <svg viewBox="0 0 16 16" aria-hidden="true" className="h-3.5 w-3.5" fill="none">
                 <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              New scan
+              <span className="hidden sm:inline">New scan</span>
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                clearToken()
+                navigate(LOGIN_PATH, { replace: true })
+              }}
+              className="btn btn-ghost px-3 text-label text-mute"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </header>

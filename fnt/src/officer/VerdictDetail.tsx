@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiClient } from '../services/apiClient'
 import { serverMessage, thrownMessage } from '../services/errors'
 import type { components } from '../services/generated/schema'
+import { EvidenceReport } from './components/EvidenceReport'
 import { FieldStateChip } from './components/FieldStateChip'
 import { Notice } from '../ui/Notice'
 import { rise, spring, stagger } from '../ui/motion'
@@ -651,6 +652,8 @@ export function VerdictDetail() {
                 ))}
               </motion.ul>
             )}
+
+            <EvidenceReport scanId={scan.id} finalised={Boolean(scan.finalised || reviewResult?.finalised)} />
           </div>
         </div>
       </main>
