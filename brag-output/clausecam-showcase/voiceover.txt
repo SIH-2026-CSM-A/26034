@@ -1,0 +1,16 @@
+Same rule. Different answer.
+Every packed product sold in India must print certain facts on its label: who made it, how much is inside, and the price.
+One inspector can't check a whole shelf by hand.
+And every label is tested against dozens of legal rules.
+So ClauseCam starts with the question most tools skip.
+Which rules apply to this pack at all?
+Until an officer confirms what the product is, it won't guess.
+Confirmed as food, the same rule steps aside.
+For food, that duty sits under a different law, and ClauseCam names it.
+This is a real scan, on the live app.
+It measures the print on the pack against the exact clause.
+When the measurement is too close to call, it says so, instead of guessing.
+An officer makes the decision.
+Then the report goes out, with a digital fingerprint written into the scan's evidence trail.
+ClauseCam.
+The right rules. The exact clause. And a person who decides.

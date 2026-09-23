@@ -1,81 +1,103 @@
 # ClauseCam showcase film
 
-`../clausecam-showcase.mp4`: 91.9 s, 1280×800, H.264, no sound. It's a pitch cut, built
-2026-09-23 against the deployed build.
+`../clausecam-showcase.mp4`: 88.5 s, 1280×800, H.264 + AAC stereo. Built 2026-09-23 with the
+brag pipeline (a Hyperframes composition, Kokoro voice, a music bed and sound design) against
+the deployed build.
 
-**What's real.** Every shot is a screen recording of the deployed app, and nothing is redrawn.
-The one frame that isn't footage is the three-second hook: type on the ink ground, with no UI.
-Each line states only what its shot shows. The one edit inside a take, the 57 s OCR wait, is
-tagged on screen.
+**What's real, and what isn't:**
+- Every screen is a recording of the deployed app. Nothing in the UI is redrawn.
+- On top of the footage there's only type and graphics: titles, chips, a spotlight, and
+  highlight boxes and underlines drawn at the exact source-pixel positions of the UI they
+  point to.
+- The hook and the question are type on the ink ground.
+- The one edit inside a take, the OCR wait, is tagged on screen ("57 s of OCR cut").
+- The voice is synthetic, and the end card says so.
 
-**Style.** Hard cuts between shots, a slow push toward a focus point in every shot, and short
-lines that slide in with each cut. The only fades are at the open and the close.
+## Voiceover script
 
-| Start | Beat | Line | Footage |
-|---:|---|---|---|
-| 0.0 | Hook | Same rule. Different answer. | type only |
-| 3.0 | Problem | One officer. One inspection queue. | capture: the queue |
-| 8.0 | Problem | Every row, a pack to check. | capture: the queue, scrolling |
-| 13.0 | Problem | Dozens of clauses on every label. | walkthrough: the findings ledger |
-| 18.0 | Turn | First question: which rules apply? | capture: Rule 6(1)(a), category unconfirmed |
-| 22.0 | Turn | Category unknown. It won't guess. | capture: the same row's reason |
-| 26.0 | Turn | An officer confirms: food. | capture: category classification |
-| 32.5 | Turn | Same rule. Now: not applicable. | capture: Rule 6(1)(a) on the food scan |
-| 37.0 | Turn | It cites the law that governs. | capture: its FSS Act reason |
-| 41.0 | Proof | A real pack. The live app. | walkthrough: the MDH carton marked |
-| 46.0 | Proof | Rule 7(2), Table-I. Measured: 2.61 mm. | walkthrough: measurements (tagged "57 s of OCR cut") |
-| 51.5 | Proof | Too close to call. It says so. | walkthrough: the Table-I REVIEW reason |
-| 58.5 | Proof | An officer decides. Not the machine. | walkthrough: the determination, REVIEW RECORDED |
-| 64.0 | Proof | Report out. SHA-256 on the chain. | walkthrough: the evidence report |
-| 71.0 | Proof | See where violations cluster. | walkthrough: the ward map |
-| 76.0 | Proof | See which clauses break. | walkthrough: the clause breakdown |
-| 81.0 | Close | Applicability first. Clause cited. Officer decides. | walkthrough: the opening, holding on the wordmark |
+`voiceover.txt`, 161 words. Each line is its own clip, and the edit is cut to the voice.
 
-**Why this hook.** A line like "Same size. Different law." would describe the 8 g
-shampoo/pan masala contrast. The app can't show that until #200 encodes Rule 26(a) and
-G.S.R. 881(E). "Same rule. Different answer." is what the turn does show: Rule 6(1)(a) stays
-undecided while the category is unknown, then reads NOT APPLICABLE for food. Change `HOOK`
-once #200 ships.
+> Same rule. Different answer.
+> Every packed product sold in India must print certain facts on its label: who made it, how
+> much is inside, and the price. One inspector can't check a whole shelf by hand. And every
+> label is tested against dozens of legal rules.
+> So ClauseCam starts with the question most tools skip. Which rules apply to this pack at all?
+> Until an officer confirms what the product is, it won't guess. Confirmed as food, the same
+> rule steps aside. For food, that duty sits under a different law, and ClauseCam names it.
+> This is a real scan, on the live app. It measures the print on the pack against the exact
+> clause. When the measurement is too close to call, it says so, instead of guessing. An
+> officer makes the decision. Then the report goes out, with a digital fingerprint written
+> into the scan's evidence trail.
+> ClauseCam. The right rules. The exact clause. And a person who decides.
 
-The videos are not committed. `capture.webm` and the film stay local, and
-`demo/clausecam-walkthrough.webm` is gitignored.
+The hook stays "Same rule. Different answer." until #200 encodes Rule 26(a) and G.S.R. 881(E).
+The 8 g shampoo/pan masala contrast can't be shown before then.
+
+## Beats
+
+| Time | Beat | On screen |
+|---:|---|---|
+| 0.0 | Hook | "Same rule. Different answer." builds; an amber bar draws |
+| 4.0 | Problem | Queue; "Who made it", "How much is inside", "The price" pop in on the beat |
+| 12.3 | Problem | Queue scrolling: "One inspector. A whole shelf." |
+| 15.8 | Problem | "across 46 rules" boxed on a verdict page |
+| 20.2 | Turn | Type card: "Which rules apply?" |
+| 26.0 | Turn | Rule 6(1)(a) INSUFFICIENT EVIDENCE boxed; "category has not been confirmed" underlined |
+| 30.6 | Turn | FOOD · OFFICER CONFIRMED boxed |
+| 32.2 | Turn | The same row NOT APPLICABLE; "Food Safety and Standards Act, 2006" and "R6-1-A-EXPL-III-FOOD" underlined |
+| 38.4 | Proof | The MDH carton marked on the live app ("LIVE · deployed app") |
+| 42.2 | Proof | Rule 7(2), Table-I: 2.61 mm against 1.5 to 2.5 mm, boxed ("57 s of OCR cut") |
+| 47.2 | Proof | The too-close-to-call reason, spotlit |
+| 53.0 | Proof | Confirm, then REVIEW RECORDED · CONFIRM · Finalised, boxed |
+| 58.4 | Proof | The report's SHA-256 boxed, "SHA-256 · written to the evidence chain" |
+| 66.0 | Proof | Ward map, music up |
+| 70.5 | Proof | Clause breakdown |
+| 74.2 | Close | The opening; the wordmark lands on a strong beat (78.56 s) |
+| 80.9 | Close | "The right rules." "The exact clause." "A person who decides." Credits, fade |
+
+## Audio
+
+- **Voice:** Kokoro `af_heart` through `hyperframes tts`, one clip per line, loudness-normalised to −16 LUFS.
+- **Music:** "Happy Beats & Business Moves Vol. 12" by Sascha Ende (ende.app), **CC BY 4.0**.
+  It's royalty-free and needs attribution, which is on the end card. The bed is ducked under
+  the voice with a volume lane and comes up for the wordless map beat and the close.
+- **Sound effects:** Kenney, CC0, bundled with the brag plugin. There are eight: an impact on
+  the hook, drops on the chips, the SHA-256 and the question, a click on the submit, and a bell
+  on the wordmark.
+- The three chips and the wordmark are locked to strong beats of the bed. Everything else is
+  paced to the voice.
 
 ## Rebuilding
 
-**1. Fonts.** ffmpeg's `drawtext` reads TrueType, not woff2. Convert once, from the repository
-root. `fonttools` and `brotli` run in a throwaway environment, so no dependency is added to the
-project. Bricolage Grotesque ships as a variable font, so pin its weight to 700:
-
 ```sh
-mkdir -p ~/.cache/clausecam-fonts
-uv run --no-project --with fonttools --with brotli python -c "
-from pathlib import Path
-from fontTools.ttLib import TTFont
-from fontTools.varLib import instancer
-out = Path.home() / '.cache/clausecam-fonts'
-bold = instancer.instantiateVariableFont(
-    TTFont('fnt/public/fonts/BricolageGrotesque-Variable.woff2'), {'wght': 700})
-bold.flavor = None; bold.save(out / 'BricolageGrotesque-Bold.ttf')
-mono = TTFont('fnt/public/fonts/IBMPlexMono-Medium.woff2')
-mono.flavor = None; mono.save(out / 'IBMPlexMono-Medium.ttf')
-"
+# 1. A throwaway Python for Kokoro, outside the repo; no project dependency is added.
+TMPDIR=~/.cache/tmp-uv uv venv --python 3.11 ~/.cache/hf-tts
+TMPDIR=~/.cache/tmp-uv uv pip install --python ~/.cache/hf-tts/bin/python kokoro-onnx soundfile
+
+# 2. Assets: cut the shots from the footage, synthesise the voice, copy fonts, music and effects.
+HYPERFRAMES_PYTHON=~/.cache/hf-tts/bin/python \
+BRAG_ASSETS=<brag plugin>/skills/brag/assets \
+  bash brag-output/clausecam-showcase/prepare.sh
+
+# 3. The composition, generated from one table of shots, voice cues, titles and highlights.
+python3 brag-output/clausecam-showcase/compose.py
+
+# 4. Check, render, then bake the settled hook frame as frame 0 so thumbnails show it.
+cd brag-output/clausecam-showcase/composition
+npx hyperframes@0.8.50 check
+npx hyperframes@0.8.50 render --quality high --output ../../clausecam-showcase.mp4
 ```
 
-**2. Footage.**
-- `demo/clausecam-walkthrough.webm` comes from `demo/record-clausecam.cjs`; its index is
-  `demo/clausecam-walkthrough-index.md`.
-- `capture.webm` comes from `capture.cjs`, which signs in as `demo-officer` and only reads:
-  `NODE_PATH=$(npm root -g) node brag-output/clausecam-showcase/capture.cjs`. It writes
-  `cuts.json` with the video-relative time of each shot.
+For step 4's poster, follow the brag skill's delivery step: pull the frame at 3.2 s and
+overlay it on frame 0.
 
-The `start` times in `build.py`'s `SHOTS` were read from the 2026-09-23 recordings. A fresh
-recording moves them, so re-read `cuts.json` and the walkthrough index first. The `focus`
-points were chosen by looking at frames, so check them too.
+**Footage.**
+- `demo/clausecam-walkthrough.webm` comes from `demo/record-clausecam.cjs`.
+- `capture.webm` comes from `capture.cjs`, which signs in as `demo-officer` and only reads. It
+  writes `cuts.json` with the time of each shot.
 
-**3. Build.**
+`prepare.sh` holds the source offsets and `compose.py` holds the film times and highlight
+positions. All of them were read from the 2026-09-23 recordings, so a fresh recording means
+re-reading them.
 
-```sh
-python3 brag-output/clausecam-showcase/build.py ~/.cache/clausecam-fonts
-```
-
-This writes `brag-output/clausecam-showcase.mp4` and prints the beat list with start times.
+`composition/assets/`, the rendered film and `poster.jpg` are not committed.
