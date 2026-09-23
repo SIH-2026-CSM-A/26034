@@ -52,4 +52,10 @@ datasets/images/
 demo/*.webm
 demo/.raw/
 brag-output/composition/snapshots/
+# Films and their raw captures: the scripts are tracked, the video is not. brag.mp4 was
+# committed before this rule and stays tracked; this only stops new ones.
+brag-output/**/*.mp4
+brag-output/**/*.webm
+brag-output/**/*.mov
+brag-output/**/.raw/
 brag-output/composition/.hyperframes/
