@@ -63,6 +63,11 @@ class OfficerCredential(ContractModel):
     jurisdiction: Jurisdiction
     """The territory they may see, filled to the depth their tier requires."""
 
+    read_only: bool = False
+    """A published demonstration login. It may read and may start a scan, and nothing else
+    that writes — see :data:`app.core.auth.READ_ONLY_WRITES`. It cannot finalise a review or
+    move a complaint, so seeded threads survive every visitor who signs in with it."""
+
 
 class Settings(BaseSettings):
     """Deployment configuration, read from the environment."""
