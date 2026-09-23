@@ -1,39 +1,65 @@
 # ClauseCam showcase film
 
-`../clausecam-showcase.mp4`: 90.8 s, 1280×800, H.264, built 2026-09-23 against the deployed
-build at `dddd631`. Every frame is a screen recording of the deployed app. Nothing is redrawn,
-and each caption states only what its footage shows. The one edit inside a take, the OCR wait,
-is named in its caption.
+`../clausecam-showcase.mp4`: 91.9 s, 1280×800, H.264, no sound. It's a pitch cut, built
+2026-09-23 against the deployed build.
 
-| Time | Beat | Source |
-|---|---|---|
-| 0:00–0:12 | The problem: the review queue | `capture.webm` |
-| 0:12–0:35 | The idea: Rule 6(1)(a) left undecided until the category is confirmed, then NOT APPLICABLE for food under the FSS Act, 2006 | `capture.webm` |
-| 0:35–1:20 | The proof: a marked MDH scan, the Table-I finding and its clause, REVIEW at the band edge, the officer's CONFIRM, the report and its SHA-256 | `demo/clausecam-walkthrough.webm` |
-| 1:20–1:31 | The opening, holding on the ClauseCam wordmark | `demo/clausecam-walkthrough.webm` |
+**What's real.** Every shot is a screen recording of the deployed app, and nothing is redrawn.
+The one frame that isn't footage is the three-second hook: type on the ink ground, with no UI.
+Each line states only what its shot shows. The one edit inside a take, the 57 s OCR wait, is
+tagged on screen.
+
+**Style.** Hard cuts between shots, a slow push toward a focus point in every shot, and short
+lines that slide in with each cut. The only fades are at the open and the close.
+
+| Start | Beat | Line | Footage |
+|---:|---|---|---|
+| 0.0 | Hook | Same rule. Different answer. | type only |
+| 3.0 | Problem | One officer. One inspection queue. | capture: the queue |
+| 8.0 | Problem | Every row, a pack to check. | capture: the queue, scrolling |
+| 13.0 | Problem | Dozens of clauses on every label. | walkthrough: the findings ledger |
+| 18.0 | Turn | First question: which rules apply? | capture: Rule 6(1)(a), category unconfirmed |
+| 22.0 | Turn | Category unknown. It won't guess. | capture: the same row's reason |
+| 26.0 | Turn | An officer confirms: food. | capture: category classification |
+| 32.5 | Turn | Same rule. Now: not applicable. | capture: Rule 6(1)(a) on the food scan |
+| 37.0 | Turn | It cites the law that governs. | capture: its FSS Act reason |
+| 41.0 | Proof | A real pack. The live app. | walkthrough: the MDH carton marked |
+| 46.0 | Proof | Rule 7(2), Table-I. Measured: 2.61 mm. | walkthrough: measurements (tagged "57 s of OCR cut") |
+| 51.5 | Proof | Too close to call. It says so. | walkthrough: the Table-I REVIEW reason |
+| 58.5 | Proof | An officer decides. Not the machine. | walkthrough: the determination, REVIEW RECORDED |
+| 64.0 | Proof | Report out. SHA-256 on the chain. | walkthrough: the evidence report |
+| 71.0 | Proof | See where violations cluster. | walkthrough: the ward map |
+| 76.0 | Proof | See which clauses break. | walkthrough: the clause breakdown |
+| 81.0 | Close | Applicability first. Clause cited. Officer decides. | walkthrough: the opening, holding on the wordmark |
+
+**Why this hook.** A line like "Same size. Different law." would describe the 8 g
+shampoo/pan masala contrast. The app can't show that until #200 encodes Rule 26(a) and
+G.S.R. 881(E). "Same rule. Different answer." is what the turn does show: Rule 6(1)(a) stays
+undecided while the category is unknown, then reads NOT APPLICABLE for food. Change `HOOK`
+once #200 ships.
 
 The videos are not committed. `capture.webm` and the film stay local, and
 `demo/clausecam-walkthrough.webm` is gitignored.
 
 ## Rebuilding
 
-**1. Fonts.** The captions use IBM Plex Sans from `fnt/public/fonts`. ffmpeg's `drawtext` reads
-TrueType, not woff2, so convert the two weights once. `fonttools` and `brotli` run in a throwaway
-environment, so no dependency is added to the project:
+**1. Fonts.** ffmpeg's `drawtext` reads TrueType, not woff2. Convert once, from the repository
+root. `fonttools` and `brotli` run in a throwaway environment, so no dependency is added to the
+project. Bricolage Grotesque ships as a variable font, so pin its weight to 700:
 
 ```sh
 mkdir -p ~/.cache/clausecam-fonts
 uv run --no-project --with fonttools --with brotli python -c "
 from pathlib import Path
 from fontTools.ttLib import TTFont
+from fontTools.varLib import instancer
 out = Path.home() / '.cache/clausecam-fonts'
-for n in ('IBMPlexSans-SemiBold', 'IBMPlexSans-Medium'):
-    f = TTFont(f'fnt/public/fonts/{n}.woff2'); f.flavor = None; f.save(out / f'{n}.ttf')
+bold = instancer.instantiateVariableFont(
+    TTFont('fnt/public/fonts/BricolageGrotesque-Variable.woff2'), {'wght': 700})
+bold.flavor = None; bold.save(out / 'BricolageGrotesque-Bold.ttf')
+mono = TTFont('fnt/public/fonts/IBMPlexMono-Medium.woff2')
+mono.flavor = None; mono.save(out / 'IBMPlexMono-Medium.ttf')
 "
 ```
-
-Run it from the repository root. The output differs from an earlier conversion only in the
-`head` table's modification timestamp; the glyphs and metrics are identical.
 
 **2. Footage.**
 - `demo/clausecam-walkthrough.webm` comes from `demo/record-clausecam.cjs`; its index is
@@ -42,9 +68,9 @@ Run it from the repository root. The output differs from an earlier conversion o
   `NODE_PATH=$(npm root -g) node brag-output/clausecam-showcase/capture.cjs`. It writes
   `cuts.json` with the video-relative time of each shot.
 
-The segment times in `build.py` were read from the 2026-09-23 recordings: `cuts.json` for
-beats 1 and 2, and the walkthrough index for beat 3 and the ending. A fresh recording moves
-them, so update `SEGMENTS` from the new `cuts.json` and index before building.
+The `start` times in `build.py`'s `SHOTS` were read from the 2026-09-23 recordings. A fresh
+recording moves them, so re-read `cuts.json` and the walkthrough index first. The `focus`
+points were chosen by looking at frames, so check them too.
 
 **3. Build.**
 
@@ -52,4 +78,4 @@ them, so update `SEGMENTS` from the new `cuts.json` and index before building.
 python3 brag-output/clausecam-showcase/build.py ~/.cache/clausecam-fonts
 ```
 
-The output is written to `brag-output/clausecam-showcase.mp4`.
+This writes `brag-output/clausecam-showcase.mp4` and prints the beat list with start times.

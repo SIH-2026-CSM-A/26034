@@ -1,16 +1,21 @@
-"""Cut the ClauseCam showcase from real screen recordings of the deployed app.
+"""Cut the ClauseCam showcase pitch from real screen recordings of the deployed app.
 
-Every frame is footage: capture.webm (beats 1 and 2, recorded by capture.cjs as demo-officer,
-read-only) and demo/clausecam-walkthrough.webm (beat 3 and the closing wordmark). Captions
-state only what the footage on screen shows. The one edit inside a take, the OCR wait, is
-said in its caption.
+Every shot is footage: capture.webm (recorded by capture.cjs as demo-officer, read-only) and
+demo/clausecam-walkthrough.webm. Nothing is redrawn. The one frame that is not footage is the
+opening hook, which is type on the ink ground and shows no UI. Each line states only what its
+shot shows, and an edit inside a take (the OCR wait) is named on screen.
 
-    python3 build.py <fonts dir>    # IBMPlexSans-SemiBold.ttf, IBMPlexSans-Medium.ttf
+Shape: hook, then problem, then the turn (applicability decides), then proof, then the close
+on the wordmark. Hard cuts between shots, a slow push toward a focus point in each shot, and
+fades only at the open and the close.
+
+    python3 build.py <fonts dir>    # BricolageGrotesque-Bold.ttf, IBMPlexMono-Medium.ttf
 """
 
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -19,139 +24,213 @@ CAPTURE = HERE / "capture.webm"
 WALK = REPO / "demo" / "clausecam-walkthrough.webm"
 OUT = HERE.parent / "clausecam-showcase.mp4"
 FONTS = Path(sys.argv[1])
-BIG = FONTS / "IBMPlexSans-SemiBold.ttf"
-SMALL = FONTS / "IBMPlexSans-Medium.ttf"
+DISPLAY = FONTS / "BricolageGrotesque-Bold.ttf"
+MONO = FONTS / "IBMPlexMono-Medium.ttf"
 
-# (source, start s, duration s, headline, subline). A headline ending in "^" is set at the top of
-# the frame instead, where the footage has what it describes at the bottom.
-SEGMENTS = [
-    (
+W, H, FPS = 1280, 800, 30
+INK, PAPER = "0x0E1620", "0xF3F4F1"
+HOOK = ("Same rule.", "Different answer.")
+HOOK_SECONDS = 3.0
+OPEN_FADE, CLOSE_FADE = 0.4, 0.8
+
+
+@dataclass(frozen=True)
+class Shot:
+    beat: str
+    src: Path
+    start: float
+    dur: float
+    line: str
+    focus: tuple[float, float]  # where the push-in heads, as fractions of the frame
+    push: float = 0.07  # zoom gained over the shot
+    top: bool = (
+        False  # set the line at the top where the shot's subject is at the bottom
+    )
+    note: str | None = None  # an edit inside the take, named on screen
+    line_at: float = 0.06  # when the line enters
+    hold: float = 0.0  # seconds the last frame is held (the close)
+
+
+SHOTS = [
+    # Problem
+    Shot(
+        "problem", CAPTURE, 3.6, 5.0, "One officer. One inspection queue.", (0.3, 0.25)
+    ),
+    Shot("problem", CAPTURE, 9.0, 5.0, "Every row, a pack to check.", (0.5, 0.5)),
+    Shot("problem", WALK, 116.0, 5.0, "Dozens of clauses on every label.", (0.3, 0.5)),
+    # The turn: applicability decides
+    Shot("turn", CAPTURE, 18.6, 4.0, "First question: which rules apply?", (0.3, 0.45)),
+    Shot(
+        "turn",
         CAPTURE,
-        3.6,
-        12.0,
-        "A shelf of packed goods. One officer.",
-        "Every row is a recommendation pending officer confirmation.",
+        22.6,
+        4.0,
+        "Category unknown. It won't guess.",
+        (0.3, 0.52),
+        push=0.12,
     ),
-    (
+    Shot("turn", CAPTURE, 28.7, 6.5, "An officer confirms: food.", (0.2, 0.45)),
+    Shot("turn", CAPTURE, 36.7, 4.5, "Same rule. Now: not applicable.", (0.3, 0.47)),
+    Shot(
+        "turn",
         CAPTURE,
-        18.6,
-        8.0,
-        "Before it checks anything, ClauseCam works out which rules apply.",
-        "Category not yet confirmed: Rule 6(1)(a) is left undecided, and it says why.",
+        41.2,
+        4.0,
+        "It cites the law that governs.",
+        (0.3, 0.52),
+        push=0.12,
     ),
-    (CAPTURE, 28.7, 6.5, "An officer confirms the category: food.", None),
-    (
-        CAPTURE,
-        36.7,
-        8.5,
-        "Then it names the rule.",
-        "For food packs, Rule 6(1)(a) gives way to the FSS Act, 2006, per R6-1-A-EXPL-III-FOOD.",
-    ),
-    (
-        WALK,
-        30.0,
-        8.0,
-        "The proof: a real scan on the live app.",
-        "An MDH Kitchen King carton, a ten-rupee coin for scale, the display panel marked.",
-    ),
-    (
+    # Proof
+    Shot("proof", WALK, 31.0, 5.0, "A real pack. The live app.", (0.25, 0.35)),
+    Shot(
+        "proof",
         WALK,
         94.5,
-        8.5,
-        "Each finding cites its clause.",
-        "Real OCR took 57 s; the wait is cut. Rule 7(2), Table-I: 2.61 mm measured, 1.5 to 2.5 mm required.",
+        5.5,
+        "Rule 7(2), Table-I. Measured: 2.61 mm.",
+        (0.35, 0.2),
+        note="57 s of OCR cut",
     ),
-    (
+    Shot("proof", WALK, 166.5, 7.0, "Too close to call. It says so.", (0.3, 0.12)),
+    Shot(
+        "proof",
         WALK,
-        166.5,
-        10.0,
-        "Too close to call at its own precision, so it says REVIEW.",
-        "Both uncertainties are named. No verdict is claimed that the measurement cannot support.",
+        239.5,
+        5.5,
+        "An officer decides. Not the machine.",
+        (0.5, 0.6),
+        top=True,
     ),
-    (
+    Shot("proof", WALK, 253.5, 7.0, "Report out. SHA-256 on the chain.", (0.22, 0.62)),
+    Shot("proof", WALK, 276.0, 5.0, "See where violations cluster.", (0.2, 0.4)),
+    Shot("proof", WALK, 287.0, 5.0, "See which clauses break.", (0.82, 0.45)),
+    # Close: the opening, ending on the wordmark
+    Shot(
+        "close",
         WALK,
-        238.5,
-        8.5,
-        "The officer confirms.^",
-        "The determination is recorded and the scan is finalised.",
+        1.0,
+        7.0,
+        "Applicability first. Clause cited. Officer decides.",
+        (0.5, 0.45),
+        push=0.03,
+        top=True,
+        line_at=6.6,
+        hold=4.0,
     ),
-    (
-        WALK,
-        253.5,
-        10.0,
-        "The report goes out.",
-        "Its SHA-256 is appended to the scan's evidence chain as the export record.",
-    ),
-    (WALK, 1.0, 8.0, None, None),  # the opening, ending on the ClauseCam wordmark
 ]
-END_HOLD = 3.0
-FADE = 0.35
 
 
-def caption_filters(headline, subline, dur, tmp: Path, i: int) -> list[str]:
-    if not headline:
-        return []
-    filters = []
-    top = headline.endswith("^")
-    headline = headline.rstrip("^")
-    lines = [(headline, BIG, 34, "90" if top else ("h-150" if subline else "h-120"))]
-    if subline:
-        lines.append((subline, SMALL, 22, "144" if top else "h-96"))
-    for k, (text, font, size, y) in enumerate(lines):
-        tf = tmp / f"cap{i}_{k}.txt"
-        tf.write_text(text, encoding="utf-8")
-        filters.append(
-            f"drawtext=fontfile={font}:textfile={tf}:expansion=none:fontsize={size}"
-            f":fontcolor=0xF3F4F1:x=(w-text_w)/2:y={y}"
-            f":box=1:boxcolor=0x0E1620@0.88:boxborderw=14"
-            f":enable='between(t,0.25,{dur - 0.2})'"
+def text(tmp: Path, name: str, value: str) -> Path:
+    path = tmp / f"{name}.txt"
+    path.write_text(value, encoding="utf-8")
+    return path
+
+
+def kinetic(
+    textfile: Path, size: int, x: str, y: str, at: float, box: bool = True
+) -> str:
+    """A line that slides up 36 px and fades in over 0.2 s, entering at ``at``."""
+    rise = f"36*max(0\\,1-(t-{at})/0.2)"
+    return (
+        f"drawtext=fontfile={DISPLAY}:textfile={textfile}:expansion=none:fontsize={size}"
+        f":fontcolor={PAPER}:x={x}:y={y}+{rise}"
+        + (f":box=1:boxcolor={INK}@0.94:boxborderw=20" if box else "")
+        + f":alpha='min(1\\,max(0\\,(t-{at})/0.16))':enable='gte(t\\,{at})'"
+    )
+
+
+def encode(args: list[str], out: Path) -> None:
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-y",
+            *args,
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            str(FPS),
+            str(out),
+        ],
+        check=True,
+    )
+
+
+def hook(tmp: Path) -> Path:
+    first, second = (text(tmp, f"hook{i}", s) for i, s in enumerate(HOOK))
+    vf = ",".join(
+        [
+            kinetic(first, 88, "(w-text_w)/2", "h/2-110", 0.15, box=False),
+            kinetic(second, 88, "(w-text_w)/2", "h/2+10", 1.0, box=False),
+            f"fade=t=in:st=0:d={OPEN_FADE}",
+        ]
+    )
+    out = tmp / "part00.mp4"
+    encode(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c={INK}:s={W}x{H}:r={FPS}:d={HOOK_SECONDS}",
+            "-vf",
+            vf,
+        ],
+        out,
+    )
+    return out
+
+
+def shot_part(tmp: Path, i: int, s: Shot, last: bool) -> Path:
+    frames = round((s.dur + s.hold) * FPS)
+    fx, fy = s.focus
+    vf = [f"fps={FPS}"]
+    if s.hold:
+        vf.append(f"tpad=stop_mode=clone:stop_duration={s.hold}")
+    # Work at twice the size so the push-in moves in half-pixel steps rather than jumping.
+    vf += [
+        f"scale={W * 2}:{H * 2}:flags=lanczos",
+        (
+            f"zoompan=z='1+{s.push}*on/{frames}'"
+            f":x='max(0\\,min(iw-iw/zoom\\,{fx}*iw-iw/zoom/2))'"
+            f":y='max(0\\,min(ih-ih/zoom\\,{fy}*ih-ih/zoom/2))'"
+            f":d=1:s={W}x{H}:fps={FPS}"
+        ),
+        "setsar=1",
+    ]
+    y = "64" if s.top else "h-150"
+    vf.append(kinetic(text(tmp, f"line{i}", s.line), 50, "64", y, s.line_at))
+    if s.note:
+        vf.append(
+            f"drawtext=fontfile={MONO}:textfile={text(tmp, f'note{i}', s.note)}:expansion=none"
+            f":fontsize=20:fontcolor={INK}:box=1:boxcolor={PAPER}@0.94:boxborderw=10"
+            f":x=w-text_w-40:y=96:enable='gte(t\\,{s.line_at})'"
         )
-    return filters
+    if last:
+        total = s.dur + s.hold
+        vf.append(f"fade=t=out:st={total - CLOSE_FADE}:d={CLOSE_FADE}")
+    out = tmp / f"part{i + 1:02d}.mp4"
+    encode(
+        ["-ss", str(s.start), "-t", str(s.dur), "-i", str(s.src), "-vf", ",".join(vf)],
+        out,
+    )
+    return out
 
 
 def main() -> None:
     with tempfile.TemporaryDirectory(dir=HERE) as tmpname:
         tmp = Path(tmpname)
-        parts = []
-        for i, (src, start, dur, headline, subline) in enumerate(SEGMENTS):
-            last = i == len(SEGMENTS) - 1
-            vf = ["fps=30", "scale=1280:800", "setsar=1"]
-            vf += caption_filters(headline, subline, dur, tmp, i)
-            if last:
-                vf.append(f"tpad=stop_mode=clone:stop_duration={END_HOLD}")
-            total = dur + (END_HOLD if last else 0)
-            vf.append(f"fade=t=in:st=0:d={FADE}")
-            if not last:  # the film ends on the wordmark, not on black
-                vf.append(f"fade=t=out:st={total - FADE}:d={FADE}")
-            part = tmp / f"part{i:02d}.mp4"
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-ss",
-                    str(start),
-                    "-t",
-                    str(dur),
-                    "-i",
-                    str(src),
-                    "-vf",
-                    ",".join(vf),
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "medium",
-                    "-crf",
-                    "18",
-                    "-pix_fmt",
-                    "yuv420p",
-                    str(part),
-                ],
-                check=True,
-            )
-            parts.append(part)
+        parts = [hook(tmp)]
+        parts += [
+            shot_part(tmp, i, s, i == len(SHOTS) - 1) for i, s in enumerate(SHOTS)
+        ]
         listing = tmp / "parts.txt"
         listing.write_text("".join(f"file '{p}'\n" for p in parts))
         subprocess.run(
@@ -174,7 +253,12 @@ def main() -> None:
             ],
             check=True,
         )
-    print(OUT)
+    t = HOOK_SECONDS
+    print(f"{0:6.1f}  hook      {' '.join(HOOK)}")
+    for s in SHOTS:
+        print(f"{t:6.1f}  {s.beat:<8}  {s.line}")
+        t += s.dur + s.hold
+    print(f"{t:6.1f}  end\n{OUT}")
 
 
 if __name__ == "__main__":
