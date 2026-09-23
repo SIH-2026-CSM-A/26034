@@ -6,7 +6,10 @@ import { setToken } from '../services/auth'
 import { serverMessage } from '../services/errors'
 import { Logo } from '../ui/Logo'
 import { rise, stagger } from '../ui/motion'
+import { DemoAccess, type DemoAccount } from '../ui/DemoAccess'
 import { Notice } from '../ui/Notice'
+
+const DEMO_ACCOUNTS: DemoAccount[] = [{ role: 'Officer (District Inspector, demo district)', username: 'demo-officer', password: 'clausecam-demo' }]
 
 export function Login() {
   const navigate = useNavigate()
@@ -15,8 +18,12 @@ export function Login() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    void signIn(username, password)
+  }
+
+  async function signIn(username: string, password: string) {
     setSubmitting(true)
     setError(null)
     try {
@@ -107,6 +114,18 @@ export function Login() {
                 {submitting ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
+          </motion.div>
+
+          <motion.div variants={rise}>
+            <DemoAccess
+              accounts={DEMO_ACCOUNTS}
+              disabled={submitting}
+              onSignIn={(account) => {
+                setUsername(account.username)
+                setPassword(account.password)
+                void signIn(account.username, account.password)
+              }}
+            />
           </motion.div>
 
           <motion.p variants={rise} className="mt-6 text-center text-secondary text-mute">

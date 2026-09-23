@@ -25,6 +25,7 @@ listing it is given.
 
 import asyncio
 import json
+import os
 import random
 import sys
 import urllib.parse
@@ -35,7 +36,8 @@ from uuid import uuid4
 from sqlalchemy import insert, select
 
 API = "http://localhost:8000"
-OFFICER = "demo-seeder"
+# SEED_OFFICER seeds another officer's jurisdiction, e.g. the public demo-officer's.
+OFFICER = os.environ.get("SEED_OFFICER", "demo-seeder")
 random.seed(26034)
 
 MAKERS = [
