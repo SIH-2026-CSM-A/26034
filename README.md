@@ -19,8 +19,15 @@ A Cloudflare tunnel to the demo VM, which runs the same `docker-compose.prod.yml
 described below. The URL changes whenever the tunnel is restarted.
 
 - `/consumer` is public. Upload a photograph of any packaged food label; no sign-in.
-- `/login` is the officer surface, `/vendor/login` the vendor surface. Credentials are not
-  in this repository — ask for them.
+- `/login` is the officer surface, `/vendor/login` the vendor surface. Both pages carry a
+  "Demo access" panel with one-click sign-in. The demo accounts are public on purpose and
+  sit in their own jurisdiction (Telangana / Demo Region / Demo District), so they see only
+  seeded demonstration data:
+
+  | Surface | Username | Password |
+  |---|---|---|
+  | Officer, `/login` | `demo-officer` | `clausecam-demo` |
+  | Vendor, `/vendor/login` | `demo-vendor` | `clausecam-demo` |
 
 Two full screen recordings of the system being driven end to end, one phone and one
 desktop, with per-step timestamps and the scan ids each pass created: **[demo/README.md](demo/README.md)**.
