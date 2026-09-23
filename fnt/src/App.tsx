@@ -1,7 +1,8 @@
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { Login } from './auth/Login'
 import { RequireAuth } from './auth/RequireAuth'
+import { Landing } from './landing/Landing'
 
 // Each surface is its own chunk, fetched when its route is first entered. The officer
 // tree carries the dashboard's map and charts and the camera; a consumer or a vendor
@@ -48,7 +49,8 @@ export function App() {
         <Route path="/consumer/*" element={<ConsumerRoutes />} />
         {/* A vendor's own token, held apart from an officer's; gated inside the tree. */}
         <Route path="/vendor/*" element={<VendorRoutes />} />
-        <Route path="/" element={<Navigate to="/officer" replace />} />
+        {/* Public. The opening and the ways in; plays only here, never on a deep link. */}
+        <Route path="/" element={<Landing />} />
       </Routes>
     </Suspense>
   )
