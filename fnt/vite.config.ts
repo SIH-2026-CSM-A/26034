@@ -42,6 +42,8 @@ export default defineConfig({
       // faces out of the precache — the one thing they exist to survive.
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Reloads the visible tab when an update takes over; see public/sw-reload.js.
+        importScripts: ['sw-reload.js'],
       },
       manifest: {
         name: 'ClauseCam — packaged commodity compliance for Legal Metrology',
