@@ -20,7 +20,7 @@ from typing import Annotated
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import Field
 
@@ -41,6 +41,16 @@ VENDOR_REQUIRED_CLAIMS = ("sub", "kind", "vid", "exp", "iat")
 """Claims a *vendor* token must carry. Disjoint from :data:`REQUIRED_CLAIMS` on purpose:
 an officer token has no ``kind`` and no ``vid``, a vendor token has no ``tier`` and no
 ``jur``, so neither decoder can accept the other's token however it is presented."""
+
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+READ_ONLY_WRITES = frozenset(
+    {"/scans", "/scans/image", "/scans/artwork", "/scans/{scan_id}/evidence/report"}
+)
+"""Route templates a ``read_only`` officer may still write to: starting a scan, and
+generating the report for one. Each adds a record and changes none. An allowlist, not a
+denylist, so a write endpoint added later is refused to a public login until someone
+decides otherwise."""
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 vendor_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="vendors/auth/token")
@@ -207,13 +217,30 @@ def principal_from_token(token: str) -> Principal:
         raise _unauthorised("token claims do not describe a usable principal") from exc
 
 
-async def get_current_principal(token: Annotated[str, Depends(oauth2_scheme)]) -> Principal:
+async def get_current_principal(
+    token: Annotated[str, Depends(oauth2_scheme)], request: Request
+) -> Principal:
     """FastAPI dependency: the authenticated officer, or a 401.
 
     Put this on every protected endpoint. What it returns is the only description of the
-    caller's authority an endpoint may act on.
+    caller's authority an endpoint may act on. A ``read_only`` officer is refused a 403 on
+    any write outside :data:`READ_ONLY_WRITES`. The flag is read from configuration on each
+    request, not from the token, so marking an officer read-only takes effect on tokens
+    already issued.
     """
-    return principal_from_token(token)
+    principal = principal_from_token(token)
+    if request.method not in SAFE_METHODS and _is_read_only(principal.subject):
+        route = request.scope.get("route")
+        if getattr(route, "path", None) not in READ_ONLY_WRITES:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="this is a read-only demonstration account",
+            )
+    return principal
+
+
+def _is_read_only(username: str) -> bool:
+    return any(o.username == username and o.read_only for o in get_settings().officers)
 
 
 def require_tier(minimum: RoleTier) -> Callable[[Principal], Principal]:

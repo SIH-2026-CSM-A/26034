@@ -12,11 +12,13 @@ Every test in this file runs once per designation profile (see ``conftest.py``).
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Annotated
 
 import jwt
 import pytest
-from fastapi import HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.contracts import EvidenceProvider
@@ -33,6 +35,9 @@ from app.core.auth import (
 from app.core.config import get_settings
 from app.core.rbac import Jurisdiction, Principal, RoleTier
 from tests.core.conftest import CONTROLLER, INSPECTOR, JWT_SECRET, visible_ids
+
+GET = Request({"type": "http", "method": "GET", "headers": []})
+"""A read, for calling the dependency directly. The read-only guard never fires on one."""
 
 OFFICER_PASSWORD = "correct horse battery staple"
 OFFICER_PASSWORD_HASH = hash_password(OFFICER_PASSWORD)
@@ -95,7 +100,7 @@ def test_a_minted_token_round_trips_to_an_equal_principal() -> None:
 
 
 async def test_the_dependency_returns_the_principal_the_token_names() -> None:
-    assert await get_current_principal(create_access_token(CONTROLLER)) == CONTROLLER
+    assert await get_current_principal(create_access_token(CONTROLLER), GET) == CONTROLLER
 
 
 # --- what a bad token gets -----------------------------------------------------------
@@ -160,7 +165,7 @@ def test_an_unknown_tier_is_rejected() -> None:
 
 async def test_a_garbage_bearer_value_is_rejected() -> None:
     with pytest.raises(HTTPException):
-        await get_current_principal("not-a-token")
+        await get_current_principal("not-a-token", GET)
 
 
 # --- the endpoint never takes the client's word ---------------------------------------
@@ -170,7 +175,7 @@ async def protected_listing(session: Session, token: str, request_body: dict) ->
     """Shaped like a protected endpoint: authority from the dependency, filters from the
     body. The body's jurisdiction fields are not a parameter of the scoping call and
     cannot become one."""
-    principal = await get_current_principal(token)
+    principal = await get_current_principal(token, GET)
     assert request_body  # the endpoint reads the body for its own filters, not for scope
     return visible_ids(session, principal)
 
@@ -309,3 +314,45 @@ def test_an_officer_credential_stores_a_hash_and_not_a_password(
     assert stored.jurisdiction == Jurisdiction(
         state="Maharashtra", region="Pune", district="Satara"
     )
+
+
+# --- a read-only demonstration login -----------------------------------------------------
+
+
+@pytest.mark.parametrize("read_only", [True, False])
+def test_a_read_only_officer_may_scan_but_not_finalise_or_transition(
+    monkeypatch: pytest.MonkeyPatch, read_only: bool
+) -> None:
+    """Routed through a real app at the real templates, because the guard keys on the
+    matched route. The ``read_only=False`` case proves the 403s come from the flag."""
+    monkeypatch.setenv(
+        "OFFICERS",
+        json.dumps(
+            [
+                {
+                    "username": INSPECTOR.subject,
+                    "password_hash": OFFICER_PASSWORD_HASH,
+                    "tier": INSPECTOR.tier.value,
+                    "jurisdiction": INSPECTOR.jurisdiction.model_dump(),
+                    "read_only": read_only,
+                }
+            ]
+        ),
+    )
+    get_settings.cache_clear()
+
+    def endpoint(principal: Annotated[Principal, Depends(get_current_principal)]) -> str:
+        return principal.subject
+
+    app = FastAPI()
+    for path in ("/scans", "/scans/{scan_id}/review", "/complaints/{complaint_id}/transitions"):
+        app.post(path)(endpoint)
+    app.get("/scans/{scan_id}")(endpoint)
+    client = TestClient(app)
+    auth = {"Authorization": f"Bearer {create_access_token(INSPECTOR)}"}
+    refused = 403 if read_only else 200
+
+    assert client.get("/scans/x", headers=auth).status_code == 200
+    assert client.post("/scans", headers=auth).status_code == 200
+    assert client.post("/scans/x/review", headers=auth).status_code == refused
+    assert client.post("/complaints/x/transitions", headers=auth).status_code == refused
