@@ -5337,3 +5337,118 @@ The totals card moved with it: **Scans loaded 50 → 133**, POTENTIAL VIOLATION 
   That was invisible while both were effectively 50. Either the breakdown says its own window
   on its own card, or it moves with the map.
 - Sessions 44 and 45's items are unchanged.
+
+## Session 47 — 2026-09-23, demo access, a read-only public officer, the opening, the report button, and two films (Claude Code, Opus 5.5)
+
+Seven PRs and one issue, all in one conversation. All seven merged with `--squash --admin` after
+the three required checks passed. Required review can't be satisfied because the author is the
+only CODEOWNER, and `--admin` is the standard path.
+
+| PR | Merge | What |
+|---|---|---|
+| #195 | `c573339` | "Demo access" panel on `/login` and `/vendor/login`: role, username and password in plain text, plus one-click "Sign in as this user". README credentials table. `seed_demo.py` reads `SEED_OFFICER` |
+| #196 | `073f010` | `OfficerCredential.read_only`. `get_current_principal` refuses a read-only officer a 403 on any write outside `READ_ONLY_WRITES` (scan creation and the evidence report) |
+| #197 | `e253e2e` | The public root: a 2.9 s opening in SVG and framer-motion, then the four ways in. `/` no longer redirects to `/officer` |
+| #198 | `dddd631` | Evidence report button on the verdict page, showing the report's SHA-256; officer Sign out in the header |
+| #199 | `5da407f` | `demo/record-clausecam.cjs` and `demo/clausecam-walkthrough-index.md` |
+| #201 | `b590abd` | `brag-output/clausecam-showcase/` capture and build scripts, and a README |
+
+Issue **#200**, opened and not started: encode the Rule 26(a) small-package exemption and the
+G.S.R. 881(E) pan masala restriction, with three 8 g regression cases.
+
+### The public demo accounts
+
+| Surface | Username | Password | Jurisdiction |
+|---|---|---|---|
+| Officer | `demo-officer` | `clausecam-demo` | district, Telangana / Demo Region / Demo District, **`read_only`** |
+| Vendor | `demo-vendor` | `clausecam-demo` | registered by `demo-officer` in the same district |
+
+**Why a separate district.** Scans are scoped by jurisdiction, not by officer. `demo-seeder`'s
+rows share Telangana / Hyderabad / Hyderabad with inspector1's, so a Hyderabad demo officer
+would have seen real scans. The demo district was seeded by running `seed_demo.py` as
+`demo-officer`, which gave it 30 scans. The seeder's anonymous-review step was skipped so the
+public barcode counts didn't double.
+
+**Deployment state that isn't in the repo** (VM `~/26034/.env`):
+- `demo-officer` was added to `OFFICERS`, with every `$` in the hash doubled. The pre-change
+  file is `.env.bak-demo-access`.
+- `~/set-demo-readonly.sh true|false` rewrites the flag and recreates the backend.
+
+**What `read_only` allows and refuses**, proved over the tunnel:
+- **Allowed:** reads, starting a scan (`/scans`, `/scans/image`, `/scans/artwork`), and
+  `/scans/{scan_id}/evidence/report`.
+- **Refused with 403:** reviews, category confirmation, raising or moving a complaint, and
+  vendor registration. Any write route added later is refused too, since it isn't on the
+  allowlist.
+- The guard lives in `core`, not in `modules/complaints`, which belongs to Shiva Kumar.
+- The flag is read from configuration on each request, so tokens already issued are covered.
+- The test drives a real FastAPI app and was falsified one line at a time with bytecode
+  purged: the review assertion and the transitions assertion each went red on their own.
+
+**The seeded fingerprint.** For demo-officer's scans created before 03:30 UTC:
+- scans: 30, `366e68bd77ef8898f96c11580ed77a4a`
+- reviews: 6, `48afb88ae5651a7a28230a28d1040fc7`
+- complaints: 9, `35721cf1bdba13a476792c2ae71ed539`
+
+It was identical before and after every recording pass. The query is `/tmp/snap.sql` on the VM.
+It covers scans, reviews and complaints, not evidence entries.
+
+### Recordings
+
+**Walkthrough.** `demo/clausecam-walkthrough.webm`, 455.7 s, 1280×800. It's attempt 5, recorded
+09:02:35–09:10:12 UTC. All 18 steps passed with no page errors, and the wall clock matches the
+video. The index, including the scans it wrote, is `demo/clausecam-walkthrough-index.md`.
+
+**Showcase.** `brag-output/clausecam-showcase.mp4`, 90.8 s, real screens only.
+- Beat 2 is the food carve-out: Rule 6(1)(a) is left undecided while the category is
+  unconfirmed, then reads NOT APPLICABLE for food under the FSS Act. The 8 g
+  shampoo/pan masala contrast was not staged, because the app can't show it (#200).
+
+Both finals are copied, byte-identical, to `C:\Users\drona\Downloads\ClauseCam-walkthrough.webm`
+and `ClauseCam-showcase.mp4`. Neither video is committed.
+
+**How each pass was protected.** `demo-officer` must be writable for the determination, so each
+pass ran under these guards:
+- a Windows keep-awake, `SetThreadExecutionState` via `powershell.exe -EncodedCommand`
+- a fingerprint before and after
+- a root `systemd-run --on-active=20min ~/set-demo-readonly.sh true` timer armed **before**
+  the lift; it fired unattended twice, at 07:51 and 08:13
+- a restore by hand at the end, followed by a 403 check over the tunnel
+
+**Why it took five attempts:**
+1. The host suspended mid-pass. The clock jumped from 04:10 to 06:58 UTC, and `demo-officer`
+   was writable for about 2 h 50 min. This was before the timer safeguard existed. Afterwards
+   the seeded fingerprint was unchanged.
+2. My recorder was wrong in two places: it used `#vendor-photo`, which no longer exists
+   because the vendor surface is camera-only, and its applicability selector looked for text
+   that is actually an `aria-label`.
+3. The user's connection dropped during the consumer upload.
+4. Clean, except the vendor frame was refused as too blurred. I had upscaled the 500×500
+   corpus photograph to 1280 for the fake camera. **Abhi identified the cause.**
+5. The same photo at native 500×500 reached REVIEW. This is the shipped pass.
+
+### Errors of mine, by name
+
+- **#195 shipped without its one-click button being clicked in a browser.** I verified only
+  that the strings were in the bundle. It works; that was confirmed live during the #198 check.
+- **A `pkill -f` killed its own shell** during #197, which the memory already warned about.
+  Nothing was lost.
+- **The first keep-awake held nothing.** Bash-to-PowerShell quoting broke `Add-Type`, and I
+  only caught it by reading the output. The fix was `-EncodedCommand`.
+- **The first local build for the #198 check called `localhost:8000`.** `VITE_API_BASE_URL=/api`
+  is set in the Dockerfile, not in the local build.
+- **One write on seeded data.** Checking #198's report button needed a finalised scan, and
+  every finalised scan in the demo district is seeded. That appended one `report_export` entry
+  to seeded scan `83b80c18`: sequence 1, 07:21:12 UTC, `report_sha256` `62d17ab3…40499`. It
+  is additive and open to any visitor. It's recorded in the walkthrough index and in #199.
+
+### Measured, not a baseline
+
+Full pytest on the #196 branch: **1208 passed / 144 skipped / 2 errors**. The two errors are in
+`tests/modules/evidence/test_minio_storage.py`: the local MinIO rejects the fixture's access key
+(`InvalidAccessKeyId`), which is environmental. That was a branch, not a clean `origin/main`.
+Measure again before quoting a delta.
+
+### Raised, not fixed
+
+See the Session 47 section of `TODO.md`.
