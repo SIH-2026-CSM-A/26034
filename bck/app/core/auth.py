@@ -52,6 +52,13 @@ generating the report for one. Each adds a record and changes none. An allowlist
 denylist, so a write endpoint added later is refused to a public login until someone
 decides otherwise."""
 
+PUBLISHED_OFFICERS = frozenset({"demo-officer"})
+"""Officer usernames whose passwords are published: on the Demo access panel at ``/login``
+(``fnt/src/auth/Login.tsx``) and in the README. Each is read-only whatever ``OFFICERS`` says,
+so no deployment configuration, including one rebuilt from ``.env.example``, can publish a
+writable login. A test binds this set to the panel. A recording that needs officer writes
+uses an officer that is not published."""
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 vendor_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="vendors/auth/token")
 
@@ -240,6 +247,8 @@ async def get_current_principal(
 
 
 def _is_read_only(username: str) -> bool:
+    if username in PUBLISHED_OFFICERS:
+        return True
     return any(o.username == username and o.read_only for o in get_settings().officers)
 
 

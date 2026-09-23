@@ -10,8 +10,10 @@ Every test in this file runs once per designation profile (see ``conftest.py``).
 """
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated
 
 import jwt
@@ -23,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.contracts import EvidenceProvider
 from app.core.auth import (
+    PUBLISHED_OFFICERS,
     authenticate_officer,
     create_access_token,
     get_current_principal,
@@ -356,3 +359,50 @@ def test_a_read_only_officer_may_scan_but_not_finalise_or_transition(
     assert client.post("/scans", headers=auth).status_code == 200
     assert client.post("/scans/x/review", headers=auth).status_code == refused
     assert client.post("/complaints/x/transitions", headers=auth).status_code == refused
+
+
+def test_a_published_officer_is_read_only_even_when_configured_writable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The deployment's OFFICERS entry says ``read_only: false``, as one rebuilt by hand or
+    from ``.env.example`` might. The published login is still refused a finalising write."""
+    published = Principal(
+        subject=sorted(PUBLISHED_OFFICERS)[0],
+        tier=INSPECTOR.tier,
+        jurisdiction=INSPECTOR.jurisdiction,
+    )
+    monkeypatch.setenv(
+        "OFFICERS",
+        json.dumps(
+            [
+                {
+                    "username": published.subject,
+                    "password_hash": OFFICER_PASSWORD_HASH,
+                    "tier": published.tier.value,
+                    "jurisdiction": published.jurisdiction.model_dump(),
+                    "read_only": False,
+                }
+            ]
+        ),
+    )
+    get_settings.cache_clear()
+
+    def endpoint(principal: Annotated[Principal, Depends(get_current_principal)]) -> str:
+        return principal.subject
+
+    app = FastAPI()
+    app.post("/scans/{scan_id}/review")(endpoint)
+    auth = {"Authorization": f"Bearer {create_access_token(published)}"}
+
+    assert TestClient(app).post("/scans/x/review", headers=auth).status_code == 403
+
+
+def test_every_officer_on_the_demo_access_panel_is_published() -> None:
+    """The panel prints these passwords on a public page. An officer added to it without
+    being added to PUBLISHED_OFFICERS would be a writable public login."""
+    login = Path(__file__).resolve().parents[3] / "fnt" / "src" / "auth" / "Login.tsx"
+    panel = re.search(r"DEMO_ACCOUNTS: DemoAccount\[\] = \[(.*?)\]\n", login.read_text(), re.S)
+    assert panel, f"no DEMO_ACCOUNTS in {login}"
+    usernames = set(re.findall(r"username: '([^']+)'", panel.group(1)))
+    assert usernames, "DEMO_ACCOUNTS names no username"
+    assert usernames <= PUBLISHED_OFFICERS
