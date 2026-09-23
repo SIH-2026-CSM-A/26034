@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LOGIN_PATH, clearToken } from '../../services/auth'
 import { Logo } from '../../ui/Logo'
 import { spring } from '../../ui/motion'
 import { ThemeToggle } from '../../ui/ThemeToggle'
@@ -39,6 +40,7 @@ const NAV: ReadonlyArray<{ to: string; label: string; short: string; icon: strin
  */
 export function OfficerHeader(_props: OfficerHeaderProps) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
 
   return (
     <>
@@ -86,6 +88,16 @@ export function OfficerHeader(_props: OfficerHeaderProps) {
               </svg>
               New scan
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                clearToken()
+                navigate(LOGIN_PATH, { replace: true })
+              }}
+              className="btn btn-ghost px-3 text-label text-mute"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </header>
