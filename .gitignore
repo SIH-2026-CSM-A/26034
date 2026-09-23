@@ -58,4 +58,7 @@ brag-output/**/*.mp4
 brag-output/**/*.webm
 brag-output/**/*.mov
 brag-output/**/.raw/
+# The showcase composition regenerates its assets with prepare.sh: clips, voice, fonts, music.
+brag-output/clausecam-showcase/composition/assets/
+brag-output/clausecam-showcase/poster.jpg
 brag-output/composition/.hyperframes/
