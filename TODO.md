@@ -7,6 +7,66 @@ them, read the file.
 
 ---
 
+## After Session 47 (2026-09-23, demo access, read-only officer, opening, report button, films) — read this first
+
+#195 to #199 and #201 are merged and deployed. The public can now sign in:
+
+| Surface | Username | Password |
+|---|---|---|
+| Officer | `demo-officer` | `clausecam-demo` |
+| Vendor | `demo-vendor` | `clausecam-demo` |
+
+Both sit in their own district (Telangana / Demo Region / Demo District) over 30 seeded scans.
+`demo-officer` is `read_only`: it can read, scan and generate a report, and gets a 403 on
+everything else. The walkthrough (455.7 s) and the showcase (90.8 s) are recorded and copied to
+Windows Downloads. The session log has the procedure, the fingerprint and the five attempts.
+
+1. **#200: encode Rule 26(a) and G.S.R. 881(E).** The deck's headline example is one 8 g pack,
+   exempt as shampoo and bound as pan masala. The app can't show it: Rule 26 isn't in
+   `rules.yaml`, and `rules-corpus/README.md` lists G.S.R. 881(E) as "Not yet encoded".
+   **Why it matters:** until it lands, the showcase uses the food carve-out instead, and any
+   deck slide claiming the 8 g contrast describes something the demo can't do. Read the
+   commencement date and any transition from the gazette PDF for the Jan and Mar 2026 cases.
+
+2. **The demo district fills up.** Each recording pass adds an officer scan with a finalised
+   review and a report record, plus a vendor scan. A public visitor can add scans too, since
+   scanning is allowed. The queue went from 30 to 36 or more today. **Why it matters:** the
+   seeded story a judge sees drifts with every pass and visitor. Nothing seeded is changed,
+   and the fingerprint proves it, but the queue and the totals move. Decide whether that is
+   acceptable, or whether passes should run as a separate, non-public officer.
+
+3. **`demo-officer`'s `read_only` flag lives only in the VM's `.env`.** It is not in the repo.
+   A redeploy from `.env.example`, or a hand edit of `OFFICERS`, would publish a writable
+   login. **Why it matters:** the credentials are on a public page and in the README. After
+   any change to `OFFICERS`, check the flag with a review POST over the tunnel (expect 403).
+   To flip it, use `~/set-demo-readonly.sh true|false` on the VM. Before any lift, arm a
+   `systemd-run --on-active=20min` restore, as the session log describes.
+
+4. **The verdict page has no Sign out.** It draws its own chrome instead of `OfficerHeader`,
+   so #198's Sign out appears on the queue, dashboard, vendors, complaints and new-scan pages
+   only. **Why it matters:** an officer on a shared laptop who finishes on a verdict has to go
+   back to the queue to sign out.
+
+5. **The fixed determination footer covers the Evidence report section while the sheet is
+   open.** The recorder collapses the sheet first. **Why it matters:** a real officer who has
+   just confirmed sees "Generate evidence report" behind the dark sheet and may not find it.
+
+6. **The landing page's "Create account" card goes to `/officer/vendors`.** There's no
+   self-signup; an officer registering a vendor is the only account creation. **Why it
+   matters:** the card sends a visitor to an officer sign-in. Keep it with that wording, or
+   remove it; don't point it at a page that doesn't exist.
+
+7. **`brag-output/` isn't gitignored, and it already tracks `brag.mp4` and `brag.jpg`.**
+   `clausecam-showcase.mp4` and `clausecam-showcase/capture.webm` are untracked, and nothing
+   stops a `git add brag-output` from committing them. **Why it matters:** the repo is public,
+   and a stray 6 MB or 4 MB binary stays in history for good.
+
+8. **The vendor surface is camera-only**, so headless recording goes through Chromium's fake
+   capture device. Use the corpus photograph at its native 500×500; upscaled, the quality
+   gate refuses it.
+
+Session 46's items (the two dashboard windows, `SCAN_WINDOW` not paging) are unchanged.
+
 ## After Session 46 (2026-09-22, the dashboard scan window) — read this first
 
 #193 is merged and deployed. The ward map now loads `limit=200` and states that window in
