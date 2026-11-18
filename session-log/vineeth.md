@@ -1,5 +1,20 @@
 # Session log — Vineeth
 
+### 2026-11-18 — implemented officer confirmation screen (FNT-005) — Antigravity
+
+**Done**
+- Implemented officer confirmation workflow and category override handling in `fnt/src/officer/VerdictDetail.tsx`
+- Verified build and typechecking clean with `tsc -b && vite build`
+- Verified lint clean with `oxlint` (0 errors, 0 warnings)
+- Pushed branch `feature/FNT-005-officer-confirmation` to remote
+
+**Decided**
+- Kept UI types tightly integrated with generated schema components (`Verdict`, `ReviewAction`, `ReviewResponse`, `ProductCategory`)
+- Rejected untyped manual form states in favor of schema-backed category validation
+
+**Incomplete**
+- None
+
 ### 2026-09-07 — migrated scan list to generated API client — Antigravity
 
 **Done**
